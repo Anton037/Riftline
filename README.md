@@ -14,6 +14,7 @@
 - **19 persistent workshop modules**, milestones through wave 200, threat levels, medals
 - **Endless** mode with mutators, a **daily run** with a fixed seed and a **weekly run** that pins two mutators for the whole ISO week
 - A dynamic wave director that mixes 12+ encounter modes instead of a fixed spawn table
+- Boss training for every arena, with opening, mid-fight and enraged patterns; a fixed kit and no saved-run or record changes
 
 ## Controls
 
@@ -30,11 +31,11 @@ controller gameplay are not supported. Menus keep native browser accessibility a
 ## Development
 
 ```
-npm install          # node 22 or newer
+npm install          # node 22.13+ or 24+
 npm run build        # bundle src/ into dist/ (esbuild), substitute version + build id
 npm run dev          # rebuild on every change
 npm run serve        # serve dist/ for a quick look
-npm test             # ten unit contracts + phone/tablet flows + worker update check
+npm test             # focused unit contracts + touch/onboarding/training flows + worker update check
 npm run audit:visual # all six biomes + bosses, tablet and landscape phone, metrics and images
 npm run e2e          # the bounded touch and worker browser checks
 npm run test:render  # same flows with real pixel drawing
@@ -80,12 +81,19 @@ Their entire process tree is cleaned up after success, failure or cancellation.
 
 ### Test groups
 
-`npm test` builds once and runs ten Node contracts and three browser checks. `npm run check` adds
+`npm test` builds once and runs fourteen Node contracts and five browser checks. `npm run check` adds
 formatting and lint. The tablet touch flow covers settings, movement, dash, pause, upgrades, offline
 save reload, continue and death. The phone flow covers simultaneous sticks and dash, cancellation,
-pause and resume. A small real-worker fixture checks failed installs and same-version updates.
+pause and resume. A fresh profile exercises onboarding and real WebAudio background/resume, and
+practice checks preserve real progress and a saved run. A small real-worker fixture checks failed installs and same-version updates.
 Default game flows skip GPU draw calls; `npm run test:render` draws real pixels.
 See [docs/TESTING.md](docs/TESTING.md) for deadlines, specialist commands and limits.
+
+Continue restarts a fighting checkpoint at the beginning of its wave. A checkpoint at the card
+choice keeps its offer and the RNG for subsequent rerolls and banishes.
+
+The ESLint dependency overrides select patched minimatch 11.0.1 while ESLint and config-array
+still request 10.x. Remove these overrides once their supported ranges include the fixed release.
 
 Audio catalog renders and six-biome screenshots are manual tools under `tools/verification/`.
 `npm run verify:audio -- --full` ignores the passing cache and renders fresh samples.

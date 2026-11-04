@@ -358,6 +358,8 @@ function cleanRun(raw) {
     if (offer.length) {
       run.offer = offer;
       run.offerBoss = !!raw.offerBoss;
+      if (Number.isInteger(raw.offerRng) && raw.offerRng >= 0 && raw.offerRng <= 0xffffffff)
+        run.offerRng = raw.offerRng;
     }
   }
   // 3.58.0: a Weekly Rift carries its week and the mutators it pins. A normal or Daily run carries neither, and
@@ -641,20 +643,25 @@ const safeStorage = {
     save(reason) {
       // 3.31.1: an import or a reset replaces the whole save on purpose; another tab's save that came in meanwhile
       // (a storage event while the dialog was open) used to take its place here
-      if (reason === "import" || reason === "reset") this.foreign = false;
+      const replacing = reason === "import" || reason === "reset";
+      if (replacing) this.foreign = false;
       else this.syncForeign();
       if (reason === "reset") this.kept = null;
       // a run of this build replaces the run of a newer build for good
       if (this.kept && this.data.run !== null) this.kept.run = null;
       this.data.savedAt = Date.now();
       let text = this.text();
-      if (!this.held) safeStorage.set(SAVE_KEY, text);
+      // Explicitly confirmed replacements may recover a held save. Autosaves never overwrite it.
+      const written = (!this.held || replacing) && safeStorage.set(SAVE_KEY, text);
+      if (written && replacing) this.held = false;
+      if (replacing && !written) return false;
       for (let listener of this.listeners)
         try {
           listener(text, reason);
         } catch (err) {
           logError("save-listener", err);
         }
+      return !!written;
     }
     parse(text) {
       let data,
@@ -669,11 +676,20 @@ const safeStorage = {
         ? { ok: false }
         : { ok: true, data: cleanSave(data), kept: keptOf(data) };
     }
+    restore(parsed, reason = "import") {
+      if (!parsed?.ok) return false;
+      const previous = { data: this.data, kept: this.kept };
+      this.data = parsed.data;
+      this.kept = parsed.kept || null;
+      if (this.save(reason)) return true;
+      this.data = previous.data;
+      this.kept = previous.kept;
+      return false;
+    }
     reset() {
-      let settings = this.data.settings;
-      this.data = newSave();
-      this.data.settings = settings;
-      this.save("reset");
+      const data = newSave();
+      data.settings = this.data.settings;
+      return this.restore({ ok: true, data }, "reset");
     }
     /* 3.48.0: the stock settings come back (audio, video, controls and the HUD layout); the progress,
        the run and the seen flags are not touched. The next load sanitizes the object as usual. */

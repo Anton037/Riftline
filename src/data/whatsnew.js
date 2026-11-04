@@ -4,6 +4,19 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "3.62.0",
+    title: "Practice the danger, keep your progress",
+    items: [
+      "Practise all six bosses with a fixed kit and opening, mid-fight or enraged patterns, while your saved run and records stay untouched.",
+      "Updates wait for open dialogs; importing or resetting progress reports storage failures and can recover a held save.",
+      "Saved card choices preserve the next reroll and banish, and Continue explains its wave checkpoint.",
+      "Warnings gain a steady outline and hostile shots a dark footprint; quieter marsh and Core seams leave more room for danger.",
+      "Sniper, beam and trap cues keep their voice in busy fights and briefly lower music and ambience.",
+      "The Codex counts current discoveries; remembered retired bosses and Overdrives live in an archive.",
+      "DASH, NOVA and Singularity accept touch only, and Dust Devils use the same armour rules as other map hazards.",
+    ],
+  },
+  {
     version: "3.61.0",
     title: "Six places, one visual standard",
     items: [
@@ -22,7 +35,7 @@ export const WHATS_NEW = [
     title: "An arrival that says what is coming",
     items: [
       "Enemies now land with a shape that matches their weight: the light ones arrive in a quick streak, the heavy ones under a slow wide ring and a puff of dust.",
-      "Before, all 25 types arrived the same way \u2014 same ring, same burst, same size \u2014 so the first thing you saw of a Brute looked like the first thing you saw of a Swarmer.",
+      "Before, all 25 types arrived the same way — same ring, same burst, same size — so the first thing you saw of a Brute looked like the first thing you saw of a Swarmer.",
       "The colour was already each type's own (and gold for an elite); it is unchanged. No damage, speed or spawn-time change.",
     ],
   },
@@ -46,18 +59,8 @@ export const WHATS_NEW = [
       "The first boss brings a smaller escort, so learning the Warden's three attacks no longer costs most of a hull.",
       "Cryo Skates gives +9% speed a level everywhere (was +4%), with the ice bonus on top, so it is not a worse Servo Thrusters outside the Aurora Shelf.",
       "The Repair Beacon appears in the Glowmarsh: it was in no wave before wave 26, so its Codex entry and its tip reached nobody.",
-      'Every threat level says exactly what it does \u2014 hull, damage, wave size, elites, bosses and shards \u2014 instead of "only for tuned builds".',
+      'Every threat level says exactly what it does — hull, damage, wave size, elites, bosses and shards — instead of "only for tuned builds".',
       "The Glasswyrm gets a medal par of its own (68 s) instead of an unnamed 70 s default, and a self-test now checks every place's boss against the per-boss tables.",
-    ],
-  },
-  {
-    version: "3.57.0",
-    title: "A calmer camera and a shorter options screen",
-    items: [
-      "The screen shake calmed: in Endless a burst of hits can no longer keep the camera ringing, and the worst single shove is about half of what it was.",
-      "Five options nobody used are gone — camera distance, warning contrast, the screen-shake switch, the run timer and the FPS counter — so the settings screen is shorter.",
-      "Ask your device for less motion and the camera goes still: the screen shake and the weapon recoil stop, while the flashes, damage numbers, sounds and telegraphs all stay.",
-      "Every biome keeps exactly one boss again: the Glass Flats no longer falls back to a boss that belongs to another place.",
     ],
   },
 ];

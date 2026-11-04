@@ -237,6 +237,11 @@ ${LAYERS}void main() {
     lay(vec3(0.02, 0.01, 0.0), 0.4 * smoothstep(1.0, 0.4, r));
     lay(mix(vec3(1.0, 0.25, 0.03), vec3(1.0, 0.7, 0.2), n) * 1.4, flame * (0.5 + 0.5 * k));
   }
+  // A steady dark keyline and pale inner rim survive both snow/glass and saturated biome floors.
+  float keyline = smoothstep(0.88, 0.92, r) * (1.0 - smoothstep(0.98, 1.0, r));
+  lay(vec3(0.012, 0.008, 0.018), keyline * 0.9);
+  float rim = smoothstep(0.025, 0.008, abs(r - 0.91));
+  lay(mix(uWarn, vec3(1.0, 0.93, 0.88), 0.65), rim * 0.95);
   gl_FragColor = vec4(acc.rgb / max(acc.a, 0.0001), acc.a * soft);
   #include <fog_fragment>
   #include <colorspace_fragment>
@@ -652,7 +657,7 @@ class AttackView {
       const idx = pool.y(x, 0.045, z, 0, rr);
       if (idx >= 0) pool.col(idx, k, seed, look / 8);
       const ring = r.ringPool.y(x, 0.05, z, 0, rr);
-      r.ringPool.colC(ring, warn, 0.55 + Math.sin(time * 25) * 0.25 * k);
+      r.ringPool.colC(ring, warn, 0.7 + 0.2 * k);
       const fill = r.ringPool.y(x, 0.048, z, 0, Math.max(0.05, rr * k));
       r.ringPool.colC(fill, warn, 0.3);
       this.zoneDetail(hazard, look, k, seed, dt, time, biome);
@@ -1049,6 +1054,9 @@ class AttackView {
       const kind = shot.kind,
         color = shot.frost ? FROST_SHOT : SHOT[kind] || SHOT.orb,
         angle = Math.atan2(shot.vy, shot.vx);
+      // A dark footprint separates hostile shots from bright or similarly coloured terrain.
+      // Reuse the existing shadow pool; no extra material, draw call, or particle emitter.
+      r.shadows.y(shot.x, 0.035, shot.y, 0, Math.max(0.5, shot.r * 4.5));
       switch (kind) {
         case "fast":
         case "turret": {

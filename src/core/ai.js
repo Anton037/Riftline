@@ -600,7 +600,7 @@ function updateBoss(game, boss, dt) {
     dy = player.y - boss.y,
     dist = Math.hypot(dx, dy) || 0.001,
     aim = Math.atan2(dy, dx),
-    hpFrac = boss.hp / boss.maxHp,
+    hpFrac = Math.min(boss.hp / boss.maxHp, game.training?.hpFraction ?? 1),
     shotDmg = boss.dmg * 0.7;
   if (!boss.enraged && hpFrac < (boss.type === "queen" ? 0.4 : 0.5)) {
     boss.enraged = true;
@@ -770,7 +770,7 @@ function updateBoss(game, boss, dt) {
       }
       if (boss.st === "spiral") {
         let count = 3 + rage * 2;
-        for (boss.t2 += dt; boss.t2 > 0.1; ) {
+        for (boss.t2 += dt; boss.t2 > 0.1;) {
           boss.t2 -= 0.1;
           boss.ta = (boss.ta || 0) + 0.24;
           for (let k = 0; k < count; k++)
@@ -1005,7 +1005,7 @@ function updateBoss(game, boss, dt) {
         let shots = 4 + (phase - 1) * 1;
         boss.t2 += dt;
         let interval = phase === 3 ? 0.08 : 0.11;
-        for (; boss.t2 > interval; ) {
+        for (; boss.t2 > interval;) {
           boss.t2 -= interval;
           boss.ta = (boss.ta || 0) + (phase === 2 ? -0.2 : 0.2);
           for (let k = 0; k < shots; k++)
@@ -1387,7 +1387,7 @@ function updateOverdrive(game, boss, dt, aim, dist, shotDmg) {
         game.emit("hatch", { x: boss.x, y: boss.y, big: true });
       }
       if (boss.t > 1.2)
-        for (boss.t2 += dt; boss.t2 > 0.1; ) {
+        for (boss.t2 += dt; boss.t2 > 0.1;) {
           boss.t2 -= 0.1;
           boss.ta = (boss.ta || 0) + 0.27;
           for (let k = 0; k < 5; k++) game.shoot(boss.x, boss.y, boss.ta + (k / 5) * TAU, 6.4, shotDmg, { r: 0.26 });
@@ -1518,7 +1518,7 @@ function updateOverdrive(game, boss, dt, aim, dist, shotDmg) {
         game.emit("hatch", { x: boss.x, y: boss.y, big: true });
       }
       if (boss.t > 1.1)
-        for (boss.t2 += dt; boss.t2 > 0.11; ) {
+        for (boss.t2 += dt; boss.t2 > 0.11;) {
           boss.t2 -= 0.11;
           boss.ta = (boss.ta || 0) + 0.26;
           for (let k = 0; k < 6; k++) game.shoot(boss.x, boss.y, boss.ta + (k / 6) * TAU, 6.6, shotDmg, { r: 0.26 });

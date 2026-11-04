@@ -76,7 +76,7 @@ function rollUpgradeOffer(rng, owned, wave, hpFrac, count, boss, exclude = [], w
     picks.push(evos[Math.floor(rng.next() * evos.length)].id);
   }
   let left = pool.slice();
-  for (; picks.length < count && left.length; ) {
+  for (; picks.length < count && left.length;) {
     let total = 0;
     for (let upgrade of left) total += weightOf(upgrade);
     let roll = rng.next() * total,
@@ -179,7 +179,7 @@ function planWave(rng, wave, tm, boss, plan = {}) {
       spawns = [],
       eliteChance = plan.elite != null ? plan.elite : wave >= 6 ? 0.035 + 0.006 * wave + tm.elite : 0,
       tries = 0;
-    for (; budget >= 1 && tries++ < 500; ) {
+    for (; budget >= 1 && tries++ < 500;) {
       let fits = types.filter((type) => enemyDefs[type].cost <= budget && (counts[type] || 0) < (caps[type] ?? 999));
       if (!fits.length) break;
       let type = weightedPick(
@@ -204,11 +204,11 @@ function planWave(rng, wave, tm, boss, plan = {}) {
       groupSize = clamp(4 + Math.floor(wave / 2.5), 4, 12),
       gap = boss ? 7 : Math.max(1.6, 3.2 - wave * 0.06),
       next = 0;
-    for (; next < order.length; ) {
+    for (; next < order.length;) {
       let size = groupSize + rng.int(-1, 1),
         members = [],
         weight = 0;
-      for (; next < order.length && weight < size; ) {
+      for (; next < order.length && weight < size;) {
         let spawn = order[next++];
         members.push(spawn);
         weight += spawn.type === "swarmer" ? 0.5 : 1;

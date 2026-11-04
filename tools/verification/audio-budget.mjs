@@ -40,3 +40,24 @@ for (const biome of ["yard", "vault", "marsh", "void", "club", "flats"]) {
   for (const row of result) assert.ok(row.same && !row.failed && row.notes > 0, `${biome}: ${JSON.stringify(row)}`);
   console.log(`${biome}: scheduling counts and every note match the real-node reference (calm, boss, flood).`);
 }
+
+const warnings = await withAudioPage(url, () => {
+  const E = window.__riftTest.game.sound.constructor;
+  return ["lock", "beam", "tcPlate"].map((id) => {
+    const ctx = new OfflineAudioContext(1, 44100, 44100),
+      engine = new E();
+    engine.attach(ctx, { room: false });
+    for (let i = 0; i < 80; i++) engine.tone(440, 1, "sine", 0.01);
+    const saturated = engine.dropped > 0;
+    engine.play(id);
+    return {
+      id,
+      saturated,
+      protected: engine.voices.some((voice) => voice.pri === 2),
+      ducked: engine.duckDepth === 0.15,
+      failed: !!engine.failed,
+    };
+  });
+});
+for (const row of warnings) assert.ok(row.saturated && row.protected && row.ducked && !row.failed, JSON.stringify(row));
+console.log("Sniper, beam and trap warnings survive saturated effects and duck the background mix.");

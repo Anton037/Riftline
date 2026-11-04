@@ -8,7 +8,7 @@ README.md explains build, commands, project structure and hosting; `docs/DEVELOP
 rules and release steps. Read them first. In short:
 
 - The game code is split into ES modules under `src/` (`main.js`, `core/`, `data/`, `render/`,
-  `audio/`, `ui/`; see README). three.js comes from npm (`three`, pinned to 0.186.0) and
+  `audio/`, `ui/`; see README). three.js comes from npm (`three`, pinned to 0.187.0) and
   `build.js` bundles everything from `src/main.js`. Top-level names are readable (`World`,
   `game`, `ui`, `store` …); new ones follow the same style. Since 2.5.1 nothing is patched from
   outside any more: change classes and functions directly, in the module that owns them. A
@@ -30,8 +30,8 @@ rules and release steps. Read them first. In short:
   first entry must match the version, `tests/core.test.mjs` checks it and that the list stays at `NEWS_KEEP`).
   `src/build-info.json` is the identity the game fetches at start-up; since 3.57.0 the build writes only the version
   and the build id of it to `dist/`, so there is no changelog to keep there any more.
-- `docs/TESTING.md` is the current test policy. `npm test` runs ten unit contracts and three bounded
-  browser checks (tablet touch, phone multitouch and worker updates). Default flows omit GPU draw calls; `npm run test:render` enables pixels.
+- `docs/TESTING.md` is the current test policy. `npm test` runs fourteen unit contracts and five bounded
+  browser checks (tablet touch, phone multitouch, onboarding/audio, training and worker updates). Default flows omit GPU draw calls; `npm run test:render` enables pixels.
 - Run `npm run check` before a commit. Audio and six-biome visual verification are optional tools;
   `npm run release-check` aliases the same short gate. Removed historical suites have no CLI aliases.
 - All changes go through pull requests: work on a branch, open a PR against `main`, and let the

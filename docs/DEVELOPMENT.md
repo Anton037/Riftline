@@ -9,7 +9,7 @@ Riftline was released as one minified bundle (game code and three.js, built with
 patched by hand for several releases. The module sources the bundle was built from are not part of
 the release, so the code was turned back into readable sources step by step:
 
-- 2.4.3: three.js comes from npm (`three`, pinned to 0.186.0 / r186). Each module imports the
+- 2.4.3: three.js comes from npm (`three`, pinned to 0.187.0 / r187). Each module imports the
   classes it needs by their three.js names (`import { BoxGeometry, Mesh } from "three"`). Updating
   three.js means changing the version in `package.json`, running `npm install` and the full release
   checks.

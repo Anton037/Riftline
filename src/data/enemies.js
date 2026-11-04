@@ -355,11 +355,11 @@ const bossDefs = {
 // 2.4.6: every biome has its own boss (the boss of a wave is the boss of its biome, see
 // World.bossFor). The Crucible is new; Prism became the Frost Prism of the Aurora Shelf. 3.49.0: the
 // Crucible sits out (the Ember Works retired) but stays defined and tested - it takes a new post
-// with a coming biome, and the Codex keeps listing every defined boss.
+// with a coming biome; remembered discoveries remain in the Codex archive.
 // 3.53.0: the Crucible served the Glass Flats for a season (the card's title followed).
 // 3.56.0: the stopgap ends - a foundry golem never belonged in a glass desert. The Crucible goes back
 // to the bench (the def, its patterns, sounds and the hammer card stay defined and tested; the Codex
-// keeps it listed; a save that owns the card keeps it), and the Flats' own boss takes the post.
+// archives remembered encounters; a save that owns the card keeps it), and the Flats' own boss takes the post.
 bossDefs.forge = {
   id: "forge",
   name: "THE CRUCIBLE",

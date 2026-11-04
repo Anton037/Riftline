@@ -4,7 +4,7 @@
 //
 // Usage: node scripts/rl-mix-probe.mjs [base-url] [out.json]
 // Run through tools/verify.js for a server, timeout and process cleanup.
-// Sections: fight + boss music tracks, the five biome ambiences, a realistic combat
+// Sections: fight + boss music tracks, the six biome ambiences, a realistic combat
 // sfx stream, and the full yard mix (music + place + combat together).
 // Metrics per render: overall RMS, peak, and the p95 of 400 ms short-term windows
 // (the honest loudness for bursty material like shots).
@@ -12,14 +12,13 @@
 import { chromium } from "playwright";
 import { writeFileSync } from "node:fs";
 import { launchArgs } from "../tools/browser.js";
+import { openAudioPage } from "../tools/verification/audio-page.mjs";
 
 const BASE = process.argv[2] || "http://localhost:8124/index.html";
 
 const browser = await chromium.launch({ args: launchArgs() });
-const page = await browser.newPage();
+const page = await openAudioPage(browser, BASE);
 page.on("pageerror", (err) => console.log("PAGEERROR:", err.message));
-await page.goto(BASE, { timeout: 90000 });
-await page.waitForFunction(() => window.__riftTest && window.__riftTest.game, null, { timeout: 90000 });
 
 const SECS = 20;
 const result = await page.evaluate(async (secs) => {
@@ -111,7 +110,7 @@ const result = await page.evaluate(async (secs) => {
       });
   });
 
-  // --- the five biome ambiences (a real mid-game wave drives engine.place; the room tone of the
+  // --- the six biome ambiences (a real wave drives engine.place; the room tone of the
   // biome is on, like in the game; three takes averaged - the far sounds and hazards are random) ---
   for (const biome of ["yard", "vault", "marsh", "void", "club", "flats"]) {
     const acc = { rms: 0, peak: 0, p95: 0 };
@@ -123,7 +122,10 @@ const result = await page.evaluate(async (secs) => {
         engine.startTone(biome);
         engine.stopTone(biome, secs);
         const world = new T.World({ seed: 0x3160 + take * 7919, weapon: "pulse", threat: 0, ws: {} });
-        world.startWave(12 + 5 * Math.max(0, world.route.indexOf(biome)));
+        const index = world.route.indexOf(biome);
+        if (index < 0) throw new Error(`Missing biome in probe route: ${biome}`);
+        world.startWave(2 + 5 * index);
+        if (world.arena.biome.id !== biome) throw new Error(`Probe expected ${biome}, got ${world.arena.biome.id}`);
         world.state = "fight";
         for (let t = 0.1; t < secs; t += 0.1)
           ctx.suspend(t).then(() => {
@@ -160,7 +162,8 @@ const result = await page.evaluate(async (secs) => {
     engine.startTone("yard");
     engine.stopTone("yard", secs);
     const world = new T.World({ seed: 0x3160, weapon: "pulse", threat: 0, ws: {} });
-    world.startWave(12);
+    world.startWave(2);
+    if (world.arena.biome.id !== "yard") throw new Error("Full mix must use the yard arena");
     world.state = "fight";
     let n = 0;
     for (let t = 0.1; t < secs; t += 0.1)

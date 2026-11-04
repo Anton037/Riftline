@@ -48,7 +48,7 @@ function rlCacheShards(world, value) {
 /* 2.3.5: Armor Core absorbs part of the damage from enemies. Lava and acid are left to
    Hazard Seal, so the two modules do not stack on the same damage. */
 // 3.0.0: traps are environment too: the Armor Core does not soften them
-const RL_HAZARD_SRC = new Set(["lava", "shock", "acid", "trap"]);
+const RL_HAZARD_SRC = new Set(["lava", "shock", "acid", "trap", "devil"]);
 // 3.34.0: the arc a Shorted enemy leaves where it dies: its radius and the warning before it strikes
 const SHORT_R = 1.6,
   SHORT_DELAY = 1.1;
@@ -398,6 +398,8 @@ const rlStep = 1 / 60,
         this.bossPending = null;
         this.offerBoss = !!snap.offerBoss;
         this.state = "choose";
+        // Choice snapshots resume the card stream, not the RNG freshly reset by startWave().
+        if (Number.isInteger(snap.offerRng)) this.rng = makeRng(snap.offerRng);
         this.offer = offer.length ? offer : this.makeOffer();
         this.offerExclusive = this.offer.find((id) => upgradesById[id].boss) || null;
         // 2.9.1: a save stuck on an empty choice (everything maxed) goes on with the next wave
@@ -764,6 +766,7 @@ const rlStep = 1 / 60,
       if (this.state === "choose" && this.offer) {
         snap.offer = [...this.offer];
         snap.offerBoss = !!this.offerBoss;
+        snap.offerRng = this.rng.state;
       }
       return snap;
     }
@@ -1488,7 +1491,7 @@ const rlStep = 1 / 60,
       player.fireT -= dt;
       if (firing && aim != null) {
         let shots = 0;
-        for (; player.fireT <= 0 && shots < 3; ) {
+        for (; player.fireT <= 0 && shots < 3;) {
           this.fire(aim);
           player.fireT += 1 / rate;
           shots++;
@@ -1669,13 +1672,11 @@ const rlStep = 1 / 60,
     dashHits() {
       let player = this.player;
       this.hash.query(player.x, player.y, 1.1, (enemy) => {
-        if (
-          !(
-            enemy.dead ||
-            enemy.dashHit === player.dashId ||
-            Math.hypot(enemy.x - player.x, enemy.y - player.y) > enemy.r + 1.1
-          )
-        ) {
+        if (!(
+          enemy.dead ||
+          enemy.dashHit === player.dashId ||
+          Math.hypot(enemy.x - player.x, enemy.y - player.y) > enemy.r + 1.1
+        )) {
           enemy.dashHit = player.dashId;
           this.hurtEnemy(enemy, this.stats.shockDash * this.stats.dmgMul, player.dashX, player.dashY, 6, false, "dash");
           this.emit("zap", { x: enemy.x, y: enemy.y });
@@ -3089,14 +3090,12 @@ const rlStep = 1 / 60,
         // shared cooldown let the first blade block the others for 0.38 s, so more blades added no damage on big
         // enemies and bosses that touch several blades at once.
         this.hash.query(bx, by, size, (enemy) => {
-          if (
-            !(
-              enemy.dead ||
-              (enemy.orbAt && enemy.orbAt[i] > this.time) ||
-              enemy.spawnT > 0.1 ||
-              Math.hypot(enemy.x - bx, enemy.y - by) > enemy.r + size
-            )
-          ) {
+          if (!(
+            enemy.dead ||
+            (enemy.orbAt && enemy.orbAt[i] > this.time) ||
+            enemy.spawnT > 0.1 ||
+            Math.hypot(enemy.x - bx, enemy.y - by) > enemy.r + size
+          )) {
             (enemy.orbAt || (enemy.orbAt = []))[i] = this.time + 0.38;
             this.hurtEnemy(enemy, dmg, enemy.x - player.x, enemy.y - player.y, 2.5, false, "orbit");
           }
@@ -3114,7 +3113,7 @@ const rlStep = 1 / 60,
       let count = this.stats.wingmen;
       if (!count) return;
       let player = this.player;
-      for (; player.wings.length < count; )
+      for (; player.wings.length < count;)
         player.wings.push({ x: player.x, y: player.y, t: player.wings.length * 0.2 });
       let damp = dampFactor(6, dt);
       for (let i = 0; i < count; i++) {
@@ -3170,13 +3169,11 @@ const rlStep = 1 / 60,
       for (let trail of this.trails) {
         trail.life -= dt;
         this.hash.query(trail.x, trail.y, 0.8, (enemy) => {
-          if (
-            !(
-              enemy.dead ||
-              enemy.trailT > this.time ||
-              Math.hypot(enemy.x - trail.x, enemy.y - trail.y) > enemy.r + 0.8
-            )
-          ) {
+          if (!(
+            enemy.dead ||
+            enemy.trailT > this.time ||
+            Math.hypot(enemy.x - trail.x, enemy.y - trail.y) > enemy.r + 0.8
+          )) {
             enemy.trailT = this.time + 0.25;
             this.hurtEnemy(enemy, dmg, 0, 0, 0, false, "trail");
           }
@@ -3512,6 +3509,12 @@ const rlStep = 1 / 60,
           this.markers.length === 0 &&
           this.waveT > 1.8
         ) {
+          if (this.training) {
+            this.state = "victory";
+            this.stateT = 0;
+            this.emit("victory");
+            return;
+          }
           this.state = "cleared";
           this.stateT = 0;
           if (this.waveDmg === 0 && this.wave >= 8) {

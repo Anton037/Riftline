@@ -11,7 +11,9 @@ run(
   "src/**/*.js",
   "tests/**/*.mjs",
   "tools/**/*.{js,mjs}",
+  "scripts/**/*.mjs",
   "build.js",
+  "eslint.config.mjs",
 );
 run(path.resolve("node_modules/eslint/bin/eslint.js"), ".");
 run("tools/test.js");

@@ -11,6 +11,8 @@ const { biomeList, RL_BIOME_HAZARD } = await import("../src/data/biomes.js");
 const { bossByBiome, bossDefs } = await import("../src/data/enemies.js");
 const { upgradeList } = await import("../src/data/upgrades.js");
 const { WHATS_NEW, NEWS_KEEP } = await import("../src/data/whatsnew.js");
+const { cleanRun } = await import("../src/core/save.js");
+const { createTrainingWorld } = await import("../src/core/training.js");
 const step = (world, ticks = 240) => {
   for (let i = 0; i < ticks; i++) {
     world.step(1 / 60, { mx: Math.cos(i / 50), my: Math.sin(i / 50), auto: true, dash: i === 30 });
@@ -71,4 +73,63 @@ test("selectable data references and release identity agree", () => {
   for (const u of upgradeList) if (u.weapon) assert.ok(weaponDefs[u.weapon], u.id);
   assert.equal(WHATS_NEW[0].version, pkg.version);
   assert.equal(WHATS_NEW.length, NEWS_KEEP);
+});
+
+test("saved choices preserve rerolls and banishes, including after another resume", () => {
+  const a = new World({ seed: 1, weapon: "pulse", threat: 0, ws: { reroll: 3, banish: 2 } });
+  step(a, 360);
+  a.beginChoice();
+  let b = new World({ snap: cleanRun(JSON.parse(JSON.stringify(a.snapshot()))), ws: {} });
+  for (let i = 0; i < 2; i++) {
+    assert.equal(a.reroll(), true);
+    assert.equal(b.reroll(), true);
+    assert.deepEqual(b.offer, a.offer);
+    b = new World({ snap: cleanRun(b.snapshot()), ws: {} });
+  }
+  const card = a.offer[0];
+  assert.equal(a.banish(card), true);
+  assert.equal(b.banish(card), true);
+  assert.deepEqual(b.offer, a.offer);
+  const old = a.snapshot();
+  delete old.offerRng;
+  assert.ok(new World({ snap: cleanRun(old), ws: {} }).offer.length);
+  for (const invalid of [-1, 2 ** 32, NaN, "123"])
+    assert.equal(cleanRun({ ...old, offerRng: invalid }).offerRng, undefined);
+});
+
+test("Armor Core reduces enemy hits but never stacks on map hazard resistance", () => {
+  const w = new World({ seed: 42, weapon: "pulse", threat: 0, ws: { armorCore: 5 } });
+  const loss = (source) => {
+    w.player.hp = w.stats.maxHp;
+    w.player.iT = 0;
+    w.player.chipAcc = 0;
+    w.hurtPlayer(30, null, null, source, true);
+    return w.stats.maxHp - w.player.hp;
+  };
+  assert.equal(loss("grunt"), 24);
+  for (const source of ["lava", "shock", "acid", "trap", "devil"]) assert.equal(loss(source), 30, source);
+});
+
+test("every training boss uses its own arena and starting phase, and ends without an upgrade choice", () => {
+  for (const biome of biomeList)
+    for (const phase of ["full", "phase", "enraged"]) {
+      const w = createTrainingWorld({ biome: biome.id, phase });
+      assert.equal(w.arena.biome.id, biome.id);
+      assert.equal(w.boss.type, bossByBiome[biome.id]);
+      assert.equal(w.player.hp, 175);
+      assert.equal(w.player.nova, 100);
+      assert.equal(w.boss.hp, w.boss.maxHp);
+      assert.ok(w.boss.hp >= 4500);
+      w.boss.spawnT = 0;
+      w.step(1 / 60, { auto: false });
+      if (phase === "enraged") assert.equal(w.boss.enraged, true);
+      if (phase === "phase" && w.boss.type === "core") assert.equal(w.boss.phaseN, 2);
+      w.killEnemy(w.boss);
+      w.sweep();
+      w.waveT = 2;
+      w.checkWaveEnd();
+      assert.equal(w.state, "victory");
+    }
+  assert.throws(() => createTrainingWorld({ biome: "constructor" }));
+  assert.ok(createTrainingWorld({ biome: "yard", threat: 5 }).boss.hp > createTrainingWorld({ biome: "yard" }).boss.hp);
 });

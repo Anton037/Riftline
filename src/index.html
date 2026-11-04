@@ -313,7 +313,7 @@ body:not(.device-touch) .act-btn.gadget .key { display: block; }
 .threat-name { font: 700 15px/1.1 var(--display); letter-spacing: 0.16em; text-transform: uppercase; }
 .threat-name.hot { color: var(--pink); }
 .threat-desc { font-size: 13px; color: var(--dim); margin-top: 2px; }
-.bottom-nav { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; max-width: 460px; width: 100%; align-self: center; }
+.bottom-nav { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; max-width: 540px; width: 100%; align-self: center; }
 .bottom-nav button { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px; font: 600 12px/1 var(--display); letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); background: var(--panel); border: 1px solid var(--line); clip-path: var(--notch); --n: 8px; }
 .bottom-nav button .ico { width: 22px; height: 22px; color: var(--text); }
 .badge { position: absolute; top: 6px; right: calc(50% - 20px); width: 9px; height: 9px; border-radius: 50%; background: var(--pink); box-shadow: 0 0 8px var(--pink); }
@@ -333,6 +333,18 @@ body:not(.device-touch) .act-btn.gadget .key { display: block; }
 
 /* ---------------------------------------------------------------- lists */
 .page-intro { margin: 0; color: var(--dim); font-size: 15px; }
+.checkpoint-note { margin: 0; text-align: center; font-size: 12px; line-height: 1.2; }
+.training-options { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 14px; margin: 14px 0; }
+.training-options > span { flex: 1 1 280px; }
+.training-options small { display: block; color: var(--dim); margin-top: 6px; }
+.training-options label { display: grid; gap: 6px; font-weight: 600; }
+.training-options select { color: var(--text); background: var(--bg); border: 1px solid var(--line2); min-height: 44px; padding: 8px; font: inherit; }
+.training-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); gap: 12px; }
+.training-card { padding: 16px; border-top: 2px solid var(--bc); }
+.training-card h3 { font: 700 22px/1.2 var(--display); margin: 10px 0 4px; }
+.training-card p { color: var(--dim); margin: 0 0 12px; }
+.training-card .btn { width: 100%; }
+#trainingResultNote { grid-column: 1 / -1; }
 .list { display: flex; flex-direction: column; gap: 8px; }
 .row { display: grid; grid-template-columns: 40px 1fr auto; gap: 12px; align-items: center; padding: 10px 12px; }
 .row .rico { width: 40px; height: 40px; display: grid; place-items: center; color: var(--cyan); background: rgba(73, 242, 255, 0.08); clip-path: var(--notch); --n: 6px; }
@@ -1575,12 +1587,14 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
           <button id="tNext" class="arrow small flip" aria-label="Higher threat" data-icon="back"></button>
         </div>
         <button id="continueBtn" class="btn primary alt" hidden></button>
+        <p id="continueNote" class="note checkpoint-note" hidden></p>
         <button id="playBtn" class="btn primary">START RUN</button>
       </div>
     </div>
     <nav class="bottom-nav">
       <button data-go="workshop"><span data-icon="wrench"></span>Workshop</button>
       <button data-go="records"><span data-icon="trophy"></span>Records<i id="recBadge" class="badge" hidden></i></button>
+      <button data-go="training"><span data-icon="target"></span>Training</button>
       <button data-go="news"><span data-icon="info"></span>News<i id="newsBadge" class="badge" hidden></i></button>
       <button data-go="settings"><span data-icon="gear"></span>Settings</button>
     </nav>
@@ -1657,6 +1671,16 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
       <h2>What's new</h2>
     </header>
     <div id="newsList" class="scroll settings-body"></div>
+  </section>
+
+  <!-- ====================================================== TRAINING -->
+  <section id="training" class="screen page" hidden>
+    <header class="topbar"><button class="icon-btn" data-back aria-label="Back" data-icon="back"></button><h2>Boss training</h2></header>
+    <div class="scroll">
+      <p class="page-intro">Learn each boss in its own arena. Training uses a fixed kit and gives no shards, records or discoveries. Your saved run stays untouched.</p>
+      <div class="panel training-options"><span><b id="trainingWeapon"></b><small>Choose your weapon and threat on Home. Fixed kit: 175 hull, damage, fire rate, thrusters, Aegis and an extra Singularity cell. Start with full Nova. Bosses keep a full training health bar while using your chosen starting patterns.</small></span><label>Boss start<select id="trainingPhase"><option value="full">Opening patterns</option><option value="phase">Mid-fight · Core phase 2</option><option value="enraged">Enraged patterns</option></select></label></div>
+      <div id="trainingList" class="training-grid"></div>
+    </div>
   </section>
 
   <!-- ====================================================== SETTINGS -->
@@ -1751,6 +1775,7 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
       <div id="overBest" class="chip best" hidden>NEW BEST</div>
       <div id="overDaily" class="chip" hidden></div>
       <div id="overStats" class="stat-grid compact"></div>
+      <p id="trainingResultNote" class="note" hidden>Practice only. Your saved run, shards and records are unchanged.</p>
       <div class="payout panel">
         <div id="payRows"></div>
         <div class="pay-total"><span>Shards earned</span><span class="shard-chip"><span class="shard-ico"></span><span id="payTotal" class="num">0</span></span></div>
