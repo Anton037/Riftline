@@ -7,6 +7,7 @@
 import { chromium } from "playwright";
 import { writeFileSync } from "node:fs";
 import { launchArgs } from "../tools/browser.js";
+import { openAudioPage } from "../tools/verification/audio-page.mjs";
 
 const BASE = process.argv[2] || "http://localhost:8124/index.html";
 // A fresh browser per chunk: the offline-audio engines are megabytes of native audio-graph memory in
@@ -16,21 +17,15 @@ const withPage = async (fn) => {
   const browser = await chromium.launch({
     args: [...launchArgs(), "--disable-dev-shm-usage", "--no-sandbox", "--js-flags=--expose-gc"],
   });
-  const page = await browser.newPage();
-  page.on("pageerror", (err) => console.log("PAGEERROR:", err.message));
-  await page.goto(BASE, { timeout: 90000 });
-  await page.waitForFunction(() => window.__riftTest && window.__riftTest.game, null, { timeout: 90000 });
-  // the probe only needs the audio engine: stop the game's render loop (it schedules a new frame at
-  // the top of every tick, so a one-shot cancel cannot stop it - patch rAF to a no-op and spray-cancel
-  // the pending frame)
-  await page.evaluate(() => {
-    window.requestAnimationFrame = () => 0;
-    for (let i = 0; i < 1e5; i++) window.cancelAnimationFrame(i);
-  });
-  const r = await page.evaluate(fn.fn, fn.arg);
-  await page.evaluate(() => window.gc && window.gc());
-  await browser.close();
-  return r;
+  try {
+    const page = await openAudioPage(browser, BASE);
+    page.on("pageerror", (err) => console.log("PAGEERROR:", err.message));
+    const r = await page.evaluate(fn.fn, fn.arg);
+    await page.evaluate(() => window.gc && window.gc());
+    return r;
+  } finally {
+    await browser.close();
+  }
 };
 const chunk = async (name, fn, arg) => {
   const r = await withPage({ fn, arg });

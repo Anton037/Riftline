@@ -2415,7 +2415,7 @@ const MAX_PARTICLES = 1400,
       let dist = 0.6,
         cos = Math.cos(angle),
         sin = Math.sin(angle);
-      for (; dist < 32; ) {
+      for (; dist < 32;) {
         let px = x + cos * dist,
           pz = z + sin * dist;
         if (world.arena.outside(px, pz) || world.arena.blocked(px, pz, 0)) break;

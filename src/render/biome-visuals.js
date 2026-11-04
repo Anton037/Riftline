@@ -393,7 +393,7 @@ void main() {
     float sh = sin(dot(p, vec2(1.3, 0.7)) * 2.0 + fbm(p * 0.7 + uTime * 0.1) * 9.0 + uTime * 0.9);
     pool += uGrid * 0.035 * max(sh, 0.0);
     col = mix(peat, pool, water) * (0.8 + 0.5 * pl);
-    col += uGrid * core * (0.18 + 0.12 * water);                            // the vein itself, over water and bank
+    col += uGrid * core * (0.12 + 0.08 * water);                            // the vein itself, over water and bank
     col += uGrid * vein * 0.035 * (1.0 - water);           // the halo over the bank, fainter
     float tuft = smoothstep(0.6, 0.74, contour + 0.11) * (1.0 - water);
     col = mix(col, uBase * 1.15 + uGrid * 0.015, tuft * 0.5);
@@ -417,7 +417,7 @@ void main() {
     float stone = fbm(p * 1.6 + cid * 0.13);
     vec3 tile = (uBase * (0.85 + 0.5 * h21(cid + 5.0)) + vec3(0.012, 0.01, 0.023) * stone) * (0.8 + 0.6 * pl);
     float seam = 0.2 + 0.8 * smoothstep(0.48, 0.74, fbm(p * 0.23 + 4.0));
-    tile += uGrid * rim * 0.03 * seam + uAccent * pulse * 0.025;
+    tile += uGrid * rim * 0.02 * seam + uAccent * pulse * 0.018;
     // the shatter: dark cracks wandering over the tiles, a faint rift glow along them
     vec3 web = voro(p * 0.13 + 23.0);
     tile = mix(tile, uBase * 0.45, smoothstep(0.055, 0.0, web.y) * 0.55 * inside);
@@ -1653,7 +1653,7 @@ function rlAmbient(renderer, dt, world, opt) {
     acc = hexColor(biome.accent);
   const range = (v) => v[0] + Math.random() * (v[1] - v[0]);
   for (const layer of biomeAtmosphere[biome.id] || []) {
-    for (let j = count(layer.rate); j--; ) {
+    for (let j = count(layer.rate); j--;) {
       const tint = layer.colors[Math.floor(Math.random() * layer.colors.length)];
       renderer.emit(
         rx(layer.spread[0]),

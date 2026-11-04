@@ -144,7 +144,7 @@ function iconSvg(name, cls = "") {
   return `<svg class="ico ${cls}" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
 }
 const getById = (id) => document.getElementById(id),
-  menuScreens = ["home", "workshop", "records", "daily", "pacts", "news", "settings"],
+  menuScreens = ["home", "workshop", "records", "daily", "training", "pacts", "news", "settings"],
   formatTenths = (value) => (Math.round(value * 10 + 1e-6) / 10).toString(),
   formatPercent = (value) => Math.round(value * 100) + "%",
   formatCooldown = (value) => (value > 0 ? formatTenths(value) + " s" : "off"),
@@ -330,6 +330,7 @@ const getById = (id) => document.getElementById(id),
       this.click(getById("continueBtn"), () => this.g.startRun({ resume: true }));
       let onPress = (el, action) =>
         el.addEventListener("pointerdown", (ev) => {
+          if (ev.pointerType !== "touch") return;
           ev.preventDefault();
           ev.stopPropagation();
           action();
@@ -364,7 +365,13 @@ const getById = (id) => document.getElementById(id),
       this.click(getById("resumeBtn"), () => this.g.resume());
       this.click(getById("abandonBtn"), async () => {
         if (
-          await this.confirm("Abandon run?", "You keep the shards collected so far, but the run ends here.", "Abandon")
+          await this.confirm(
+            this.g.world?.training ? "Leave training?" : "Abandon run?",
+            this.g.world?.training
+              ? "Your saved run and progress stay untouched."
+              : "You keep the shards collected so far, but the run ends here.",
+            this.g.world?.training ? "Leave" : "Abandon",
+          )
         ) {
           this.g.abandon();
         }
@@ -373,8 +380,10 @@ const getById = (id) => document.getElementById(id),
       this.click(getById("restartBtn"), async () => {
         if (
           await this.confirm(
-            "Restart run?",
-            "Shards collected so far are kept. A fresh run starts with the same weapon and threat.",
+            this.g.world?.training ? "Restart training?" : "Restart run?",
+            this.g.world?.training
+              ? "The same boss and starting phase return with a fresh training drone."
+              : "Shards collected so far are kept. A fresh run starts with the same weapon and threat.",
             "Restart",
           )
         ) {
@@ -484,6 +493,7 @@ const getById = (id) => document.getElementById(id),
         this.renderDaily();
         this.renderWeekly();
       }
+      if (screen === "training") this.renderTraining();
       if (screen === "pacts") {
         this.renderPacts();
       }
@@ -532,6 +542,11 @@ const getById = (id) => document.getElementById(id),
         btn.hidden = true;
         getById("playBtn").classList.add("primary");
       }
+      const checkpoint = getById("continueNote");
+      checkpoint.hidden = !run;
+      checkpoint.textContent = run?.offer
+        ? "Continue at your saved card choice."
+        : "Continue restarts the saved wave from its beginning.";
       this.updatePlayState();
       getById("recBadge").hidden = !this.g.claimable().length;
       getById("newsBadge").hidden = !!save.seen["news_" + GAME_VERSION];
@@ -656,16 +671,14 @@ const getById = (id) => document.getElementById(id),
     }
     async play() {
       let save = this.save;
-      if (
-        !(
-          save.run &&
-          !(await this.confirm(
-            "Start a new run?",
-            `Your run at wave ${save.run.wave} ends here. You keep the shards collected in it.`,
-            "New run",
-          ))
-        )
-      ) {
+      if (!(
+        save.run &&
+        !(await this.confirm(
+          "Start a new run?",
+          `Your run at wave ${save.run.wave} ends here. You keep the shards collected in it.`,
+          "New run",
+        ))
+      )) {
         if (save.run) {
           this.g.discardRun();
         }
@@ -690,6 +703,20 @@ const getById = (id) => document.getElementById(id),
         })
         .join("");
       for (let btn of list.querySelectorAll("[data-buy]")) this.click(btn, () => this.buyModule(btn.dataset.buy));
+    }
+    renderTraining() {
+      getById("trainingWeapon").textContent =
+        `${weaponDefs[this.save.weapon].name} · ${threatLevels[this.save.threat].name}`;
+      getById("trainingList").innerHTML = biomeList
+        .map((biome) => {
+          const boss = bossDefs[bossByBiome[biome.id]];
+          return `<div class="panel training-card" style="--bc:${rlHex(biome.grid)}"><div class="eyebrow">${escapeHtml(biome.name)}</div><h3>${escapeHtml(boss.name)}</h3><p>${escapeHtml(boss.title)}</p><button class="btn" data-practice="${biome.id}">${iconSvg("target")}Practice</button></div>`;
+        })
+        .join("");
+      for (const button of getById("trainingList").querySelectorAll("[data-practice]"))
+        this.click(button, () =>
+          this.g.startRun({ training: button.dataset.practice, trainingPhase: getById("trainingPhase").value }),
+        );
     }
     buyModule(id) {
       let save = this.save,
@@ -1125,8 +1152,8 @@ const getById = (id) => document.getElementById(id),
         cache.shardsSeen = true;
       });
       let waveMax = world.endless ? "" : "/" + 20;
-      update("wave", world.wave + waveMax, () => {
-        getById("waveLabel").textContent = `WAVE ${world.wave}${waveMax}`;
+      update("wave", world.training ? "training" : world.wave + waveMax, () => {
+        getById("waveLabel").textContent = world.training ? "TRAINING" : `WAVE ${world.wave}${waveMax}`;
       });
       // 3.45.0: the progress bar carries the wave's count ("N LEFT" churned text with every kill;
       // a boss fight is named by the boss bar, CLEARED stays for the moment between the waves)
@@ -1511,7 +1538,10 @@ const getById = (id) => document.getElementById(id),
         : '<span class="note">No upgrades yet.</span>';
     }
     showPause(world) {
-      getById("pauseTitle").textContent = `Wave ${world.wave}${world.endless ? " \xB7 Endless" : ""}`;
+      getById("pauseTitle").textContent = world.training
+        ? "Boss training"
+        : `Wave ${world.wave}${world.endless ? " \xB7 Endless" : ""}`;
+      getById("abandonBtn").textContent = world.training ? "Leave training" : "Abandon run";
       getById("pauseStats").innerHTML =
         `<span>${formatTime(world.time)}</span><span>${formatCount(world.kills)} KILLS</span><span>${formatCount(world.shards)} SHARDS</span>`;
       getById("pauseBuild").innerHTML = this.buildHtml(world);
@@ -1571,11 +1601,27 @@ const getById = (id) => document.getElementById(id),
       this._show("settings");
     }
     showOver(result) {
-      getById("overEyebrow").textContent = result.win
-        ? `${threatLevels[result.threat].name.toUpperCase()} \xB7 ALL ${20} WAVES`
-        : `${weaponDefs[result.weapon].name.toUpperCase()} \xB7 ${threatLevels[result.threat].name.toUpperCase()}`;
+      getById("overEyebrow").textContent = result.training
+        ? `TRAINING · ${result.training}`
+        : result.win
+          ? `${threatLevels[result.threat].name.toUpperCase()} \xB7 ALL ${20} WAVES`
+          : `${weaponDefs[result.weapon].name.toUpperCase()} \xB7 ${threatLevels[result.threat].name.toUpperCase()}`;
       let title = getById("overTitle");
-      title.textContent = result.win ? "RIFT SEALED" : result.abandoned ? "RUN ENDED" : "SIGNAL LOST";
+      title.textContent = result.training
+        ? result.win
+          ? "TRAINING CLEAR"
+          : result.abandoned
+            ? "PRACTICE ENDED"
+            : "TRY AGAIN"
+        : result.win
+          ? "RIFT SEALED"
+          : result.abandoned
+            ? "RUN ENDED"
+            : "SIGNAL LOST";
+      getById("trainingResultNote").hidden = !result.training;
+      getById("payRows").parentElement.hidden = !!result.training;
+      getById("retryBtn").textContent = result.training ? "PRACTICE AGAIN" : "RUN AGAIN";
+      getById("homeBtn").textContent = result.training ? "Choose boss" : "Home";
       title.className = "over-title " + (result.win ? "win" : "lose");
       getById("overBest").hidden = !(result.best || result.fastest);
       getById("overBest").textContent = result.fastest && !result.best ? "NEW FASTEST" : "NEW BEST";
@@ -1845,7 +1891,10 @@ const getById = (id) => document.getElementById(id),
     }
     renderCodex() {
       const codex = rlCodexEntries(this.save),
-        all = [...codex.enemies, ...codex.bosses, ...codex.variants, ...codex.events],
+        activeBosses = codex.bosses.filter((entry) => !entry.archived),
+        activeEvents = codex.events.filter((entry) => !entry.archived),
+        archive = [...codex.bosses, ...codex.events].filter((entry) => entry.archived && entry.seen),
+        all = [...codex.enemies, ...activeBosses, ...codex.variants, ...activeEvents],
         found = all.filter((entry) => entry.seen).length,
         rows = (list, hint) =>
           list
@@ -1861,9 +1910,14 @@ const getById = (id) => document.getElementById(id),
       getById("codexList").innerHTML =
         `<p class="page-intro cx-intro"><b class="num">${found}/${all.length}</b> discovered. Enemies, bosses, variants and elites unlock when you meet them, events, mutators and Overdrive attacks when you see them.</p>` +
         part("Enemies", codex.enemies, "Not encountered yet") +
-        part("Bosses", codex.bosses, "Not encountered yet") +
+        part("Bosses", activeBosses, "Not encountered yet") +
         part("Variants and elites", codex.variants, "Not encountered yet") +
-        part("Rift events", codex.events, "Not seen yet");
+        part("Rift events", activeEvents, "Not seen yet") +
+        (archive.length
+          ? '<h3 class="section-h">Archive</h3><p class="note">Discoveries from earlier releases. Kept outside current completion totals.</p><div class="codex-grid">' +
+            rows(archive, "") +
+            "</div>"
+          : "");
     }
   };
 // 2.5.0 A: HUD chips of the timed upgrades, managed next to the chips of GameUI.buffs
@@ -1954,6 +2008,7 @@ function rlCodexEntries(save) {
       return {
         key: "boss_" + id,
         id,
+        archived: !bio,
         seen: seen["boss_" + id] === true || kills > 0,
         name: boss.name,
         desc: boss.title + (bio ? ` \xB7 ${bio.name}` : ""),
@@ -1983,6 +2038,7 @@ function rlCodexEntries(save) {
     ...Object.entries(RL_OVERDRIVE_INFO).map(([boss, od]) => ({
       key: "od_" + boss,
       id: boss,
+      archived: !bossBiome[boss],
       seen: seen["od_" + boss] === true,
       name: "Overdrive \xB7 " + od.name,
       desc: od.desc,

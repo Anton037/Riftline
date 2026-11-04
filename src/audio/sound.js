@@ -324,6 +324,16 @@ const RL_TRAP_SOUND = {
   // 3.53.0: the Flats' sunspike: glass creaks as the pressure builds, then the sheet bursts
   sunspike: { warn: "tcSun", fire: "tsSun" },
 };
+// Threat cues keep their existing timbres and a voice when routine combat is busy.
+const THREAT_WARNING_VOICES = new Set([
+  "lock",
+  "fuse",
+  "windHeavy",
+  "beam",
+  "beamSmall",
+  ...Object.values(BEAM_VOICE),
+  ...Object.values(RL_TRAP_SOUND).map((voice) => voice.warn),
+]);
 /* the beeps of the mines per skin: pitch, wave, filter (and an end-pitch factor for a chirp) */
 const RL_MINE_BEEP = {
   mine: { f: 1500, wave: "square", lp: 4e3 },
@@ -1269,7 +1279,7 @@ const musicChords = {
     }
     play(id, arg, bossWarning = false) {
       if (!this.live() || this.sfxVol <= 0) return;
-      const warning = bossWarning || BOSS_WARNING_VOICES.has(id);
+      const warning = bossWarning || BOSS_WARNING_VOICES.has(id) || THREAT_WARNING_VOICES.has(id);
       this.curPri = warning || KEY_SOUNDS.has(id) ? 2 : 1;
       this.curRev = SFX_ROOM[id] || 0;
       try {
@@ -4150,7 +4160,7 @@ const musicChords = {
       if (this.nextT < ctx.currentTime - 0.5) {
         this.nextT = ctx.currentTime + 0.05;
       }
-      for (; this.nextT < ctx.currentTime + 0.14; ) {
+      for (; this.nextT < ctx.currentTime + 0.14;) {
         let info = trackInfo(this.playKind, this.playBiome);
         try {
           if (this.playKind !== "off" && this.musVol > 0) {

@@ -1,6 +1,6 @@
 # Testing Riftline
 
-Keep the routine gate short. Ten Node contracts and three browser checks cover the critical paths;
+Keep the routine gate short. Fourteen Node contracts and five browser checks cover the critical paths;
 there is no historical release assertion catalog, always-on soak or hidden extended test chain.
 
 | Command | Coverage | Deadline |
@@ -8,8 +8,8 @@ there is no historical release assertion catalog, always-on soak or hidden exten
 | `npm run check` | Formatting, lint, build and standard tests | Test subprocess 75 s |
 | `npm test` | Ten Node contracts, tablet flow, phone flow, worker update | Build 30 s; tests 75 s |
 | `npm run test:unit` | Saves, deterministic simulation, data and render geometry | 75 s |
-| `npm run e2e` | Tablet/phone touch and worker update | Game flows 25 s each; worker 20 s; process 75 s |
-| `npm run test:render` | Same browser checks with actual drawing | Game flows 60 s each; process 150 s |
+| `npm run e2e` | Touch, onboarding/audio, training and worker update | Game flows 25–30 s; worker 20 s; process 75 s |
+| `npm run test:render` | Same browser checks with actual drawing | Game flows 90 s each; process 240 s |
 | `npm run audit:visual` | Six biomes and bosses on tablet and landscape phone, High | 240 s per layout |
 | `npm run verify:audio` | Optional synthesized sound correctness | 420 s |
 | `npm run verify:audio-budget` | Optional audio scheduler/real-node parity | 180 s |
@@ -21,12 +21,19 @@ there is no historical release assertion catalog, always-on soak or hidden exten
 - Node checks cover seeded finite combat for each weapon, snapshot restoration, biome/boss/hazard
   references, upgrade data, release notes, atmosphere budgeting and static mesh bounds.
 - Save checks cover round-trip persistence, migration, unknown future fields and corrupt-save recovery
-  when storage is full.
+  when storage is full. Failed explicit imports/resets retain old progress; successful ones recover held saves.
+- Choice snapshots keep the RNG through rerolls, banishes and repeated resumes. Every training boss and
+  starting phase uses the matching arena and finishes without a normal upgrade reward.
 - The tablet flow uses touch for settings, movement, dash, pause/resume, card choice, offline reload,
   saved-run continuation, death recap and returning home. Death/wave completion are arranged through
-  the simulation interface rather than waiting through whole fights.
+  the simulation interface rather than waiting through whole fights. An import dialog survives a pending
+  update during a simulated visibility change, and mouse/pen action events are ignored.
 - The landscape phone flow holds both sticks and taps dash with a third finger, cancels the touches,
   then pauses/resumes. A gamepad API counter must stay at zero.
+- A fresh profile uses real touch through all four tutorial coaches and real WebAudio through pause,
+  simulated backgrounding and resume. Kills are arranged through the simulation interface.
+- Training starts, wins, retries and loses through the real game/UI flow without changing the saved run,
+  currency, statistics or discoveries. The Codex archive retains old discoveries outside completion totals.
 - The worker fixture uses the real worker source with small pages. It installs A, rejects an incomplete
   release, installs B with the same product version/build but different content identity, activates B
   while the A page stays open, stops the server, fetches A's bundle offline, then reloads offline into B.
@@ -49,7 +56,7 @@ node tools/verify.js visual review tablet all auto
 
 Arguments after `visual`: output tag, layout (`land`/`phone` or `tablet`), biome ID or `all`, quality
 (`high`, `auto`, `battery`). Screenshots and metrics go to `verification-output/<tag>-<layout>-<quality>/`.
-These are staged encounters, not a claim that every boss attack/phase has been visually reviewed.
+Each biome has encounter, boss and warning/projectile scenes. These are staged encounters, not a claim that every boss attack/phase has been visually reviewed.
 Auto captures its starting configuration, not sustained thermal adaptation. Use a physical device for that.
 
 All npm probes use the same temporary server and bounded process wrapper. Cleanup runs after failure,
@@ -70,5 +77,6 @@ These physical-device, full published-release, long-session and balance checks r
 
 ## Measured duration
 
-The 13 standard tests (including build) took 11.8 seconds on the development host after the touch-only
-and worker fixes. Timing depends on hardware and CI load; these numbers are not an SLA.
+The expanded suite has 19 tests. It runs without GPU drawing by default; the optional drawing suite
+has a separate deadline because software rasterisation is much slower. Timing depends on hardware
+and CI load; these deadlines are not a mobile FPS target.

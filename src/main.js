@@ -44,6 +44,7 @@ import { biomeList } from "./data/biomes.js";
 import { weaponDefs } from "./data/weapons.js";
 import { waveEvents } from "./core/waves.js";
 import { World, rlStep } from "./core/world.js";
+import { createTrainingWorld } from "./core/training.js";
 import { interpCapture, interpApply, interpRestore, interpReset } from "./render/interp.js";
 import { makePacer, paceFrame } from "./render/pacing.js";
 import { MUTATORS } from "./core/mutators.js";
@@ -55,6 +56,7 @@ import { Overlay } from "./render/overlay.js";
 
 const RL_INTRO = { queue: [], last: 0 };
 function rlIntroEvents(world) {
+  if (world.training) return;
   // 3.28.0: the first Overdrive of a boss goes into the Codex
   const boss = world.boss;
   if (boss && OVERDRIVE[boss.type] && boss.st === OVERDRIVE[boss.type] && !store.data.seen["od_" + boss.type]) {
@@ -114,13 +116,11 @@ function rlIntroEvents(world) {
 
 const isStandaloneBuild = true;
 function registerServiceWorker(onUpdate) {
-  if (
-    !(
-      !isStandaloneBuild ||
-      !("serviceWorker" in navigator) ||
-      (location.protocol !== "https:" && location.hostname !== "localhost" && location.hostname !== "127.0.0.1")
-    )
-  ) {
+  if (!(
+    !isStandaloneBuild ||
+    !("serviceWorker" in navigator) ||
+    (location.protocol !== "https:" && location.hostname !== "localhost" && location.hostname !== "127.0.0.1")
+  )) {
     navigator.serviceWorker
       .register("./sw.js", { scope: "./", updateViaCache: "none" })
       .then((registration) => {
@@ -342,7 +342,7 @@ const overlay = new Overlay(elementById("ov")),
       lockLandscape();
       let save = store.data,
         snap = resume ? save.run : null;
-      if (!resume) {
+      if (!resume && !options.training) {
         save.stats.runs++;
       }
       let started = true;
@@ -352,25 +352,39 @@ const overlay = new Overlay(elementById("ov")),
         const daily = !snap && options.daily ? dailySpec(options.dailyKey) : null,
           weekly = !snap && options.weekly ? weeklySpec(options.weeklyKey) : null,
           spec = daily || weekly;
-        this.world = new World({
-          seed: spec ? spec.seed : (Math.random() * 4294967296) >>> 0,
-          // 2.8.1: Restart / Run Again keep the weapon and threat of the run that just ended (a resumed run
-          // may differ from what the home carousel shows)
-          weapon: spec ? spec.weapon : options.weapon || save.weapon,
-          threat: spec ? spec.threat : (options.threat ?? save.threat),
-          ws: spec || (snap && (snap.daily || snap.weekly)) ? {} : save.workshop,
-          daily: daily ? daily.key : "",
-          weekly: weekly ? weekly.key : "",
-          startMods: weekly ? Object.fromEntries(weekly.mutators.map((id) => [id, 1])) : null,
-          // 3.27.0: the pacts signed on the home screen (not in the Rift of the day or week: the same drone for everyone)
-          pacts: spec ? [] : save.pacts,
-          snap: snap,
-        });
+        this.world = options.training
+          ? createTrainingWorld({
+              biome: options.training,
+              phase: options.trainingPhase,
+              weapon: save.weapon,
+              threat: save.threat,
+            })
+          : new World({
+              seed: spec ? spec.seed : (Math.random() * 4294967296) >>> 0,
+              // 2.8.1: Restart / Run Again keep the weapon and threat of the run that just ended (a resumed run
+              // may differ from what the home carousel shows)
+              weapon: spec ? spec.weapon : options.weapon || save.weapon,
+              threat: spec ? spec.threat : (options.threat ?? save.threat),
+              ws: spec || (snap && (snap.daily || snap.weekly)) ? {} : save.workshop,
+              daily: daily ? daily.key : "",
+              weekly: weekly ? weekly.key : "",
+              startMods: weekly ? Object.fromEntries(weekly.mutators.map((id) => [id, 1])) : null,
+              // 3.27.0: the pacts signed on the home screen (not in the Rift of the day or week: the same drone for everyone)
+              pacts: spec ? [] : save.pacts,
+              snap: snap,
+            });
       } catch (err) {
         logError("start", err);
-        save.run = null;
-        store.save("bad-run");
-        ui.alert("Could not start", "The saved run could not be restored and was discarded.");
+        if (!options.training) {
+          save.run = null;
+          store.save("bad-run");
+        }
+        ui.alert(
+          "Could not start",
+          options.training
+            ? "Training could not be started. Your saved run is untouched."
+            : "The saved run could not be restored and was discarded.",
+        );
         started = false;
       }
       if (started) {
@@ -409,7 +423,7 @@ const overlay = new Overlay(elementById("ov")),
         input.enabled = true;
         game.freeze = 0;
         game.tut =
-          !store.data.seen.tutorial && !resume && this.world.wave === 1
+          !this.world.training && !store.data.seen.tutorial && !resume && this.world.wave === 1
             ? { step: 0, t: 0, moved: 0, kills: 0, dashed: false }
             : null;
         if (game.tut) {
@@ -425,7 +439,7 @@ const overlay = new Overlay(elementById("ov")),
       // 2.2.3: run monitor (only the live run's world is observed; self-test and snapshot-check
       // worlds are ignored by identity). Also runs when the world could not be built.
       try {
-        if (this.world && this.mode === "game") {
+        if (this.world && !this.world.training && this.mode === "game") {
           rlMonStart(this.world, !!(options && options.resume));
         }
       } catch (err) {
@@ -462,15 +476,13 @@ const overlay = new Overlay(elementById("ov")),
     },
     pause() {
       let world = this.world;
-      if (
-        !(
-          this.mode !== "game" ||
-          !world ||
-          this.paused ||
-          this.overShown ||
-          (world.state !== "fight" && world.state !== "cleared")
-        )
-      ) {
+      if (!(
+        this.mode !== "game" ||
+        !world ||
+        this.paused ||
+        this.overShown ||
+        (world.state !== "fight" && world.state !== "cleared")
+      )) {
         this.paused = true;
         input.reset();
         ui.showPause(world);
@@ -503,11 +515,13 @@ const overlay = new Overlay(elementById("ov")),
       const world = this.world;
       this.startRun(
         world
-          ? world.weekly
-            ? { weekly: true }
-            : world.daily
-              ? { daily: true }
-              : { weapon: world.weapon, threat: world.threat }
+          ? world.training
+            ? { training: world.training.biome, trainingPhase: world.training.phase }
+            : world.weekly
+              ? { weekly: true }
+              : world.daily
+                ? { daily: true }
+                : { weapon: world.weapon, threat: world.threat }
           : {},
       );
     },
@@ -540,6 +554,7 @@ const overlay = new Overlay(elementById("ov")),
       }
     },
     goHome() {
+      const training = !!this.world?.training;
       this.mode = "menu";
       this.world = null;
       this.paused = false;
@@ -548,7 +563,7 @@ const overlay = new Overlay(elementById("ov")),
       ui.hidePause();
       ui.showHud(false);
       ui.homeInit = false;
-      ui.show("home");
+      ui.show(training ? "training" : "home");
       sound.setMusic("menu");
       setWakeLock(false);
       rlApplyUpdateWhenIdle("home");
@@ -584,6 +599,38 @@ const overlay = new Overlay(elementById("ov")),
       startLoop();
     },
     endRun(win, abandoned = false, silent = false) {
+      // Practice never settles currency, history, medals, or the real run's checkpoint.
+      if (this.world?.training) {
+        if (this.overShown) return;
+        this.overShown = true;
+        const world = this.world;
+        this._runExtra = null;
+        if (!silent) {
+          ui.showHud(false);
+          ui.hideChoose();
+          ui.showOver({
+            training: bossDefs[world.bossFor(world.wave)].name,
+            win,
+            abandoned,
+            threat: world.threat,
+            weapon: world.weapon,
+            wave: world.wave,
+            time: world.time,
+            kills: world.kills,
+            bosses: win ? 1 : 0,
+            rows: [],
+            total: 0,
+            milestones: [],
+            killer: world.lastHit,
+            lastHits: world.hitLog.map((h) => ({ ...h, ago: Math.max(0, world.time - h.t) })),
+            taken: world.takenBy,
+            dmgSrc: world.dmgSrc,
+          });
+        } else this.overShown = false;
+        sound.setMusic("menu");
+        setWakeLock(false);
+        return;
+      }
       // 2.8.1: take over what another tab saved before crediting this run
       store.syncForeign();
       // 2.2.3: run monitor, read before the run is settled
@@ -738,7 +785,13 @@ const overlay = new Overlay(elementById("ov")),
       }
     },
     resetProgress() {
-      store.reset();
+      if (!store.reset()) {
+        ui.alert(
+          "Could not reset",
+          "Storage is unavailable or full. Your previous progress is still kept. Free some space and try again.",
+        );
+        return;
+      }
       afterProgressReset("Progress reset");
     },
     // 3.48.0: the stock settings come back; afterProgressReset re-applies them, re-renders the
@@ -773,6 +826,7 @@ game.qualityNote = () => {
 };
 /* 3.24.0: the medal of a boss kill (core/medals.js): the best one per boss is kept; a banner says what was earned */
 function awardBossMedal(ev, world) {
+  if (world.training) return;
   try {
     const def = bossDefs[ev.id];
     if (!def) return;
@@ -956,7 +1010,7 @@ function runFrame(dt) {
         interpReset();
         game.interpWorld = world;
       }
-      for (; game.acc >= rlStep && steps < maxSteps; ) {
+      for (; game.acc >= rlStep && steps < maxSteps;) {
         // 3.31.0: where everything was before the step, so a frame can be drawn between two steps (render/interp.js)
         interpCapture(world);
         world.step(rlStep, input.sample(world, settings));
@@ -1102,7 +1156,7 @@ function handleWorldEvents(world) {
     switch (ev.k) {
       case "wave": {
         // 3.28.1: never for a run that has ended (see runFrame)
-        if (!game.overShown) {
+        if (!game.overShown && !world.training) {
           store.data.run = world.snapshot();
           store.save("wave");
         }
@@ -1253,7 +1307,7 @@ function handleWorldEvents(world) {
         overlay.callout(ev.atk);
         break;
       case "offer":
-        if (!game.overShown) {
+        if (!game.overShown && !world.training) {
           store.data.run = world.snapshot();
           store.save("offer");
         }
@@ -1316,7 +1370,7 @@ function handleWorldEvents(world) {
       cardEvent = (card.event && waveEvents[card.event]) || null;
     }
     if (boss) {
-      ui.markSeen(["boss_" + boss.id]);
+      if (!world.training) ui.markSeen(["boss_" + boss.id]);
       ui.bossCard(boss.id, world.biomeFor(world.wave));
     }
     // the biome card stays for the first BIOME_CARD_TIME s of its wave (game time), the boss card for the
@@ -1454,6 +1508,7 @@ function updateTutorial(dt, world) {
   }
 }
 function showTipOnce(key, text) {
+  if (game.world?.training) return;
   let seen = store.data.seen;
   if (!seen["tip_" + key]) {
     seen["tip_" + key] = true;
@@ -1608,9 +1663,13 @@ document.addEventListener(
       ))
     )
       return;
-    store.data = parsed.data;
-    store.kept = parsed.kept;
-    store.save("import");
+    if (!store.restore(parsed)) {
+      ui.alert(
+        "Save not restored",
+        "Storage is unavailable or full. Your previous progress is still kept. Free some space and import again.",
+      );
+      return;
+    }
     // 2.4.2: apply the imported settings (volume, controls, graphics, camera) right away;
     // they used to wait for the next reload or settings change.
     applySettings();
@@ -1788,7 +1847,7 @@ function rlApplyUpdateWhenIdle(why) {
   if (!game.pendingUpdate || game.mode !== "menu" || game.world) return;
   if (why === "found" && performance.now() - rlBootAt > 10e3) return; // not while someone is looking
   // 2.8.1: never reload under an open dialog (an import with pasted text) or another menu screen
-  if (why === "found" && (!getById("dialog").hidden || ui.screen !== "home")) return;
+  if (!getById("dialog").hidden || ui.screen !== "home") return;
   const apply = game.pendingUpdate;
   game.pendingUpdate = null;
   store.save("update");

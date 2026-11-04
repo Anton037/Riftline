@@ -1,16 +1,16 @@
 {
   "name": "riftline",
-  "version": "3.61.0",
+  "version": "3.62.0",
   "private": true,
   "type": "module",
-  "description": "Riftline \u2013 a touch-only 3D arena roguelite shooter for phones and tablets in landscape (three.js, WebAudio).",
+  "description": "Riftline – a touch-only 3D arena roguelite shooter for phones and tablets in landscape (three.js, WebAudio).",
   "homepage": "https://anton037.github.io/Riftline/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Anton037/Riftline.git"
   },
   "riftline": {
-    "build": "r3610a1103a-r1"
+    "build": "r3620a1104a-r1"
   },
   "scripts": {
     "build": "node build.js",
@@ -22,8 +22,8 @@
     "probe:mix": "node tools/verify.js mix",
     "probe:music": "node tools/verify.js music",
     "probe:place": "node tools/verify.js place",
-    "format": "prettier --write \"src/**/*.js\" \"tests/**/*.mjs\" \"tools/**/*.{js,mjs}\" build.js",
-    "format:check": "prettier --check \"src/**/*.js\" \"tests/**/*.mjs\" \"tools/**/*.{js,mjs}\" build.js",
+    "format": "prettier --write \"src/**/*.js\" \"tests/**/*.mjs\" \"tools/**/*.{js,mjs}\" \"scripts/**/*.mjs\" build.js eslint.config.mjs",
+    "format:check": "prettier --check \"src/**/*.js\" \"tests/**/*.mjs\" \"tools/**/*.{js,mjs}\" \"scripts/**/*.mjs\" build.js eslint.config.mjs",
     "lint": "eslint .",
     "test:unit": "node tools/test.js --unit",
     "e2e": "node tools/test.js --browser",
@@ -35,12 +35,23 @@
   },
   "devDependencies": {
     "esbuild": "^0.28.2",
-    "eslint": "^10.12.0",
-    "globals": "^17.13.0",
-    "playwright": "^1.56.1",
-    "prettier": "3.8.1"
+    "eslint": "10.14.0",
+    "globals": "17.14.0",
+    "playwright": "1.64.1",
+    "prettier": "3.9.10"
   },
   "dependencies": {
-    "three": "0.186.0"
+    "three": "0.187.0"
+  },
+  "engines": {
+    "node": "^22.13.0 || >=24"
+  },
+  "overrides": {
+    "eslint": {
+      "minimatch": "11.0.1"
+    },
+    "@eslint/config-array": {
+      "minimatch": "11.0.1"
+    }
   }
 }

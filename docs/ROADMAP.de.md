@@ -4,7 +4,22 @@
 
 Riftline is a touch-only landscape game for phones and tablets. Keep gameplay, readable warnings,
 biome art and audio coherent. Keep routine checks short and run specialist checks only when relevant.
-The owner merges pull requests. Work must remain cumulative with the 3.61.0 graphics/test cleanup.
+The owner merges pull requests. Work remains cumulative with the 3.61.0 graphics/test cleanup.
+
+## Implemented in 3.62.0
+
+- Protect open dialogs from idle updates, including app backgrounding.
+- Recover held saves through confirmed import/reset; report write failures and retain previous progress.
+- Preserve the card RNG across resumed choices, rerolls and banishes.
+- Finish touch-only action filtering; use the map-hazard armour rules for dust devils.
+- Count current Codex discoveries and retain remembered retired bosses/Overdrives in an archive.
+- Add boss training for all six arenas and three starting pattern stages, with a fixed kit and no profile rewards.
+- Add steady two-tone warning outlines, hostile-shot footprints and quieter Marsh/Core floor seams.
+- Protect sniper, beam and trap warning voices and duck the background mix briefly.
+- Correct the biome mix fixtures and place-sound peak checks; remove decorative rendering from audio probes.
+- Add targeted save/choice regressions, first-run touch/audio/background coverage and practice isolation checks.
+- Refresh dependencies and the action pin, include scripts in formatting, and remove the already-applied patch.
+- Explain wave checkpoints on Home. A saved card choice still resumes at the choice itself.
 
 ## Implemented in the cumulative 3.61.0 update
 
@@ -22,7 +37,7 @@ The owner merges pull requests. Work must remain cumulative with the 3.61.0 grap
 - Actual iPhone/iPad/Android frame pacing, heating, speaker mix and background/resume behaviour.
 - Visual review of every boss attack/phase, not just the encounter snapshots.
 - Long-session memory and late-wave balance with actual play; scripted checks cannot establish fun or fairness.
-- GitHub integration and publication: the owner applies the cumulative patch and merges after checks.
+- GitHub integration and publication: the owner merges the reviewed branch after checks.
 
 ## Historical decisions
 

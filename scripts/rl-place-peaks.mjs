@@ -4,17 +4,17 @@
 // The catalog renders every sound at sfxVol = 1 with the ambience bus at its constructor
 // value (ambVol 0.8 x AMB_LIFT). This script renders the place:* entries plus the two
 // reference shots and reports each margin, so an ambience lift can be sized without
-// running the multi-hour catalog.
+// running the full sound catalog.
 
 import { chromium } from "playwright";
 import { launchArgs } from "../tools/browser.js";
+import { openAudioPage } from "../tools/verification/audio-page.mjs";
+import { SCAPE } from "../src/audio/place.js";
 
 const BASE = process.argv[2] || "http://localhost:8124/index.html";
 const browser = await chromium.launch({ args: launchArgs() });
-const page = await browser.newPage();
+const page = await openAudioPage(browser, BASE);
 page.on("pageerror", (err) => console.log("PAGEERROR:", err.message));
-await page.goto(BASE, { timeout: 90000 });
-await page.waitForFunction(() => window.__riftTest && window.__riftTest.game, null, { timeout: 90000 });
 
 const res = await page.evaluate(async () => {
   const E = window.__riftTest.game.sound.constructor,
@@ -26,6 +26,7 @@ const res = await page.evaluate(async () => {
     try {
       const r = await E.renderOffline(spec);
       peaks[name] = r.peak;
+      if (!r.finite || r.failed || !(r.peak > 0)) fail.push(`${name}: invalid or silent render`);
     } catch (err) {
       fail.push(`${name}: ${err && err.message}`);
     }
@@ -39,13 +40,17 @@ const p = res.peaks,
   pulse = p.pulse,
   scatter = p.scatter,
   bedLimit = pulse * 0.6,
-  farLimit = scatter;
+  farLimit = scatter,
+  bedSet = new Set(Object.values(SCAPE).flatMap((scape) => scape.bed.map(([id]) => id))),
+  overLimit = [];
+if (!(pulse > 0 && scatter > 0)) res.fail.push("Missing or silent reference shots");
 const rows = Object.keys(p)
   .filter((k) => k.startsWith("place:"))
   .map((k) => {
-    const bed = res.bedSet ? res.bedSet.includes(k.slice(6)) : null,
+    const bed = bedSet.has(k.slice(6)),
       limit = bed ? bedLimit : farLimit,
       over = p[k] >= limit;
+    if (!Number.isFinite(p[k]) || over) overLimit.push(k);
     return `${over ? "OVER " : "ok   "} ${k.padEnd(28)} peak ${p[k].toFixed(4)}  (limit ${limit.toFixed(4)})`;
   })
   .sort();
@@ -55,11 +60,11 @@ console.log(`amb bus at catalog = ambVol ${res.ambLiftBus} (x AMB_LIFT as built)
 console.log(rows.join("\n"));
 if (res.fail.length) console.log("\nFAILS:\n" + res.fail.join("\n"));
 const placeKeys = Object.keys(p).filter((k) => k.startsWith("place:"));
-const maxBedRatio = Math.max(...placeKeys.map((k) => p[k] / bedLimit));
-const maxFarRatio = Math.max(...placeKeys.map((k) => p[k] / farLimit));
+const maxBedRatio = Math.max(0, ...placeKeys.filter((k) => bedSet.has(k.slice(6))).map((k) => p[k] / bedLimit));
+const maxFarRatio = Math.max(0, ...placeKeys.filter((k) => !bedSet.has(k.slice(6))).map((k) => p[k] / farLimit));
 console.log(`\nmax bed ratio vs its limit : ${maxBedRatio.toFixed(2)}  (must stay under 1)`);
 console.log(`max far ratio vs its limit : ${maxFarRatio.toFixed(2)}`);
 console.log(
   `these peaks already carry the built-in bus lift (ambVol 0.8 x AMB_LIFT); old-bus peaks were ${res.ambLiftBus ? "" : ""}this / (built lift)`,
 );
-process.exit(res.fail.length ? 1 : 0);
+process.exit(res.fail.length || overLimit.length ? 1 : 0);

@@ -34,9 +34,10 @@ try {
   }
   const metrics = [];
   for (const id of ids) {
-    for (const boss of [false, true]) {
+    for (const scene of ["encounter", "boss", "warnings"]) {
+      const boss = scene === "boss";
       const row = await page.evaluate(
-        ({ id, boss, quality }) => {
+        ({ id, boss, scene, quality }) => {
           const T = window.__riftTest;
           for (const k of Object.keys(T.store.data.seen)) T.store.data.seen[k] = true;
           T.store.data.settings.quality = quality;
@@ -54,6 +55,7 @@ try {
           g.paused = true;
           w.route = T.biomeList.map((b) => b.id);
           const n = w.route.indexOf(id) * 5 + (boss ? 5 : 2);
+          w.endless = n > 20;
           w.startWave(n);
           g.intro = null;
           w.god = true;
@@ -64,7 +66,7 @@ try {
           }
           if (boss && w.boss) {
             w.boss.x = 0;
-            w.boss.y = -4;
+            w.boss.y = -1.5;
             w.boss.spawnT = 0;
           }
           if (!boss)
@@ -73,6 +75,25 @@ try {
               const e = w.spawnEnemy(t, Math.cos(a) * 5, 2 + Math.sin(a) * 4, {});
               if (e) e.spawnT = 0;
             });
+          if (scene === "warnings") {
+            ["stomp", "mortar", "glacier", "plague", "rift", "fire"].forEach((kind, i) => {
+              const h = w.hazard({
+                x: ((i % 3) - 1) * 4,
+                y: Math.floor(i / 3) * 4 - 2,
+                r: 1.6,
+                kind,
+                delay: 2,
+                dmg: 10,
+              });
+              h.t = 0.7 + i * 0.17;
+            });
+            const beam = w.beam({ x: -6, y: 5, a: 0, len: 12, w: 0.8, warn: 2 });
+            beam.t = 1;
+            w.updateBeams(0);
+            ["orb", "fast", "shard", "spore", "riftorb", "glass"].forEach((kind, i) =>
+              w.shoot(-5 + i * 2, 1, 0, 4, 10, { kind }),
+            );
+          }
           w.time = 8;
           w.fx.length = 0;
           r.P.n = 0;
@@ -90,6 +111,7 @@ try {
           return {
             id,
             boss,
+            scene,
             quality,
             actual: w.arena.biome.id,
             bossType: w.boss?.type || null,
@@ -99,7 +121,7 @@ try {
             bossMeshes,
           };
         },
-        { id, boss, quality },
+        { id, boss, scene, quality },
       );
       assert.equal(row.actual, id);
       if (boss) assert.ok(row.bossType, `${id}: missing boss`);
@@ -115,7 +137,7 @@ try {
         assert.ok(placement.width < placement.w * 0.5, "Boss bar must fit between the touch sticks");
       }
       metrics.push(row);
-      await page.screenshot({ path: `${out}/${id}${boss ? "-boss" : ""}.png` });
+      await page.screenshot({ path: `${out}/${id}${scene === "encounter" ? "" : "-" + scene}.png` });
       console.log(JSON.stringify(row));
     }
   }

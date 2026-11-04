@@ -7,7 +7,7 @@ import { openGame } from "./support/game.mjs";
 for (const tablet of [true, false])
   test(
     `${tablet ? "tablet player" : "phone multitouch"} flow`,
-    { timeout: process.env.TEST_DRAW === "1" ? 60000 : 25000 },
+    { timeout: process.env.TEST_DRAW === "1" ? 90000 : tablet ? 30000 : 25000 },
     async (t) => {
       const started = performance.now();
       const { page, press, errors, stopServer } = await openGame(t, tablet);
@@ -22,6 +22,28 @@ for (const tablet of [true, false])
         await visible("settings");
         await press("#setNumbers");
         assert.equal(await page.evaluate(() => window.__riftTest.renderer.numbers), false);
+        // A phone may background while the player fetches a backup from another app.
+        await press("#restoreBtn");
+        await page.locator("#saveImport").fill('{"game":"riftline","v":1,"shards":123}');
+        const updateState = await page.evaluate(() => {
+          let applied = 0;
+          const g = window.__riftTest.game;
+          g.pendingUpdate = () => applied++;
+          Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
+          try {
+            document.dispatchEvent(new Event("visibilitychange"));
+          } finally {
+            delete document.visibilityState;
+            document.dispatchEvent(new Event("visibilitychange"));
+          }
+          const result = { applied, pending: !!g.pendingUpdate, text: document.getElementById("saveImport").value };
+          g.pendingUpdate = null;
+          return result;
+        });
+        assert.equal(updateState.applied, 0);
+        assert.equal(updateState.pending, true);
+        assert.equal(updateState.text, '{"game":"riftline","v":1,"shards":123}');
+        await press("#dlgBtns button");
         await press("#settings [data-back]");
         await visible("home");
         phase("boot and settings");
@@ -36,6 +58,14 @@ for (const tablet of [true, false])
         return { x: w.player.x, y: w.player.y, dashes: w.runStats.dashes };
       });
       const cdp = await page.context().newCDPSession(page);
+      const ignored = await page.evaluate(() => {
+        const input = window.__riftTest.game.input;
+        for (const id of ["dashBtn", "novaBtn", "gadgetBtn"])
+          for (const pointerType of ["mouse", "pen"])
+            document.getElementById(id).dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerType }));
+        return { ...input.pending };
+      });
+      assert.deepEqual(ignored, { dash: false, nova: false, gadget: false });
       await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: 160, y: 260, id: 1 }] });
       await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: 220, y: 230, id: 1 }] });
       try {

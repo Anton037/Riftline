@@ -75,3 +75,25 @@ test("corrupt saves are backed up, or held untouched when storage is full", () =
   assert.equal(entries.get(SAVE_KEY), broken);
   assert.equal(held.storageOk, false);
 });
+
+test("confirmed import and reset recover held saves; failed replacements preserve progress", () => {
+  const broken = '{"v":1,"game":"riftline","shards":';
+  for (const reason of ["import", "reset"]) {
+    reset(broken);
+    blocked = true;
+    const store = new SaveStore();
+    const previous = store.data;
+    const imported = store.parse(JSON.stringify({ ...newSave(), shards: 77 }));
+    const replace = () => (reason === "reset" ? store.reset() : store.restore(imported));
+    assert.equal(replace(), false);
+    assert.equal(store.data, previous);
+    assert.equal(entries.get(SAVE_KEY), broken);
+    blocked = false;
+    assert.equal(replace(), true);
+    assert.equal(store.storageOk, true);
+    assert.equal(new SaveStore().data.shards, reason === "reset" ? 0 : 77);
+    store.data.shards++;
+    store.save("test");
+    assert.equal(new SaveStore().data.shards, reason === "reset" ? 1 : 78);
+  }
+});

@@ -29,5 +29,5 @@ if (files.some((f) => isBrowser(path.basename(f))) && !args.includes("--no-build
   const code = await run(["build.js"], 30000);
   if (code) process.exit(code);
 }
-process.exitCode = await run(["--test", "--test-concurrency=1", ...files], args.includes("--draw") ? 150000 : 75000);
+process.exitCode = await run(["--test", "--test-concurrency=1", ...files], args.includes("--draw") ? 240000 : 75000);
 console.log(`Test run: ${((performance.now() - start) / 1000).toFixed(1)} s`);

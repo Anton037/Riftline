@@ -2,13 +2,12 @@
 // Usage: node scripts/rl-audio-check.mjs [base-url]   (a server must already serve the build)
 import { chromium } from "playwright";
 import { launchArgs } from "../tools/browser.js";
+import { openAudioPage } from "../tools/verification/audio-page.mjs";
 
 const BASE = process.argv[2] || "http://localhost:8124/index.html";
 const browser = await chromium.launch({ args: launchArgs() });
-const page = await browser.newPage();
+const page = await openAudioPage(browser, BASE);
 page.on("pageerror", (err) => console.log("PAGEERROR:", err.message));
-await page.goto(BASE, { timeout: 90000 });
-await page.waitForFunction(() => window.__riftTest && window.__riftTest.game, null, { timeout: 90000 });
 
 const result = await page.evaluate(async () => {
   const out = { fail: [] };
@@ -18,6 +17,11 @@ const result = await page.evaluate(async () => {
     return out;
   }
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const until = async (condition, ms = 2000) => {
+    const deadline = performance.now() + ms;
+    while (!condition() && performance.now() < deadline) await wait(30);
+    return condition();
+  };
 
   // H1: the scheduler is alive and stepping after unlock
   sound.unlock();
@@ -41,8 +45,8 @@ const result = await page.evaluate(async () => {
   if (!sound.timer) out.fail.push("scheduler died after a note throw");
   if (sound.schedFails) out.fail.push("note throw should be contained by the per-step guard");
   const after = sound.musicScheduled;
-  await wait(400);
-  if (sound.musicScheduled <= after) out.fail.push("music did not keep stepping through note throws");
+  if (!(await until(() => sound.musicScheduled > after)))
+    out.fail.push("music did not keep stepping through note throws");
 
   // H1 chaos 2: a throw outside the per-step guard (syncTrack) kills the interval — it must
   // re-arm with a backoff and recover
@@ -60,8 +64,7 @@ const result = await page.evaluate(async () => {
   await wait(2200);
   if (!sound.timer) out.fail.push("scheduler did not re-arm after the throw");
   const after2 = sound.musicScheduled;
-  await wait(400);
-  if (sound.musicScheduled <= after2) out.fail.push("music did not recover after the re-arm");
+  if (!(await until(() => sound.musicScheduled > after2))) out.fail.push("music did not recover after the re-arm");
 
   // H2: a room tone whose build throws is cleaned up, marked dead, and not rebuilt inside 10 s
   const realOsc = sound.ctx.createOscillator.bind(sound.ctx);

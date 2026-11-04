@@ -341,7 +341,7 @@ const SpatialHash = class {
       dist.fill(1 << 30);
       let head = 0,
         tail = 0;
-      for (dist[goal] = 0, queue[tail++] = goal; head < tail; ) {
+      for (dist[goal] = 0, queue[tail++] = goal; head < tail;) {
         let cell = queue[head++],
           col = cell % cols,
           row = (cell / cols) | 0,
@@ -866,7 +866,7 @@ function isConnected(obs, W, H) {
     stack = [start];
   seen[start] = 1;
   let reached = 0;
-  for (; stack.length; ) {
+  for (; stack.length;) {
     let idx = stack.pop();
     reached++;
     let col = idx % cols,
