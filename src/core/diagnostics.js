@@ -26,8 +26,6 @@ let errorLog = [],
     pointermove: 0,
     pointerup: 0,
     pointercancel: 0,
-    keydown: 0,
-    keyup: 0,
     reset: 0,
     runStartMs: 0,
     runErrorSnapshot: null,
@@ -145,10 +143,6 @@ function buildReport() {
       RL_RT.pointerup +
       "/" +
       RL_RT.pointercancel +
-      " · keys " +
-      RL_RT.keydown +
-      "/" +
-      RL_RT.keyup +
       " · buttons " +
       RL_RT.buttonActivations +
       " · rotates " +
@@ -546,7 +540,7 @@ function rlMonStart(world, resume) {
     weapon: world.weapon,
     threat: world.threat,
     errBase: new Map(errorLog.map((entry) => [rlMonErrKey(entry), entry.n])),
-    inputBase: RL_RT.pointerdown + RL_RT.keydown,
+    inputBase: RL_RT.pointerdown,
     frames: 0,
     dtSum: 0,
     slow: 0,
@@ -936,7 +930,7 @@ function rlMonFinish(world, pre, win, abandoned, silent, crashed) {
         ? `${fps.toFixed(0)} fps avg · ${mon.slow} slow frame(s) >50 ms (${slowPct.toFixed(1)}%) · worst ${Math.round(mon.worst)} ms · JS ${(mon.workSum / mon.frames).toFixed(1)} ms/frame`
         : "no frames measured",
     );
-    const inp = RL_RT.pointerdown + RL_RT.keydown - mon.inputBase;
+    const inp = RL_RT.pointerdown - mon.inputBase;
     addCheck(
       inp > 0 ? "OK" : "WARN",
       "input",
@@ -1355,7 +1349,10 @@ async function rlRunHealthNow({ context = "startup" } = {}) {
       file = gameSrc.split("/").pop() || "";
     ok(
       "version-contract",
-      meta === GAME_VERSION && file === `game-v${GAME_VERSION}-final.js` && buildMeta === BUILD_ID,
+      meta === GAME_VERSION &&
+        file.startsWith(`game-v${GAME_VERSION}-`) &&
+        /-[a-f0-9]{16}\.js$/.test(file) &&
+        buildMeta === BUILD_ID,
       `HTML ${meta} · JS ${GAME_VERSION} · script ${file || "?"} · build ${buildMeta}${buildMeta === BUILD_ID ? "" : " ≠ " + BUILD_ID}`,
     );
   } catch (err) {
@@ -1514,10 +1511,10 @@ async function rlRunHealthNow({ context = "startup" } = {}) {
       typeof input?.reset === "function" &&
       typeof input?.press === "function" &&
       typeof input?.onBlur === "function";
-    ok("input-api", ready, ready ? "pointer + keyboard pipeline ready" : "missing input methods");
+    ok("input-api", ready, ready ? "touch pipeline ready" : "missing input methods");
     info(
       "input-runtime",
-      `down ${RL_RT.pointerdown} · move ${RL_RT.pointermove} · up ${RL_RT.pointerup} · cancel ${RL_RT.pointercancel} · keys ${RL_RT.keydown}/${RL_RT.keyup} · resets ${RL_RT.reset}`,
+      `down ${RL_RT.pointerdown} · move ${RL_RT.pointermove} · up ${RL_RT.pointerup} · cancel ${RL_RT.pointercancel} · resets ${RL_RT.reset}`,
     );
   } catch (err) {
     rlHealthAdd("input-api", "FAIL", err.message);
@@ -1653,10 +1650,12 @@ async function rlRunHealthNow({ context = "startup" } = {}) {
   }
   try {
     if (typeof caches !== "undefined") {
-      const prefix = `riftline-v${GAME_VERSION.replace(/\./g, "-")}-`;
+      const scope = (await navigator.serviceWorker?.getRegistration())?.scope || new URL("./", location.href).href;
+      const owned = `riftline:${encodeURIComponent(scope)}:`;
+      const prefix = `${owned}v${GAME_VERSION.replace(/\./g, "-")}-`;
       let keys = await caches.keys(),
         current = keys.find((key) => key.startsWith(prefix)),
-        stale = keys.filter((key) => key.startsWith("riftline-") && !key.startsWith(prefix));
+        stale = keys.filter((key) => key.startsWith(owned) && !key.startsWith(prefix));
       rlHealthAdd(
         "cache-version",
         current ? "OK" : "WARN",

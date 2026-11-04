@@ -29,7 +29,7 @@ the release, so the code was turned back into readable sources step by step:
 
 ## Testing policy
 
-`docs/TESTING.md` defines the current short standard gate and opt-in specialist checks. The deep audio
+`docs/TESTING.md` defines the current short standard gate and opt-in specialist checks. The optional audio
 render no longer reruns all historical gameplay assertions; it uses bounded browser chunks and a passing
 semantic cache. Run `npm run check` during development and the checks appropriate to the changed system.
 
@@ -43,8 +43,8 @@ semantic cache. Run `npm run check` during development and the checks appropriat
   owning module exports a setter (`set_RL_RETIRE_NOTE(v)`).
 - `tests/core.test.mjs` exercises deterministic seeds and input streams without stored golden outputs.
   Preserve reproducibility and add focused cases for observable regressions.
-- `window.__riftTest` (end of `main.js`) exposes the game, UI, store, renderer and data tables for
-  the tests.
+- `window.__riftTest` (end of `main.js`) exposes the game, UI, store, renderer, World and biome list for
+  the browser tests and probes.
 - `npm run format` formats the code; `npm run format:check` is what CI runs.
 
 ## Versions
@@ -57,7 +57,18 @@ also fails if the service worker would precache a file that does not exist.
 
 For a release: bump `version` and `riftline.build` in `package.json` together (the build id is
 `r<version-digits>a<MMDD><letter>-r1`) and run `npm install` (so `package-lock.json` follows), add a player-facing entry
-at the top of `src/data/whatsnew.js` (the News tab; `tests/data-audit.mjs` checks that its first entry matches the
-version), run `npm run release-check`, then request `npm run screens` for a deliberate art review. Since 3.57.0 `src/build-info.json`
+at the top of `src/data/whatsnew.js` (the News tab; `tests/core.test.mjs` checks that its first entry matches the
+version), run `npm run release-check`, then run `npm run audit:visual` for a deliberate art review. Since 3.57.0 `src/build-info.json`
 is only the identity the game fetches at every start: `build.js` writes just the version and the build id of it to
 `dist/build-info.json`, so there is no per-release changelog to maintain there.
+
+## Touch-only input and content identity (3.61.0)
+
+Gameplay accepts touch pointers and on-screen actions only. No gamepad polling, controller haptics,
+keyboard shortcuts or mouse aiming remains. Native browser form input is preserved.
+
+The build derives the game bundle URL from its contents and derives the worker cache identity from
+the bundle, HTML, worker source, public assets and release metadata. Rebuilding identical inputs is
+stable; changing content changes the appropriate identity even without a version bump. Product
+version/build constants still identify a release. Each service-worker scope owns separate caches;
+the current and one previous complete snapshot are retained. Failed installs are discarded.

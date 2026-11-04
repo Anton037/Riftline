@@ -1,3 +1,5 @@
+> Historical audit: measurements and command examples describe the dated build below. They are not current test policy. See docs/TESTING.md and the current roadmap.
+
 # Riftline — Full Code Audit & Improvement Roadmap
 
 **Repo:** `Aaron40776/Riftline` @ `c1b4840` (main) · **Date:** 2026-10-17 · **Scope:** 39,458 lines in `src/`, three@0.186.0, esbuild build, PWA + service worker, full QA/test suite.

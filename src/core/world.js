@@ -1819,12 +1819,12 @@ const rlStep = 1 / 60,
     }
     /* 3.21.0: the last twelve hits of the run for the recap on the end screen; the ticks of a hazard (acid, lava) that
        follow each other within 1.5 s are one entry */
-    logHit(src, dmg, chip) {
+    logHit(src, dmg, chip, lethal) {
       const key = src || "?",
         log = this.hitLog,
         last = log[log.length - 1];
       this.takenBy[key] = (this.takenBy[key] || 0) + dmg;
-      if (chip && last && last.chip && last.src === key && this.time - last.t < 1.5) {
+      if (!lethal && chip && last && last.chip && last.src === key && this.time - last.t < 1.5) {
         last.dmg += dmg;
         last.t = this.time;
         last.n++;
@@ -1861,9 +1861,10 @@ const rlStep = 1 / 60,
       } else {
         dmg = Math.round(dmg);
         player.hp -= dmg;
-        this.runStats.dmgTaken += Math.min(dmg, hpBefore);
+        const hullLost = Math.min(dmg, hpBefore);
+        this.runStats.dmgTaken += hullLost;
         this.lastHit = src || null;
-        this.logHit(src, dmg, chip);
+        this.logHit(src, hullLost, chip, player.hp <= 0);
         if (!chip) {
           player.iT = 0.65;
           player.hurtT = 0.3;

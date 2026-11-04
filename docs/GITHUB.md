@@ -5,11 +5,11 @@ These are settings of the repository on github.com. They are not files, so only 
 
 ## About (the gear next to "About" on the front page)
 
-**Description** (one line, 98 characters):
+**Description:**
 
-> Riftline: a 3D arena roguelite shooter for the browser. Twin-stick touch or keyboard, six biomes, synthesized sound.
+> Riftline: a 3D arena roguelite shooter for the browser. Touch-only controls, six biomes, synthesized sound.
 
-**Website:** `https://aaron40776.github.io/Riftline/`
+**Website:** `https://anton037.github.io/Riftline/`
 
 **Topics** (type them in the same box; GitHub lowercases them):
 
@@ -18,9 +18,10 @@ These are settings of the repository on github.com. They are not files, so only 
 
 ## Social preview (Settings, General, "Social preview")
 
-An image of 1280 x 640 px shows when the link is shared. A good one: the Blackout City picture of the game with the title
-(RIFTLINE in the display font) over it. The picture `tests/shots/biomes-pc/01-yard.png` (run `npm run screens`, or the biome-shots alone) is a start; the
-title can be added with any image editor. If you want, I can make one.
+An image of 1280 x 640 px shows when the link is shared. A good starting point is the Blackout City
+image from `npm run audit:visual`, with RIFTLINE added in the display font. The command writes the
+current tablet scenes to `verification-output/current-tablet-high/`. The optional visual workflow
+also uploads its images and metrics as a downloadable artifact, including after a failed check.
 
 ## The licence (decide, then add a LICENSE file)
 

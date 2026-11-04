@@ -1,71 +1,74 @@
-# Testing policy — fresh foundation, 3.61.0
+# Testing Riftline
 
-The historical test catalog has been removed at the owner's request. There is one small suite,
-using Node's built-in test runner, with ten unit contracts and two browser flows. No release-by-release
-assertion collection, stored simulation goldens, hidden deep test or change-selection planner remains.
+Keep the routine gate short. Ten Node contracts and three browser checks cover the critical paths;
+there is no historical release assertion catalog, always-on soak or hidden extended test chain.
 
 | Command | Coverage | Deadline |
 |---|---|---|
-| `npm test` | Build once, ten units and two browser flows | Build 30 s, test process 75 s |
-| `npm run test:unit` | Core simulation/data (4), saves (4), rendering helpers (2) | Test process 75 s |
-| `npm run e2e` | Desktop and landscape touch player flow | Each flow 25 s, process 75 s |
-| `npm run test:render` | Same browser flows with real pixel drawing | Each flow 60 s, process 150 s |
-| `npm run check` | Formatting, undefined-name lint, then `npm test` | Same test deadlines |
-| `npm run release-check` | Alias of `check` | Same gate, no second chain |
-| `npm run audit:visual` | Optional six-biome/boss image and draw-call review | Manual specialist tool |
-| `npm run verify:audio` | Optional offline sound/music catalog and voice budgets | Several minutes; passing input cache |
-| `npm run verify:audio-budget` | Optional six-biome budget/reference parity | Manual specialist tool |
+| `npm run check` | Formatting, lint, build and standard tests | Test subprocess 75 s |
+| `npm test` | Ten Node contracts, tablet flow, phone flow, worker update | Build 30 s; tests 75 s |
+| `npm run test:unit` | Saves, deterministic simulation, data and render geometry | 75 s |
+| `npm run e2e` | Tablet/phone touch and worker update | Game flows 25 s each; worker 20 s; process 75 s |
+| `npm run test:render` | Same browser checks with actual drawing | Game flows 60 s each; process 150 s |
+| `npm run audit:visual` | Six biomes and bosses on tablet and landscape phone, High | 240 s per layout |
+| `npm run verify:audio` | Optional synthesized sound correctness | 420 s |
+| `npm run verify:audio-budget` | Optional audio scheduler/real-node parity | 180 s |
+| `npm run probe:audio` | Audio fault recovery | 120 s |
+| `npm run probe:mix` / `probe:music` / `probe:place` | Optional sound measurements | 300 / 420 / 180 s |
 
-Run `npm ci` and `npx playwright install --with-deps chromium` before browser checks. Node 22+ is
-required. `--no-build` is available through `npm test -- --no-build` for an already current `dist/`.
-Unknown test flags fail instead of silently selecting a different suite.
+## Standard contracts
 
-## What the new tests establish
+- Node checks cover seeded finite combat for each weapon, snapshot restoration, biome/boss/hazard
+  references, upgrade data, release notes, atmosphere budgeting and static mesh bounds.
+- Save checks cover round-trip persistence, migration, unknown future fields and corrupt-save recovery
+  when storage is full.
+- The tablet flow uses touch for settings, movement, dash, pause/resume, card choice, offline reload,
+  saved-run continuation, death recap and returning home. Death/wave completion are arranged through
+  the simulation interface rather than waiting through whole fights.
+- The landscape phone flow holds both sticks and taps dash with a third finger, cancels the touches,
+  then pauses/resumes. A gamepad API counter must stay at zero.
+- The worker fixture uses the real worker source with small pages. It installs A, rejects an incomplete
+  release, installs B with the same product version/build but different content identity, activates B
+  while the A page stays open, stops the server, fetches A's bundle offline, then reloads offline into B.
+  A second deployment's cache must remain untouched. This is a worker integration test, not a full
+  two-release game migration or real-device acceptance test.
 
-- Every weapon runs finite combat without ambient `Math.random`; seeded inputs reproduce the same
-  simulation, and snapshots retain essential run state. All six places have boss/hazard mappings.
-  Upgrade/weapon references and current release news are consistent.
-- The real SaveStore round-trips settings and run data, migrates a representative old save, preserves
-  unknown future fields, and protects corrupt data when backup storage is full. One old-save fixture remains.
-- Atmosphere profiles reduce emissions under pressure. Static opaque batching preserves bounds and
-  leaves animated/translucent objects intact.
-- Both desktop and touch flows use actual UI/input handlers: settings, movement, dash, pause/resume,
-  wave completion, upgrade selection, persisted reload/continue, death and return home. Wave completion
-  and lethal damage are arranged through the game interface rather than waiting through a full fight.
-  Each flow gets an isolated browser, storage and server. Browser errors fail the test.
+Default game flows suppress WebGL draw calls. Simulation, renderer setup, DOM and inputs still run,
+but a passing test says nothing about pixel quality or FPS. `test:render` enables real drawing.
+Browser failures and console errors fail the player flows. Each flow has fresh storage and a server.
+No arbitrary sleep is used to wait for gameplay. The runner terminates its process group on timeout.
 
-Default browser tests suppress WebGL draw calls to keep software rasterization from dominating a
-functional test. The real simulation, scene/shader setup, DOM, inputs and game loop still run.
-They do **not** establish pixel quality, FPS or visual correctness. Use `test:render` and the visual
-review tool for real drawing. `RIFT_RENDERER=swiftshader` makes the browser backend explicit on a
-GPU-less runner; `tools/browser.js` owns those flags.
+## Targeted visual review
 
-There are no fixed sleeps waiting for gameplay. State-based waits have short deadlines and phase
-messages show where a failure happened. Flow cancellation closes Chromium; the outer runner kills
-its entire child process group at the overall deadline, including orphan browser processes.
+```sh
+# One biome on a phone in Saver (the saved setting is named battery)
+node tools/verify.js visual review land void battery
+# Every biome on a tablet in Auto
+node tools/verify.js visual review tablet all auto
+```
 
-## What was removed
+Arguments after `visual`: output tag, layout (`land`/`phone` or `tablet`), biome ID or `all`, quality
+(`high`, `auto`, `battery`). Screenshots and metrics go to `verification-output/<tag>-<layout>-<quality>/`.
+These are staged encounters, not a claim that every boss attack/phase has been visually reviewed.
+Auto captures its starting configuration, not sustained thermal adaptation. Use a physical device for that.
 
-The old E2E/QA runners, historical self-tests and their shipped browser bundle, multi-seed audit,
-soak/fuzz/balance suites, stored golden catalogs, overlapping screenshot scripts, archive checks and
-change-selection router are gone. No compatibility alias secretly runs them. The audio renderer and
-visual matrix live as optional development tools in `tools/verification/`, outside `tests/` and CI's
-default gate. Sound scheduling still has a separate real-node parity tool.
+All npm probes use the same temporary server and bounded process wrapper. Cleanup runs after failure,
+timeout and cancellation, including orphan Chromium children. Direct scripts take a base URL and expect
+an already running server. `RIFT_RENDERER=swiftshader` selects software drawing; `tools/browser.js` owns
+backend flags. Software frame times are not mobile GPU benchmarks.
 
-This is deliberately smaller coverage. Offline/service-worker recovery, broad menu/device layouts,
-long sessions, balance, every boss attack, audio quality and real-device comfort need targeted manual
-review or a focused future regression when there is a concrete bug. A green gate is not a full game audit.
+## CI and acceptance
 
-## CI
+PRs run `npm run check`. Pages runs the Node contracts and builds without downloading Chromium.
+Both normal jobs have a five-minute ceiling. The manual verification workflow runs the selected
+specialist check and uploads visual screenshots/metrics even after failures (seven-day retention).
 
-Pull requests and Pages builds run `npm run check` once, with a five-minute job ceiling including
-installation. Optional verification is manual, selected by name, with a ten-minute job ceiling. There
-is no nightly or automatic multi-minute audio/visual chain. Add tests for observable failure modes;
-avoid rebuilding the old catalog with assertions that duplicate implementation details.
+Before release, play boss fights on a phone/tablet in landscape. Check warnings against bright ice/glass,
+multitouch ownership, speaker audibility, Auto/Saver frame pacing and several minutes of heat/memory.
+Keep an old run open during a real deployment; apply the update outside the run and continue offline.
+These physical-device, full published-release, long-session and balance checks remain manual.
 
-## Verification of this reset
+## Measured duration
 
-On the development host with SwiftShader, all twelve replacement tests passed in 27.9 s including
-the build; the standalone two-flow E2E run passed in 27.1 s. Units alone passed in 0.8 s. Formatting
-and ESLint passed. The separate real-pixel flows passed in 55.4 s. These are observed host timings,
-not performance guarantees or device FPS claims.
+The 13 standard tests (including build) took 11.8 seconds on the development host after the touch-only
+and worker fixes. Timing depends on hardware and CI load; these numbers are not an SLA.

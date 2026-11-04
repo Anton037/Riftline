@@ -2383,11 +2383,20 @@ const MAX_PARTICLES = 1400,
             );
           }
         } else {
-          let k = clamp(beam.t / beam.warn, 0, 1),
-            edge = this.beams.seg(beam.x, beam.y, ex, ez, 0.3, 0.06 + k * 0.08, 0.04);
-          this.beams.colC(edge, warnColor, 0.5 + (Math.floor(time * 16) % 2) * 0.4);
-          let fill = this.beams.seg(beam.x, beam.y, ex, ez, 0.08, beam.w * k, 0.02);
-          this.beams.colC(fill, warnColor, 0.18);
+          const progress = clamp(beam.t / beam.warn, 0, 1),
+            halfWidth = beam.w * 0.5,
+            dx = -Math.sin(beam.a) * halfWidth,
+            dz = Math.cos(beam.a) * halfWidth;
+          // The two rails mark the full strike width immediately. Steady light also reads
+          // against bright floors without relying on a rapid flash.
+          for (let side = -1; side <= 1; side += 2) {
+            const x = side * dx,
+              z = side * dz,
+              edge = this.beams.seg(beam.x + x, beam.y + z, ex + x, ez + z, 0.12, 0.09, 0.04);
+            this.beams.colC(edge, warnColor, 0.72 + progress * 0.2);
+          }
+          const fill = this.beams.seg(beam.x, beam.y, ex, ez, 0.08, beam.w, 0.02);
+          this.beams.colC(fill, warnColor, 0.12 + progress * 0.18);
         }
       }
     }

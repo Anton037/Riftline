@@ -3,15 +3,12 @@
 // service worker, wake lock, save export/import). Every other module is reached from here through
 // imports.
 
-import { rumble } from "./ui/gamepad.js";
+import { rumble } from "./ui/haptics.js";
 import { dailySpec, recordDaily } from "./core/daily.js";
 import { weeklySpec, recordWeekly } from "./core/weekly.js";
 import { pactsById } from "./data/pacts.js";
 import { bossMedal, bossPar, MEDAL_NAMES } from "./core/medals.js";
 import {
-  RL_EVENT_KINDS,
-  RL_HEALTH,
-  RL_LAST_RUN_AUDIT,
   RL_MON,
   RL_RT,
   errorLog,
@@ -24,56 +21,37 @@ import {
   rlMonEnable,
   rlRunAudit,
   rlRunHealth,
-  rlUiButtonGuardSelfTest,
   buildReport,
   logError,
 } from "./core/diagnostics.js";
-import { GameUI, RL_TOUCH_CLICK_GUARD, getById, rlBiomeTitle, iconPaths, escapeHtml } from "./ui/ui.js";
-import { Input, RL_INPUT } from "./ui/input.js";
+import { GameUI, RL_TOUCH_CLICK_GUARD, getById, rlBiomeTitle, escapeHtml } from "./ui/ui.js";
+import { Input } from "./ui/input.js";
 import { HudEditor, applyHudLayout, fitHudLayout, fixedStickCenter } from "./ui/hud-layout.js";
-import { musicChords, rlShotSfx, musicVoices, SoundEngine } from "./audio/sound.js";
+import { SoundEngine } from "./audio/sound.js";
 import {
-  defaultSettings,
   RL_RETIRE_NOTE,
   SaveStore,
   SAVE_KEY,
   rlRecordRun,
-  rlSanitizeHistory,
   set_RL_RETIRE_NOTE,
-  cleanRun,
-  newSave,
   RL_MODULE_NOTE,
   set_RL_MODULE_NOTE,
-  rlMigrateModules,
 } from "./core/save.js";
-import { RL_MESH_TYPES } from "./render/models.js";
-import {
-  enemyDefs,
-  bossOrder,
-  RL_ENEMY_TIPS,
-  biomeVariants,
-  eliteAffixes,
-  bossDefs,
-  enemyOrder,
-  bossByWave,
-} from "./data/enemies.js";
+import { enemyDefs, RL_ENEMY_TIPS, biomeVariants, eliteAffixes, bossDefs } from "./data/enemies.js";
 import { BUILD_ID, GAME_VERSION, formatCount } from "./core/util.js";
-import { RL_KITERS, updateEnemy, OVERDRIVE } from "./core/ai.js";
-import { RL_BIOME_HAZARD, biomesById, biomeList } from "./data/biomes.js";
-import { weaponOrder, weaponDefs } from "./data/weapons.js";
-import { waveEvents, spawnWeights, heavyEnemies } from "./core/waves.js";
+import { OVERDRIVE } from "./core/ai.js";
+import { biomeList } from "./data/biomes.js";
+import { weaponDefs } from "./data/weapons.js";
+import { waveEvents } from "./core/waves.js";
 import { World, rlStep } from "./core/world.js";
 import { interpCapture, interpApply, interpRestore, interpReset } from "./render/interp.js";
 import { makePacer, paceFrame } from "./render/pacing.js";
 import { MUTATORS } from "./core/mutators.js";
-import { threatMods, milestones, workshopModules, threatLevels } from "./data/progression.js";
-import { upgradeList, upgradesById } from "./data/upgrades.js";
-import { mapTemplates, hitsObstacle, obstacleShapes, buildLayout, isConnected } from "./core/arena.js";
-import { computeStats, weaponRange } from "./core/stats.js";
+import { threatMods, milestones, threatLevels } from "./data/progression.js";
+import { upgradesById } from "./data/upgrades.js";
 import { Renderer } from "./render/renderer.js";
 import "./render/biome-visuals.js";
 import { Overlay } from "./render/overlay.js";
-import { SCAPE } from "./audio/place.js";
 
 const RL_INTRO = { queue: [], last: 0 };
 function rlIntroEvents(world) {
@@ -343,7 +321,7 @@ if (window.visualViewport) {
   );
 }
 const overlay = new Overlay(elementById("ov")),
-  input = new Input(elementById("touch"), renderer),
+  input = new Input(elementById("touch")),
   game = {
     store: store,
     sound: sound,
@@ -502,7 +480,7 @@ const overlay = new Overlay(elementById("ov")),
       }
     },
     resume() {
-      // 3.11.0: not behind the rotate screen (a tablet with a keyboard could press Esc there)
+      // Do not resume behind the portrait rotation prompt.
       if (this.paused && !needsRotate()) {
         this.paused = false;
         ui.hidePause();
@@ -862,36 +840,6 @@ input.onBlur = () => {
     game.pause();
   }
 };
-input.isPlaying = () => game.mode === "game" && !game.paused && !game.chooseShown && !game.overShown;
-input.onPause = () => {
-  if (!document.getElementById("dialog").hidden) {
-    ui.closeDialog(null);
-    return;
-  }
-  // Esc leaves the button layout editor without saving (P, the other pause key, must not throw the edits away)
-  if (hudEditor.isOpen) {
-    if (input._rlKey === "escape") hudEditor.close(false);
-    return;
-  }
-  // 2.4.2 Esc: back in menu pages; from settings opened in the pause menu back to the pause menu
-  if (ui.rlFromPause) return ui.back();
-  if (game.mode === "menu") {
-    if (
-      input._rlKey === "escape" &&
-      ["workshop", "records", "daily", "pacts", "news", "settings"].includes(ui.screen)
-    ) {
-      ui.back();
-    }
-    return;
-  }
-  if (game.mode === "game") {
-    if (game.paused) {
-      game.resume();
-    } else {
-      game.pause();
-    }
-  }
-};
 let qualityPreset = qualityPresets.auto,
   autoDpr = 1.5;
 /* 3.58.0: the motion preference of the device. index.html already stops the CSS animations; the camera shake
@@ -963,7 +911,6 @@ function loopTick(now) {
     if (needsRotate()) game.pause();
     try {
       const frameStart = performance.now();
-      input.updatePad(dt);
       runFrame(dt);
       frameErrorCount = 0;
       if (RL_MON)
@@ -1061,9 +1008,8 @@ function runFrame(dt) {
         }
       }
       if (renderer && !(game.chooseShown || game.overShown)) {
-        // 2.3.6: the "DRAG HERE TO MOVE" hints follow the input in use (like the coach texts since
-        // 2.3.4); on a laptop with a touch screen they showed while playing with keys and mouse.
-        let hints = !!game.tut && game.tut.step <= 1 && RL_INPUT.touch;
+        // Touch hints are shown only during the opening tutorial.
+        let hints = !!game.tut && game.tut.step <= 1;
         overlay.draw(renderer, world, input, { hints: hints, dt: dt, safe: safeAreaInsets() });
       } else overlay.clear();
     } finally {
@@ -1216,28 +1162,16 @@ function handleWorldEvents(world) {
         // 3.1.0: the boss track starts when the boss appears (case "boss"), until then the calm theme plays
         sound.setMusic("fight", biome.id);
         if (ev.n === 2) {
-          showTipOnce(
-            "dash",
-            rlKeys()
-              ? "Tip: SPACE dashes \u2014 it makes you untouchable for a moment."
-              : "Tip: DASH makes you untouchable for a moment.",
-          );
+          showTipOnce("dash", "Tip: DASH makes you untouchable for a moment.");
         }
         if (ev.n === 4) {
           showTipOnce(
             "singularity",
-            rlKeys()
-              ? "Tip: G throws a Singularity at the thickest crowd: it pulls them together, then collapses. Charges refill."
-              : "Tip: tap the gadget button to throw a Singularity at the thickest crowd. Hold the aim side to pick the spot.",
+            "Tip: tap the gadget button to throw a Singularity at the thickest crowd. Hold the aim side to pick the spot.",
           );
         }
         if (ev.n === 3) {
-          showTipOnce(
-            "aim",
-            rlKeys()
-              ? "Tip: hold the left mouse button to aim and fire at the cursor."
-              : "Tip: drag the right side to aim yourself. Holding it fires at the nearest enemy.",
-          );
+          showTipOnce("aim", "Tip: drag the right side to aim yourself. Holding it fires at the nearest enemy.");
         }
         break;
       }
@@ -1270,12 +1204,7 @@ function handleWorldEvents(world) {
         }
         break;
       case "novaReady":
-        showTipOnce(
-          "nova",
-          rlKeys()
-            ? "NOVA is charged \u2014 press E to blast everything around you."
-            : "NOVA is charged \u2014 tap it to blast everything around you.",
-        );
+        showTipOnce("nova", "NOVA is charged \u2014 tap it to blast everything around you.");
         break;
       case "cleared":
         ui.banner(ev.boss ? "BOSS DOWN" : "CLEARED", ev.flawless ? "Flawless" : `Wave ${ev.n}`, "good", 1500);
@@ -1470,19 +1399,12 @@ function updateHeartbeat(dt, world) {
     sound.play("heart");
   }
 }
-const // 2.3.4: keyboard/mouse players got the touch texts ("drag the left side"), which do nothing
-  // with a mouse, and the keys were explained nowhere. Every step now has both wordings and
-  // follows the input in use (the coach re-reads the text every frame).
-  rlKeys = () => !RL_INPUT.touch,
-  tutorialTexts = [
-    () => (rlKeys() ? "Move with W A S D or the arrow keys." : "Drag anywhere on the left side to move."),
-    () =>
-      rlKeys()
-        ? "Enemies! Your drone fires on its own \u2014 hold the left mouse button to aim yourself."
-        : "Enemies! Your drone fires on its own \u2014 drag the right side to aim yourself.",
-    () => (rlKeys() ? "Press SPACE to dash through danger." : "Tap DASH to dodge through danger."),
-    () => "Grab the shards \u2014 they buy permanent upgrades in the Workshop.",
-  ];
+const tutorialTexts = [
+  () => "Drag anywhere on the left side to move.",
+  () => "Enemies! Your drone fires on its own \u2014 drag the right side to aim yourself.",
+  () => "Tap DASH to dodge through danger.",
+  () => "Grab the shards \u2014 they buy permanent upgrades in the Workshop.",
+];
 function updateTutorial(dt, world) {
   let tut = game.tut;
   if (tut) {
@@ -1598,12 +1520,8 @@ document.addEventListener("visibilitychange", () => {
     if (game.mode === "game") {
       game.pause();
     }
-    // 3.46.0: keyups can be lost on iOS backgrounding (blur and pagehide do not fire there), so
-    // the held keys used to survive the return: the drone kept moving until each key was
-    // re-pressed. reset(true) forgets them; the controller's edges are dropped with them.
-    input.reset(true);
-    input.gamepad.prev = {};
-    input.gamepad.held = {};
+    // Backgrounding can lose pointer cancellation events on mobile browsers.
+    input.reset();
     store.save("hidden");
     sound.suspend();
   } else {
@@ -1612,11 +1530,11 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 window.addEventListener("pagehide", () => {
-  input.reset(true);
+  input.reset();
   store.save("pagehide");
 });
 window.addEventListener("pageshow", () => {
-  input.reset(true);
+  input.reset();
   _scheduleResize("pageshow");
 });
 const unlockAudio = () => {
@@ -1793,10 +1711,6 @@ function rlRetireToast() {
  Riftline 2.4.2: bug fixes and quality of life
  - a run that is already lost (or won) is settled when the page is hidden, so a reload in
    the 1.5 s before the game-over screen no longer brings the run back
- - letters are read by their position on the keyboard (e.code), so W A S D, E, Q and F sit in
-   the same place on every layout (on AZERTY, Q moved left and fired the Nova as well)
- - upgrade choice: keys 1–4 pick a card, R rerolls
- - Esc goes back in Workshop, Records and Settings
  - Settings can be opened from the pause menu (without backup and reset)
  - the build in the pause menu explains each upgrade on tap or click
  ========================================================================== */
@@ -1814,8 +1728,6 @@ function rlRetireToast() {
     }
   });
   window.addEventListener("pagehide", settle);
-
-  // ---- Esc (the key handling itself is in input.onPause)
 
   // ---- settings from the pause menu
   ui.click(getById("pauseSetBtn"), () => ui.openPauseSettings());
@@ -1913,87 +1825,8 @@ window.addEventListener("storage", (ev) => {
     );
   }
 });
-// Test interface for the scripts in tests/. The keys are the readable names of the values (they
-// were the short names of the old minified bundle until the test-interface refactor).
-// 3.37.0: a test session also turns the run monitor on (the player build runs without it).
-window.__riftTest = {
-  health: rlRunHealth,
-  World,
-  computeStats,
-  buildLayout,
-  updateEnemy,
-  hitsObstacle,
-  isConnected,
-  rlUiButtonGuardSelfTest,
-  GameUI,
-  RL_TOUCH_CLICK_GUARD,
-  weaponDefs,
-  enemyDefs,
-  biomeList,
-  biomesById,
-  upgradesById,
-  workshopModules,
-  // 3.13.0: the soundscapes (scripts/rl-place-peaks.mjs measures them)
-  scape: SCAPE,
-  get RL_HEALTH() {
-    return RL_HEALTH;
-  },
-  get game() {
-    return game;
-  },
-  get ui() {
-    return ui;
-  },
-  get store() {
-    return store;
-  },
-  get renderer() {
-    return renderer;
-  },
-  get hudEditor() {
-    return hudEditor;
-  },
-  get lastRunAudit() {
-    return RL_LAST_RUN_AUDIT;
-  },
-  get monitor() {
-    return RL_MON;
-  },
-  get data() {
-    return {
-      upgradeList,
-      weaponOrder,
-      enemyOrder,
-      spawnWeights,
-      heavyEnemies,
-      obstacleShapes,
-      mapTemplates,
-      biomeVariants,
-      iconPaths,
-      milestones,
-      threatLevels,
-      bossDefs,
-      bossOrder,
-      bossByWave,
-      waveEvents,
-      workshopModules,
-      musicChords,
-      musicVoices,
-      weaponRange,
-      threatMods,
-      defaultSettings,
-      newSave,
-      cleanRun,
-      rlShotSfx,
-      RL_ENEMY_TIPS,
-      RL_MESH_TYPES,
-      RL_BIOME_HAZARD,
-      RL_KITERS,
-      rlSanitizeHistory,
-      RL_EVENT_KINDS,
-    };
-  },
-};
+// Shared browser interface for the functional flows and visual/audio probes.
+window.__riftTest = { game, ui, store, renderer, World, biomeList };
 
 /* ==========================================================================
    2.5.0 B: workshop merge notice and the events of the new modules
@@ -2030,7 +1863,6 @@ store.onChange((json, why) => {
     setTimeout(rlRetireToast, 400);
   }
 });
-window.__riftTest.v250B = { migrateModules: rlMigrateModules };
 // 3.37.0: the run monitor (per-step sampling, spawn-plan and event checks, the post-run audit) is test-only:
 // it turns on here, so every script in tests/ still gets it, while a player's run carries none of the work.
 // 3.43.1: the gate is real now (it never was: the comment promised a test session, the call ran for everyone).

@@ -16,7 +16,7 @@ function coarsePointer() {
 }
 
 /* what this device can do, for the settings note: "native" (navigator.vibrate), "tick" (the
-   iOS switch, which may or may not sound) or "none" (a connected controller still rumbles) */
+   iOS switch, which may or may not sound) or "none" (no supported phone feedback) */
 export function hapticMode() {
   if (typeof navigator !== "undefined" && navigator.vibrate && coarsePointer()) return "native";
   if (coarsePointer() && rlEnsureSwitch()) return "tick";
@@ -55,4 +55,16 @@ function rlEnsureSwitch() {
     rlSwitch = null;
   }
   return rlSwitch;
+}
+
+// Phone feedback only; unavailable APIs never interrupt gameplay.
+export function rumble(kind, enabled = true) {
+  const patterns = { hurt: [30], dash: [14], slam: [60], die: [120] };
+  if (!enabled || !patterns[kind] || !coarsePointer()) return false;
+  try {
+    if (navigator.vibrate) return navigator.vibrate(patterns[kind]);
+    return hapticTick();
+  } catch {
+    return false;
+  }
 }

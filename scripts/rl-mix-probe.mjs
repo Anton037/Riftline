@@ -2,21 +2,18 @@
 // volumes (sfx 0.8 / music 0.45 / ambience 0.8), bus by bus, so the music / effects /
 // ambience balance is decided from numbers rather than taste.
 //
-// Usage: node scripts/rl-mix-probe.mjs [out.json]
-// Serves the build itself (tools/serve.js) and renders offline in headless Chromium.
+// Usage: node scripts/rl-mix-probe.mjs [base-url] [out.json]
+// Run through tools/verify.js for a server, timeout and process cleanup.
 // Sections: fight + boss music tracks, the five biome ambiences, a realistic combat
 // sfx stream, and the full yard mix (music + place + combat together).
 // Metrics per render: overall RMS, peak, and the p95 of 400 ms short-term windows
 // (the honest loudness for bursty material like shots).
 
 import { chromium } from "playwright";
-import { serve } from "../tools/serve.js";
 import { writeFileSync } from "node:fs";
 import { launchArgs } from "../tools/browser.js";
 
-const PORT = 8131;
-const { server } = await serve(process.argv[3] || "dist", PORT, { quiet: true });
-const BASE = `http://localhost:${PORT}/index.html`;
+const BASE = process.argv[2] || "http://localhost:8124/index.html";
 
 const browser = await chromium.launch({ args: launchArgs() });
 const page = await browser.newPage();
@@ -185,7 +182,6 @@ const result = await page.evaluate(async (secs) => {
 }, SECS);
 
 await browser.close();
-server.close();
 
 // --- the verdict table (node side) ---
 const db = (a, b) => (a > 0 && b > 0 ? (20 * Math.log10(a / b)).toFixed(1) : "n/a");
@@ -215,6 +211,6 @@ if (mBoss.p95 && s.p95) console.log(`boss-music p95 vs sfx p95   : ${db(mBoss.p9
 if (mix.p95)
   console.log(`full-mix p95                : ${(+mix.p95).toFixed(4)}  (headroom check, limiter holds 0.93)`);
 if (result.fail.length) console.log("\nFAILS:\n" + result.fail.join("\n"));
-if (process.argv[2]) writeFileSync(process.argv[2], JSON.stringify(result, null, 1));
+if (process.argv[3]) writeFileSync(process.argv[3], JSON.stringify(result, null, 1));
 console.log(result.fail.length ? "\nPROBE: FAIL" : "\nPROBE: ok");
 process.exit(result.fail.length ? 1 : 0);

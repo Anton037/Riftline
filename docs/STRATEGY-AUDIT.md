@@ -1,3 +1,5 @@
+> Historical audit: measurements and command examples describe the dated build below. They are not current test policy. See TESTING.md and the current roadmap.
+
 # Riftline – strategy, quality and technology assessment
 
 10.10.2026 · a Claude Code audit of 3.29.1 (commit `147e140`; the live site served the same build). The owner asked for an
