@@ -1,25 +1,13 @@
-// Music probe: the deep-test music rules, rendered locally against dist/ so a music change can be
-// measured without the multi-minute catalog (the CI deep-test stays the authority).
-// Runs per-biome chunks (each musicBudget call builds an engine with thousands of AudioNodes that
-// only the garbage collector can free - five biomes in one evaluate peaked past the box's memory).
-// Checks (tests/deep-test.mjs "music" + "bloom" sections, same specs and seeds):
-//   budget  - musicBudget over 4 loops at all heats/intensities: no skipped/shed notes, peak <= 36,
-//             the 4 calm and the 4 boss sections differ note by note, heat and intensity add notes
-//   tracks  - 6-bar offline renders (seed 7): peak < 0.95, flatness < 0.15, rms > 0.004, then
-//   pairs   - calm themes pairwise: tempo >= 5 % apart AND one of rhythm/colour/busyness differs;
-//             boss tracks pairwise: one of rhythm/colour/busyness differs
-//   versus  - every boss track >= 1.5x the rms of its calm theme and >= 0.9x its note density
-//   bloom   - 8-70 bloom notes in 8 bars, share 0.08-0.9, the bloom widens the stereo
-// Known box offset: the room convolver renders a little differently here than on CI (the deep-test
-// comment: its tail is "not quite the same every time"), so marsh:fight and void:boss can sit at
-// 0.154-0.157 flatness on this box while the same build passes CI. The probe's job is the DELTA
-// against a run of main (git stash, rebuild, run, unstash) - a delta over +0.004 is a real change.
+// Manual music/style analysis: spectra, relative loudness, rhythm and stereo character.
+// These measurements are advisory art diagnostics, separated from the audio correctness gate.
+// The bounded health checks and passing cache live in tools/verification/audio.mjs; musicBudget now
+// avoids native AudioNodes for pure scheduling, while this probe's sample renders stay real.
 // Usage: node scripts/rl-music-probe.mjs [out.json]   (STAGE=budget|tracks|bloom runs one stage)
 
 import { chromium } from "playwright";
 import { serve } from "../tools/serve.js";
 import { writeFileSync } from "node:fs";
-import { launchArgs } from "../tests/lib/renderer.mjs";
+import { launchArgs } from "../tools/browser.js";
 
 const PORT = 8132;
 const { server } = await serve("dist", PORT, { quiet: true });

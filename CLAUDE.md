@@ -21,27 +21,23 @@ rules and release steps. Read them first. In short:
 - `docs/ROADMAP.de.md` holds the owner's wishes, decisions (for example the Cloudflare plan), open doubts and ideas. Read
   it at the start of a session and update it in the same PR when a plan changes or an item is done.
 - Format with Prettier (`npm run format`, width 120, `.prettierrc`); CI runs `npm run format:check`.
-- `npm test` includes `tests/determinism.mjs`. A refactor must pass it unchanged; update
-  `tests/fixtures/determinism.json` (`--update`) only for changes meant to alter game behaviour.
+- `tests/core.test.mjs` checks seeded reproducibility, finite combat, biome mappings and data references.
+  Add a focused regression for a real failure rather than rebuilding a historical assertion catalog.
 - The version and build id exist only in `package.json` (`version`, `riftline.build`) and must move together: the
   build id is `r<version-digits>a<MMDD><letter>-r1` (digits without the dots, then the release day). After a bump run
   `npm install` so `package-lock.json` follows.
 - A release also adds a short player-facing entry at the top of `src/data/whatsnew.js` (the What's new tab; the
-  first entry must match the version, `tests/data-audit.mjs` checks it and that the list stays at `NEWS_KEEP`).
+  first entry must match the version, `tests/core.test.mjs` checks it and that the list stays at `NEWS_KEEP`).
   `src/build-info.json` is the identity the game fetches at start-up; since 3.57.0 the build writes only the version
   and the build id of it to `dist/`, so there is no changelog to keep there any more.
-- `npm test` runs the steps in `tests/run-all.mjs`: the build first, then the deep sound test with the node-only
-  checks (sim, save, data-audit, determinism) beside it - they share no port and no dist, and the deep test alone
-  is 18 of the 20 minutes. `npm run test:fast` skips the deep test for the inner loop; `--only=sim,save` and
-  `--skip=deep` pick steps.
-- Run `npm test` before every commit (`npm run check` runs the same steps plus the format check, quicker with its
-  sound cache). Before a release also run `npm run qa`, `npm run e2e`, `npm run audit` and `npm run screens`
-  (`npm run release-check` runs all of it in order), and look at the screenshots.
+- `docs/TESTING.md` is the current test policy. `npm test` runs ten unit contracts and two bounded
+  browser flows. Default flows omit GPU draw calls; `npm run test:render` enables pixels.
+- Run `npm run check` before a commit. Audio and six-biome visual verification are optional tools;
+  `npm run release-check` aliases the same short gate. Removed historical suites have no CLI aliases.
 - All changes go through pull requests: work on a branch, open a PR against `main`, and let the
   owner merge it. Never push to `main` directly.
 - A push to `main` deploys the game to GitHub Pages. Other branches and pull requests only run
-  the tests (`.github/workflows/test.yml`); the long checks run every night
-  (`.github/workflows/nightly.yml`).
+  the relevant tests (`.github/workflows/test.yml`); the manual extended workflow runs optional long checks.
 - Saves use the `localStorage` keys `riftline.*`. Riftdeck shares the GitHub Pages origin and uses
   `riftdeck.*`; never read or write those.
 - Everything is written in English (the owner's wish since 03.10.2026): player-facing texts, commit messages, README

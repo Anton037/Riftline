@@ -37,7 +37,7 @@ export default [
   },
   {
     // tests, tools and the build script run in node (and drive a browser from there)
-    files: ["tests/**/*.mjs", "tools/**/*.js", "*.js"],
+    files: ["tests/**/*.mjs", "tools/**/*.js", "tools/**/*.mjs", "*.js"],
     languageOptions: {
       sourceType: "module",
       ecmaVersion: 2026,

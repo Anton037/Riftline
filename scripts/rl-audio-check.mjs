@@ -1,7 +1,7 @@
 // Chaos checks for the audio-engine reliability fixes (audit H1/H2 + the room pool).
 // Usage: node scripts/rl-audio-check.mjs [base-url]   (a server must already serve the build)
 import { chromium } from "playwright";
-import { launchArgs } from "../tests/lib/renderer.mjs";
+import { launchArgs } from "../tools/browser.js";
 
 const BASE = process.argv[2] || "http://localhost:8126/index.html";
 const browser = await chromium.launch({ args: launchArgs() });

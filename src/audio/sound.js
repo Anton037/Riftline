@@ -1112,6 +1112,7 @@ const musicChords = {
         );
       if (!voice) return;
       this.logMusic(voice, "t", freq, vol, opts);
+      if (this.budgetOnly) return;
       let osc = ctx.createOscillator(),
         amp = ctx.createGain();
       voice.node = osc;
@@ -1172,6 +1173,10 @@ const musicChords = {
         );
       if (!voice) return;
       this.logMusic(voice, "n", opts.f || 2e3, vol, opts);
+      if (this.budgetOnly) {
+        Math.random(); // Keep the noise-source offset draw in the reference schedule.
+        return;
+      }
       let src = ctx.createBufferSource();
       src.buffer = this.noiseOf(opts.color);
       // 2.9.1: the 1 s buffer is looped: a burst longer than what is left of it (it starts up to 0.5 s in)
@@ -4249,6 +4254,10 @@ const musicChords = {
         info = trackInfo(spec.music, spec.biome),
         len = 60 / info.bpm / 4;
       engine.attach(ctx, { room: false });
+      // This hook schedules counters and logs, never samples. Real native sources would stay
+      // attached to unrendered OfflineAudioContexts and retain gigabytes across budget cases.
+      // renderGraph is a bounded parity-test reference; actual offline renders always build nodes.
+      engine.budgetOnly = spec.renderGraph !== true;
       engine.sfxVol = 1;
       engine.mode = spec.music;
       engine.biome = spec.biome;

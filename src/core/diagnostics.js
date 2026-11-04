@@ -1774,7 +1774,7 @@ export {
 };
 
 /* ==========================================================================
-   2.5.0 B: event kinds of the workshop modules (self-test in selftest.js)
+   2.5.0 B: event kinds of the workshop modules
    ========================================================================== */
 RL_EVENT_KINDS.add("kit");
 for (const kind of ["singularity", "singOpen", "gadgetReady", "gadgetDeny", "maxed", "trapWarn", "trapFire", "trapArm"])

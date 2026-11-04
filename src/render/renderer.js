@@ -1,4 +1,5 @@
 // three.js renderer (Renderer): scene, camera, lights, instanced pools, particles, per-frame drawing.
+import { AMBIENT_POOL_SHARE } from "../data/atmosphere.js";
 
 import {
   AdditiveBlending,
@@ -418,7 +419,7 @@ const MAX_PARTICLES = 1400,
     // 3.49.0: the Ash Tyrant's burning dead come through ember and ash
     kingpin: [hexColor(0xff9c3a), hexColor(0xffe19a)],
     // 3.58.0: the Glasswyrm hunts alone, so it opens no gates today - the entry is here so the table covers
-    // every place's boss (core/selftest.js checks the per-boss tables against bossByBiome), in the wyrm's
+    // every place's boss, in the wyrm's
     // hot fused edge and the Flats' pale glass
     wyrm: [hexColor(0xffc24d), hexColor(0xfff3d6)],
   },
@@ -762,6 +763,7 @@ const MAX_PARTICLES = 1400,
     }
     emit(x, y, z, vx, vy, vz, life, size, color, opts = {}) {
       let parts = this.P;
+      if (opts.ambient && parts.n >= this.maxParticles * AMBIENT_POOL_SHARE) return;
       if (
         parts.n >= this.maxParticles ||
         (parts.n > this.maxParticles * 0.6 && Math.random() < (parts.n / this.maxParticles - 0.6) * 2)

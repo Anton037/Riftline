@@ -28,7 +28,6 @@ import {
   buildReport,
   logError,
 } from "./core/diagnostics.js";
-import { SELFTEST_MODULES } from "./core/selftest-link.js";
 import { GameUI, RL_TOUCH_CLICK_GUARD, getById, rlBiomeTitle, iconPaths, escapeHtml } from "./ui/ui.js";
 import { Input, RL_INPUT } from "./ui/input.js";
 import { HudEditor, applyHudLayout, fitHudLayout, fixedStickCenter } from "./ui/hud-layout.js";
@@ -1914,31 +1913,10 @@ window.addEventListener("storage", (ev) => {
     );
   }
 });
-// 3.35.0: the deep self-test and its palette checks are a file of their own (selftest-v<version>.js, see build.js),
-// loaded only when a test asks for them; they read the game's own modules through SELFTEST_MODULES
-let selfTestLoad = null;
-function loadSelfTest() {
-  if (!selfTestLoad)
-    selfTestLoad = new Promise((resolve, reject) => {
-      globalThis.__riftModules = SELFTEST_MODULES;
-      const script = document.createElement("script");
-      script.src = `selftest-v${GAME_VERSION}.js`;
-      script.onload = () =>
-        window.__riftSelfTest ? resolve(window.__riftSelfTest) : reject(new Error("the self-test did not register"));
-      script.onerror = () => reject(new Error("the self-test file is missing"));
-      document.head.appendChild(script);
-    }).catch((err) => {
-      selfTestLoad = null;
-      throw err;
-    });
-  return selfTestLoad;
-}
 // Test interface for the scripts in tests/. The keys are the readable names of the values (they
 // were the short names of the old minified bundle until the test-interface refactor).
 // 3.37.0: a test session also turns the run monitor on (the player build runs without it).
 window.__riftTest = {
-  loadSelfTest,
-  selftest: () => loadSelfTest().then((t) => t.rlSelfTest()),
   health: rlRunHealth,
   World,
   computeStats,
@@ -1955,7 +1933,7 @@ window.__riftTest = {
   biomesById,
   upgradesById,
   workshopModules,
-  // 3.13.0: the soundscapes (tests/scape-preview.mjs renders them)
+  // 3.13.0: the soundscapes (scripts/rl-place-peaks.mjs measures them)
   scape: SCAPE,
   get RL_HEALTH() {
     return RL_HEALTH;
@@ -2011,9 +1989,6 @@ window.__riftTest = {
       RL_MESH_TYPES,
       RL_BIOME_HAZARD,
       RL_KITERS,
-      // (after loadSelfTest)
-      rlPaletteIssues: (biome) => window.__riftSelfTest.rlPaletteIssues(biome),
-      rlBiomeDistinct: () => window.__riftSelfTest.rlBiomeDistinct(),
       rlSanitizeHistory,
       RL_EVENT_KINDS,
     };

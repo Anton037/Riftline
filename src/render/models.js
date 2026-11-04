@@ -1,4 +1,5 @@
 // Mesh builders for the player drone, enemies, bosses and props.
+import { mergeStaticMeshes } from "./static-meshes.js";
 
 import {
   AdditiveBlending,
@@ -2008,6 +2009,7 @@ function buildBossModel(type, color) {
     let groundRing = addMesh(new TorusGeometry(2.4, 0.08, 5, 44), glowMat, 0, 0.1, 0);
     groundRing.rotation.x = Math.PI / 2;
   }
+  mergeStaticMeshes(group, new Set(spin.map((part) => part.m)));
   return { group, mats: [hullMat, darkMat, ...(group.userData.mats || [])], glowMat, spin };
 }
 function wingDroneGeometry() {

@@ -1,8 +1,18 @@
 // "What's new" tab: short player-facing notes, newest version first. Add an entry per release
-// (the first entry has to match the game version; tests/data-audit.mjs checks it, and that the list stays
+// (the first entry has to match the game version; tests/core.test.mjs checks it, and that the list stays
 // at NEWS_KEEP entries). Keep every line to one short sentence.
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
+  {
+    version: "3.61.0",
+    title: "Six places, one visual standard",
+    items: [
+      "Snow buries the Shelf's bright grid, the Core wears fractured slate, and quieter marsh veins, molten seams and glass edges give enemies and danger more room to read.",
+      "Wet asphalt and glass gain finer grain, and biome coatings leave more of each enemy type's own colour visible.",
+      "Weather and decorative motes fade back during busy fights so hits and explosions stay readable.",
+      "On phones the boss health bar sits between the sticks, leaving the boss and the wave/combo readouts clear.",
+    ],
+  },
   {
     version: "3.60.0",
     title: "An arrival that says what is coming",
@@ -44,19 +54,6 @@ export const WHATS_NEW = [
       "Five options nobody used are gone — camera distance, warning contrast, the screen-shake switch, the run timer and the FPS counter — so the settings screen is shorter.",
       "Ask your device for less motion and the camera goes still: the screen shake and the weapon recoil stop, while the flashes, damage numbers, sounds and telegraphs all stay.",
       "Every biome keeps exactly one boss again: the Glass Flats no longer falls back to a boss that belongs to another place.",
-    ],
-  },
-  {
-    version: "3.56.0",
-    title: "The Glasswyrm takes the desert",
-    items: [
-      "THE GLASSWYRM is the Glass Flats' own boss: a serpent of living fused glass that swims the sand beneath the sheets — a foundry golem never belonged there, and the Crucible goes back to the bench.",
-      "RISE: the glass bulges in a racing chain, then the wyrm bursts up where it ends — the bulges show exactly where NOT to stand.",
-      "SUNLANCE: it bends the noon through its body into a sweeping hot lance — and the MIRAGE surfaces where you are not.",
-      "Enraged, the sun stands still: NOON — a dial of five lances turns while the glass bursts in rings.",
-      "Its card, the Glasswyrm Fang: every 14 kills the last kill bursts into piercing glass lances.",
-      "The wyrm sings its own boss track at 134, and the Vitrified milestone replaces Quenched (earned saves keep it).",
-      "The Crucible, its hammer card and its music stay in the game for the saves that own them — just not in the desert.",
     ],
   },
 ];

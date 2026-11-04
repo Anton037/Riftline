@@ -869,7 +869,7 @@ function voidDetail(biome, W, H, obs, rng) {
   // ground: rune circles, cracks, crystal tufts, drifting shards
   for (const p of scatter(rng, W, H, obs, 5, { gap: 5, margin: 2.5 })) {
     const r = rng.range(1, 1.6),
-      col = dim(rng.pick([violet, red]), 0.62);
+      col = dim(rng.pick([violet, red]), 0.24);
     out.glow.push(ring(col, r, 0.018, p.x, 0.025, p.z), ring(col, r * 0.72, 0.012, p.x, 0.025, p.z));
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * TAU + p.x;
@@ -898,7 +898,7 @@ function voidDetail(biome, W, H, obs, rng) {
     }
   }
   for (const p of scatter(rng, W, H, obs, 7, { gap: 3.4 }))
-    crack(out, dim(violet, 0.6), p.x, p.z, rng, rng.int(4, 7), 0.7); // 3.44.0: was 10
+    crack(out, dim(violet, 0.3), p.x, p.z, rng, rng.int(4, 7), 0.7); // 3.44.0: was 10
   for (const p of scatter(rng, W, H, obs, 9, { gap: 2.4 })) {
     // 3.44.0: crystal tufts rest (was 14)
     const t = list();

@@ -30,6 +30,8 @@ import { clamp, TAU, hashString, makeRng } from "../core/util.js";
 import { hexColor, additiveMaterial } from "./renderer.js";
 import { addBiomeDetail } from "./biome-props.js";
 import { mergeGeometries } from "./models.js";
+import { mergeStaticMeshes } from "./static-meshes.js";
+import { biomeAtmosphere, propAtmosphereRates, atmosphereDensity } from "../data/atmosphere.js";
 
 const floorVertexShader = `
 #include <common>
@@ -95,7 +97,7 @@ void main() {
           obj.geometry.dispose();
         }
         if (obj.material && obj.material !== this.floorMat) {
-          obj.material.dispose();
+          [].concat(obj.material).forEach((mat) => mat.dispose());
         }
       });
       this.group.clear();
@@ -127,6 +129,7 @@ void main() {
       );
       // 2.9.0: clutter, backdrop and ground decals (its own rng, so the props above keep their layout)
       addBiomeDetail(this, biome, layout.W, layout.H, layout.obs, makeRng(hashString(layout.key + ":detail")));
+      mergeStaticMeshes(this.group, new Set(this.rlAnim.map((a) => a.o)));
       this.rise = animate && !first ? 0 : 1;
       props.position.y = this.rise < 1 ? -2.6 : 0;
     }
@@ -336,14 +339,18 @@ void main() {
     // aurora overhead drapes its bands across the ice: green-pink sheets that drift, plus the
     // curtains' reflection smearing over the far field. The snow reads bright against the night.
     vec3 iceb = uBase * (0.6 + 0.5 * fbm(p * 1.3));
-    float snow = smoothstep(0.56, 0.78, fbm(p * 0.22 + 7.0));
-    col = mix(iceb, uBase * 1.2 + vec3(0.035, 0.045, 0.075), snow) * (0.8 + 0.6 * pl);
+    float snow = smoothstep(0.48, 0.72, fbm(p * 0.22 + 7.0));
+    col = mix(iceb, uBase * 1.2 + vec3(0.06, 0.075, 0.105), snow) * (0.8 + 0.6 * pl);
     float scour = fbm(vec2(p.x * 0.14, p.y * 0.75) + 2.0);
     col *= 0.8 + 0.3 * scour;
     // the thin ice: cracks glow glacier blue, breathing on the storm's ~20 s clock
     vec3 v = voro(p * 0.3 + 11.0);
     float breath = 0.7 + 0.3 * sin(uTime * 0.314);
-    col += uGrid * smoothstep(0.05, 0.0, v.y) * 0.38 * breath;
+    // Broken hairline fractures, buried by snow: the old complete bright cells read as a grid.
+    float exposed = (1.0 - snow * 0.85) * smoothstep(0.32, 0.62, fbm(p * 0.48 + 5.0));
+    col += uGrid * smoothstep(0.035, 0.0, v.y) * 0.18 * breath * exposed;
+    float windgrain = sin(p.y * 9.0 + fbm(p * 0.6) * 6.0);
+    col += vec3(0.012, 0.017, 0.024) * windgrain * snow;
     // the aurora's sheen: bands that cross the ice and shift with the curtains - 3.55.0 the
     // bands carry a ray structure of their own (vertical streaks, the curtains mirrored), the
     // green leans brighter and the whole sheen loses a step of shyness: from the normal view
@@ -386,7 +393,7 @@ void main() {
     float sh = sin(dot(p, vec2(1.3, 0.7)) * 2.0 + fbm(p * 0.7 + uTime * 0.1) * 9.0 + uTime * 0.9);
     pool += uGrid * 0.035 * max(sh, 0.0);
     col = mix(peat, pool, water) * (0.8 + 0.5 * pl);
-    col += uGrid * core * 0.55;                            // the vein itself, over water and bank
+    col += uGrid * core * (0.18 + 0.12 * water);                            // the vein itself, over water and bank
     col += uGrid * vein * 0.035 * (1.0 - water);           // the halo over the bank, fainter
     float tuft = smoothstep(0.6, 0.74, contour + 0.11) * (1.0 - water);
     col = mix(col, uBase * 1.15 + uGrid * 0.015, tuft * 0.5);
@@ -404,17 +411,21 @@ void main() {
     vec2 g = dot(a, a) < dot(b, b) ? a : b, cid = floor((q - g) * 2.0 + 0.5);
     vec2 ag = abs(g);
     float hd = max(dot(ag, normalize(r)), ag.x);
-    float gap = smoothstep(0.465, 0.48, hd), rim = smoothstep(0.4, 0.46, hd) * (1.0 - gap);
+    float gap = smoothstep(0.468, 0.485, hd), rim = smoothstep(0.425, 0.46, hd) * (1.0 - gap);
     float pulse = step(0.94, h21(cid)) * (0.5 + 0.5 * sin(uTime * 2.2 + h21(cid + 1.0) * 20.0));
-    vec3 tile = uBase * (0.75 + 0.35 * h21(cid + 5.0)) * (0.8 + 0.6 * pl) + uGrid * rim * 0.2 + uAccent * pulse * 0.06;
+    // Faceted slate, a worn bevel and sparse lit seams; combat owns the brightest contours.
+    float stone = fbm(p * 1.6 + cid * 0.13);
+    vec3 tile = (uBase * (0.85 + 0.5 * h21(cid + 5.0)) + vec3(0.012, 0.01, 0.023) * stone) * (0.8 + 0.6 * pl);
+    float seam = 0.2 + 0.8 * smoothstep(0.48, 0.74, fbm(p * 0.23 + 4.0));
+    tile += uGrid * rim * 0.03 * seam + uAccent * pulse * 0.025;
     // the shatter: dark cracks wandering over the tiles, a faint rift glow along them
     vec3 web = voro(p * 0.13 + 23.0);
     tile = mix(tile, uBase * 0.45, smoothstep(0.055, 0.0, web.y) * 0.55 * inside);
-    tile += uGrid * smoothstep(0.014, 0.0, abs(web.y - 0.04)) * 0.12 * inside;
+    tile += uGrid * smoothstep(0.014, 0.0, abs(web.y - 0.04)) * 0.045 * inside;
     // the fissures: one tile in ~18 carries an inner ring that flashes with the heartbeat
     float beat = pow(max(0.0, 1.0 - fract(uTime)), 2.6);
     float ringIn = smoothstep(0.24, 0.29, hd) * (1.0 - smoothstep(0.33, 0.38, hd));
-    tile += uAccent * ringIn * step(0.945, h21(cid + 9.0)) * (0.3 + 0.7 * beat) * 0.4;
+    tile += uAccent * ringIn * step(0.945, h21(cid + 9.0)) * (0.3 + 0.7 * beat) * 0.16;
     col = mix(tile, uLod > 1.5 ? uAccent * 0.05 + uGrid * 0.03 : starfield(p), max(gap, 1.0 - inside));
     lit = (0.3 + rim) * (1.0 - gap);
     outside = 1.0;
@@ -434,14 +445,15 @@ void main() {
     vec3 glass = uBase * 3.2 + vec3(0.5, 0.465, 0.385);
     float film = fbm(p * 0.42 + 3.0);
     vec3 irid = vec3(0.5 + 0.5 * sin(film * 8.0), 0.5 + 0.5 * sin(film * 8.0 + 2.1), 0.5 + 0.5 * sin(film * 8.0 + 4.2));
-    glass += irid * 0.075;
+    glass += irid * 0.055;
+    glass *= 0.96 + 0.07 * vnoise(p * 5.0);
     vec3 v = voro(p * 0.16 + 4.0);
     // each fused sheet took the melt a little differently: a per-cell tint and value jitter
     glass *= 0.96 + 0.08 * h21(v.zz + 3.0);
     glass += (h21(v.zz + 8.0) - 0.5) * vec3(0.05, 0.04, 0.02);
     col = mix(sand, glass, sheet);
     // the seams between the sheets: sand ground down into the grooves
-    col = mix(col, sand * 0.72, smoothstep(0.09, 0.015, v.y) * 0.85);
+    col = mix(col, sand * 0.82, smoothstep(0.055, 0.012, v.y) * 0.65);
     // the sun's glare slides across the glass - a broad diagonal band of extra noon
     float glare = smoothstep(6.5, 0.0, abs(mod(dot(p, normalize(vec2(0.68, 0.73))) - uTime * 0.55, 26.0) - 13.0));
     col += vec3(0.09, 0.07, 0.045) * glare * sheet;
@@ -462,8 +474,8 @@ void main() {
     vec2 rc = floor(p * 1.3), rf = fract(p * 1.3) - 0.5;
     float rt = fract(uTime * 0.9 + h21(rc) * 7.0);
     float ripple = smoothstep(0.025, 0.0, abs(length(rf) - rt * 0.28)) * (1.0 - rt) * step(0.6, h21(rc + 4.0));
-    vec3 mirror = vec3(0.035, 0.045, 0.065) + uAccent * 0.012 * (0.5 + 0.5 * sin(uTime * 0.7 + p.x * 0.2));
-    col = mix(col, uBase * 0.35 + mirror, puddle * 0.85) + vec3(0.55, 0.65, 0.8) * ripple * puddle * 0.14;
+    vec3 mirror = vec3(0.027, 0.035, 0.052) * (0.8 + 0.3 * vnoise(p * 3.0)) + uAccent * 0.012 * (0.5 + 0.5 * sin(uTime * 0.7 + p.x * 0.2));
+    col = mix(col, uBase * 0.35 + mirror, puddle * 0.85) + vec3(0.55, 0.65, 0.8) * ripple * puddle * 0.11;
     float ly = abs(mod(p.y + 4.5, 9.0) - 4.5);
     float lane = smoothstep(0.13, 0.07, ly) * step(0.45, fract(p.x / 3.0));
     float cw = step(abs(abs(p.x) - (uHalf.x - 4.0)), 1.3) * step(0.5, fract(p.y / 1.1)) * step(abs(p.y), 4.2);
@@ -491,11 +503,11 @@ void main() {
     float heart = exp(-dot(h1, h1) * 0.045) + exp(-dot(h2, h2) * 0.038);
     float breath = 0.7 + 0.3 * sin(uTime * 0.8);
     float flow = 0.55 + 0.45 * sin(cell.z * 43.0 - uTime * 1.3 + heart * 4.0);
-    float vein = crack * (0.12 + 1.05 * heart * breath);
+    float vein = crack * (0.08 + 0.75 * heart * breath);
     vec3 hot = mix(vec3(0.38, 0.06, 0.01), vec3(1.0, 0.55, 0.1), clamp(heart * 0.9, 0.0, 1.0));
     col += hot * vein * (0.5 + 0.5 * flow) * 1.2;
     col += uAccent * crack * heart * breath * flow * 0.55;
-    col += uAccent * heart * breath * 0.12;
+    col += uAccent * heart * breath * 0.065;
     // embers pool along the open fissures instead of scattering evenly
     vec2 ec = floor(p * 0.9);
     float ember = step(0.96, h21(ec)) * smoothstep(0.26, 0.05, length(fract(p * 0.9) - 0.5));
@@ -1602,7 +1614,7 @@ function rlAmbient(renderer, dt, world, opt) {
   const biome = renderer.biome,
     arena = renderer.arena;
   if (!biome || !(dt > 0) || dt > 0.25) return;
-  const density = Math.min(1, renderer.maxParticles / 1400) * (opt.menu || !world ? 0.6 : 1),
+  const density = atmosphereDensity(renderer.maxParticles, renderer.P.n, opt.menu || !world),
     W = arena.uniforms.uHalf.value.x,
     H = arena.uniforms.uHalf.value.y,
     cx = opt.menu || !world ? 0 : renderer.camX,
@@ -1616,187 +1628,29 @@ function rlAmbient(renderer, dt, world, opt) {
     rz = (spread = 12) => clamp(cz + (Math.random() * 2 - 1) * spread - 2, -H, H),
     grid = hexColor(biome.grid),
     acc = hexColor(biome.accent);
-  switch (biome.id) {
-    case "vault":
-      for (
-        let j = count(34);
-        j--; // 3.44.0: was 42, the snow rests while the fog carries the mood
-      )
-        renderer.emit(
-          rx(17),
-          2.5 + Math.random() * 6,
-          rz(14),
-          0.5 + Math.random() * 0.3,
-          -1.3 - Math.random() * 0.6,
-          0.15,
-          4,
-          0.13,
-          // 3.55.0: the flakes catch the aurora's two colours (Math.random is the ambient's own
-          // stream, the run's rng never sees it)
-          Math.random() < 0.78 ? hexColor(0xdcffe9) : hexColor(0xf2d8ff),
-          { drag: 0 },
-        );
-      break;
-    case "marsh":
-      for (
-        let j = count(9);
-        j--; // 3.44.0: was 14, the spores share the air with the fireflies
-      )
-        renderer.emit(
-          rx(),
-          0.3 + Math.random() * 1.3,
-          rz(),
-          (Math.random() - 0.5) * 0.4,
-          0.15 + Math.random() * 0.2,
-          (Math.random() - 0.5) * 0.4,
-          3.5,
-          0.15,
-          Math.random() < 0.6 ? acc : grid,
-          { drag: 0.2 },
-        );
-      for (let j = count(4); j--; )
-        renderer.emit(
-          rx(),
-          0.25,
-          rz(),
-          (Math.random() - 0.5) * 0.3,
-          0.02,
-          (Math.random() - 0.5) * 0.3,
-          5,
-          2.6,
-          hexColor(0x081412),
-          {
-            drag: 0,
-            grow: 0.6,
-          },
-        );
-      // 3.44.0: fireflies - a dozen warm lights that hover over the pools and fade in and out
-      for (let j = count(2.4); j--; )
-        renderer.emit(
-          rx(),
-          0.3 + Math.random() * 0.9,
-          rz(),
-          (Math.random() - 0.5) * 0.5,
-          0.04 + Math.random() * 0.1,
-          (Math.random() - 0.5) * 0.5,
-          4.5 + Math.random() * 2,
-          0.1 + Math.random() * 0.04,
-          RL_C.fly,
-          { drag: 0.9 },
-        );
-      break;
-    case "yard":
-      // 3.4.0: Blackout City: rain streaks and a few splashes on the asphalt
-      // 3.44.0: the rain rests a little (65 -> 50) and a slow mist drifts over the street
-      for (let j = count(50); j--; )
-        renderer.emit(rx(16), 6 + Math.random() * 3, rz(13), -0.6, -15 - Math.random() * 4, 0.3, 0.5, 0.05, RL_C.rain, {
-          spark: true,
-          drag: 0,
-        });
-      for (let j = count(11); j--; ) renderer.emit(rx(14), 0.05, rz(11), 0, 0.9, 0, 0.18, 0.08, RL_C.rain, { drag: 2 });
-      for (let j = count(1.6); j--; )
-        renderer.emit(
-          rx(14),
-          0.25,
-          rz(11),
-          (Math.random() - 0.5) * 0.4,
-          0.015,
-          (Math.random() - 0.5) * 0.4,
-          5,
-          2.2,
-          RL_C.steam,
-          {
-            drag: 0,
-            grow: 0.5,
-          },
-        );
-      break;
-    case "void":
-      for (
-        let j = count(16);
-        j--; // 3.44.0: was 20, the throb carries the mood
-      )
-        renderer.emit(
-          rx(18),
-          0.05,
-          rz(15),
-          0,
-          0.6 + Math.random() * 0.8,
-          0,
-          3.5,
-          0.1,
-          Math.random() < 0.5 ? acc : Math.random() < 0.5 ? grid : RL_C.white,
-          { drag: 0 },
-        );
-      break;
-    case "flats":
-      // 3.53.0: the Glass Flats: the noon heat lifts pale motes off the glass, dust wisps slide low
-      for (let j = count(11); j--; )
-        renderer.emit(
-          rx(),
-          0.15,
-          rz(),
-          (Math.random() - 0.5) * 0.5,
-          0.9 + Math.random() * 1.2,
-          (Math.random() - 0.5) * 0.5,
-          2.6,
-          0.08,
-          hexColor(0xffe9c4),
-          { drag: 0.4 },
-        );
-      for (let j = count(7); j--; )
-        renderer.emit(
-          rx(17),
-          0.3 + Math.random() * 1.2,
-          rz(14),
-          (Math.random() - 0.5) * 1.6,
-          -0.06,
-          (Math.random() - 0.5) * 1.6,
-          3.2,
-          0.11,
-          hexColor(0xd8c8a8),
-          { drag: 0.9 },
-        );
-      break;
-    case "club":
-      // 3.49.0: the Ashfall Caldera: ash drifts down through the heat, embers climb off the seams
-      // 3.54.0: the ash leans with the wind and the embers come up a little denser
-      for (let j = count(22); j--; )
-        renderer.emit(
-          rx(15),
-          3.4 + Math.random() * 4.2,
-          rz(13),
-          (Math.random() - 0.5) * 0.5 - 0.22,
-          -0.5 - Math.random() * 0.45,
-          (Math.random() - 0.5) * 0.5,
-          5.5,
-          0.11,
-          RL_C.ash,
-          { drag: 0 },
-        );
-      for (let j = count(11); j--; )
-        renderer.emit(
-          rx(),
-          0.15,
-          rz(),
-          (Math.random() - 0.5) * 0.7,
-          1.1 + Math.random() * 1.3,
-          (Math.random() - 0.5) * 0.7,
-          1.5,
-          0.09,
-          Math.random() < 0.5 ? RL_C.ember : acc,
-          { drag: 0.3 },
-        );
-      break;
-    default:
-      for (let j = count(6); j--; )
-        renderer.emit(rx(), 0.2 + Math.random() * 0.8, rz(), 0, 0.3, 0, 3, 0.12, grid, { drag: 0 });
+  const range = (v) => v[0] + Math.random() * (v[1] - v[0]);
+  for (const layer of biomeAtmosphere[biome.id] || []) {
+    for (let j = count(layer.rate); j--; ) {
+      const tint = layer.colors[Math.floor(Math.random() * layer.colors.length)];
+      renderer.emit(
+        rx(layer.spread[0]),
+        range(layer.height),
+        rz(layer.spread[1]),
+        range(layer.velocity[0]),
+        range(layer.velocity[1]),
+        range(layer.velocity[2]),
+        range(layer.life),
+        range(layer.size),
+        tint === "accent" ? acc : tint === "grid" ? grid : hexColor(tint),
+        { drag: layer.drag, grow: layer.grow, spark: layer.spark, ambient: true },
+      );
+    }
   }
   if (!(arena.rise >= 1) || !arena.rlEmit) return;
   for (const src of arena.rlEmit) {
     if (Math.abs(src.x - cx) > 22 || Math.abs(src.z - cz) > 18) continue;
     if (src.k === "spark") {
-      if (count(5)) {
+      if (count(propAtmosphereRates.spark)) {
         renderer.emit(
           src.x + (Math.random() - 0.5) * 0.4,
           src.y,
@@ -1807,12 +1661,12 @@ function rlAmbient(renderer, dt, world, opt) {
           1.3,
           0.22,
           RL_C.ember,
-          { drag: 0.6, grow: 1.2 },
+          { ambient: true, drag: 0.6, grow: 1.2 },
         );
       }
     } else if (src.k === "steam") {
       // 3.4.0: steam rising from the manholes of Blackout City
-      if (count(3)) {
+      if (count(propAtmosphereRates.steam)) {
         renderer.emit(
           src.x + (Math.random() - 0.5) * 0.5,
           src.y,
@@ -1823,11 +1677,11 @@ function rlAmbient(renderer, dt, world, opt) {
           2.2,
           0.35,
           RL_C.steam,
-          { drag: 0.3, grow: 2.2 },
+          { ambient: true, drag: 0.3, grow: 2.2 },
         );
       }
     } else if (src.k === "glint") {
-      if (count(1.5)) {
+      if (count(propAtmosphereRates.glint)) {
         renderer.emit(
           src.x + (Math.random() - 0.5),
           src.y * Math.random(),
@@ -1838,11 +1692,11 @@ function rlAmbient(renderer, dt, world, opt) {
           0.6,
           0.2,
           RL_C.white,
-          { spark: true, drag: 0 },
+          { ambient: true, spark: true, drag: 0 },
         );
       }
     } else if (src.k === "spore") {
-      if (count(2.5)) {
+      if (count(propAtmosphereRates.spore)) {
         renderer.emit(
           src.x + (Math.random() - 0.5),
           src.y,
@@ -1853,11 +1707,11 @@ function rlAmbient(renderer, dt, world, opt) {
           3,
           0.14,
           acc,
-          { drag: 0.1 },
+          { ambient: true, drag: 0.1 },
         );
       }
     } else if (src.k === "mote") {
-      if (count(3)) {
+      if (count(propAtmosphereRates.mote)) {
         const angle = Math.random() * TAU;
         renderer.emit(
           src.x + Math.cos(angle) * 1.1,
@@ -1869,7 +1723,7 @@ function rlAmbient(renderer, dt, world, opt) {
           1.4,
           0.12,
           grid,
-          { drag: 0 },
+          { ambient: true, drag: 0 },
         );
       }
     }
@@ -1910,6 +1764,8 @@ return mix(mix(mix(rlH3(i), rlH3(i + vec3(1.0, 0.0, 0.0)), f.x), mix(rlH3(i + ve
 }`;
 const RL_SKIN_FRAG_BODY = `
 {
+// All six skins share one coverage limit: type colours remain the primary combat signal.
+vec3 rlOriginalLight = outgoingLight;
 int rlS = int(uSkin + 0.5);
 if (rlS == 2) {
   // frost on everything facing up, glints, a cold tint, and a rim that drifts aurora green to pink (3.51.0)
@@ -1973,6 +1829,7 @@ if (rlS == 2) {
   float gl = step(0.94, rlN3(vRlP * 14.0 + vec3(uSkinT * 0.3, 0.0, 0.0)));
   outgoingLight += vec3(1.0, 0.97, 0.88) * gl * 0.3;
 }
+outgoingLight = mix(rlOriginalLight, outgoingLight, 0.42);
 }`;
 // Adds the skin (and, for enemy bodies, the hit flash they already had) to a Lambert material.
 function rlSkinMaterial(mat, flash) {
@@ -2032,7 +1889,7 @@ function rlSkinParticles(renderer, dt, world) {
       fx.life,
       fx.size * (enemy.boss ? 1.6 : 1),
       fx.c,
-      { drag: 0.4, grav: fx.grav, spark: fx.spark },
+      { ambient: true, drag: 0.4, grav: fx.grav, spark: fx.spark },
     );
   }
 }

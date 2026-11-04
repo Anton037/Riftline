@@ -2,6 +2,47 @@
 
 As of 27.10.2026, with 3.57.0. New entries are written in English (the owner's wish since 03.10.2026).
 
+## 03.11.2026 — fresh test foundation (supersedes the policy below)
+
+Following the owner's request to remove and rebuild the tests, the historical browser chains,
+per-release self-test and golden catalogs are removed. The replacement uses Node's built-in runner:
+ten unit contracts and two desktop/touch flows. Default flows run live simulation and UI with GPU draws
+suppressed; real pixel rendering and visual/audio review are explicit commands. PRs and deployments
+use one bounded gate, without change planners or hidden extended suites. This deliberately reduces
+coverage; offline recovery, long sessions and device-specific comfort still need manual acceptance.
+
+## 03.11.2026 — tests matched to risk (same 3.61.0 update)
+
+The owner explicitly asked to simplify all tests, especially the slow deep test, and remove unnecessary work.
+`docs/TESTING.md` replaces the previous always-run-everything policy. The normal gate retains save/simulation,
+data/package and real-player smoke coverage. CI selects audio, gameplay, offline and full-biome checks from changes.
+The audio test drops subjective FFT/style rankings, separates the historical self-test, and closes a fresh browser
+per small sound chunk/place. Pure music budgeting no longer allocates unrendered native sources; real-node parity
+is checked for all six places. Two overlapping screenshot scripts and the duplicate release-check chain are removed.
+Full UI/E2E, old regressions, art review, soak/fuzz and sound analysis remain explicit tools rather than mandatory
+work on every small update. Removed-setting assertions are updated to the current UI rather than restoring controls.
+
+## 03.11.2026 — visual consistency and full-biome review (3.61.0)
+
+The current request is a whole-game review with consistent criteria, led by the unequal biome graphics.
+`docs/VISUAL-REVIEW-3.61.md` records the rubric, findings, measured render costs and validation limits.
+
+- Phase 2 is implemented: all six weather profiles and prop emission rates are named data in
+  `src/data/atmosphere.js`. Base emission rates stay the same; particle sizes vary within a small range.
+  Atmosphere now yields under particle pressure and stops adding particles above 30% pool occupancy.
+  This intentionally replaces the earlier “match counts within 10%” gate with a combat-reservation gate.
+- Readability/material pass across all six floors: broken, snow-buried ice fractures; worn Core tiles with
+  sparse lit seams and quieter decorative runes; lower marsh vein contrast; finer wet asphalt and glass
+  grain; calmer molten bounce and narrower glass joints. Hazard timing and warning geometry stay intact.
+- Phases 4/5 are partially addressed by batching compatible opaque static siblings by material. Animated
+  objects, instanced vegetation and translucent surfaces keep their own identity and sorting. Transparent
+  bosses are deliberately excluded, so the earlier universal 7–10-mesh target is not claimed as achieved.
+- The landscape phone boss bar moves between the sticks so it no longer crosses the boss or the wave/combo stack.
+- `npm run audit:visual` captures all six biomes and bosses with a fixed run seed on PC and landscape touch.
+  The existing biome/attack screenshot suites also visit every biome; the Flats now has its own attack stage.
+- No engine migration or new progression mechanics are needed for these findings. A real-device gameplay,
+  audio listening and GPU timing pass remains necessary before calling the whole game release-ready.
+
 ## 28.10.2026 — biomes, enemies and effects: the overhaul, scoped (after 3.59.0)
 
 The owner asked for a biome, enemy and effect overhaul. This is the plan, grounded in what is actually

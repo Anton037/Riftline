@@ -1312,6 +1312,10 @@ body.device-desktop #settings > .topbar, body.device-desktop #settings > .settin
 body.device-phone.is-landscape #app:has(#hud:not([hidden])) #toasts {
   left: calc(var(--sl) + 10px); transform: none; top: calc(var(--st) + 66px); width: min(300px, 36vw); align-items: flex-start;
 }
+/* Keep the upper fighting area and the wave/combo stack clear on short screens. */
+body.device-phone.is-landscape .boss-bar { top: auto; bottom: calc(var(--sb) + 12px); width: min(300px, 42vw); }
+body.device-phone.is-landscape .boss-name { font-size: 10px; letter-spacing: 0.14em; margin-bottom: 3px; }
+body.device-phone.is-landscape .boss-bar .bar { height: 5px; }
 body.device-phone.is-landscape #app:has(#bossBar:not([hidden])) #toasts { top: calc(var(--st) + 96px); }
 body.device-phone.is-landscape #app:has(#hud:not([hidden])) .toast { text-align: left; }
 /* 2.3.6: the box around NOVA and DASH took touches in its empty corners (right of NOVA, left of
