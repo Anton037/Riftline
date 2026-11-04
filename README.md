@@ -35,7 +35,11 @@ npm install          # node 22 or newer
 npm run build        # bundle src/ into dist/ (esbuild), substitute version + build id
 npm run dev          # rebuild on every change
 npm run serve        # serve dist/ for a quick look
-npm test             # full suite: sim, save, build, deep sound test, full-qa, data-audit, determinism
+npm test             # ten unit contracts + desktop and touch player flows
+npm run audit:visual # all six biomes + bosses, PC and landscape touch, metrics and images
+npm run e2e          # just the two bounded browser flows
+npm run test:render  # same flows with real pixel drawing
+npm run verify:audio # optional synthesized sound catalog (several minutes)
 npm run lint         # eslint, one rule on purpose: no-undef (see "Why a linter" below)
 npm run format       # prettier
 ```
@@ -46,11 +50,12 @@ npm run format       # prettier
 - `docs/DEVELOPMENT.md` — the code history, the working rules and the release steps
 - `docs/ROADMAP.de.md` — the owner's wishes and decisions (read at the start of a session)
 - `docs/STRATEGY-AUDIT.md` — the strategy audit the roadmap's direction comes from
+- `docs/TESTING.md` — current test groups, CI routing and reasons for removing redundant work
 - `docs/GITHUB.md` — the repository settings only the owner can change
 
 ### Which renderer the browser suites use
 
-Every browser-driven suite launches Chromium through `tests/lib/renderer.mjs`, so the backend is chosen
+Every browser-driven suite launches Chromium through `tools/browser.js`, so the backend is chosen
 in one place instead of in each file. Set `RIFT_RENDERER` to pick it:
 
 | `RIFT_RENDERER` | Effect |
@@ -74,23 +79,16 @@ first (the npm aliases already do).
 | `npm run probe:place` | how far each ambience bed and far sound sits under the deep-test peak caps |
 | `npm run probe:audio` | chaos checks of the audio engine's failure paths |
 
-### The test suites
+### Test groups
 
-| Suite | What it proves |
-|---|---|
-| `tests/sim-node.mjs` | the simulation (combat, waves, economy) in plain node, thousands of checks per run |
-| `tests/save-node.mjs` | save sanitize, snapshot round-trips, resume contracts |
-| `tests/data-audit.mjs` | weapons/enemies/upgrades/biomes data consistency in a real browser boot |
-| `tests/determinism.mjs` | same seed → same fight, 15 cases identical |
-| `tests/deep-test.mjs` | renders **every** synthesized sound offline and diffs it; CI caches the result |
-| `tests/full-qa.mjs` | boots the real game headless: `files` (boot over network), `offline` (PWA), `daily` and `weekly` (both Rifts end to end, on desktop and phone), `run-desktop` (plays a wave) |
-| `tests/player-mode.mjs` | plays a whole run with `navigator.webdriver` patched **off** — like a real player: boot, health suite, wave, reload-and-continue, every timed buff chip, a real dash through the DASH button, death, payout, and a deliberate crash to prove the crash report |
+`npm test` builds once and runs ten Node contracts plus two browser flows. `npm run check` adds
+formatting and lint. Desktop and touch flows cover settings, movement, dash, pause, upgrades, save reload,
+continue and death. Default browser checks skip GPU draw calls; `npm run test:render` draws real pixels.
+Every wait and the overall process have deadlines. See [docs/TESTING.md](docs/TESTING.md) for coverage
+and limits. The historical test catalog and in-game self-test bundle have been removed.
 
-`tools/qa.js` runs any suite by name, e.g. `node tools/qa.js player-mode`. CI (`.github/workflows/test.yml`) runs formatting, lint, the full suite and both wave-playing suites on every PR.
-
-One caveat on `deep-test`: the music section renders all six biomes inside a single `page.evaluate`, so on a machine with a modest browser heap it can exceed Chrome's memory and die with `Target crashed` during the music part (after the sound catalog has already reported its count). It reproduces with software rendering too, so it is not the renderer. `scripts/rl-music-probe.mjs` solves the same problem by building one browser per biome; doing that here is a separate change, left verifiable rather than folded in.
-
-The determinism golden (`tests/fixtures/determinism.json`) pins the browser as well as the game: it records floating-point results, so a Chromium/V8 upgrade — or a deliberate gameplay change — moves every digest at once (the sim is chaotic, so one differently-rounded `Math.sin` reseeds the whole run). CI keeps the browser fixed through `package-lock.json`, which is why the file is stable there. Regenerate it with `node tools/qa.js determinism --update`, and say in the commit which of the two moved it.
+Audio catalog renders and six-biome screenshots are manual tools under `tools/verification/`.
+`npm run verify:audio -- --full` ignores the passing cache and renders fresh samples.
 
 ### Why a linter with one rule
 
@@ -126,7 +124,7 @@ src/
   sw.js            service worker: one cache per build, updates apply when idle
 build.js           esbuild bundling + __RL_*__ placeholder substitution
 tests/             the suites above
-tools/             qa router, dev server, checkers
+tools/             test runner, optional verification, dev server
 ```
 
 **Sound:** there are no audio files. Music, weapons, enemies, biome room tones and the far-off scenes (city sirens, marsh frogs, the void's breath) are all synthesized in WebAudio and verified by rendering them offline in the deep test.

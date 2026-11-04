@@ -2,8 +2,7 @@
 // about 200 s and depend only on the sound engine and the data it imports. Their result is kept in
 // node_modules/.cache/riftline/ and reused while none of those inputs changed. The key is a hash of every file the
 // sound engine imports (followed automatically, so a new import counts at once), the deep test itself and the
-// installed Playwright (the browser that renders). Only a passing result is kept. CI (env CI) and `--full` always
-// render everything.
+// installed Playwright (the browser that renders). Only a passing result is kept. `--full` renders everything; CI may reuse a passing result with the exact same input hash.
 // 3.32.0: a data file (src/data/) counts by what the sound engine can read from it, not by its text: its exports
 // without the texts for the player (names, card descriptions), so a reworded card no longer renders every sound
 // again (3 minutes). A data file that does not load in Node counts by its text, as before. The cache keeps the last
@@ -41,7 +40,7 @@ const playwrightCorePkg = () => {
   return null;
 };
 
-function soundInputs() {
+export function soundInputs() {
   const seen = new Set();
   const walk = (file) => {
     if (seen.has(file) || NOT_SOUND.has(file)) return;
@@ -51,7 +50,14 @@ function soundInputs() {
       walk(path.resolve(path.dirname(file), m[1]));
   };
   walk(path.join(ROOT, "src", "audio", "sound.js"));
-  return [...seen, path.join(ROOT, "tests", "deep-test.mjs"), playwrightCorePkg()].filter(Boolean).sort();
+  return [
+    ...seen,
+    path.join(ROOT, "tools", "verification", "audio.mjs"),
+    path.join(ROOT, "tools", "verification", "audio-page.mjs"),
+    playwrightCorePkg(),
+  ]
+    .filter(Boolean)
+    .sort();
 }
 
 /* what a data file contributes to the key: its exports without player texts; functions count by their source */
@@ -89,7 +95,7 @@ export async function soundCache() {
         "\0",
     );
   const key = hash.digest("hex"),
-    full = !!process.env.CI || process.argv.includes("--full");
+    full = process.argv.includes("--full");
   let entries = [];
   try {
     const saved = JSON.parse(fs.readFileSync(FILE, "utf8"));

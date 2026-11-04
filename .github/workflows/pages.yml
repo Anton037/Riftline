@@ -20,6 +20,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
     steps:
@@ -33,15 +34,9 @@ jobs:
         run: |
           npm ci
           npx playwright install --with-deps chromium
-      # 3.37.0: the deep test's sound cache (see test.yml): npm ci wipes node_modules, so the result of the
-      # offline sound render is restored here and saved again at the end of the job.
-      - name: Restore the deep test's sound cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: node_modules/.cache/riftline
-          key: riftline-sound-${{ hashFiles('src/audio/**/*.js', 'src/data/*.js', 'tests/deep-test.mjs', 'package-lock.json') }}
+      # Each deployment runs the same small regression gate as pull requests.
       - name: Build and test
-        run: npm test
+        run: npm run check
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: dist

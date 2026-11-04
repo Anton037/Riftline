@@ -690,8 +690,7 @@ const rlStep = 1 / 60,
     // can each come at wave 10 or 15; Endless keeps each boss's own hull as before.
     bossFor(wave) {
       if (wave % 5 !== 0) return null;
-      // 3.57.0: one unique boss per biome, and nothing else. Every biome is mapped (selftest asserts
-      // it), so the lookup used to be enough on its own - but its fallback indexed bossOrder, which
+      // 3.57.0: one unique boss per biome, and nothing else. Every biome is mapped (covered by core.test.mjs), so the lookup used to be enough on its own - but its fallback indexed bossOrder, which
       // still carries the retired Crucible for old saves and records. A biome that ever lost its
       // mapping would have started spawning a boss that belongs to no place. The fallback now draws
       // only from bosses that are actually assigned to a biome; the Crucible stays in bossOrder, where

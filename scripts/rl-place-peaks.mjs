@@ -8,7 +8,7 @@
 
 import { chromium } from "playwright";
 import { serve } from "../tools/serve.js";
-import { launchArgs } from "../tests/lib/renderer.mjs";
+import { launchArgs } from "../tools/browser.js";
 
 const PORT = 8133;
 const { server } = await serve("dist", PORT, { quiet: true });

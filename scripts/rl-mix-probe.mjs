@@ -12,7 +12,7 @@
 import { chromium } from "playwright";
 import { serve } from "../tools/serve.js";
 import { writeFileSync } from "node:fs";
-import { launchArgs } from "../tests/lib/renderer.mjs";
+import { launchArgs } from "../tools/browser.js";
 
 const PORT = 8131;
 const { server } = await serve(process.argv[3] || "dist", PORT, { quiet: true });
