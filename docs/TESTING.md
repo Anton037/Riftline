@@ -37,6 +37,8 @@ there is no historical release assertion catalog, always-on soak or hidden exten
 - The worker fixture uses the real worker source with small pages. It installs A, rejects an incomplete
   release, installs B with the same product version/build but different content identity, activates B
   while the A page stays open, stops the server, fetches A's bundle offline, then reloads offline into B.
+  A fixture-only message identifies B before cutting the network; a transient waiting worker or an
+  unrelated controller change cannot be mistaken for completion of the update.
   A second deployment's cache must remain untouched. This is a worker integration test, not a full
   two-release game migration or real-device acceptance test.
 

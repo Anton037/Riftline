@@ -10,13 +10,16 @@ const template = fs.readFileSync(new URL("../src/sw.js", import.meta.url), "utf8
 const release = (name) => {
   const bundle = `game-v3.61.0-${name.repeat(16)}.js`;
   const html = `<script src="${bundle}"></script><script>navigator.serviceWorker.register('./sw.js')</script>`;
-  const worker = template
-    .replace(/const FILES = \[[^\]]*\];/, `const FILES = ${JSON.stringify(["./", "index.html", bundle])};`)
-    .replaceAll("__RL_GAME_FILE__", bundle)
-    .replaceAll("__RL_VERSION_DASHED__", "3-61-0")
-    .replaceAll("__RL_VERSION__", "3.61.0")
-    .replaceAll("__RL_BUILD__", "same-build")
-    .replaceAll("__RL_ASSETS__", name.repeat(16));
+  const worker =
+    template
+      .replace(/const FILES = \[[^\]]*\];/, `const FILES = ${JSON.stringify(["./", "index.html", bundle])};`)
+      .replaceAll("__RL_GAME_FILE__", bundle)
+      .replaceAll("__RL_VERSION_DASHED__", "3-61-0")
+      .replaceAll("__RL_VERSION__", "3.61.0")
+      .replaceAll("__RL_BUILD__", "same-build")
+      .replaceAll("__RL_ASSETS__", name.repeat(16)) +
+    // Fixture-only identity readback: installation, activation and fetch routing stay real.
+    `\nself.addEventListener('message', e => { if (e.data === 'fixture-release') e.ports[0].postMessage('${name}'); });`;
   return { bundle, files: { "": html, "index.html": html, "sw.js": worker, [bundle]: `window.release = '${name}'` } };
 };
 
@@ -79,7 +82,6 @@ test("updates keep installed snapshots intact and old bundles available offline"
   await page.evaluate(async () => {
     await (await navigator.serviceWorker.getRegistration()).update();
   });
-  await page.waitForFunction(async () => !!(await navigator.serviceWorker.getRegistration()).waiting);
   // Merely receiving B online must not replace A's installed offline HTML.
   assert.equal(
     await page.evaluate(async () => {
@@ -88,12 +90,30 @@ test("updates keep installed snapshots intact and old bundles available offline"
     }),
     a.files["index.html"],
   );
-  await page.evaluate(async () => {
+  await page.waitForFunction(async () => {
+    const identify = (worker) =>
+      new Promise((resolve) => {
+        if (!worker || worker.state === "redundant") return resolve(null);
+        const channel = new MessageChannel();
+        const finish = (value) => {
+          clearTimeout(timer);
+          channel.port1.close();
+          resolve(value);
+        };
+        const timer = setTimeout(() => finish(null), 1000);
+        channel.port1.onmessage = (event) => finish(event.data);
+        try {
+          worker.postMessage("fixture-release", [channel.port2]);
+        } catch {
+          finish(null);
+        }
+      });
     const reg = await navigator.serviceWorker.getRegistration();
-    await new Promise((resolve) => {
-      navigator.serviceWorker.addEventListener("controllerchange", resolve, { once: true });
-      reg.waiting.postMessage("skipWaiting");
-    });
+    // Capture and identify B in the same browser call that requests activation. A live nullable
+    // registration field can change between calls; A or the failed C is never readiness for B.
+    const worker = reg.waiting;
+    if ((await identify(worker)) === "b") worker.postMessage("skipWaiting");
+    return (await identify(navigator.serviceWorker.controller)) === "b";
   });
   assert.equal(await page.evaluate(() => window.release), "a", "Existing page stays on its running bundle");
   await stopServer();
@@ -105,7 +125,25 @@ test("updates keep installed snapshots intact and old bundles available offline"
   assert.equal(old.status, 200);
   assert.equal(old.body, a.files[a.bundle]);
   await page.reload();
-  await page.waitForFunction(() => window.release === "b");
+  try {
+    await page.waitForFunction(() => window.release === "b");
+  } catch (error) {
+    t.diagnostic(
+      JSON.stringify(
+        await page.evaluate(async () => ({
+          release: window.release,
+          html: document.documentElement.outerHTML,
+          caches: await Promise.all(
+            (await caches.keys()).map(async (key) => ({
+              key,
+              html: await (await (await caches.open(key)).match("index.html"))?.text(),
+            })),
+          ),
+        })),
+      ),
+    );
+    throw error;
+  }
   const keys = await page.evaluate(() => caches.keys());
   assert.ok(keys.includes(foreign));
   assert.equal(keys.filter((k) => k.includes("same-build-")).length, 2, "Only the two complete snapshots survive");
