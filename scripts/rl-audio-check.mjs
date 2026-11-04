@@ -3,7 +3,7 @@
 import { chromium } from "playwright";
 import { launchArgs } from "../tools/browser.js";
 
-const BASE = process.argv[2] || "http://localhost:8126/index.html";
+const BASE = process.argv[2] || "http://localhost:8124/index.html";
 const browser = await chromium.launch({ args: launchArgs() });
 const page = await browser.newPage();
 page.on("pageerror", (err) => console.log("PAGEERROR:", err.message));

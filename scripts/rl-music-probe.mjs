@@ -2,15 +2,13 @@
 // These measurements are advisory art diagnostics, separated from the audio correctness gate.
 // The bounded health checks and passing cache live in tools/verification/audio.mjs; musicBudget now
 // avoids native AudioNodes for pure scheduling, while this probe's sample renders stay real.
-// Usage: node scripts/rl-music-probe.mjs [out.json]   (STAGE=budget|tracks|bloom runs one stage)
+// Usage: node scripts/rl-music-probe.mjs [base-url] [out.json]   (STAGE=budget|tracks|bloom runs one stage)
 
 import { chromium } from "playwright";
-import { serve } from "../tools/serve.js";
 import { writeFileSync } from "node:fs";
 import { launchArgs } from "../tools/browser.js";
 
-const PORT = 8132;
-const { server } = await serve("dist", PORT, { quiet: true });
+const BASE = process.argv[2] || "http://localhost:8124/index.html";
 // A fresh browser per chunk: the offline-audio engines are megabytes of native audio-graph memory in
 // the browser process, the collector frees them late, and five biomes of budget went past the box's
 // memory (the OOM killer took chrome while the JS heap still showed 15 MB). One boot is about 10 s.
@@ -20,7 +18,7 @@ const withPage = async (fn) => {
   });
   const page = await browser.newPage();
   page.on("pageerror", (err) => console.log("PAGEERROR:", err.message));
-  await page.goto(`http://localhost:${PORT}/index.html`, { timeout: 90000 });
+  await page.goto(BASE, { timeout: 90000 });
   await page.waitForFunction(() => window.__riftTest && window.__riftTest.game, null, { timeout: 90000 });
   // the probe only needs the audio engine: stop the game's render loop (it schedules a new frame at
   // the top of every tick, so a one-shot cancel cannot stop it - patch rAF to a no-op and spray-cancel
@@ -40,6 +38,7 @@ const chunk = async (name, fn, arg) => {
   return r;
 };
 
+if (process.env.STAGE && !["budget", "tracks", "bloom"].includes(process.env.STAGE)) throw new Error("Unknown STAGE");
 const BIOMES = ["yard", "vault", "marsh", "void", "club", "flats"];
 const fail = [];
 const budgetRows = [],
@@ -280,16 +279,15 @@ if (process.env.STAGE !== "budget" && process.env.STAGE !== "tracks")
     fail.push(...r.fail);
   }
 
-server.close();
-
 // ---- (4) the pairwise and versus rules (node side, from the rendered numbers) ----
 const gridDist = (a, b) => a.grid.reduce((p, v, i) => p + Math.abs(v - b.grid[i]), 0) / 2;
 for (const kind of ["fight", "boss"])
   for (let i = 0; i < BIOMES.length; i++)
     for (let j = i + 1; j < BIOMES.length; j++) {
       const a = trackRows[`${BIOMES[i]}:${kind}`],
-        b = trackRows[`${BIOMES[j]}:${kind}`],
-        tempo = +Math.abs(Math.log2(a.bpm / b.bpm)).toFixed(3),
+        b = trackRows[`${BIOMES[j]}:${kind}`];
+      if (!a || !b) continue;
+      const tempo = +Math.abs(Math.log2(a.bpm / b.bpm)).toFixed(3),
         rhythm = +gridDist(a, b).toFixed(3),
         centroid = +Math.abs(Math.log2(a.centroid / b.centroid)).toFixed(3),
         density = +Math.abs(Math.log2(a.onsetsPerSec / b.onsetsPerSec)).toFixed(3);
@@ -300,8 +298,9 @@ for (const kind of ["fight", "boss"])
 const versus = [];
 for (const biome of BIOMES) {
   const c = trackRows[`${biome}:fight`],
-    b = trackRows[`${biome}:boss`],
-    loudness = +(b.rms / c.rms).toFixed(2),
+    b = trackRows[`${biome}:boss`];
+  if (!c || !b) continue;
+  const loudness = +(b.rms / c.rms).toFixed(2),
     voices = +(b.voicesPerSec / c.voicesPerSec).toFixed(2);
   versus.push({ biome, loudness, voices });
   if (loudness < 1.5) fail.push(`${biome}: boss only ${loudness}x the calm theme`);
@@ -313,6 +312,7 @@ console.log("\ntrack                rms     peak   flat   onset/s  bpm");
 for (const b of BIOMES)
   for (const k of ["fight", "boss"]) {
     const d = r(`${b}:${k}`);
+    if (!d) continue;
     console.log(
       `${(b + ":" + k).padEnd(20)} ${d.rms.toFixed(4)}  ${d.peak.toFixed(3)}  ${d.flat.toFixed(3)}  ${d.onsetsPerSec.toFixed(1).padStart(6)}   ${d.bpm}`,
     );
@@ -320,9 +320,9 @@ for (const b of BIOMES)
 console.log("\nversus (boss/calm): " + versus.map((v) => `${v.biome} ${v.loudness}x/${v.voices}x`).join("  "));
 for (const [biome, b] of Object.entries(bloomRows)) console.log(`bloom ${biome}: notes ${b.notes} share ${b.share}`);
 if (fail.length) console.log("\nFAILS:\n" + fail.join("\n"));
-if (process.argv[2])
+if (process.argv[3])
   writeFileSync(
-    process.argv[2],
+    process.argv[3],
     JSON.stringify({ budgetRows, tracks: trackRows, versus, bloom: bloomRows, fail }, null, 1),
   );
 console.log(fail.length ? "\nMUSIC PROBE: FAIL" : "\nMUSIC PROBE: ok");

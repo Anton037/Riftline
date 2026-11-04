@@ -30,8 +30,8 @@ rules and release steps. Read them first. In short:
   first entry must match the version, `tests/core.test.mjs` checks it and that the list stays at `NEWS_KEEP`).
   `src/build-info.json` is the identity the game fetches at start-up; since 3.57.0 the build writes only the version
   and the build id of it to `dist/`, so there is no changelog to keep there any more.
-- `docs/TESTING.md` is the current test policy. `npm test` runs ten unit contracts and two bounded
-  browser flows. Default flows omit GPU draw calls; `npm run test:render` enables pixels.
+- `docs/TESTING.md` is the current test policy. `npm test` runs ten unit contracts and three bounded
+  browser checks (tablet touch, phone multitouch and worker updates). Default flows omit GPU draw calls; `npm run test:render` enables pixels.
 - Run `npm run check` before a commit. Audio and six-biome visual verification are optional tools;
   `npm run release-check` aliases the same short gate. Removed historical suites have no CLI aliases.
 - All changes go through pull requests: work on a branch, open a PR against `main`, and let the
@@ -43,3 +43,5 @@ rules and release steps. Read them first. In short:
 - Everything is written in English (the owner's wish since 03.10.2026): player-facing texts, commit messages, README
   and the roadmap. The earlier German sections of `docs/ROADMAP.de.md` stay as they are; new sections are English.
   Replies to the owner are English too. The owner lives in Germany: give dates and times in German time (CET/CEST).
+
+- Current owner direction (04.11.2026): touch-only gameplay. Do not restore gamepad, mouse or keyboard gameplay. Keep phone haptics and native browser form controls.

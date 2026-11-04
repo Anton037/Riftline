@@ -22,9 +22,7 @@ import { waveEvents } from "../core/waves.js";
 import { milestones, workshopModules, rlRetired, threatLevels } from "../data/progression.js";
 import { upgradeList, rarityNames, upgradesById } from "../data/upgrades.js";
 import { computeStats, weaponRange, buildStatRows } from "../core/stats.js";
-import { RL_INPUT } from "./input.js";
-import { clearFocus, rumble } from "./gamepad.js";
-import { hapticMode } from "./haptics.js";
+import { rumble, hapticMode } from "./haptics.js";
 import { WHATS_NEW } from "../data/whatsnew.js";
 import { MUTATORS } from "../core/mutators.js";
 import { markHomeViewDirty } from "../render/renderer.js";
@@ -185,6 +183,10 @@ const getById = (id) => document.getElementById(id),
     ["Drones", (stats) => stats.wingmen, String],
     ["Bloodrush cap", (stats) => (stats.bloodrush ? 0.4 : 0), formatPercent], // 2.6.0
   ],
+  hitSourceName = (src) =>
+    enemyDefs[src]?.name ||
+    bossDefs[src]?.name ||
+    { lava: "Lava vent", shock: "Live manhole", acid: "Acid pool", trap: "Arena trap", devil: "Dust devil" }[src],
   damageSources = {
     arc: ["Arc Relay", "#c58bff"],
     burn: ["Burning", "#ff8a2a"],
@@ -467,8 +469,6 @@ const getById = (id) => document.getElementById(id),
         this.recTab = "stats";
       }
       for (let id of menuScreens) getById(id).hidden = id !== screen;
-      // 3.28.1: the gamepad's ring of focus stays on the screen it was on
-      clearFocus();
       this.screen = screen;
       if (screen === "home") {
         this.stack = [];
@@ -891,7 +891,7 @@ const getById = (id) => document.getElementById(id),
           ? "Buzzes on this phone: hits, dashes, the end of a run."
           : hapticMode() === "tick"
             ? "iPhone: short ticks, on the iOS versions that still allow them."
-            : "No vibration on this device. A connected controller still rumbles.";
+            : "Vibration is unavailable on this device.";
       getById("setNumbers").checked = settings.numbers;
       getById("setSfx").value = settings.sfx;
       getById("setMusic").value = settings.music;
@@ -937,8 +937,6 @@ const getById = (id) => document.getElementById(id),
       return ok;
     }
     dialog({ title, body, buttons, onOpen, read }) {
-      // 3.28.1: the gamepad's ring of focus does not stay on the button that opened the dialog
-      clearFocus();
       if (this.dlgResolve) {
         this.closeDialog(null);
       }
@@ -1367,6 +1365,7 @@ const getById = (id) => document.getElementById(id),
         ? `${bossDefs[world.bossKills[world.bossKills.length - 1]] ? bossDefs[world.bossKills[world.bossKills.length - 1]].name : "BOSS"} DEFEATED`
         : `WAVE ${world.wave} CLEARED`;
       getById("chooseTitle").textContent = bossReward ? "Claim a rare reward" : "Choose an upgrade";
+      getById("chooseFirstHint").hidden = bossReward || world.wave !== 1;
       let hpFrac = clamp(world.player.hp / world.stats.maxHp, 0, 1);
       getById("chooseHp").style.transform = `scaleX(${hpFrac})`;
       getById("chooseHpNum").textContent = `${Math.ceil(world.player.hp)}/${world.stats.maxHp}`;
@@ -1427,10 +1426,6 @@ const getById = (id) => document.getElementById(id),
             else this.g.choose(card.dataset.pick);
           }
         });
-        // 2.7.0: a soft tick when the mouse moves over a card (touch has no hover)
-        card.addEventListener("pointerenter", (ev) => {
-          if (ev.pointerType === "mouse" && !cards.classList.contains("locked")) this.g.sound.play("hover");
-        });
       }
       // 3.25.0: Banish Protocol: shown when the module is owned (or a banish is left in a resumed run)
       {
@@ -1451,16 +1446,6 @@ const getById = (id) => document.getElementById(id),
         this.markSeen((world.offer || []).filter((id) => upgradesById[id]).map((id) => "up_" + id));
       } catch (err) {
         console.warn("codex", err);
-      }
-      // 2.4.2: keys 1–4 pick a card, R rerolls (keyboard players only)
-      if (!RL_INPUT.touch) {
-        getById("cards")
-          .querySelectorAll("[data-pick]")
-          .forEach((card, i) => {
-            card.classList.add("has-key");
-            card.insertAdjacentHTML("beforeend", `<kbd class="card-key" aria-hidden="true">${i + 1}</kbd>`);
-          });
-        getById("rerollTxt").insertAdjacentHTML("afterend", '<kbd class="card-key inline" aria-hidden="true">R</kbd>');
       }
     }
     statDelta(id, world) {
@@ -1594,23 +1579,10 @@ const getById = (id) => document.getElementById(id),
       title.className = "over-title " + (result.win ? "win" : "lose");
       getById("overBest").hidden = !(result.best || result.fastest);
       getById("overBest").textContent = result.fastest && !result.best ? "NEW FASTEST" : "NEW BEST";
-      let killer = result.killer ? enemyDefs[result.killer] || bossDefs[result.killer] : null;
-      getById("overCause").hidden = !killer && !["lava", "shock", "acid", "trap"].includes(result.killer);
-      if (killer) {
-        getById("overCause").textContent = `Destroyed by ${bossDefs[result.killer] ? killer.name : "a " + killer.name}`;
-      } else {
-        if (result.killer === "lava") {
-          getById("overCause").textContent = "Burned by a lava vent";
-        } else if (result.killer === "shock") {
-          getById("overCause").textContent = "Fried by a live manhole";
-        } else {
-          if (result.killer === "acid") {
-            getById("overCause").textContent = "Dissolved in acid";
-          } else if (result.killer === "trap") {
-            getById("overCause").textContent = "Crushed by a trap";
-          }
-        }
-      }
+      const cause = getById("overCause"),
+        source = result.killer && hitSourceName(result.killer);
+      cause.hidden = !source;
+      cause.textContent = source ? `Final hit · ${source}` : "";
       // 3.26.0: a Daily Rift run says so, and what the day's best is (3.58.0: the Weekly Rift the same for its week)
       const over = getById("overDaily");
       over.hidden = !result.daily && !result.weekly;
@@ -1656,12 +1628,6 @@ const getById = (id) => document.getElementById(id),
       this.renderDamage(result);
       getById("endlessBtn").hidden = !result.canEndless;
       getById("retryBtn").hidden = result.canEndless;
-      // 3.45.4: R runs again from the end screen (keyboard players only)
-      if (!RL_INPUT.touch && !result.canEndless) {
-        const retry = getById("retryBtn");
-        if (!retry.querySelector(".card-key"))
-          retry.insertAdjacentHTML("beforeend", '<kbd class="card-key inline">R</kbd>');
-      }
       getById("over").hidden = false;
       this.countUp(getById("payTotal"), result.total);
       this.renderRunExtra();
@@ -1699,11 +1665,7 @@ const getById = (id) => document.getElementById(id),
         hits = (result.lastHits || []).slice(-6);
       box.hidden = !hits.length;
       if (box.hidden) return;
-      const name = (src) =>
-          (enemyDefs[src] && enemyDefs[src].name) ||
-          (bossDefs[src] && bossDefs[src].name) ||
-          { lava: "Lava vent", shock: "Live manhole", acid: "Acid", trap: "A trap" }[src] ||
-          "Unknown",
+      const name = (src) => hitSourceName(src) || "Unknown source",
         ago = (s) => (s < 0.15 ? "the end" : `${s.toFixed(1)} s before`);
       const taken = Object.entries(result.taken || {})
           .filter(([, dmg]) => dmg >= 1)

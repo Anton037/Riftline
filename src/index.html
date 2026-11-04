@@ -393,6 +393,7 @@ input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border: 0; back
 .choose-hp { display: flex; align-items: center; gap: 8px; width: min(260px, 70vw); }
 .choose-hp .bar { flex: 1; }
 .choose-hp .num { font-size: 13px; color: var(--dim); }
+.choose-first-hint { max-width: 42ch; margin: 0; color: var(--dim); font-size: 13px; text-align: center; }
 .cards { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 440px; overflow-y: auto; touch-action: pan-y; min-height: 0; }
 .card {
   --rc: var(--r1); position: relative; display: grid; grid-template-columns: 48px 1fr; gap: 12px; align-items: center; text-align: left;
@@ -439,9 +440,6 @@ button.bi.sel { background: color-mix(in srgb, var(--rc, var(--r1)) 22%, transpa
 .up-info b { font: 700 14px/1.2 var(--display); letter-spacing: 0.03em; }
 .up-info .lv { font: 600 11px/1 var(--display); letter-spacing: 0.14em; color: var(--dim); }
 .up-info p { margin: 4px 0 0; color: var(--dim); font-size: 14px; }
-.card-key { position: absolute; right: 8px; bottom: 6px; font: 700 11px/1 var(--display); color: var(--dim); padding: 3px 6px; border: 1px solid var(--line2); background: rgba(255, 255, 255, 0.04); }
-.card-key.inline { position: static; margin-left: 8px; }
-#choose .card.has-key { padding-bottom: 28px; }
 #settings.in-run .menu-only { display: none; }
 
 /* ---------------------------------------------------------------- pause / over */
@@ -491,8 +489,6 @@ button.bi.sel { background: color-mix(in srgb, var(--rc, var(--r1)) 22%, transpa
 .stat-rows .sr-d.up { color: #6dffb0; }
 .stat-rows .sr-d.down { color: #6dffb0; }
 .stat-rows .sr-d.worse { color: #ff9ab0; }
-/* 3.23.0: the ring of focus a controller moves through the menus */
-.pad-focus { outline: 2px solid var(--cyan); outline-offset: 3px; box-shadow: 0 0 16px rgba(73, 242, 255, 0.55); }
 /* 3.25.0: Banish Protocol: a card to be banished */
 .cards.banishing .card { outline: 2px dashed #ff5a82; outline-offset: -4px; cursor: crosshair; }
 .cards.banishing .card::after { content: "TAP TO BANISH"; position: absolute; left: 0; right: 0; bottom: 8px; text-align: center; font: 700 11px/1 var(--display); letter-spacing: 0.2em; color: #ff8aa6; }
@@ -1007,7 +1003,7 @@ body.device-desktop #home .bottom-nav button {
    Riftline 1.6.7 — responsive UI / interaction polish
    This final layer supersedes earlier responsive patches without changing
    gameplay layout assumptions. The goal is stable geometry first, then
-   device-specific density, then touch/keyboard interaction.
+   device-specific density, then touch interaction.
    ======================================================================== */
 
 :root {
@@ -1674,7 +1670,7 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
       <div class="set-group">
         <label class="set-row"><span><b>Auto-fire</b><small>Shoots the nearest enemy while you are not aiming.</small></span><input type="checkbox" id="setAuto" class="toggle"></label>
         <label class="set-row"><span><b>Aim assist</b><small>Nudges your aim onto nearby targets.</small></span><input type="checkbox" id="setAssist" class="toggle"></label>
-        <div class="set-row"><span><b>Vibration</b><small id="vibNote">Rumble on a controller, a short buzz on a phone: hits, dashes, the end of a run.</small></span><span class="row-ctl"><button id="setVibTest" class="btn small ghost">Test</button><label><input type="checkbox" id="setVibration" class="toggle"></label></span></div>
+        <div class="set-row"><span><b>Vibration</b><small id="vibNote">Phone feedback for hits, dashes and the end of a run.</small></span><span class="row-ctl"><button id="setVibTest" class="btn small ghost">Test</button><label><input type="checkbox" id="setVibration" class="toggle"></label></span></div>
         <div class="set-row"><span><b>Button layout</b><small id="hudLayoutNote">Move and resize the buttons and the sticks.</small></span><button id="hudEditBtn" class="btn small">Edit</button></div>
       </div>
       <h3 class="section-h">Display</h3>
@@ -1712,6 +1708,7 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
     <div class="choose-head">
       <div id="chooseEyebrow" class="eyebrow">WAVE 1 CLEARED</div>
       <h2 id="chooseTitle">Choose an upgrade</h2>
+      <p id="chooseFirstHint" class="choose-first-hint" hidden>Cards upgrade your drone for this run. Spend shards in the Workshop for permanent upgrades.</p>
       <div id="nextWave" class="next-wave" aria-live="polite"></div>
       <div class="choose-hp"><div class="bar hp small"><i id="chooseHp"></i></div><span id="chooseHpNum" class="num"></span></div>
     </div>

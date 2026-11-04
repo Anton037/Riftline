@@ -126,6 +126,7 @@ const RL_BOSS_ATK = {
 // 3.33.0: the warning voice of a beam by its skin (the rest keep "beam" / "beamSmall")
 const BEAM_VOICE = { cryo: "bwCryo", acid: "bwAcid", flame: "bwFlame", sun: "bwFlare" };
 const RL_OVERDRIVE = new Set(["lockdown", "meltdown", "whiteout", "plague", "collapse", "lastcall", "noon"]);
+const BOSS_WARNING_VOICES = new Set(Object.values(RL_BOSS_ATK).filter(Boolean));
 /* 3.10.0: the voice of the blast of an attack zone, by its kind and, where the kind is shared, its maker (the same
    choice as the look in render/attacks-view.js); null: the generic explosion ("boom"). 3.32.0: a blast that chills (a
    Frost mortar's shell) cracks like ice whatever its kind */
@@ -1266,13 +1267,15 @@ const musicChords = {
       this.last[key] = now;
       return true;
     }
-    play(id, arg) {
+    play(id, arg, bossWarning = false) {
       if (!this.live() || this.sfxVol <= 0) return;
-      this.curPri = KEY_SOUNDS.has(id) ? 2 : 1;
+      const warning = bossWarning || BOSS_WARNING_VOICES.has(id);
+      this.curPri = warning || KEY_SOUNDS.has(id) ? 2 : 1;
       this.curRev = SFX_ROOM[id] || 0;
       try {
         this._play(id, arg);
-        if (MUSIC_DUCK[id]) this.duck(MUSIC_DUCK[id]);
+        const depth = warning ? 0.15 : MUSIC_DUCK[id];
+        if (depth) this.duck(depth);
       } catch (err) {
         this.fail(err);
       } finally {
@@ -3128,7 +3131,7 @@ const musicChords = {
           case "beamWarn":
             // 3.33.0: the beams of the Cryo Vault, the Toxin Marsh and the Ember Works sound like what they are; the
             // laser and the rift ribbon keep the whine of 2.x
-            this.play(BEAM_VOICE[ev.skin] || (ev.small ? "beamSmall" : "beam"), ev.small ? 0.6 : 1);
+            this.play(BEAM_VOICE[ev.skin] || (ev.small ? "beamSmall" : "beam"), ev.small ? 0.6 : 1, ev.boss === true);
             break;
           case "aim":
             this.play(ev.type === "turret" ? "servo" : "lock");
@@ -4528,19 +4531,6 @@ const pumpDip = (k, at, depth, rel = 0.09) => {
       rev: o.rev ?? 0.3,
     });
   },
-  /* an anvil: a hammer's knock and ringing partials */
-  anvil = (k, f, v, pan = 0) => {
-    k.m.n(0.06, v * 1.1, { type: "bandpass", f: 2600, q: 1.6, color: "pink", attack: 0.001, pan });
-    k.m.t(f, 0.5, "sine", v, { attack: 0.001, pan, rev: 0.25 });
-    k.m.t(f * 2.76, 0.3, "sine", v * 0.7, { attack: 0.001, pan });
-  },
-  /* a metal clang far away: inharmonic partials and a knock */
-  clang = (bus, f, v, o = {}) => {
-    bus.n(0.04, v * 1.2, { type: "bandpass", f: 3500, q: 2, color: "pink", attack: 0.001, ...o });
-    bus.t(f, 1.1, "sine", v, { attack: 0.001, ...o });
-    bus.t(f * 2.76, 0.55, "sine", v * 0.55, { attack: 0.001, ...o });
-    bus.t(f * 5.4, 0.25, "sine", v * 0.3, { attack: 0.001, ...o });
-  },
   /* a bell or a struck piece of ice: a sine and inharmonic partials that die away faster */
   bell = (bus, f, v, dur = 1.4, o = {}) => {
     bus.t(f, dur, "sine", v, { attack: 0.002, ...o });
@@ -5145,64 +5135,6 @@ function shardPluck(k, c, vol, o = {}) {
   k.d.n(0.025, vol * 1.3, { type: "bandpass", f: 3400, q: 4.5, color: "pink", attack: 0.001, ...o });
   k.d.t(1976, 0.12, "sine", vol, { at: 0.003, ...o, lp: 7400 });
   k.d.t(2637, 0.09, "sine", vol * 0.6, { at: 0.005, ...o, lp: 8000 });
-}
-
-/* The Crucible's hammer track (126 BPM, D major): built when the foundry golem carried the Flats for
-   a season (3.53.0); the golem is benched again (3.56.0) and the track stays defined and tested with
-   it. Drop: a heavy four on the floor with the forge's anvil answering, the glassine motif over it, a
-   hot brass line; variation: the glass runs in sixteenths and the choir sings the chord; breakdown:
-   the shimmer alone, then the hammer builds it back */
-function forgeBoss(e, c) {
-  const { b, bar, sec, root, chord } = c,
-    k = kit(e, c);
-  if (sec <= 2) calmMotif(k, c, "glassine", sec === 2 ? 1.4 : 1.7, sec !== 2, sec !== 2);
-  sectionHit(k, c);
-  bossFill(k, c);
-  bossCycle(k, c);
-  if (sec <= 1) {
-    // the hammer: a heavy four, the anvil on the "and" of two and four
-    if (b === 0 || b === 8) kick(k, 0.5, { f0: 120, f1: 44, dur: 0.16, pump: 0.5 });
-    if (b === 4 || b === 12) {
-      bigSnare(k, 0.2, { f: 1500, bf: 185 });
-      forgeKnock(k, c, 0.04, { pan: b === 4 ? -0.32 : 0.32 });
-    }
-    if (b % 4 === 2) taiko(k, 0.22, { f: 92, pan: b === 2 ? -0.28 : 0.28 });
-    if (pat(CHUG_BASS)[b]) {
-      k.p.t(midiToFreq(root - 24 + CHUG_OCT[b]), 0.12, "sawtooth", 0.05, { lp: 900, lpTo: 420, q: 2.2 });
-      if (b % 8 === 0) sub(k, root, 0.2, 0.12);
-    }
-    // the brass stabs up the chord while the hammer walks
-    if (b === 6 && (bar & 1) === 0) brass(k, chord[2], 0.16, 0.028, { lp: 480, lpTo: 2500, hold: 0.08 });
-    if (sec === 1) {
-      if (b === 0 || b === 8) brass(k, chord[[0, 2][(bar >> 1) & 1]], 0.38, 0.03, { lp: 460, lpTo: 2700, hold: 0.13 });
-      if (b % 2 === 0 && bar >= 12) strings(k, chord[[0, 2, 1, 2][(b >> 1) & 3]] + 12, 0.019, { lp: 2000 });
-      if (bar >= 12 && b === 0) choir(k, [chord[0] + 12, chord[2] + 12], c.barSec, 0.028);
-    }
-  } else if (sec === 2) {
-    if (b === 0) {
-      taiko(k, 0.52, { f: 64, deep: true, dur: 0.75 });
-      sub(k, root, 1.05, 0.2);
-      choir(k, [chord[0] + 12, chord[1] + 12, chord[2] + 12], c.barSec + 0.35, 0.028);
-    }
-    if (b === 8) bigSnare(k, 0.22, { f: 1300, bf: 175, dur: 0.26, rev: 0.8 });
-    if (b % 4 === 2) forgeKnock(k, c, 0.024, { pan: P(c, 20, 0.8) });
-    // the glass runs: a fast shimmer line up the chord late in the variation
-    if (bar >= 14 && b % 2 === 0)
-      k.d.t(midiToFreq(chord[[0, 1, 2, 3][(b >> 1) & 3]] + 24), 0.3, "sine", 0.008, { lp: 7000, pan: P(c, 30, 0.8) });
-  } else {
-    buildRoll(k, c, 84);
-    if (b % 4 === 0) kick(k, 0.3 + 0.1 * (bar - 20), { f0: 120, f1: 44, dur: 0.15 });
-    k.p.t(midiToFreq(root - 24 + Math.floor(((bar - 20) * 16 + b) / 2)), 0.09, "sawtooth", 0.048, { lp: 1000, q: 2 });
-    // the heat riser over the last two bars (the same slow burn the march's eruption had)
-    eruptionRiser(k, c);
-    buildRiser(k, c);
-  }
-}
-// the hammer's knock (the anvil of the old works, revoiced for the open sand - shorter, hotter; the
-// noise share stays near the caldera knock's so the boss track keeps its tonal floor)
-function forgeKnock(k, c, vol, o = {}) {
-  k.d.n(0.03, vol * 1.6, { type: "bandpass", f: 3100, q: 5, color: "pink", attack: 0.001, ...o });
-  k.d.t(1244, 0.14, "sine", vol, { at: 0.004, ...o, lp: 6200 });
 }
 
 /* Blackout City, 78 BPM, A minor (Am F Dm E): rain on empty streets. An electric piano motif, a soft pad, the sub; a

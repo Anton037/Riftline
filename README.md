@@ -2,7 +2,7 @@
 
 **Riftline** is a 3D arena roguelite wave shooter for the browser — one arena, six biomes, escalating waves, one broken drone against all of it. Built with three.js and WebAudio, no framework, no build-time game engine: the game IS the code in `src/`.
 
-**Play it:** https://aaron40776.github.io/Riftline/ — installable (PWA), runs offline after the first visit, playable on desktop and on phones/tablets in landscape.
+**Play it:** https://anton037.github.io/Riftline/ — installable (PWA), runs offline after the first visit, a touch-only game for phones and tablets in landscape.
 
 ## What's in the game
 
@@ -17,16 +17,15 @@
 
 ## Controls
 
-| | Desktop | Touch | Gamepad |
-|---|---|---|---|
-| Move | WASD / arrows | left stick | left stick |
-| Aim / fire | mouse | right stick (auto-aim by default) | right stick / auto |
-| Dash | Space or Shift | DASH button | A / LB |
-| Nova | E, Q or F | NOVA button | X / RB |
-| Gadget | G | gadget button | Y |
-| Pause | Esc or P | pause button | menu |
+| Action | Touch control |
+|---|---|
+| Move | Drag the left side |
+| Aim / fire | Drag the right side; auto-fire is enabled by default |
+| Dash / Nova / gadget | Tap the corresponding action button |
+| Pause | Tap the pause button |
 
-Upgrade picks: keys **1–4**, reroll **R**. Phone: hold it in landscape; the game asks politely if you don't.
+Hold the device in landscape. Move and resize the controls in Settings. Keyboard, mouse and
+controller gameplay are not supported. Menus keep native browser accessibility and text entry.
 
 ## Development
 
@@ -35,12 +34,12 @@ npm install          # node 22 or newer
 npm run build        # bundle src/ into dist/ (esbuild), substitute version + build id
 npm run dev          # rebuild on every change
 npm run serve        # serve dist/ for a quick look
-npm test             # ten unit contracts + desktop and touch player flows
-npm run audit:visual # all six biomes + bosses, PC and landscape touch, metrics and images
-npm run e2e          # just the two bounded browser flows
+npm test             # ten unit contracts + phone/tablet flows + worker update check
+npm run audit:visual # all six biomes + bosses, tablet and landscape phone, metrics and images
+npm run e2e          # the bounded touch and worker browser checks
 npm run test:render  # same flows with real pixel drawing
 npm run verify:audio # optional synthesized sound catalog (several minutes)
-npm run lint         # eslint, one rule on purpose: no-undef (see "Why a linter" below)
+npm run lint         # catch undefined names and unused game declarations
 npm run format       # prettier
 ```
 
@@ -69,30 +68,31 @@ frame-rate assertion tuned on one measures the host, not the game.
 
 ### Probes (measure a change instead of guessing)
 
-The `scripts/` probes stand behind the sound work. They serve `dist/` themselves, so run `npm run build`
-first (the npm aliases already do).
+The npm probe commands build once, start a temporary server and run with a hard deadline.
+Their entire process tree is cleaned up after success, failure or cancellation.
 
 | Probe | Answers |
 |---|---|
 | `npm run probe:mix` | the mix balance at the default volumes, per bus, from numbers rather than taste |
-| `npm run probe:music` | the music rules of the deep test, without the multi-minute catalog |
-| `npm run probe:place` | how far each ambience bed and far sound sits under the deep-test peak caps |
+| `npm run probe:music` | optional music spectra, loudness and rhythm measurements |
+| `npm run probe:place` | ambience peak levels relative to weapon sounds |
 | `npm run probe:audio` | chaos checks of the audio engine's failure paths |
 
 ### Test groups
 
-`npm test` builds once and runs ten Node contracts plus two browser flows. `npm run check` adds
-formatting and lint. Desktop and touch flows cover settings, movement, dash, pause, upgrades, save reload,
-continue and death. Default browser checks skip GPU draw calls; `npm run test:render` draws real pixels.
-Every wait and the overall process have deadlines. See [docs/TESTING.md](docs/TESTING.md) for coverage
-and limits. The historical test catalog and in-game self-test bundle have been removed.
+`npm test` builds once and runs ten Node contracts and three browser checks. `npm run check` adds
+formatting and lint. The tablet touch flow covers settings, movement, dash, pause, upgrades, offline
+save reload, continue and death. The phone flow covers simultaneous sticks and dash, cancellation,
+pause and resume. A small real-worker fixture checks failed installs and same-version updates.
+Default game flows skip GPU draw calls; `npm run test:render` draws real pixels.
+See [docs/TESTING.md](docs/TESTING.md) for deadlines, specialist commands and limits.
 
 Audio catalog renders and six-biome screenshots are manual tools under `tools/verification/`.
 `npm run verify:audio -- --full` ignores the passing cache and renders fresh samples.
 
-### Why a linter with one rule
+### What lint catches
 
-`no-undef` exists because of 3.45.0: the HUD's buff row read a local variable from a neighbouring function as a bare identifier — legal at parse time, invisible to esbuild and to every test (no test had a buff on screen), and it killed a real player's run the first time they dashed. A static undefined-name check fails that class before it ships. That's the whole config.
+`no-undef` exists because of 3.45.0: the HUD's buff row read a local variable from a neighbouring function as a bare identifier — legal at parse time, invisible to esbuild and to every test (no test had a buff on screen), and it killed a real player's run the first time they dashed. A static undefined-name check fails that class before it ships. Unused declarations in game code are also flagged.
 
 ## Architecture
 
@@ -117,8 +117,8 @@ src/
     place.js       the sounds of the place: biome far-scenes, hazard proximity loops
   ui/
     ui.js          screens, HUD DOM, banners, cards, settings
-    input.js       touch sticks and buttons, keyboard, pointer contracts
-    gamepad.js     controller reading + rumble
+    input.js       touch sticks, buttons and pointer ownership
+    haptics.js     phone vibration and best-effort switch feedback
     hud-layout.js  safe areas, HUD element placement
   data/            weapons, enemies, biomes, upgrades, progression, what's new
   sw.js            service worker: one cache per build, updates apply when idle
@@ -127,7 +127,7 @@ tests/             the suites above
 tools/             test runner, optional verification, dev server
 ```
 
-**Sound:** there are no audio files. Music, weapons, enemies, biome room tones and the far-off scenes (city sirens, marsh frogs, the void's breath) are all synthesized in WebAudio and verified by rendering them offline in the deep test.
+**Sound:** there are no audio files. Music, weapons, enemies, biome room tones and the far-off scenes (city sirens, marsh frogs, the void's breath) are all synthesized in WebAudio and checked with the optional offline audio renderer.
 
 ## Releases
 

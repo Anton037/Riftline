@@ -3,11 +3,11 @@
   "version": "3.61.0",
   "private": true,
   "type": "module",
-  "description": "Riftline – a 3D arena roguelite shooter for the browser (three.js, WebAudio), playable on desktop and on phones and tablets in landscape.",
-  "homepage": "https://aaron40776.github.io/Riftline/",
+  "description": "Riftline \u2013 a touch-only 3D arena roguelite shooter for phones and tablets in landscape (three.js, WebAudio).",
+  "homepage": "https://anton037.github.io/Riftline/",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Aaron40776/Riftline.git"
+    "url": "git+https://github.com/Anton037/Riftline.git"
   },
   "riftline": {
     "build": "r3610a1103a-r1"
@@ -18,10 +18,10 @@
     "serve": "node tools/serve.js",
     "test": "node tools/test.js",
     "check": "node tools/check.js",
-    "probe:audio": "node build.js && node scripts/rl-audio-check.mjs",
-    "probe:mix": "node build.js && node scripts/rl-mix-probe.mjs",
-    "probe:music": "node build.js && node scripts/rl-music-probe.mjs",
-    "probe:place": "node build.js && node scripts/rl-place-peaks.mjs",
+    "probe:audio": "node tools/verify.js probe-audio",
+    "probe:mix": "node tools/verify.js mix",
+    "probe:music": "node tools/verify.js music",
+    "probe:place": "node tools/verify.js place",
     "format": "prettier --write \"src/**/*.js\" \"tests/**/*.mjs\" \"tools/**/*.{js,mjs}\" build.js",
     "format:check": "prettier --check \"src/**/*.js\" \"tests/**/*.mjs\" \"tools/**/*.{js,mjs}\" build.js",
     "lint": "eslint .",
@@ -29,7 +29,7 @@
     "e2e": "node tools/test.js --browser",
     "test:render": "node tools/test.js --browser --draw",
     "release-check": "node tools/check.js",
-    "audit:visual": "node tools/verify.js visual current pc && node tools/verify.js visual current land",
+    "audit:visual": "node tools/verify.js visual current tablet && node tools/verify.js visual current land",
     "verify:audio": "node tools/verify.js audio",
     "verify:audio-budget": "node tools/verify.js audio-budget"
   },

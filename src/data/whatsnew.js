@@ -7,10 +7,14 @@ export const WHATS_NEW = [
     version: "3.61.0",
     title: "Six places, one visual standard",
     items: [
+      "Touch-only controls: phone vibration stays, while controller and keyboard/mouse gameplay are removed.",
+      "Offline updates keep complete snapshots and preserve the previous build for open tabs.",
       "Snow buries the Shelf's bright grid, the Core wears fractured slate, and quieter marsh veins, molten seams and glass edges give enemies and danger more room to read.",
       "Wet asphalt and glass gain finer grain, and biome coatings leave more of each enemy type's own colour visible.",
       "Weather and decorative motes fade back during busy fights so hits and explosions stay readable.",
       "On phones the boss health bar sits between the sticks, leaving the boss and the wave/combo readouts clear.",
+      "Beam warnings outline the full danger lane, and boss warning sounds briefly rise above the background mix.",
+      "Your first card choice explains permanent Workshop upgrades, and the run recap names the final hit.",
     ],
   },
   {

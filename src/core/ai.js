@@ -851,7 +851,7 @@ function updateBoss(game, boss, dt) {
           if (rage) {
             game.beam({ ...beam, a: angle + Math.PI });
           }
-          game.emit("beamWarn", { x: boss.x, y: boss.y, skin: "cryo" });
+          game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, skin: "cryo" });
         }
         if (boss.t > 3.4) {
           endBossAttack(boss, 1.2);
@@ -926,7 +926,7 @@ function updateBoss(game, boss, dt) {
             skin: "cryo",
           });
           boss.n++;
-          game.emit("beamWarn", { x: boss.x, y: boss.y, small: true, skin: "cryo" });
+          game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, small: true, skin: "cryo" });
         }
         if (boss.t > 0.2 + count * 0.45 + 0.8) {
           endBossAttack(boss, 1.2);
@@ -1071,7 +1071,7 @@ function updateBoss(game, boss, dt) {
               // 3.16.0: the Rift Core's beams are ribbons of the rift (the warning stays red)
               skin: "rift",
             });
-          game.emit("beamWarn", { x: boss.x, y: boss.y });
+          game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y });
         }
         if (phase === 3) boss.t2 += dt;
         if (phase === 3 && boss.t2 > 0.7) {
@@ -1280,7 +1280,7 @@ function updateOverdrive(game, boss, dt, aim, dist, shotDmg) {
           game.beam({ x, y: -H, a: Math.PI / 2, len: H * 2, warn, dur: 1.1, w: 0.7, dmg: boss.dmg, skin: "laser" });
         for (let y = -H + 3 + shift; y < H - 1; y += 6)
           game.beam({ x: -W, y, a: 0, len: W * 2, warn, dur: 1.1, w: 0.7, dmg: boss.dmg, skin: "laser" });
-        game.emit("beamWarn", { x: boss.x, y: boss.y });
+        game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y });
       };
       if (boss.n === 0) {
         boss.n = 1;
@@ -1347,7 +1347,7 @@ function updateOverdrive(game, boss, dt, aim, dist, shotDmg) {
             // 3.33.0: a lance of ice (it was the plain beam of 2.4.6 in the Prism's colour)
             skin: "cryo",
           });
-        game.emit("beamWarn", { x: boss.x, y: boss.y, skin: "cryo" });
+        game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, skin: "cryo" });
       }
       if (boss.t >= 1.4 + (boss.n - 1) * 0.5 && boss.n <= 6) {
         game.shoot(boss.x, boss.y, aim + (boss.n - 3.5) * 0.5, 5.5, shotDmg, {
@@ -1429,7 +1429,7 @@ function updateOverdrive(game, boss, dt, aim, dist, shotDmg) {
             len: 34,
             skin: "rift",
           });
-        game.emit("beamWarn", { x: boss.x, y: boss.y });
+        game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y });
       }
       if (boss.t > 4.4) endBossAttack(boss, 1.4);
       return;
@@ -1457,7 +1457,7 @@ function updateOverdrive(game, boss, dt, aim, dist, shotDmg) {
             color: WYRM_SUN,
             skin: "sun",
           });
-        game.emit("beamWarn", { x: boss.x, y: boss.y, skin: "sun" });
+        game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, skin: "sun" });
         for (let ring = 0; ring < 2; ring++) {
           const radius = 4 + ring * 4.4,
             count = Math.ceil((TAU * radius) / 2.6),
@@ -2404,7 +2404,7 @@ function updateGlasswyrm(game, boss, dt, aim, dist, shotDmg, rage) {
             color: WYRM_SUN,
             skin: "sun",
           });
-        game.emit("beamWarn", { x: boss.x, y: boss.y, skin: "sun" });
+        game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, skin: "sun" });
       }
       // it stands and lets the noon burn (the lance turns slowly, so running around it works)
       if (boss.t > 3.9) end(1.8 - rage * 0.4);

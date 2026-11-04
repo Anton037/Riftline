@@ -1,4 +1,4 @@
-// Formatting and undefined-name lint, followed by the one current test entry point.
+// Formatting and lint, followed by the one current test entry point.
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 const run = (...args) => {

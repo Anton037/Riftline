@@ -36,3 +36,11 @@ jobs:
             render) npm run test:render ;;
             *) exit 2 ;;
           esac
+      - name: Keep visual review images and metrics
+        if: always() && inputs.suite == 'visual'
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-review-${{ github.run_id }}
+          path: verification-output/
+          if-no-files-found: warn
+          retention-days: 7

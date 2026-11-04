@@ -7,15 +7,13 @@
 // running the multi-hour catalog.
 
 import { chromium } from "playwright";
-import { serve } from "../tools/serve.js";
 import { launchArgs } from "../tools/browser.js";
 
-const PORT = 8133;
-const { server } = await serve("dist", PORT, { quiet: true });
+const BASE = process.argv[2] || "http://localhost:8124/index.html";
 const browser = await chromium.launch({ args: launchArgs() });
 const page = await browser.newPage();
 page.on("pageerror", (err) => console.log("PAGEERROR:", err.message));
-await page.goto(`http://localhost:${PORT}/index.html`, { timeout: 90000 });
+await page.goto(BASE, { timeout: 90000 });
 await page.waitForFunction(() => window.__riftTest && window.__riftTest.game, null, { timeout: 90000 });
 
 const res = await page.evaluate(async () => {
@@ -36,7 +34,6 @@ const res = await page.evaluate(async () => {
 });
 
 await browser.close();
-server.close();
 
 const p = res.peaks,
   pulse = p.pulse,
@@ -52,7 +49,7 @@ const rows = Object.keys(p)
     return `${over ? "OVER " : "ok   "} ${k.padEnd(28)} peak ${p[k].toFixed(4)}  (limit ${limit.toFixed(4)})`;
   })
   .sort();
-console.log(`pulse peak   ${pulse.toFixed(4)}  -> bedLimit  ${(bedLimit).toFixed(4)}`);
+console.log(`pulse peak   ${pulse.toFixed(4)}  -> bedLimit  ${bedLimit.toFixed(4)}`);
 console.log(`scatter peak ${scatter.toFixed(4)}  -> farLimit  ${farLimit.toFixed(4)}`);
 console.log(`amb bus at catalog = ambVol ${res.ambLiftBus} (x AMB_LIFT as built)\n`);
 console.log(rows.join("\n"));
@@ -62,5 +59,7 @@ const maxBedRatio = Math.max(...placeKeys.map((k) => p[k] / bedLimit));
 const maxFarRatio = Math.max(...placeKeys.map((k) => p[k] / farLimit));
 console.log(`\nmax bed ratio vs its limit : ${maxBedRatio.toFixed(2)}  (must stay under 1)`);
 console.log(`max far ratio vs its limit : ${maxFarRatio.toFixed(2)}`);
-console.log(`these peaks already carry the built-in bus lift (ambVol 0.8 x AMB_LIFT); old-bus peaks were ${res.ambLiftBus ? "" : ""}this / (built lift)`);
+console.log(
+  `these peaks already carry the built-in bus lift (ambVol 0.8 x AMB_LIFT); old-bus peaks were ${res.ambLiftBus ? "" : ""}this / (built lift)`,
+);
 process.exit(res.fail.length ? 1 : 0);

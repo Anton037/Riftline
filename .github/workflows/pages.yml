@@ -1,4 +1,4 @@
-# Tests and builds Riftline and publishes it on GitHub Pages: https://aaron40776.github.io/Riftline/
+# Tests and builds Riftline and publishes it on GitHub Pages: https://anton037.github.io/Riftline/
 name: Deploy to GitHub Pages
 
 on:
@@ -6,7 +6,7 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# 3.32.0: each job gets only what it needs: the build (which runs npm ci and the tests) reads the code; only the deploy
+# 3.32.0: each job gets only what it needs: the build reads the code; only the deploy
 # job may write to Pages and ask for the OIDC token
 permissions:
   contents: read
@@ -29,14 +29,11 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      # The tests drive the real game in headless Chromium, so the browser is installed here.
-      - name: Install
-        run: |
-          npm ci
-          npx playwright install --with-deps chromium
-      # Each deployment runs the same small regression gate as pull requests.
-      - name: Build and test
-        run: npm run check
+      - run: npm ci
+      - name: Check simulation and saves
+        run: npm run test:unit
+      - name: Build the deployment
+        run: npm run build
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: dist

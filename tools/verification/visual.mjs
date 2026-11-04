@@ -1,4 +1,4 @@
-// Fixed-seed visual matrix: every biome, regular encounter and boss, on desktop or landscape touch.
+// Fixed-seed visual matrix: every biome, regular encounter and boss, on a tablet or landscape phone.
 // Unlike a normal run's route, the matrix never silently skips two places.
 import { chromium } from "playwright";
 import fs from "node:fs";
@@ -7,15 +7,18 @@ import { launchArgs } from "../browser.js";
 
 const url = process.argv[2] || "http://localhost:8124/index.html";
 const tag = process.argv[3] || "current";
-const mobile = process.argv[4] === "land";
-const out = `verification-output/${tag}-${mobile ? "land" : "pc"}`;
+const mobile = ["land", "phone"].includes(process.argv[4]);
+const requestedBiome = process.argv[5] && process.argv[5] !== "all" ? process.argv[5] : null;
+const quality = process.argv[6] || "high";
+assert.ok(["high", "auto", "battery"].includes(quality), `Unknown quality: ${quality}`);
+const out = `verification-output/${tag}-${mobile ? "land" : "tablet"}-${quality}`;
 fs.mkdirSync(out, { recursive: true });
 const browser = await chromium.launch({ args: launchArgs() });
 try {
   const page = await browser.newPage({
-    viewport: mobile ? { width: 844, height: 390 } : { width: 1440, height: 900 },
-    isMobile: mobile,
-    hasTouch: mobile,
+    viewport: mobile ? { width: 844, height: 390 } : { width: 1024, height: 768 },
+    isMobile: true,
+    hasTouch: true,
     deviceScaleFactor: 1,
   });
   page.setDefaultTimeout(120000);
@@ -24,15 +27,19 @@ try {
   page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
   await page.goto(url);
   await page.waitForFunction(() => window.__riftTest?.renderer, null, { timeout: 90000 });
-  const ids = await page.evaluate(() => window.__riftTest.biomeList.map((b) => b.id));
+  let ids = await page.evaluate(() => window.__riftTest.biomeList.map((b) => b.id));
+  if (requestedBiome) {
+    assert.ok(ids.includes(requestedBiome), `Unknown biome: ${requestedBiome}`);
+    ids = [requestedBiome];
+  }
   const metrics = [];
   for (const id of ids) {
     for (const boss of [false, true]) {
       const row = await page.evaluate(
-        ({ id, boss }) => {
+        ({ id, boss, quality }) => {
           const T = window.__riftTest;
           for (const k of Object.keys(T.store.data.seen)) T.store.data.seen[k] = true;
-          T.store.data.settings.quality = "high";
+          T.store.data.settings.quality = quality;
           T.game.settingsChanged(true);
           const random = Math.random;
           Math.random = () => 0.42;
@@ -83,6 +90,7 @@ try {
           return {
             id,
             boss,
+            quality,
             actual: w.arena.biome.id,
             bossType: w.boss?.type || null,
             calls: r.renderer.info.render.calls,
@@ -91,7 +99,7 @@ try {
             bossMeshes,
           };
         },
-        { id, boss },
+        { id, boss, quality },
       );
       assert.equal(row.actual, id);
       if (boss) assert.ok(row.bossType, `${id}: missing boss`);

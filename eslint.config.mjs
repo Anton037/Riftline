@@ -1,4 +1,4 @@
-// 3.45.3: one rule on purpose - no-undef. The 3.45.0 buff-row crash shipped because buffs() read
+// Catch undefined names and unused declarations in game code. The 3.45.0 buff-row crash shipped because buffs() read
 // hud()'s local `cache` alias as a bare identifier: perfectly legal at parse time and to esbuild,
 // then "Can't find variable: cache" on a real player's iPhone the first time a timed buff chip
 // ticked, three frames in a row, run dead. No test saw it because no test had a buff on screen.
@@ -11,6 +11,7 @@ const buildTokens = {
   __RL_BUILD__: "readonly",
   __RL_VERSION_DASHED__: "readonly",
   __RL_GAME_FILE__: "readonly",
+  __RL_ASSETS__: "readonly",
 };
 
 export default [
@@ -23,7 +24,7 @@ export default [
       ecmaVersion: 2026,
       globals: { ...globals.browser, ...buildTokens },
     },
-    rules: { "no-undef": "error" },
+    rules: { "no-undef": "error", "no-unused-vars": ["error", { args: "none", caughtErrors: "none" }] },
   },
   {
     // the service worker: a classic script with worker globals of its own
@@ -37,7 +38,7 @@ export default [
   },
   {
     // tests, tools and the build script run in node (and drive a browser from there)
-    files: ["tests/**/*.mjs", "tools/**/*.js", "tools/**/*.mjs", "*.js"],
+    files: ["tests/**/*.mjs", "tools/**/*.js", "tools/**/*.mjs", "scripts/**/*.mjs", "*.js"],
     languageOptions: {
       sourceType: "module",
       ecmaVersion: 2026,

@@ -3,14 +3,18 @@ import { chromium } from "playwright";
 import { serve } from "../../tools/serve.js";
 import { launchArgs } from "../../tools/browser.js";
 import { fileURLToPath } from "node:url";
-export async function openGame(t, touch) {
+export async function openGame(t, tablet) {
   const draw = process.env.TEST_DRAW === "1";
   const { server, url } = await serve(fileURLToPath(new URL("../../dist/", import.meta.url)), 0);
+  const stopServer = () => {
+    if (!server.listening) return;
+    server.closeAllConnections();
+    return new Promise((resolve) => server.close(resolve));
+  };
   let browser;
   t.after(async () => {
     await browser?.close();
-    server.closeAllConnections();
-    await new Promise((resolve) => server.close(resolve));
+    await stopServer();
   });
   browser = await chromium.launch({ args: launchArgs() });
   t.signal.addEventListener(
@@ -21,11 +25,16 @@ export async function openGame(t, touch) {
     { once: true },
   );
   const context = await browser.newContext({
-    viewport: touch ? { width: 844, height: 390 } : { width: 960, height: 600 },
-    hasTouch: touch,
-    isMobile: touch,
+    viewport: tablet ? { width: 1024, height: 768 } : { width: 844, height: 390 },
+    hasTouch: true,
+    isMobile: true,
   });
   await context.addInitScript((draw) => {
+    window.__gamepadReads = 0;
+    navigator.getGamepads = () => {
+      window.__gamepadReads++;
+      return [];
+    };
     Object.defineProperty(Navigator.prototype, "webdriver", { get: () => false, configurable: true });
     if (!sessionStorage.getItem("test-seeded")) {
       sessionStorage.setItem("test-seeded", "1");
@@ -65,6 +74,7 @@ export async function openGame(t, touch) {
   return {
     page,
     errors,
-    press: (selector) => (touch ? page.locator(selector).first().tap() : page.locator(selector).first().click()),
+    stopServer,
+    press: (selector) => page.locator(selector).first().tap(),
   };
 }

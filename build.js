@@ -1,12 +1,13 @@
 // Build: turns the readable sources into the deployable game in dist/.
 //   src/main.js + the modules it imports (src/core, data, render, audio, ui) and three.js from
-//   npm             -> dist/game-v<version>-final.js  (one file, bundled and minified by esbuild)
+//   npm             -> dist/game-v<version>-<content hash>.js  (one file, bundled and minified by esbuild)
 //   src/index.html, src/sw.js, src/build-info.json -> dist/ (placeholders filled in)
 //   public/*          -> dist/ (icons, fonts, manifest; copied as they are)
 // Version and build id live only in package.json ("version", "riftline.build"). The sources use
 // the placeholders __RL_VERSION__, __RL_BUILD__, __RL_VERSION_DASHED__ and __RL_GAME_FILE__.
 // Usage: node build.js [--watch]   (watch also serves dist/ on http://localhost:8124)
 
+import { createHash } from "node:crypto";
 import * as esbuild from "esbuild";
 import fs from "node:fs";
 import path from "node:path";
@@ -26,7 +27,7 @@ function meta() {
   // 3.10.0: the version digits may be four (r3100 for 3.10.0)
   if (!/^r\d{3,4}a\d{4}[a-z]-r\d+$/.test(build || ""))
     throw new Error(`package.json riftline.build "${build}" does not look like r233a0926g-r1`);
-  return { version, build, dashed: version.replace(/\./g, "-"), gameFile: `game-v${version}-final.js` };
+  return { version, build, dashed: version.replace(/\./g, "-"), gameFile: "game-pending.js" };
 }
 
 // Replaces every placeholder; fails if one is left (typo) so a broken contract never ships.
@@ -35,7 +36,8 @@ function fill(text, m, name) {
     .replaceAll("__RL_VERSION_DASHED__", m.dashed)
     .replaceAll("__RL_VERSION__", m.version)
     .replaceAll("__RL_BUILD__", m.build)
-    .replaceAll("__RL_GAME_FILE__", m.gameFile);
+    .replaceAll("__RL_GAME_FILE__", m.gameFile)
+    .replaceAll("__RL_ASSETS__", m.assets);
   const left = out.match(/__RL_[A-Z_]+__/);
   if (left) throw new Error(`${name}: unknown placeholder ${left[0]}`);
   return out;
@@ -74,16 +76,32 @@ async function build() {
     define: { __RL_VERSION__: JSON.stringify(m.version), __RL_BUILD__: JSON.stringify(m.build) },
   });
 
+  // The bundle URL changes with its bytes, even when a developer forgets a version bump.
+  const digest = (data) => createHash("sha256").update(data).digest("hex").slice(0, 16);
+  const bundle = fs.readFileSync(path.join(DIST, m.gameFile));
+  const pending = m.gameFile;
+  m.gameFile = `game-v${m.version}-${digest(bundle)}.js`;
+  fs.renameSync(path.join(DIST, pending), path.join(DIST, m.gameFile));
+  // Include HTML, worker logic and public assets so non-JS changes also install a new snapshot.
+  const hash = createHash("sha256");
+  const hashDir = (dir) => {
+    for (const name of fs.readdirSync(dir).sort()) {
+      const file = path.join(dir, name);
+      if (fs.statSync(file).isDirectory()) hashDir(file);
+      else hash.update(path.relative(ROOT, file)).update("\0").update(fs.readFileSync(file)).update("\0");
+    }
+  };
+  hashDir(DIST);
+  for (const f of ["index.html", "sw.js", "build-info.json"]) hash.update(fs.readFileSync(r("src", f)));
+  hash.update(JSON.stringify(m));
+  m.assets = hash.digest("hex").slice(0, 16);
+
   for (const f of ["index.html", "sw.js", "build-info.json"]) {
     fs.writeFileSync(path.join(DIST, f), fill(fs.readFileSync(r("src", f), "utf8"), m, f));
   }
-  // 3.17.1: the game fetches build-info.json at every start (the health check, the update handshake) and reads only the
-  // version and the build id from it, but the file carried the whole changelog (93 % of 50 KB, four KB more with every
-  // release). The build writes the small identity file the game needs. src/build-info.json stays the one place the
-  // release notes are written. 3.37.0: dist/changes.json (which nothing ever fetched) is no longer written.
+  // Small identity file used by startup diagnostics and the update handshake.
   const info = JSON.parse(fs.readFileSync(path.join(DIST, "build-info.json"), "utf8")); // must stay valid JSON
-  delete info.features;
-  delete info.changes;
+  info.assets = m.assets;
   fs.writeFileSync(path.join(DIST, "build-info.json"), JSON.stringify(info, null, 1) + "\n");
 
   // Offline contract: every file the service worker precaches must exist in dist/.

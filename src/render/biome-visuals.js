@@ -1199,6 +1199,29 @@ void main() {
         crystal.scale.y = 1.8;
         view.rlAnim.push({ o: crystal, k: "spin", s: 1.2, b: 1.3, ph: sx + sz * 2 });
       }
+    // A fractured crown hangs beyond the north barrier. It gives the Core a stable silhouette
+    // without taking space from combat or adding collision geometry inside the arena.
+    const crownZ = -H - 1.7,
+      crown = new Group();
+    // Lower the whole structure into the abyss so its suspended core stays inside the camera's
+    // upper edge on both the desktop and the shallower landscape-touch framing.
+    crown.position.set(0, -1.35, crownZ);
+    group.add(crown);
+    for (const side of [-1, 1]) {
+      const pylon = rlMesh(crown, new ConeGeometry(0.7, 4.2, 4), obsid, side * 1.95, 1.45, 0);
+      pylon.rotation.z = side * -0.3;
+      rlMesh(crown, new BoxGeometry(0.09, 3.15, 0.22), rim, side * 1.7, 1.55, -0.2).rotation.z = side * -0.3;
+      const shard = rlMesh(crown, new OctahedronGeometry(0.56), obsid, side * 3.1, 3.25, 0.15);
+      shard.scale.set(0.75, 1.75, 0.75);
+      shard.rotation.z = side * 0.48;
+    }
+    const core = rlMesh(crown, new OctahedronGeometry(0.82), hot, 0, 2.45, 0),
+      halo = rlMesh(crown, new TorusGeometry(1.4, 0.07, 6, 36), rim, 0, 2.45, 0);
+    core.scale.y = 1.35;
+    halo.rotation.x = Math.PI / 2;
+    halo.rotation.z = 0.35;
+    view.rlAnim.push({ o: core, k: "spinbob", s: 0.48, b: 2.45, ph: 0.7, a: 0.12 });
+    view.rlAnim.push({ o: halo, k: "spin", s: -0.32, b: 2.45, ph: 1.4 });
     // rocks drifting in the abyss around the arena
     const rocks = [];
     for (let j = 0; j < 46; j++) {
