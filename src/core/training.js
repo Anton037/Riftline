@@ -3,13 +3,14 @@ import { World } from "./world.js";
 import { computeStats } from "./stats.js";
 import { bossByBiome } from "../data/enemies.js";
 import { biomesById } from "../data/biomes.js";
+import { own } from "./util.js";
 
 export const TRAINING_PHASES = { full: 1, phase: 0.6, enraged: 0.18 };
 export const TRAINING_KIT = { hp: 3, dmg: 3, rate: 3, speed: 2, gcells: 1, shield: 1 };
 
 export function createTrainingWorld({ biome, phase = "full", weapon = "pulse", threat = 0 }) {
-  if (!Object.hasOwn(bossByBiome, biome) || !biomesById[biome]) throw new Error("Unknown training arena");
-  if (!Object.hasOwn(TRAINING_PHASES, phase)) phase = "full";
+  if (!own(bossByBiome, biome) || !biomesById[biome]) throw new Error("Unknown training arena");
+  if (!own(TRAINING_PHASES, phase)) phase = "full";
   const world = new World({ seed: 731, weapon, threat, ws: {} });
   world.training = { biome, phase, hpFraction: TRAINING_PHASES[phase] };
   world.route = [biome];
