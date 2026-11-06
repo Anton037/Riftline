@@ -870,7 +870,7 @@ function voidDetail(biome, W, H, obs, rng) {
   for (const p of scatter(rng, W, H, obs, 5, { gap: 5, margin: 2.5 })) {
     const r = rng.range(1, 1.6),
       col = dim(rng.pick([violet, red]), 0.24);
-    out.glow.push(ring(col, r, 0.018, p.x, 0.025, p.z), ring(col, r * 0.72, 0.012, p.x, 0.025, p.z));
+    // Broken angular etchings read as decoration; closed rings belong to active portals/warnings.
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * TAU + p.x;
       out.glow.push(
@@ -931,7 +931,7 @@ function voidDetail(biome, W, H, obs, rng) {
 /* ---- Ashfall Caldera (3.54.0): the floor of a volcano. Beyond the far wall the volcano itself
    stands - dark truncated cones with glowing crater rims, lava veins down their flanks and ash
    plumes leaning off their mouths - with basalt organ pipes, charred stumps and standing stones
-   around the arena; inside: the lava channel runs from the caldera mouth to the dyke, ember scars
+   around the arena; inside: low ember scars
    dot the plates, a scatter of settling embers, clusters of obsidian shards. ---- */
 function calderaDetail(biome, W, H, obs, rng) {
   const out = list(),
@@ -1088,20 +1088,16 @@ function calderaDetail(biome, W, H, obs, rng) {
     out.body.push(cone(0x1c1512, 0.5, rng.range(4, 6.5), 6, p.x, 0, p.z));
     if (rng.chance(0.5)) out.glow.push(box(0xffb45a, 0.1, 0.14, 0.1, { x: p.x, y: rng.range(3.4, 5.2), z: p.z }));
   }
-  // the old lava channel runs from the caldera mouth to the dyke, glowing where its crust broke
-  out.body.push(box(crust, 2.4, 0.02, 10.6, { y: 0.012, z: -2.2 }));
-  out.body.push(
-    box(dim(hot, 0.55), 2.3, 0.014, 0.08, { y: 0.022, z: 3.1 }),
-    box(dim(hot, 0.55), 2.3, 0.014, 0.08, { y: 0.022, z: -7.4 }),
-  );
-  // interior: molten ponds in the crust (a glow under a dark float of rock), ash drifts, glowing
+  // Open combat floor: the legacy straight channel had no collision and read as a black runway.
+  // Molten decoration belongs beyond the rampart; active lava vents own the hazard language inside.
+  // Perimeter molten ponds (a glow under a dark float of rock); interior ash drifts, glowing
   // fissure cracks, charred rubble and basalt pipe stubs - the floor of a volcano, not a car park
-  for (const p of scatter(rng, W, H, obs, 7, { gap: 2.8 })) {
+  for (const p of outsideSpots(rng, W, H, 7, 1.8, 4.5, 2.8)) {
     const r = rng.range(0.55, 1.15);
     out.body.push(
       ring(crust, r, 0.12, p.x, 0.02, p.z),
       disc(0x140d0a, r, p.x, 0.012, p.z, 12),
-      rock(0x1a120e, r * 0.32, r * 0.55, r * 0.18, r * 0.3, { ry: rng.range(0, PI), sy: 0.55 }),
+      rock(0x1a120e, r * 0.32, p.x + r * 0.55, r * 0.18, p.z + r * 0.3, { ry: rng.range(0, PI), sy: 0.55 }),
     );
     out.glow.push(
       disc(dim(lava, 0.4), r * 0.62, p.x, 0.017, p.z, 12),

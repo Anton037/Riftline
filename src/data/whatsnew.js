@@ -4,6 +4,16 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "3.63.1",
+    title: "A clear path through the Caldera",
+    items: [
+      "The old black lava-channel rectangle is gone, and decorative fire pillars and molten ponds sit outside the arena.",
+      "Pond rocks stay with their ponds instead of collecting near the start, and basalt obstacles have more readable faces.",
+      "Vertical lava ridges carry their seams and ember vents along the full ridge instead of bunching them at the centre.",
+      "Broken rune etchings distinguish the Core's floor decoration from active circular hazards.",
+    ],
+  },
+  {
     version: "3.63.0",
     title: "Surfaces, steel and impact",
     items: [
@@ -49,15 +59,6 @@ export const WHATS_NEW = [
       "On phones the boss health bar sits between the sticks, leaving the boss and the wave/combo readouts clear.",
       "Beam warnings outline the full danger lane, and boss warning sounds briefly rise above the background mix.",
       "Your first card choice explains permanent Workshop upgrades, and the run recap names the final hit.",
-    ],
-  },
-  {
-    version: "3.60.0",
-    title: "An arrival that says what is coming",
-    items: [
-      "Enemies now land with a shape that matches their weight: the light ones arrive in a quick streak, the heavy ones under a slow wide ring and a puff of dust.",
-      "Before, all 25 types arrived the same way — same ring, same burst, same size — so the first thing you saw of a Brute looked like the first thing you saw of a Swarmer.",
-      "The colour was already each type's own (and gold for an elite); it is unchanged. No damage, speed or spawn-time change.",
     ],
   },
 ];

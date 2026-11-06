@@ -26,6 +26,7 @@ import {
   Vector2,
   Vector4,
 } from "three";
+import { calderaRidgeParts } from "./caldera-ridge.js";
 import { armorBox } from "./armor-geometry.js";
 import { FLOOR_FRAGMENT as RL_FLOOR_FRAG } from "./surface-shader.js";
 import { clamp, TAU, hashString, makeRng } from "../core/util.js";
@@ -1069,9 +1070,9 @@ void main() {
   club(view, biome, W, H, obs, rng) {
     const group = view.group,
       props = view.obsGroup,
-      rock = new MeshLambertMaterial({ color: 0x271c17, flatShading: true }),
-      darkRock = new MeshLambertMaterial({ color: 0x181009, flatShading: true }),
-      obsidian = new MeshLambertMaterial({ color: 0x141018, flatShading: true }),
+      rock = new MeshLambertMaterial({ color: 0x43382f, flatShading: true }),
+      darkRock = new MeshLambertMaterial({ color: 0x392e28, flatShading: true }),
+      obsidian = new MeshLambertMaterial({ color: 0x252433, flatShading: true }),
       emberMat = rlGlow(0xff9c3a),
       hotMat = rlGlow(0xffe19a),
       accentMat = new MeshBasicMaterial({ color: biome.accent, toneMapped: false }),
@@ -1093,12 +1094,12 @@ void main() {
         bake.add(propBox(1.9, 0.05, 0.06), emberMat, ix, 1.47, iz, ry);
       }
     });
-    // the fire beacons: three basalt pillars with burning bowls, their heat rising as open glow
+    // Fire beacons sit beyond the rampart: tall non-colliding decoration must not hide the fight.
     const heatMat = additiveMaterial(null, { color: 0xffb45a, opacity: 0.035, side: DoubleSide });
     for (const [sx, sz] of [
-      [-4.6, 2.4],
-      [4.8, -2.2],
-      [0.4, -5.4],
+      [-W - 2.2, -H * 0.45],
+      [W + 2.2, -H * 0.45],
+      [0, -H - 2.2],
     ]) {
       bake.add(new CylinderGeometry(0.24, 0.4, 2.6, 7), rock, sx, 1.3, sz);
       bake.add(new CylinderGeometry(0.36, 0.2, 0.34, 8), emberMat, sx, 2.72, sz);
@@ -1177,36 +1178,9 @@ void main() {
         );
         rlFootSlab(props, obstacle, emberMat, 0.24);
       } else {
-        // the lava dyke: a long ridge of rock with a crust on top, cracked open down its spine, three
-        // molten nodules where the gas gathers
-        const long = obstacle.w >= obstacle.h,
-          L = (long ? obstacle.w : obstacle.h) * 2,
-          D = (long ? obstacle.h : obstacle.w) * 2,
-          ry = long ? 0 : Math.PI / 2,
-          ridge = rlMesh(props, propBox(L, 0.95, D), rock, obstacle.x, 0.48, obstacle.y, ry);
-        ridge.matrixAutoUpdate = false;
-        ridge.updateMatrix();
-        rlMesh(props, propBox(L + 0.06, 0.1, D + 0.06), darkRock, obstacle.x, 1.0, obstacle.y, ry);
-        rlMesh(
-          props,
-          propBox(long ? L * 0.88 : 0.07, 0.05, long ? 0.07 : D * 0.88),
-          emberMat,
-          obstacle.x,
-          1.055,
-          obstacle.y,
-        );
-        // two cross-seams where the crust cracked, a molten nodule on each
-        for (const f of [-0.24, 0.24]) {
-          const bx = obstacle.x + (long ? L * f : 0),
-            bz = obstacle.y + (long ? 0 : D * f);
-          rlMesh(props, propBox(long ? 0.06 : D * 0.72, 0.045, long ? D * 0.72 : 0.06), emberMat, bx, 1.055, bz);
-        }
-        for (let k = 0; k < 3; k++) {
-          const along = (k - 1) * (long ? L : D) * 0.26,
-            bx = obstacle.x + (long ? along : 0),
-            bz = obstacle.y + (long ? 0 : along);
-          rlMesh(props, new CylinderGeometry(0.09, 0.12, 0.18, 6), k === 1 ? hotMat : accentMat, bx, 1.14, bz);
-        }
+        // One local frame rotates the ridge, seams and vents together.
+        const materials = { rock, darkRock, emberMat, hotMat, accentMat };
+        for (const part of calderaRidgeParts(obstacle)) props.add(new Mesh(part.geometry, materials[part.role]));
         rlFootSlab(props, obstacle, emberMat, 0.24);
       }
   },

@@ -1,6 +1,6 @@
 # Testing Riftline
 
-Keep the routine gate short. Fourteen Node contracts and five browser checks cover the critical paths;
+Keep the routine gate short. Focused Node contracts and five browser checks cover the critical paths;
 there is no historical release assertion catalog, always-on soak or hidden extended test chain.
 
 | Command | Coverage | Deadline |

@@ -94,3 +94,50 @@ test("all redesigned enemy and hero kits produce finite bounded geometry", async
     });
   }
 });
+
+test("Caldera ridges rotate the entire decorated model with their collision footprint", async () => {
+  const { calderaRidgeParts } = await import("../src/render/caldera-ridge.js");
+  const horizontal = calderaRidgeParts({ x: 0, y: 0, w: 4, h: 1 });
+  const vertical = calderaRidgeParts({ x: 0, y: 0, w: 1, h: 4 });
+  assert.equal(horizontal.length, vertical.length);
+  const bounds = (part) => {
+    part.geometry.computeBoundingBox();
+    return part.geometry.boundingBox;
+  };
+  for (let i = 0; i < horizontal.length; i++) {
+    assert.equal(horizontal[i].role, vertical[i].role);
+    const h = bounds(horizontal[i]),
+      v = bounds(vertical[i]);
+    assert.ok(Math.abs(h.min.x + v.max.z) < 1e-5);
+    assert.ok(Math.abs(h.max.x + v.min.z) < 1e-5);
+    assert.ok(Math.abs(h.max.z - v.max.x) < 1e-5);
+    assert.ok(Math.abs(h.min.y - v.min.y) < 1e-5);
+    assert.ok(v.max.x <= 1.04 && v.min.x >= -1.04, "all details must stay on the narrow collision footprint");
+  }
+  const ventCenters = vertical.slice(-3).map((p) => {
+    const box = bounds(p);
+    return (box.min.z + box.max.z) / 2;
+  });
+  assert.ok(Math.max(...ventCenters) - Math.min(...ventCenters) > 4, "vents must span the long axis");
+  for (const p of [...horizontal, ...vertical]) p.geometry.dispose();
+});
+
+test("Caldera decoration keeps the walker spawn clear instead of piling pond rocks at the origin", async () => {
+  globalThis.__RL_VERSION__ ??= "test";
+  globalThis.__RL_BUILD__ ??= "test";
+  const { makeRng } = await import("../src/core/util.js");
+  const { addBiomeDetail } = await import("../src/render/biome-props.js");
+  const biome = biomeList.find((b) => b.id === "club");
+  for (const seed of [11, 42, 731]) {
+    const group = new Group();
+    addBiomeDetail({ group }, biome, 18, 18, [], makeRng(seed));
+    for (const mesh of group.children) {
+      const p = mesh.geometry.attributes.position;
+      for (let i = 0; i < p.count; i++) {
+        assert.ok(Math.hypot(p.getX(i), p.getZ(i) - 2) > 3, `seed ${seed}: decorative vertex in spawn clearing`);
+      }
+      mesh.geometry.dispose();
+      mesh.material.dispose();
+    }
+  }
+});
