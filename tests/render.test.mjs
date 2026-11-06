@@ -37,3 +37,60 @@ test("static batching preserves transformed bounds and moving/transparent meshes
   assert.equal(glass.parent, group);
   assert.ok(before.min.distanceTo(after.min) < 1e-5 && before.max.distanceTo(after.max) < 1e-5);
 });
+
+// Chamfers must preserve collision-sized bounds and form a closed outward-facing solid.
+test("armour chamfers are closed, outward facing and stay inside the original box", async () => {
+  const { armorBox } = await import("../src/render/armor-geometry.js");
+  for (const size of [
+    [2, 1, 3],
+    [0.04, 0.08, 0.3],
+    [8, 0.2, 2],
+  ]) {
+    const geometry = armorBox(...size);
+    const p = geometry.attributes.position,
+      normals = geometry.attributes.normal;
+    const edges = new Map(),
+      key = (i) => [p.getX(i), p.getY(i), p.getZ(i)].map((v) => v.toFixed(5)).join(",");
+    const indices = geometry.index.array;
+    assert.equal(indices.length / 3, 44);
+    for (let i = 0; i < indices.length; i += 3) {
+      for (let j = 0; j < 3; j++) {
+        const a = indices[i + j],
+          b = indices[i + ((j + 1) % 3)];
+        const edge = [key(a), key(b)].sort().join("/");
+        edges.set(edge, (edges.get(edge) || 0) + 1);
+        const position = [p.getX(a), p.getY(a), p.getZ(a)];
+        position.forEach((v, axis) => assert.ok(Number.isFinite(v) && Math.abs(v) <= size[axis] / 2 + 1e-6));
+        assert.ok(position[0] * normals.getX(a) + position[1] * normals.getY(a) + position[2] * normals.getZ(a) > 0);
+      }
+    }
+    assert.ok([...edges.values()].every((n) => n === 2));
+    geometry.dispose();
+  }
+});
+
+test("all redesigned enemy and hero kits produce finite bounded geometry", async () => {
+  const { enemyGeometry, buildPlayerModel, buildBossModel } = await import("../src/render/models.js");
+  const { enemyDefs, bossDefs } = await import("../src/data/enemies.js");
+  const { weaponDefs } = await import("../src/data/weapons.js");
+  const check = (geometry) => {
+    assert.ok([...geometry.attributes.position.array].every(Number.isFinite));
+    geometry.computeBoundingSphere();
+    assert.ok(Number.isFinite(geometry.boundingSphere.radius) && geometry.boundingSphere.radius < 30);
+    geometry.dispose();
+  };
+  for (const [type, def] of Object.entries(enemyDefs)) {
+    const model = enemyGeometry(type, def.color);
+    check(model.body);
+    check(model.glow);
+  }
+  const models = [
+    ...Object.entries(weaponDefs).map(([id, def]) => buildPlayerModel(id, def.color)),
+    ...Object.entries(bossDefs).map(([id, def]) => buildBossModel(id, def.color)),
+  ];
+  for (const model of models) {
+    model.group.traverse((o) => {
+      if (o.geometry) check(o.geometry);
+    });
+  }
+});

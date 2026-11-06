@@ -26,12 +26,16 @@ import {
   Vector2,
   Vector4,
 } from "three";
+import { armorBox } from "./armor-geometry.js";
+import { FLOOR_FRAGMENT as RL_FLOOR_FRAG } from "./surface-shader.js";
 import { clamp, TAU, hashString, makeRng } from "../core/util.js";
 import { hexColor, additiveMaterial } from "./renderer.js";
 import { addBiomeDetail } from "./biome-props.js";
 import { mergeGeometries } from "./models.js";
 import { mergeStaticMeshes } from "./static-meshes.js";
 import { biomeAtmosphere, propAtmosphereRates, atmosphereDensity } from "../data/atmosphere.js";
+
+const propBox = (w, h, d) => (Math.min(w, h, d) >= 0.16 ? armorBox(w, h, d) : new BoxGeometry(w, h, d));
 
 const floorVertexShader = `
 #include <common>
@@ -263,282 +267,7 @@ const RL_BIOME_TINT = {
   flats: new Color(0xd8c8a8),
 };
 // 3.44.0: the fireflies of the Glowmarsh are the one warm light in the cold night
-const RL_FLOOR_FRAG = `
-#include <common>
-#include <fog_pars_fragment>
-uniform vec3 uBase; uniform vec3 uGrid; uniform vec3 uAccent;
-uniform vec2 uHalf; uniform vec2 uPlayer; uniform float uTime; uniform float uPulse;
-uniform float uStyle; uniform float uDark; uniform float uVivid; uniform float uGain;
-uniform float uLod;
-uniform vec4 uL[6]; uniform vec3 uLC[6];
-varying vec2 vW;
-float gridLine(vec2 p, float w) {
-  vec2 g = abs(fract(p - 0.5) - 0.5) / (fwidth(p) * w);
-  return 1.0 - min(min(g.x, g.y), 1.0);
-}
-float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
-vec2 h22(vec2 p) { float n = h21(p); return vec2(n, h21(p + n)); }
-float vnoise(vec2 p) {
-  vec2 i = floor(p), f = fract(p), u = f * f * (3.0 - 2.0 * f);
-  return mix(mix(h21(i), h21(i + vec2(1.0, 0.0)), u.x), mix(h21(i + vec2(0.0, 1.0)), h21(i + vec2(1.0, 1.0)), u.x), u.y);
-}
-float fbm(vec2 p) {
-  float s = 0.0, a = 0.5;
-  for (int i = 0; i < 3; i++) {
-    s += a * vnoise(p);
-    p = p * 2.03 + 17.1;
-    a *= 0.5;
-    // 3.46.0: the low tiers drop octaves (three on high, two on auto-low, one on battery)
-    if (float(i) >= 2.0 - uLod) break;
-  }
-  return s / 0.875;
-}
-// x: distance to the nearest cell centre, y: distance to the cell border (F2 - F1), z: cell id
-vec3 voro(vec2 p) {
-  // 3.46.0: the battery tier looks one cell up instead of nine (softer seams, a ninth of the work)
-  if (uLod > 1.5) {
-    vec2 n = floor(p);
-    float d = length(fract(p) - 0.5 - (h22(n) - 0.5) * 0.8);
-    return vec3(d, 0.4 + 0.3 * d, h21(n));
-  }
-  vec2 n = floor(p), f = fract(p);
-  float d1 = 8.0, d2 = 8.0, id = 0.0;
-  for (int j = -1; j <= 1; j++)
-    for (int i = -1; i <= 1; i++) {
-      vec2 g = vec2(float(i), float(j)), r = g + h22(n + g) - f;
-      float d = dot(r, r);
-      if (d < d1) { d2 = d1; d1 = d; id = h21(n + g); } else if (d < d2) { d2 = d; }
-    }
-  d1 = sqrt(d1);
-  return vec3(d1, sqrt(d2) - d1, id);
-}
-vec3 starfield(vec2 p) {
-  vec2 s = p * 1.4 + vec2(uTime * 0.04, 0.0), c = floor(s);
-  float tw = 0.55 + 0.45 * sin(uTime * 2.0 + h21(c + 3.0) * 40.0);
-  float star = step(0.965, h21(c)) * smoothstep(0.22, 0.0, length(fract(s) - 0.5)) * tw;
-  float neb = fbm(p * 0.09 + vec2(uTime * 0.008, 0.0));
-  return uAccent * neb * neb * 0.32 + uGrid * 0.07 * fbm(p * 0.25 - uTime * 0.015) + vec3(star * 0.9);
-}
-void main() {
-  vec2 p = vW;
-  float minor = gridLine(p, 1.2);
-  float major = gridLine(p / 4.0, 1.6);
-  vec2 d = uHalf - abs(p);
-  float edge = min(d.x, d.y);
-  float inside = step(0.0, edge);
-  float edgeGlow = exp(-max(edge, 0.0) * 1.1);
-  vec2 dp = p - uPlayer;
-  float pl = exp(-dot(dp, dp) * 0.018);
-  int st = int(uStyle + 0.5);
-  vec3 col;
-  float lit = 0.35 + minor * 0.5 + major * 0.9; // how strongly muzzle flashes / blasts light it
-  float outside = 0.3; // brightness of the floor beyond the border
-  if (st == 2) {
-    // The Aurora Shelf (3.54.0): indigo ice at night - the wind scours the sheet into long
-    // streaks, the thin ice's cracks glow glacier blue and breathe with the storm, and the
-    // aurora overhead drapes its bands across the ice: green-pink sheets that drift, plus the
-    // curtains' reflection smearing over the far field. The snow reads bright against the night.
-    vec3 iceb = uBase * (0.6 + 0.5 * fbm(p * 1.3));
-    float snow = smoothstep(0.48, 0.72, fbm(p * 0.22 + 7.0));
-    col = mix(iceb, uBase * 1.2 + vec3(0.06, 0.075, 0.105), snow) * (0.8 + 0.6 * pl);
-    float scour = fbm(vec2(p.x * 0.14, p.y * 0.75) + 2.0);
-    col *= 0.8 + 0.3 * scour;
-    // the thin ice: cracks glow glacier blue, breathing on the storm's ~20 s clock
-    vec3 v = voro(p * 0.3 + 11.0);
-    float breath = 0.7 + 0.3 * sin(uTime * 0.314);
-    // Broken hairline fractures, buried by snow: the old complete bright cells read as a grid.
-    float exposed = (1.0 - snow * 0.85) * smoothstep(0.32, 0.62, fbm(p * 0.48 + 5.0));
-    col += uGrid * smoothstep(0.035, 0.0, v.y) * 0.18 * breath * exposed;
-    float windgrain = sin(p.y * 9.0 + fbm(p * 0.6) * 6.0);
-    col += vec3(0.012, 0.017, 0.024) * windgrain * snow;
-    // the aurora's sheen: bands that cross the ice and shift with the curtains - 3.55.0 the
-    // bands carry a ray structure of their own (vertical streaks, the curtains mirrored), the
-    // green leans brighter and the whole sheen loses a step of shyness: from the normal view
-    // the reflection IS the aurora (the curtains themselves hang past the wall, off-frustum)
-    float aur = fbm(vec2(p.x * 0.045 + uTime * 0.014, p.y * 0.2));
-    float band = smoothstep(0.42, 0.72, aur);
-    float ray = 0.4 + 0.6 * sin(p.x * 2.6 + aur * 11.0 + uTime * 0.12) * sin(p.x * 0.9 - uTime * 0.05 + p.y * 0.06);
-    ray = pow(max(ray, 0.0), 1.4);
-    vec3 aurC = mix(vec3(0.1, 0.72, 0.4), vec3(0.46, 0.24, 0.54), 0.5 + 0.5 * sin(uTime * 0.035 + p.x * 0.03 + p.y * 0.05));
-    col += aurC * band * ray * 0.72 * (0.7 + 0.3 * fbm(p * 0.8));
-    // the curtains' reflection: a vertical smear that strengthens toward the far field
-    float smear = smoothstep(0.5, 0.82, fbm(vec2(p.x * 0.3 + uTime * 0.02, p.y * 0.05))) *
-      (1.0 - smoothstep(-6.0, 4.0, p.y));
-    col += vec3(0.1, 0.56, 0.36) * smear * 0.5;
-    float frost = smoothstep(0.55, 0.8, fbm(p * 1.1));
-    // 3.44.0 lesson kept: the frost drifts rest low and the glints blink slow, so enemies read
-    col = mix(col, uGrid * 0.2, frost * 0.18);
-    vec2 gc = floor(p * 2.0), gf = fract(p * 2.0) - 0.5 - (h22(gc) - 0.5) * 0.6;
-    float glint =
-      step(0.965, h21(gc)) * smoothstep(0.11, 0.0, length(gf)) * (0.5 + 0.5 * sin(uTime * 1.5 + h21(gc + 7.0) * 30.0));
-    col += vec3(0.95) * glint * 0.3 * inside;
-    col += uAccent * pl * 0.06;
-    lit = 0.5 + 0.5 * snow;
-  } else if (st == 3) {
-    // The Glowmarsh (3.50.0): black water over dark peat - meandering veins of glowing algae
-    // that breathe slowly, reed tufts on the banks, spore specks that pulse. The light is the
-    // warning: the brightest water is where the acid is.
-    float m = fbm(p * 0.28 + vec2(0.0, uTime * 0.008));
-    float water = smoothstep(0.53, 0.6, m);
-    vec3 peat = uBase * (0.4 + 0.6 * fbm(p * 1.7)) + vec3(0.003, 0.007, 0.005);
-    vec3 pool = uBase * 0.24 + vec3(0.002, 0.009, 0.008);
-    // the veins are long and sparse: low-frequency contours, a thin band, a calm breath - the
-    // floor stays a dark place and the lines carry it (a dense web turned it into a circuit board)
-    float contour = fbm(p * 0.5 + 4.0);
-    float breathe = 0.7 + 0.3 * sin(uTime * 0.9 + fbm(p * 0.35) * 7.0);
-    float band = abs(contour - 0.5);
-    float vein = smoothstep(0.05, 0.0, band) * breathe;    // the soft halo
-    float core = smoothstep(0.011, 0.0, band) * breathe;   // the hot middle of the vein
-    pool += uGrid * vein * 0.16;
-    float sh = sin(dot(p, vec2(1.3, 0.7)) * 2.0 + fbm(p * 0.7 + uTime * 0.1) * 9.0 + uTime * 0.9);
-    pool += uGrid * 0.035 * max(sh, 0.0);
-    col = mix(peat, pool, water) * (0.8 + 0.5 * pl);
-    col += uGrid * core * (0.12 + 0.08 * water);                            // the vein itself, over water and bank
-    col += uGrid * vein * 0.035 * (1.0 - water);           // the halo over the bank, fainter
-    float tuft = smoothstep(0.6, 0.74, contour + 0.11) * (1.0 - water);
-    col = mix(col, uBase * 1.15 + uGrid * 0.015, tuft * 0.5);
-    vec2 sc = floor(p * 1.5), sf = fract(p * 1.5) - 0.5;
-    col += uAccent * step(0.985, h21(sc)) * smoothstep(0.14, 0.0, length(sf)) * (1.0 - water) * 0.3 *
-      (0.6 + 0.4 * sin(uTime * 1.7 + h21(sc + 2.0) * 20.0)) * inside;
-    lit = 0.4 + 0.6 * water;
-  } else if (st == 4) {
-    // The Shattered Core (3.52.0): hex tiles with glowing rims floating over a starfield, a web of
-    // shatter lines across the field, and fissure rings that flash on the Core's own heartbeat (its
-    // fight theme walks at 60 BPM and its scape breathes in the same beat); beyond the border only
-    // the abyss, where debris of the other places drifts past
-    vec2 q = p / 2.3, r = vec2(1.0, 1.7320508), hh = r * 0.5;
-    vec2 a = mod(q, r) - hh, b = mod(q - hh, r) - hh;
-    vec2 g = dot(a, a) < dot(b, b) ? a : b, cid = floor((q - g) * 2.0 + 0.5);
-    vec2 ag = abs(g);
-    float hd = max(dot(ag, normalize(r)), ag.x);
-    float gap = smoothstep(0.468, 0.485, hd), rim = smoothstep(0.425, 0.46, hd) * (1.0 - gap);
-    float pulse = step(0.94, h21(cid)) * (0.5 + 0.5 * sin(uTime * 2.2 + h21(cid + 1.0) * 20.0));
-    // Faceted slate, a worn bevel and sparse lit seams; combat owns the brightest contours.
-    float stone = fbm(p * 1.6 + cid * 0.13);
-    vec3 tile = (uBase * (0.85 + 0.5 * h21(cid + 5.0)) + vec3(0.012, 0.01, 0.023) * stone) * (0.8 + 0.6 * pl);
-    float seam = 0.2 + 0.8 * smoothstep(0.48, 0.74, fbm(p * 0.23 + 4.0));
-    tile += uGrid * rim * 0.02 * seam + uAccent * pulse * 0.018;
-    // the shatter: dark cracks wandering over the tiles, a faint rift glow along them
-    vec3 web = voro(p * 0.13 + 23.0);
-    tile = mix(tile, uBase * 0.45, smoothstep(0.055, 0.0, web.y) * 0.55 * inside);
-    tile += uGrid * smoothstep(0.014, 0.0, abs(web.y - 0.04)) * 0.045 * inside;
-    // the fissures: one tile in ~18 carries an inner ring that flashes with the heartbeat
-    float beat = pow(max(0.0, 1.0 - fract(uTime)), 2.6);
-    float ringIn = smoothstep(0.24, 0.29, hd) * (1.0 - smoothstep(0.33, 0.38, hd));
-    tile += uAccent * ringIn * step(0.945, h21(cid + 9.0)) * (0.3 + 0.7 * beat) * 0.16;
-    col = mix(tile, uLod > 1.5 ? uAccent * 0.05 + uGrid * 0.03 : starfield(p), max(gap, 1.0 - inside));
-    lit = (0.3 + rim) * (1.0 - gap);
-    outside = 1.0;
-  } else if (st == 7) {
-    // The Glass Flats (3.55.0): sheet glass fused into the sand under a platinum noon. The plates
-    // carry their own value now - a per-sheet tint jitter (every fused sheet took the melt a little
-    // differently), a stronger thin-film iridescence, a broad sun-glare band that slides across the
-    // field, and denser hot glints; the loose sand between the sheets keeps the wind's ripples. The
-    // plates stay bright: the noon is the floor's own light (the Shelf's lesson - the camera never
-    // sees the sky, the ground carries the time of day)
-    float plate = fbm(p * 0.13 + 9.0);
-    float sheet = smoothstep(0.36, 0.44, plate);
-    vec3 sand = uBase * 2.3 + vec3(0.105, 0.088, 0.056) * (0.8 + 0.4 * fbm(p * 3.1));
-    // the wind's ripples in the loose sand (gone where the glass took over)
-    float rip = sin(dot(p, vec2(0.75, 0.62)) * 3.1 + fbm(p * 0.45) * 5.0);
-    sand *= 1.0 + rip * 0.06;
-    vec3 glass = uBase * 3.2 + vec3(0.5, 0.465, 0.385);
-    float film = fbm(p * 0.42 + 3.0);
-    vec3 irid = vec3(0.5 + 0.5 * sin(film * 8.0), 0.5 + 0.5 * sin(film * 8.0 + 2.1), 0.5 + 0.5 * sin(film * 8.0 + 4.2));
-    glass += irid * 0.055;
-    glass *= 0.96 + 0.07 * vnoise(p * 5.0);
-    vec3 v = voro(p * 0.16 + 4.0);
-    // each fused sheet took the melt a little differently: a per-cell tint and value jitter
-    glass *= 0.96 + 0.08 * h21(v.zz + 3.0);
-    glass += (h21(v.zz + 8.0) - 0.5) * vec3(0.05, 0.04, 0.02);
-    col = mix(sand, glass, sheet);
-    // the seams between the sheets: sand ground down into the grooves
-    col = mix(col, sand * 0.82, smoothstep(0.055, 0.012, v.y) * 0.65);
-    // the sun's glare slides across the glass - a broad diagonal band of extra noon
-    float glare = smoothstep(6.5, 0.0, abs(mod(dot(p, normalize(vec2(0.68, 0.73))) - uTime * 0.55, 26.0) - 13.0));
-    col += vec3(0.09, 0.07, 0.045) * glare * sheet;
-    col *= 0.9 + 0.5 * pl;
-    vec2 gc = floor(p * 1.4), gf = fract(p * 1.4) - 0.5;
-    float glint = step(0.945, h21(gc)) * smoothstep(0.17, 0.0, length(gf)) * (0.4 + 0.6 * sin(uTime * 0.9 + h21(gc + 7.0) * 30.0));
-    col += vec3(1.0, 0.95, 0.85) * glint * 0.3 * sheet * inside;
-    col += uAccent * pl * 0.05;
-    lit = 0.62 + 0.38 * sheet;
-  } else if (st == 5) {
-    // Blackout City (3.4.0): wet black asphalt with grain and glossy tar seams, puddles that mirror the lights with
-    // rain rings in them, worn lane markings (dashed lines every 9 m, a crosswalk near each side) and cracks
-    float grain = vnoise(p * 2.2) * 0.6 + h21(floor(p * 18.0)) * 0.4;
-    col = uBase * (0.8 + 0.7 * grain) * (0.85 + 0.5 * pl);
-    vec3 v = voro(p * 0.18 + 7.0);
-    col *= 1.0 - smoothstep(0.05, 0.0, v.y) * 0.4;
-    float puddle = smoothstep(0.56, 0.6, fbm(p * 0.16 + 2.0));
-    vec2 rc = floor(p * 1.3), rf = fract(p * 1.3) - 0.5;
-    float rt = fract(uTime * 0.9 + h21(rc) * 7.0);
-    float ripple = smoothstep(0.025, 0.0, abs(length(rf) - rt * 0.28)) * (1.0 - rt) * step(0.6, h21(rc + 4.0));
-    vec3 mirror = vec3(0.027, 0.035, 0.052) * (0.8 + 0.3 * vnoise(p * 3.0)) + uAccent * 0.012 * (0.5 + 0.5 * sin(uTime * 0.7 + p.x * 0.2));
-    col = mix(col, uBase * 0.35 + mirror, puddle * 0.85) + vec3(0.55, 0.65, 0.8) * ripple * puddle * 0.11;
-    float ly = abs(mod(p.y + 4.5, 9.0) - 4.5);
-    float lane = smoothstep(0.13, 0.07, ly) * step(0.45, fract(p.x / 3.0));
-    float cw = step(abs(abs(p.x) - (uHalf.x - 4.0)), 1.3) * step(0.5, fract(p.y / 1.1)) * step(abs(p.y), 4.2);
-    lane = max(lane, cw);
-    float wear = smoothstep(0.22, 0.6, vnoise(p * 1.7 + 9.0));
-    col = mix(col, uGrid * 0.4, lane * wear * inside * (1.0 - puddle * 0.6));
-    lit = 0.4 + 0.75 * puddle + lane * 0.3;
-  } else if (st == 6) {
-    // Ashfall Caldera (3.54.0): the floor of a volcano - charcoal plates between deep grooves, ash
-    // drifted in the basins, and a web of molten cracks that breathes: every plate border is a
-    // fissure, how hot it burns falls off from the two fissure hearts, and a slow pulse wanders
-    // the veins (the light travels the crack network like a tide under the crust)
-    vec3 cell = voro(p * 0.5);
-    float plate = 0.65 + 0.6 * h21(cell.zz + 7.0);
-    col = uBase * (0.6 + 0.5 * fbm(p * 1.4)) * plate * (0.8 + 0.5 * pl);
-    float groove = smoothstep(0.18, 0.05, cell.y);
-    col *= 1.0 - groove * 0.55;
-    float ash = smoothstep(0.52, 0.88, fbm(p * 1.5 + 3.0));
-    col = mix(col, vec3(0.042, 0.04, 0.041) * (0.5 + 0.75 * plate), ash * 0.5);
-    // the crack web and its two hearts: the borders glow only where a slow noise has opened them
-    // (broken segments, not honeycomb cells), dull ember far from the hearts, molten gold near them
-    float web = smoothstep(0.07, 0.0, cell.y);
-    float crack = web * smoothstep(0.42, 0.6, fbm(p * 0.33 + cell.z * 7.0));
-    vec2 h1 = p - vec2(-4.5, 3.0), h2 = p - vec2(5.0, -2.5);
-    float heart = exp(-dot(h1, h1) * 0.045) + exp(-dot(h2, h2) * 0.038);
-    float breath = 0.7 + 0.3 * sin(uTime * 0.8);
-    float flow = 0.55 + 0.45 * sin(cell.z * 43.0 - uTime * 1.3 + heart * 4.0);
-    float vein = crack * (0.08 + 0.75 * heart * breath);
-    vec3 hot = mix(vec3(0.38, 0.06, 0.01), vec3(1.0, 0.55, 0.1), clamp(heart * 0.9, 0.0, 1.0));
-    col += hot * vein * (0.5 + 0.5 * flow) * 1.2;
-    col += uAccent * crack * heart * breath * flow * 0.55;
-    col += uAccent * heart * breath * 0.065;
-    // embers pool along the open fissures instead of scattering evenly
-    vec2 ec = floor(p * 0.9);
-    float ember = step(0.96, h21(ec)) * smoothstep(0.26, 0.05, length(fract(p * 0.9) - 0.5));
-    float emberP = 0.55 + 0.45 * sin(uTime * 1.7 + h21(ec + 2.0) * 40.0);
-    col += uGrid * ember * emberP * (0.18 + 0.5 * crack) * inside;
-    lit = 0.22 + vein * (0.5 + 0.5 * flow) * 2.2 + heart * breath * 1.2;
-  } else {
-    // (every biome has its style; a plain floor if one ever had none)
-    col = uBase * (0.75 + 0.7 * pl);
-  }
-  col += uAccent * edgeGlow * 0.28 * inside;
-  col += uGrid * uPulse * 0.12 * inside;
-  // 3.41.0: the Blackout dims the painted street itself (the uniform was set every frame but the shader
-  // never read it - the event only dimmed the scene lights, which this shader ignores). The six dynamic
-  // lights of the loop below stay at full power: blasts, arcs and muzzle flashes light the dark street.
-  col *= 1.0 - uDark;
-  for (int i = 0; i < 6; i++) {
-    if (uL[i].w <= 0.0) continue;
-    vec2 d2 = p - uL[i].xy;
-    float fall = exp(-dot(d2, d2) / max(0.01, uL[i].z * uL[i].z));
-    col += uLC[i] * uL[i].w * fall * lit;
-  }
-  col *= mix(outside, 1.0, inside);
-  // 3.29.0: richer colour: the floor is most of the picture, and its palette was muted
-  col = mix(vec3(dot(col, vec3(0.299, 0.587, 0.114))), col, uVivid) * uGain;
-  gl_FragColor = vec4(col, 1.0);
-  #include <fog_fragment>
-  #include <colorspace_fragment>
-}`;
 
-// Instanced props (reeds, crystals, stripes, rocks): one draw call per kind.
 function rlInst(group, geo, mat, list) {
   if (!list.length) return null;
   const mesh = new InstancedMesh(geo, mat, list.length),
@@ -591,7 +320,7 @@ const rlFootRing = (group, x, z, radius, mat) => {
 };
 // Outline slab under a box obstacle.
 const rlFootSlab = (group, box, mat, pad = 0.3) =>
-  rlMesh(group, new BoxGeometry(box.w * 2 + pad, 0.05, box.h * 2 + pad), mat, box.x, 0.03, box.y);
+  rlMesh(group, propBox(box.w * 2 + pad, 0.05, box.h * 2 + pad), mat, box.x, 0.03, box.y);
 /* 3.46.0: a static-prop merger. Geometries are collected per material and baked into one mesh
    each at the end — the barrier ring of Blackout City alone used to be ~200 individual meshes,
    each its own draw call, each recomputing its matrix every frame. Transform math goes through
@@ -669,16 +398,16 @@ const RL_BIOME_BUILD = {
     rlAlongBorder(W, H, 0.45, 2.3, (x, z, nx, nz) => {
       const along = nx === 0,
         ry = along ? 0 : Math.PI / 2;
-      bakeBorder.add(new BoxGeometry(2.15, 0.35, 0.7), concrete, x, 0.175, z, ry);
-      bakeBorder.add(new BoxGeometry(2.15, 0.45, 0.32), concrete, x, 0.57, z, ry);
+      bakeBorder.add(propBox(2.15, 0.35, 0.7), concrete, x, 0.175, z, ry);
+      bakeBorder.add(propBox(2.15, 0.45, 0.32), concrete, x, 0.57, z, ry);
       const k = Math.round((along ? x : z) / 2.3);
-      bakeBorder.add(new BoxGeometry(0.5, 0.12, 0.02), k % 2 ? red : white, x - nx * 0.17, 0.6, z - nz * 0.17, ry);
+      bakeBorder.add(propBox(0.5, 0.12, 0.02), k % 2 ? red : white, x - nx * 0.17, 0.6, z - nz * 0.17, ry);
     });
     // corner posts with a blinking-amber lamp (static glow) and a red reflector
     for (const sx of [-1, 1])
       for (const sz of [-1, 1]) {
-        bakeBorder.add(new BoxGeometry(0.8, 1.1, 0.8), darkConcrete, sx * (W + 0.45), 0.55, sz * (H + 0.45));
-        bakeBorder.add(new BoxGeometry(0.3, 0.18, 0.3), amber, sx * (W + 0.45), 1.2, sz * (H + 0.45));
+        bakeBorder.add(propBox(0.8, 1.1, 0.8), darkConcrete, sx * (W + 0.45), 0.55, sz * (H + 0.45));
+        bakeBorder.add(propBox(0.3, 0.18, 0.3), amber, sx * (W + 0.45), 1.2, sz * (H + 0.45));
       }
     const paint = [0x2b3a4a, 0x4a2b2b, 0x2e3b2e, 0x3d3d44, 0x4a4030];
     for (const obstacle of obs)
@@ -702,14 +431,14 @@ const RL_BIOME_BUILD = {
         // a dumpster with its lid half open
         const height = 1.1;
         bakeObs.add(
-          new BoxGeometry(obstacle.w * 2, height, obstacle.h * 2),
+          propBox(obstacle.w * 2, height, obstacle.h * 2),
           paintedMat(rng.pick([0x2f4a3a, 0x3a3f4a, 0x4a3a2a])),
           obstacle.x,
           height / 2,
           obstacle.y,
         );
         bakeObs.add(
-          new BoxGeometry(obstacle.w * 2 + 0.06, 0.06, obstacle.h * 2 + 0.06),
+          propBox(obstacle.w * 2 + 0.06, 0.06, obstacle.h * 2 + 0.06),
           darkConcrete,
           obstacle.x,
           height + 0.12,
@@ -718,13 +447,7 @@ const RL_BIOME_BUILD = {
           0,
           0.18,
         );
-        bakeObs.add(
-          new BoxGeometry(obstacle.w * 2 + 0.3, 0.05, obstacle.h * 2 + 0.3),
-          accentMat,
-          obstacle.x,
-          0.03,
-          obstacle.y,
-        );
+        bakeObs.add(propBox(obstacle.w * 2 + 0.3, 0.05, obstacle.h * 2 + 0.3), accentMat, obstacle.x, 0.03, obstacle.y);
       } else {
         // a wrecked car: body, cabin, wheels, dead headlights and one red tail light still on
         const long = obstacle.w >= obstacle.h,
@@ -733,9 +456,9 @@ const RL_BIOME_BUILD = {
           ry = long ? 0 : Math.PI / 2,
           body = paintedMat(rng.pick(paint)),
           car = bakeObs.parentMatrix(obstacle.x, obstacle.y, ry);
-        bakeObs.addIn(new BoxGeometry(L, 0.55, D), body, car, 0, 0.5, 0);
-        bakeObs.addIn(new BoxGeometry(L * 0.5, 0.45, D * 0.86), body, car, -L * 0.06, 0.99, 0);
-        bakeObs.addIn(new BoxGeometry(L * 0.48, 0.3, D * 0.88), darkConcrete, car, -L * 0.06, 1.0, 0);
+        bakeObs.addIn(propBox(L, 0.55, D), body, car, 0, 0.5, 0);
+        bakeObs.addIn(propBox(L * 0.5, 0.45, D * 0.86), body, car, -L * 0.06, 0.99, 0);
+        bakeObs.addIn(propBox(L * 0.48, 0.3, D * 0.88), darkConcrete, car, -L * 0.06, 1.0, 0);
         for (const wx of [-1, 1])
           for (const wz of [-1, 1])
             bakeObs.addIn(
@@ -748,16 +471,10 @@ const RL_BIOME_BUILD = {
               0,
               Math.PI / 2,
             );
-        bakeObs.addIn(new BoxGeometry(0.04, 0.12, 0.3), red, car, -L / 2 - 0.01, 0.62, D * 0.32);
+        bakeObs.addIn(propBox(0.04, 0.12, 0.3), red, car, -L / 2 - 0.01, 0.62, D * 0.32);
         // the roll stays unconditional (the run's rng must see the same draws as before)
-        if (rng.chance(0.3)) bakeObs.addIn(new BoxGeometry(0.04, 0.1, 0.28), white, car, L / 2 + 0.01, 0.6, -D * 0.3);
-        bakeObs.add(
-          new BoxGeometry(obstacle.w * 2 + 0.3, 0.05, obstacle.h * 2 + 0.3),
-          accentMat,
-          obstacle.x,
-          0.03,
-          obstacle.y,
-        );
+        if (rng.chance(0.3)) bakeObs.addIn(propBox(0.04, 0.1, 0.28), white, car, L / 2 + 0.01, 0.6, -D * 0.3);
+        bakeObs.add(propBox(obstacle.w * 2 + 0.3, 0.05, obstacle.h * 2 + 0.3), accentMat, obstacle.x, 0.03, obstacle.y);
       }
     // steam out of a few manholes (decor; the live ones are the vents)
     if (!view.rlEmit) view.rlEmit = [];
@@ -869,7 +586,7 @@ void main() {
       [-W - wallW / 2, 0, wallW, H * 2],
       [W + wallW / 2, 0, wallW, H * 2],
     ])
-      rlMesh(group, new BoxGeometry(sx, wallH, sz), core, bx, wallH / 2, bz);
+      rlMesh(group, propBox(sx, wallH, sz), core, bx, wallH / 2, bz);
     const spikes = [],
       tint = [0xbfe8ff, 0xa4d8f4, 0xdff4ff, 0x7ab0dc];
     for (const off of [0.25, 0.85])
@@ -930,16 +647,16 @@ void main() {
         const height = 1.05;
         rlMesh(
           props,
-          new BoxGeometry(obstacle.w * 2 * 0.72, height * 0.8, obstacle.h * 2 * 0.72),
+          propBox(obstacle.w * 2 * 0.72, height * 0.8, obstacle.h * 2 * 0.72),
           core,
           obstacle.x,
           height * 0.42,
           obstacle.y,
         );
-        rlMesh(props, new BoxGeometry(obstacle.w * 2, height, obstacle.h * 2), ice, obstacle.x, height / 2, obstacle.y);
+        rlMesh(props, propBox(obstacle.w * 2, height, obstacle.h * 2), ice, obstacle.x, height / 2, obstacle.y);
         rlMesh(
           props,
-          new BoxGeometry(obstacle.w * 2 + 0.1, 0.14, obstacle.h * 2 + 0.1),
+          propBox(obstacle.w * 2 + 0.1, 0.14, obstacle.h * 2 + 0.1),
           snow,
           obstacle.x,
           height + 0.05,
@@ -969,7 +686,7 @@ void main() {
     ])
       rlMesh(
         group,
-        new BoxGeometry(sx, 0.22, sz),
+        propBox(sx, 0.22, sz),
         new MeshLambertMaterial({ color: 0x14211e, flatShading: true }),
         bx,
         0.11,
@@ -1143,7 +860,7 @@ void main() {
         }
         rlMesh(
           props,
-          new BoxGeometry(longX ? len * 0.8 : rad * 1.1, 0.1, longX ? rad * 1.1 : len * 0.8),
+          propBox(longX ? len * 0.8 : rad * 1.1, 0.1, longX ? rad * 1.1 : len * 0.8),
           moss,
           obstacle.x,
           rad * 1.95,
@@ -1190,8 +907,8 @@ void main() {
       [W, 0, H * 2, Math.PI / 2],
     ]) {
       rlMesh(group, new PlaneGeometry(len, wallH), wall, bx, wallH / 2, bz, rot);
-      rlMesh(group, new BoxGeometry(rot ? 0.06 : len, 0.05, rot ? len : 0.06), rim, bx, 0.03, bz);
-      rlMesh(group, new BoxGeometry(rot ? 0.04 : len, 0.03, rot ? len : 0.04), rim, bx, wallH, bz);
+      rlMesh(group, propBox(rot ? 0.06 : len, 0.05, rot ? len : 0.06), rim, bx, 0.03, bz);
+      rlMesh(group, propBox(rot ? 0.04 : len, 0.03, rot ? len : 0.04), rim, bx, wallH, bz);
     }
     for (const sx of [-1, 1])
       for (const sz of [-1, 1]) {
@@ -1210,7 +927,7 @@ void main() {
     for (const side of [-1, 1]) {
       const pylon = rlMesh(crown, new ConeGeometry(0.7, 4.2, 4), obsid, side * 1.95, 1.45, 0);
       pylon.rotation.z = side * -0.3;
-      rlMesh(crown, new BoxGeometry(0.09, 3.15, 0.22), rim, side * 1.7, 1.55, -0.2).rotation.z = side * -0.3;
+      rlMesh(crown, propBox(0.09, 3.15, 0.22), rim, side * 1.7, 1.55, -0.2).rotation.z = side * -0.3;
       const shard = rlMesh(crown, new OctahedronGeometry(0.56), obsid, side * 3.1, 3.25, 0.15);
       shard.scale.set(0.75, 1.75, 0.75);
       shard.rotation.z = side * 0.48;
@@ -1290,7 +1007,7 @@ void main() {
         pz = side < 2 ? (side === 0 ? -1 : 1) * (H + out) : along * (H + 4),
         post = rlMesh(
           drift,
-          new BoxGeometry(0.09, 2.6, 0.09),
+          propBox(0.09, 2.6, 0.09),
           new MeshLambertMaterial({ color: 0x1a2030, flatShading: true }),
           px,
           rng.range(-1.5, 0.5),
@@ -1298,7 +1015,7 @@ void main() {
         ),
         panel = rlMesh(
           drift,
-          new BoxGeometry(1.1, 0.55, 0.07),
+          propBox(1.1, 0.55, 0.07),
           new MeshLambertMaterial({ color: 0x202838, flatShading: true }),
           px + 0.4,
           post.position.y + 0.9,
@@ -1306,7 +1023,7 @@ void main() {
         );
       panel.rotation.y = rng.range(0, 3);
       post.rotation.z = rng.range(-0.35, 0.35);
-      rlMesh(drift, new BoxGeometry(1.14, 0.08, 0.03), hot, px + 0.4, panel.position.y + 0.24, pz);
+      rlMesh(drift, propBox(1.14, 0.08, 0.03), hot, px + 0.4, panel.position.y + 0.24, pz);
       view.rlAnim.push({ o: panel, k: "spin", s: 0.22, b: panel.position.y, ph: j * 1.7 });
     }
     for (const obstacle of obs)
@@ -1335,34 +1052,13 @@ void main() {
           mono = new Group();
         mono.position.set(obstacle.x, 0.3 + height / 2, obstacle.y);
         props.add(mono);
-        rlMesh(mono, new BoxGeometry(obstacle.w * 2 * 0.92, height, obstacle.h * 2 * 0.92), obsid, 0, 0, 0);
+        rlMesh(mono, propBox(obstacle.w * 2 * 0.92, height, obstacle.h * 2 * 0.92), obsid, 0, 0, 0);
         for (const sx of [-1, 1])
           for (const sz of [-1, 1])
-            rlMesh(
-              mono,
-              new BoxGeometry(0.05, height + 0.02, 0.05),
-              rim,
-              sx * obstacle.w * 0.92,
-              0,
-              sz * obstacle.h * 0.92,
-            );
+            rlMesh(mono, propBox(0.05, height + 0.02, 0.05), rim, sx * obstacle.w * 0.92, 0, sz * obstacle.h * 0.92);
         for (const side of [-1, 1]) {
-          rlMesh(
-            mono,
-            new BoxGeometry(obstacle.w * 2 * 0.92 + 0.04, 0.05, 0.05),
-            hot,
-            0,
-            height / 2,
-            side * obstacle.h * 0.92,
-          );
-          rlMesh(
-            mono,
-            new BoxGeometry(0.05, 0.05, obstacle.h * 2 * 0.92 + 0.04),
-            hot,
-            side * obstacle.w * 0.92,
-            height / 2,
-            0,
-          );
+          rlMesh(mono, propBox(obstacle.w * 2 * 0.92 + 0.04, 0.05, 0.05), hot, 0, height / 2, side * obstacle.h * 0.92);
+          rlMesh(mono, propBox(0.05, 0.05, obstacle.h * 2 * 0.92 + 0.04), hot, side * obstacle.w * 0.92, height / 2, 0);
         }
         view.rlAnim.push({ o: mono, k: "bob", b: 0.3 + height / 2, ph: obstacle.x + obstacle.y * 0.7, a: 0.1, s: 1.1 });
         rlFootSlab(props, obstacle, rim, 0.2);
@@ -1387,14 +1083,14 @@ void main() {
         ry = along ? 0 : Math.PI / 2,
         ix = x - nx * 0.2,
         iz = z - nz * 0.2;
-      bake.add(new BoxGeometry(2.1, 1.5, 0.36), rock, x, 0.75, z, ry);
-      bake.add(new BoxGeometry(2.16, 0.3, 0.44), darkRock, x, 1.6, z, ry);
+      bake.add(propBox(2.1, 1.5, 0.36), rock, x, 0.75, z, ry);
+      bake.add(propBox(2.16, 0.3, 0.44), darkRock, x, 1.6, z, ry);
       const k = Math.round((along ? x : z) / 2.2);
       if (k % 2 === 0) {
-        bake.add(new BoxGeometry(0.16, 0.5, 0.14), darkRock, ix, 1.0, iz, ry);
-        bake.add(new BoxGeometry(0.3, 0.22, 0.08), emberMat, ix, 1.42, iz, ry);
+        bake.add(propBox(0.16, 0.5, 0.14), darkRock, ix, 1.0, iz, ry);
+        bake.add(propBox(0.3, 0.22, 0.08), emberMat, ix, 1.42, iz, ry);
       } else {
-        bake.add(new BoxGeometry(1.9, 0.05, 0.06), emberMat, ix, 1.47, iz, ry);
+        bake.add(propBox(1.9, 0.05, 0.06), emberMat, ix, 1.47, iz, ry);
       }
     });
     // the fire beacons: three basalt pillars with burning bowls, their heat rising as open glow
@@ -1448,7 +1144,7 @@ void main() {
         // the seam: a molten vein up the spire's face, fed by the ground crack
         rlMesh(
           props,
-          new BoxGeometry(0.05, 1.2 + 0.2 * r, 0.05),
+          propBox(0.05, 1.2 + 0.2 * r, 0.05),
           emberMat,
           obstacle.x + r * 0.22,
           0.9 + 0.2 * r,
@@ -1464,7 +1160,7 @@ void main() {
         const height = 1.15;
         const slab = rlMesh(
           props,
-          new BoxGeometry(obstacle.w * 2, height, obstacle.h * 2),
+          propBox(obstacle.w * 2, height, obstacle.h * 2),
           darkRock,
           obstacle.x,
           height / 2,
@@ -1473,7 +1169,7 @@ void main() {
         slab.rotation.z = 0.045;
         rlMesh(
           props,
-          new BoxGeometry(obstacle.w * 2 + 0.05, 0.05, 0.05),
+          propBox(obstacle.w * 2 + 0.05, 0.05, 0.05),
           emberMat,
           obstacle.x,
           height * 0.62,
@@ -1487,13 +1183,13 @@ void main() {
           L = (long ? obstacle.w : obstacle.h) * 2,
           D = (long ? obstacle.h : obstacle.w) * 2,
           ry = long ? 0 : Math.PI / 2,
-          ridge = rlMesh(props, new BoxGeometry(L, 0.95, D), rock, obstacle.x, 0.48, obstacle.y, ry);
+          ridge = rlMesh(props, propBox(L, 0.95, D), rock, obstacle.x, 0.48, obstacle.y, ry);
         ridge.matrixAutoUpdate = false;
         ridge.updateMatrix();
-        rlMesh(props, new BoxGeometry(L + 0.06, 0.1, D + 0.06), darkRock, obstacle.x, 1.0, obstacle.y, ry);
+        rlMesh(props, propBox(L + 0.06, 0.1, D + 0.06), darkRock, obstacle.x, 1.0, obstacle.y, ry);
         rlMesh(
           props,
-          new BoxGeometry(long ? L * 0.88 : 0.07, 0.05, long ? 0.07 : D * 0.88),
+          propBox(long ? L * 0.88 : 0.07, 0.05, long ? 0.07 : D * 0.88),
           emberMat,
           obstacle.x,
           1.055,
@@ -1503,14 +1199,7 @@ void main() {
         for (const f of [-0.24, 0.24]) {
           const bx = obstacle.x + (long ? L * f : 0),
             bz = obstacle.y + (long ? 0 : D * f);
-          rlMesh(
-            props,
-            new BoxGeometry(long ? 0.06 : D * 0.72, 0.045, long ? D * 0.72 : 0.06),
-            emberMat,
-            bx,
-            1.055,
-            bz,
-          );
+          rlMesh(props, propBox(long ? 0.06 : D * 0.72, 0.045, long ? D * 0.72 : 0.06), emberMat, bx, 1.055, bz);
         }
         for (let k = 0; k < 3; k++) {
           const along = (k - 1) * (long ? L : D) * 0.26,
@@ -1544,7 +1233,7 @@ void main() {
     // the berm: pale drifts piled along the border, glass shards standing in them
     rlAlongBorder(W, H, 0.5, 1.9, (x, z, nx, nz) => {
       const along = nx === 0;
-      bake.add(new BoxGeometry(along ? 2.4 : 0.9, 0.5, along ? 0.9 : 2.4), sand, x, 0.22, z, 0);
+      bake.add(propBox(along ? 2.4 : 0.9, 0.5, along ? 0.9 : 2.4), sand, x, 0.22, z, 0);
       bake.add(new SphereGeometry(0.55, 7, 5), sand, x + nx * 0.2, 0.3, z + nz * 0.2);
       if (Math.round((along ? x : z) * 7) % 2 === 0)
         bake.add(new ConeGeometry(0.14, rng.range(0.7, 1.5), 4), glass, x, 0.75, z, 0, 0, rng.range(-0.3, 0.3));
@@ -1562,7 +1251,7 @@ void main() {
         ]) {
           const sheet = rlMesh(
             props,
-            new BoxGeometry(obstacle.r * 1.3, obstacle.r * 1.1, 0.14),
+            propBox(obstacle.r * 1.3, obstacle.r * 1.1, 0.14),
             glass,
             obstacle.x + dx,
             obstacle.r * 0.4,
@@ -1572,7 +1261,7 @@ void main() {
           // 3.55.0: both sheets carry the hot fused edge (one read as a bare sheet from above)
           const edge = rlMesh(
             props,
-            new BoxGeometry(obstacle.r * 1.3, 0.05, 0.05),
+            propBox(obstacle.r * 1.3, 0.05, 0.05),
             hotGlass,
             obstacle.x + dx,
             obstacle.r * 0.96,
@@ -1595,7 +1284,7 @@ void main() {
         const hgt = 1.0;
         rlMesh(
           props,
-          new BoxGeometry(obstacle.w * 2 * 0.8, hgt * 0.75, obstacle.h * 2 * 0.8),
+          propBox(obstacle.w * 2 * 0.8, hgt * 0.75, obstacle.h * 2 * 0.8),
           sandstone,
           obstacle.x,
           hgt * 0.36,
@@ -1603,7 +1292,7 @@ void main() {
         );
         rlMesh(
           props,
-          new BoxGeometry(obstacle.w * 2 * 0.86, 0.14, obstacle.h * 2 * 0.86),
+          propBox(obstacle.w * 2 * 0.86, 0.14, obstacle.h * 2 * 0.86),
           hotGlass,
           obstacle.x,
           hgt * 0.78,
@@ -1611,7 +1300,7 @@ void main() {
         );
         rlMesh(
           props,
-          new BoxGeometry(obstacle.w * 2 * 0.92, 0.14, obstacle.h * 2 * 0.92),
+          propBox(obstacle.w * 2 * 0.92, 0.14, obstacle.h * 2 * 0.92),
           glass,
           obstacle.x,
           hgt * 0.78 + 0.13,

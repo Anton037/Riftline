@@ -1,4 +1,5 @@
 // Mesh builders for the player drone, enemies, bosses and props.
+import { armorBox } from "./armor-geometry.js";
 import { mergeStaticMeshes } from "./static-meshes.js";
 
 import {
@@ -17,7 +18,7 @@ import {
   Matrix4,
   Mesh,
   MeshBasicMaterial,
-  MeshLambertMaterial,
+  MeshPhongMaterial,
   OctahedronGeometry,
   Quaternion,
   Shape,
@@ -31,8 +32,8 @@ import {
  enemy colour (mid / dark / lite / pale shades, vertex colours, flat shading), "glow" is white and
  gets tinted per instance by the renderer. +x is the facing direction, y is up, the ground is y = 0.
  Every type has its own silhouette and one feature to remember it by. Biological types are round
- and asymmetric, machines keep hard forms with panels, vents and lights. Budget: about 400
- triangles per type (body + glow), the footprint stays in the size class of enemyDefs[type].r.
+ and asymmetric, machines keep hard forms with panels, vents and lights. Budget: at most 810
+ triangles per type (body + glow, including planar armor chamfers), the footprint stays in the size class of enemyDefs[type].r.
  ========================================================================== */
 const PI = Math.PI,
   TAU_M = Math.PI * 2,
@@ -67,7 +68,8 @@ const spike = (color, r, seg, a, b) => limb(color, (len) => new ConeGeometry(r, 
   bar = (color, w, a, b, t = w) => limb(color, (len) => new BoxGeometry(w, len, t), a, b, t !== w),
   pipe = (color, r0, r1, seg, a, b) => limb(color, (len) => new CylinderGeometry(r1, r0, len, seg), a, b),
   ball = (color, r, w, h, p = {}) => meshPart(new SphereGeometry(r, w, h), color, p),
-  box = (color, w, h, d, p = {}) => meshPart(new BoxGeometry(w, h, d), color, p),
+  box = (color, w, h, d, p = {}) =>
+    meshPart(Math.min(w, h, d) >= 0.12 ? armorBox(w, h, d) : new BoxGeometry(w, h, d), color, p),
   both = (make) => [].concat(make(1), make(-1));
 const RL_ENEMY_BUILDERS = {
   swarmer: (P) => ({
@@ -1255,10 +1257,22 @@ function buildPlayerModel(weapon, color) {
   // pelvis, two legs (a thigh, a shin, a flat foot) that swing, bend and plant as the drone walks (setWalk), and the
   // weapon mount on top. The footprint (about 0.65 around the centre), the hull colours and the weapon colour on the
   // glowing parts are the same as before; `base` is still the part that turns with the drone, `turret` aims.
-  const hullMat = new MeshLambertMaterial({ color: 2898514, emissive: 0, flatShading: true }),
-    trimMat = new MeshLambertMaterial({ color: 9348036, emissive: 0, flatShading: true }),
+  const hullMat = new MeshPhongMaterial({
+      color: 0x738b9b,
+      emissive: 0,
+      specular: 0x53616b,
+      shininess: 28,
+      flatShading: true,
+    }),
+    trimMat = new MeshPhongMaterial({
+      color: 0xd4d9cf,
+      emissive: 0,
+      specular: 0x53616b,
+      shininess: 28,
+      flatShading: true,
+    }),
     glowMat = new MeshBasicMaterial({ color, toneMapped: false }),
-    visorMat = new MeshLambertMaterial({ color: 7454463, emissive: 1058362, flatShading: true }),
+    visorMat = new MeshPhongMaterial({ color: 7454463, emissive: 1058362, flatShading: true }),
     group = new Group(),
     base = new Group(),
     torso = new Group(),
@@ -1273,7 +1287,11 @@ function buildPlayerModel(weapon, color) {
     // the torso: a pelvis box, a chest that is wider at the shoulders, a back pack with a glowing vent, a visor
     hull = [
       box(2898514, 0.34, 0.14, 0.5, { x: 0, y: HIP + 0.02 }),
-      ball(2898514, 0.4, 8, 5, { x: -0.02, y: HIP + 0.3, sx: 1.05, sy: 0.7, sz: 0.95 }),
+      meshPart(armorBox(0.66, 0.42, 0.66, 0.1), 2898514, { x: -0.02, y: HIP + 0.3 }),
+      ...both((s) => [
+        box(2898514, 0.37, 0.12, 0.23, { x: 0.06, y: HIP + 0.54, z: s * 0.27, rx: s * 0.22 }),
+        box(2898514, 0.22, 0.3, 0.25, { x: -0.28, y: HIP + 0.28, z: s * 0.35 }),
+      ]),
       ...both((s) => [
         // shoulders and upper arms, short and blocky (the weapon is on the back, the arms hold the sides)
         box(2898514, 0.2, 0.26, 0.16, { x: 0, y: HIP + 0.34, z: s * 0.44 }),
@@ -1282,6 +1300,8 @@ function buildPlayerModel(weapon, color) {
       box(2898514, 0.3, 0.32, 0.42, { x: -0.3, y: HIP + 0.36 }),
     ],
     trim = [
+      box(9348036, 0.34, 0.035, 0.46, { x: 0.1, y: HIP + 0.525 }),
+      ...[-0.13, 0, 0.13].map((z) => box(9348036, 0.13, 0.025, 0.035, { x: -0.31, y: HIP + 0.535, z })),
       box(9348036, 0.38, 0.05, 0.54, { x: 0, y: HIP + 0.1 }),
       ...both((s) => [
         pipe(9348036, 0.07, 0.07, 6, [-0.42, HIP + 0.5, s * 0.14], [-0.5, HIP + 0.14, s * 0.14]),
@@ -1299,7 +1319,7 @@ function buildPlayerModel(weapon, color) {
   addPart(hull, hullMat, torso);
   addPart(trim, trimMat, torso);
   addPart(glowParts, glowMat, torso);
-  const visor = new Mesh(new BoxGeometry(0.1, 0.14, 0.34), visorMat);
+  const visor = new Mesh(armorBox(0.1, 0.14, 0.34), visorMat);
   visor.position.set(0.34, HIP + 0.36, 0);
   torso.add(visor);
   base.add(torso);
@@ -1370,13 +1390,13 @@ function buildPlayerModel(weapon, color) {
   turret.position.x = -0.05;
   let dome = new Mesh(new SphereGeometry(0.21, 10, 5, 0, Math.PI * 2, 0, Math.PI / 2), trimMat);
   turret.add(dome);
-  let sight = new Mesh(new BoxGeometry(0.08, 0.08, 0.3), glowMat);
+  let sight = new Mesh(armorBox(0.08, 0.08, 0.3), glowMat);
   sight.position.set(0.22, 0.12, 0);
   turret.add(sight);
   let addBarrel = (len, thick, z = 0, y = 0.02) => {
-    let tube = new Mesh(new BoxGeometry(len, thick, thick), hullMat);
+    let tube = new Mesh(armorBox(len, thick, thick), hullMat);
     tube.position.set(len / 2 + 0.12, y, z);
-    let tip = new Mesh(new BoxGeometry(0.08, thick * 1.2, thick * 1.2), glowMat);
+    let tip = new Mesh(armorBox(0.08, thick * 1.2, thick * 1.2), glowMat);
     tip.position.set(len + 0.14, y, z);
     turret.add(tube, tip);
   };
@@ -1385,16 +1405,16 @@ function buildPlayerModel(weapon, color) {
     addBarrel(0.5, 0.13, -0.1);
   } else if (weapon === "rail") {
     addBarrel(0.95, 0.1);
-    let rail = new Mesh(new BoxGeometry(0.8, 0.04, 0.26), trimMat);
+    let rail = new Mesh(armorBox(0.8, 0.04, 0.26), trimMat);
     rail.position.set(0.55, 0.02, 0);
     turret.add(rail);
   } else if (weapon === "rocket") {
-    let pod = new Mesh(new BoxGeometry(0.46, 0.26, 0.36), hullMat);
+    let pod = new Mesh(armorBox(0.46, 0.26, 0.36), hullMat);
     pod.position.set(0.3, 0.05, 0);
     turret.add(pod);
     for (let z of [-0.09, 0.09])
       for (let y of [-0.03, 0.12]) {
-        let tube = new Mesh(new BoxGeometry(0.05, 0.08, 0.08), glowMat);
+        let tube = new Mesh(armorBox(0.05, 0.08, 0.08), glowMat);
         tube.position.set(0.55, y, z);
         turret.add(tube);
       }
@@ -1407,7 +1427,7 @@ function buildPlayerModel(weapon, color) {
     coil2.position.x = 0.3;
     turret.add(coil, coil2);
   } else if (weapon === "disc") {
-    let mount = new Mesh(new BoxGeometry(0.62, 0.08, 0.34), hullMat);
+    let mount = new Mesh(armorBox(0.62, 0.08, 0.34), hullMat);
     mount.position.set(0.35, 0, 0);
     let disc = new Mesh(new CylinderGeometry(0.2, 0.2, 0.05, 16), glowMat);
     disc.position.set(0.42, 0.08, 0);
@@ -1442,8 +1462,20 @@ function buildPlayerModel(weapon, color) {
 }
 function buildBossModel(type, color) {
   let group = new Group(),
-    hullMat = new MeshLambertMaterial({ color: darken(color, 0.35), emissive: 0, flatShading: true }),
-    darkMat = new MeshLambertMaterial({ color: 2435898, emissive: 0, flatShading: true }),
+    hullMat = new MeshPhongMaterial({
+      color: darken(color, 0.35),
+      emissive: 0,
+      specular: 0x53616b,
+      shininess: 28,
+      flatShading: true,
+    }),
+    darkMat = new MeshPhongMaterial({
+      color: 2435898,
+      emissive: 0,
+      specular: 0x53616b,
+      shininess: 28,
+      flatShading: true,
+    }),
     glowMat = new MeshBasicMaterial({ color, toneMapped: false, transparent: true }),
     spin = [],
     addMesh = (geo, mat, x, y, z, parent = group) => {
@@ -1454,34 +1486,34 @@ function buildBossModel(type, color) {
     };
   if (type === "warden") {
     addMesh(new CylinderGeometry(1.8, 2.05, 1.5, 6), hullMat, 0, 0.9, 0);
-    addMesh(new BoxGeometry(1.8, 0.9, 1.6), darkMat, -0.2, 2, 0);
-    addMesh(new BoxGeometry(0.9, 1.1, 0.9), darkMat, 0, 1.2, 1.9);
-    addMesh(new BoxGeometry(0.9, 1.1, 0.9), darkMat, 0, 1.2, -1.9);
-    addMesh(new BoxGeometry(0.12, 0.28, 1.3), glowMat, 0.72, 2.05, 0);
-    addMesh(new BoxGeometry(0.2, 0.2, 0.2), glowMat, 0.46, 1.25, 1.9);
-    addMesh(new BoxGeometry(0.2, 0.2, 0.2), glowMat, 0.46, 1.25, -1.9);
+    addMesh(armorBox(1.8, 0.9, 1.6), darkMat, -0.2, 2, 0);
+    addMesh(armorBox(0.9, 1.1, 0.9), darkMat, 0, 1.2, 1.9);
+    addMesh(armorBox(0.9, 1.1, 0.9), darkMat, 0, 1.2, -1.9);
+    addMesh(armorBox(0.12, 0.28, 1.3), glowMat, 0.72, 2.05, 0);
+    addMesh(armorBox(0.2, 0.2, 0.2), glowMat, 0.46, 1.25, 1.9);
+    addMesh(armorBox(0.2, 0.2, 0.2), glowMat, 0.46, 1.25, -1.9);
     let ring = addMesh(new TorusGeometry(1.95, 0.07, 5, 36), glowMat, 0, 0.35, 0);
     ring.rotation.x = Math.PI / 2;
     // 2.7.0: pauldrons, a horned head with a visor, twin cannons and a chest emblem
     for (const side of [1, -1]) {
-      addMesh(new BoxGeometry(1.1, 0.55, 1.05), hullMat, 0, 2.75, side * 1.15);
-      addMesh(new BoxGeometry(0.5, 0.2, 0.9), glowMat, 0.35, 3.05, side * 1.15);
+      addMesh(armorBox(1.1, 0.55, 1.05), hullMat, 0, 2.75, side * 1.15);
+      addMesh(armorBox(0.5, 0.2, 0.9), glowMat, 0.35, 3.05, side * 1.15);
       addMesh(new CylinderGeometry(0.2, 0.24, 1.7, 8), darkMat, 1.05, 2.15, side * 0.85).rotation.z = Math.PI / 2;
       addMesh(new CylinderGeometry(0.26, 0.26, 0.12, 8), glowMat, 1.95, 2.15, side * 0.85).rotation.z = Math.PI / 2;
       const horn = addMesh(new ConeGeometry(0.17, 0.95, 5), hullMat, 0.35, 3.75, side * 0.42);
       horn.rotation.set(side * 0.35, 0, 0.25);
-      addMesh(new BoxGeometry(0.1, 0.1, 0.34), glowMat, 1.03, 2.98, side * 0.28);
+      addMesh(armorBox(0.1, 0.1, 0.34), glowMat, 1.03, 2.98, side * 0.28);
     }
-    addMesh(new BoxGeometry(1, 0.75, 1.1), darkMat, 0.55, 3.0, 0);
+    addMesh(armorBox(1, 0.75, 1.1), darkMat, 0.55, 3.0, 0);
     addMesh(new OctahedronGeometry(0.34, 0), glowMat, 1.0, 1.55, 0).scale.set(0.4, 1.3, 1);
-    for (let i = -1; i <= 1; i++) addMesh(new BoxGeometry(0.06, 0.6, 0.12), glowMat, -1.02, 2.2, i * 0.4);
+    for (let i = -1; i <= 1; i++) addMesh(armorBox(0.06, 0.6, 0.12), glowMat, -1.02, 2.2, i * 0.4);
     // 3.4.0: the Enforcer of the Blackout carries a police light bar that turns, red and blue
     const bar = new Group();
     bar.position.set(0.5, 3.48, 0);
     group.add(bar);
-    addMesh(new BoxGeometry(0.5, 0.12, 0.5), darkMat, 0, -0.08, 0, bar);
+    addMesh(armorBox(0.5, 0.12, 0.5), darkMat, 0, -0.08, 0, bar);
     addMesh(
-      new BoxGeometry(0.22, 0.16, 0.42),
+      armorBox(0.22, 0.16, 0.42),
       new MeshBasicMaterial({ color: 0xff2030, toneMapped: false }),
       0.13,
       0.06,
@@ -1489,7 +1521,7 @@ function buildBossModel(type, color) {
       bar,
     );
     addMesh(
-      new BoxGeometry(0.22, 0.16, 0.42),
+      armorBox(0.22, 0.16, 0.42),
       new MeshBasicMaterial({ color: 0x2050ff, toneMapped: false }),
       -0.13,
       0.06,
@@ -1508,20 +1540,18 @@ function buildBossModel(type, color) {
     spin.push({ m: halo, ax: "z", v: 0.8 });
     for (let i = 0; i < 6; i++) {
       let angle = (i / 6) * Math.PI * 2;
-      addMesh(
-        new BoxGeometry(0.18, 1.3, 0.18),
-        darkMat,
-        Math.cos(angle) * 1.2,
-        0.6,
-        Math.sin(angle) * 1.2,
-      ).rotation.set(Math.sin(angle) * 0.5, 0, -Math.cos(angle) * 0.5);
+      addMesh(armorBox(0.18, 1.3, 0.18), darkMat, Math.cos(angle) * 1.2, 0.6, Math.sin(angle) * 1.2).rotation.set(
+        Math.sin(angle) * 0.5,
+        0,
+        -Math.cos(angle) * 0.5,
+      );
     }
     // 2.7.0: a real head with mandibles and antennae, spines along the back, glowing egg sacs on the abdomen
     addMesh(new SphereGeometry(0.72, 12, 8), hullMat, 1.55, 1.75, 0).scale.set(1.15, 0.85, 1);
     for (const side of [1, -1]) {
       const jaw = addMesh(new ConeGeometry(0.16, 1.1, 5), darkMat, 2.25, 1.35, side * 0.42);
       jaw.rotation.set(side * 0.1, side * -0.45, -Math.PI / 2 - 0.35);
-      const feeler = addMesh(new BoxGeometry(0.06, 1.1, 0.06), darkMat, 1.8, 2.7, side * 0.35);
+      const feeler = addMesh(armorBox(0.06, 1.1, 0.06), darkMat, 1.8, 2.7, side * 0.35);
       feeler.rotation.set(side * 0.5, 0, -0.5);
       addMesh(new SphereGeometry(0.1, 6, 4), glowMat, 2.2, 3.2, side * 0.72);
     }
@@ -1556,7 +1586,7 @@ function buildBossModel(type, color) {
     // rock chunks (darkMat), orbiting frost shards and a frozen ring below. Everything fades out while
     // it blinks (fadeMats); the ice keeps its own translucency (userData.opacity).
     const ice = (color, emissive, opacity) => {
-      const mat = new MeshLambertMaterial({
+      const mat = new MeshPhongMaterial({
         color,
         emissive,
         flatShading: true,
@@ -1578,7 +1608,7 @@ function buildBossModel(type, color) {
     spin.push({ m: body, ax: "y", v: 0.35 });
     // glow core seen through the ice, and a visor slit on the facing side (+x)
     addMesh(new OctahedronGeometry(0.55, 0), glowMat, 0, 2.3, 0).scale.set(1, 1.35, 1);
-    addMesh(new BoxGeometry(0.1, 0.12, 0.72), glowMat, 0.98, 2.62, 0);
+    addMesh(armorBox(0.1, 0.12, 0.72), glowMat, 0.98, 2.62, 0);
     // shoulders: crystal clusters leaning outwards on dark rock
     for (const z of [-1, 1]) {
       addMesh(new DodecahedronGeometry(0.42, 0), darkMat, -0.05, 2.35, z * 1.2);
@@ -1724,19 +1754,25 @@ function buildBossModel(type, color) {
     // a heavy rim, a head with a glowing visor and a furnace mouth at the front (+x), hammer fists,
     // two chimneys and a flywheel on its back. The renderer lets the chimneys throw embers
     // (userData.chimneys).
-    let ironMat = new MeshLambertMaterial({ color: 2366244, emissive: 0, flatShading: true });
-    addMesh(new BoxGeometry(1, 1, 0.9), darkMat, -0.1, 0.5, 0.95);
-    addMesh(new BoxGeometry(1, 1, 0.9), darkMat, -0.1, 0.5, -0.95);
+    let ironMat = new MeshPhongMaterial({
+      color: 2366244,
+      emissive: 0,
+      specular: 0x53616b,
+      shininess: 28,
+      flatShading: true,
+    });
+    addMesh(armorBox(1, 1, 0.9), darkMat, -0.1, 0.5, 0.95);
+    addMesh(armorBox(1, 1, 0.9), darkMat, -0.1, 0.5, -0.95);
     addMesh(new CylinderGeometry(1.55, 1.15, 2, 8), ironMat, 0, 2, 0);
     addMesh(new CylinderGeometry(0.95, 0.95, 0.1, 12), glowMat, -0.25, 3.02, 0);
-    addMesh(new BoxGeometry(0.75, 0.6, 1.05), darkMat, 1.05, 3.1, 0);
-    addMesh(new BoxGeometry(0.1, 0.14, 0.75), glowMat, 1.44, 3.14, 0);
-    addMesh(new BoxGeometry(0.3, 0.55, 1.1), glowMat, 1.3, 1.85, 0).rotation.set(0, 0, 0.2);
+    addMesh(armorBox(0.75, 0.6, 1.05), darkMat, 1.05, 3.1, 0);
+    addMesh(armorBox(0.1, 0.14, 0.75), glowMat, 1.44, 3.14, 0);
+    addMesh(armorBox(0.3, 0.55, 1.1), glowMat, 1.3, 1.85, 0).rotation.set(0, 0, 0.2);
     let rim = addMesh(new TorusGeometry(1.3, 0.26, 5, 16), hullMat, 0, 3, 0);
     rim.rotation.x = Math.PI / 2;
     for (let side of [1, -1]) {
-      addMesh(new BoxGeometry(0.85, 0.85, 0.85), hullMat, 0, 2.35, side * 1.75);
-      addMesh(new BoxGeometry(1.2, 0.95, 0.95), darkMat, 0.55, 1.35, side * 1.95);
+      addMesh(armorBox(0.85, 0.85, 0.85), hullMat, 0, 2.35, side * 1.75);
+      addMesh(armorBox(1.2, 0.95, 0.95), darkMat, 0.55, 1.35, side * 1.95);
       addMesh(new CylinderGeometry(0.26, 0.34, 1.7, 6), darkMat, -1.05, 3.1, side * 0.55);
       addMesh(new CylinderGeometry(0.2, 0.2, 0.08, 6), glowMat, -1.05, 3.97, side * 0.55);
     }
@@ -1826,27 +1862,33 @@ function buildBossModel(type, color) {
     // figure in cracked obsidian plate (hullMat, the boss colour turned ember) with molten seams, an
     // ember crest on the helm and molten fists. The renderer throws embers off its shoulder vents
     // (userData.chimneys) and draws its charge aim-line.
-    const plateTrim = new MeshLambertMaterial({ color: 0x1a1412, emissive: 0, flatShading: true });
+    const plateTrim = new MeshPhongMaterial({
+      color: 0x1a1412,
+      emissive: 0,
+      specular: 0x53616b,
+      shininess: 28,
+      flatShading: true,
+    });
     // the body: a broad chest plate with a molten seam down the front, the lava core under it
-    addMesh(new BoxGeometry(2.3, 1.7, 1.5), hullMat, 0, 1.95, 0);
-    addMesh(new BoxGeometry(0.62, 1.35, 0.14), plateTrim, 0, 2.05, 0.78);
-    addMesh(new BoxGeometry(0.16, 0.95, 0.06), glowMat, 0, 2.2, 0.86);
-    addMesh(new BoxGeometry(1.9, 0.5, 1.25), hullMat, 0, 0.85, 0);
+    addMesh(armorBox(2.3, 1.7, 1.5), hullMat, 0, 1.95, 0);
+    addMesh(armorBox(0.62, 1.35, 0.14), plateTrim, 0, 2.05, 0.78);
+    addMesh(armorBox(0.16, 0.95, 0.06), glowMat, 0, 2.2, 0.86);
+    addMesh(armorBox(1.9, 0.5, 1.25), hullMat, 0, 0.85, 0);
     for (const side of [-1, 1]) {
       addMesh(new CylinderGeometry(0.34, 0.42, 1.15, 8), plateTrim, side * 0.55, 0.55, 0);
-      addMesh(new BoxGeometry(0.44, 0.22, 0.8), plateTrim, side * 0.55, 0.11, 0.12);
+      addMesh(armorBox(0.44, 0.22, 0.8), plateTrim, side * 0.55, 0.11, 0.12);
       // pauldrons and molten cuffs
       addMesh(new SphereGeometry(0.52, 10, 8), hullMat, side * 1.28, 2.62, 0);
-      addMesh(new BoxGeometry(0.3, 0.12, 0.3), glowMat, side * 1.55, 1.72, 0.18);
+      addMesh(armorBox(0.3, 0.12, 0.3), glowMat, side * 1.55, 1.72, 0.18);
     }
     // the head: a basalt helm, glowing eyes deep in its shadow
-    addMesh(new BoxGeometry(0.78, 0.72, 0.78), plateTrim, 0, 3.2, 0);
-    addMesh(new BoxGeometry(0.6, 0.14, 0.06), glowMat, 0, 3.3, 0.41);
-    addMesh(new BoxGeometry(0.1, 0.06, 0.04), glowMat, 0.18, 3.34, 0.42);
-    addMesh(new BoxGeometry(0.1, 0.06, 0.04), glowMat, -0.14, 3.34, 0.42);
+    addMesh(armorBox(0.78, 0.72, 0.78), plateTrim, 0, 3.2, 0);
+    addMesh(armorBox(0.6, 0.14, 0.06), glowMat, 0, 3.3, 0.41);
+    addMesh(armorBox(0.1, 0.06, 0.04), glowMat, 0.18, 3.34, 0.42);
+    addMesh(armorBox(0.1, 0.06, 0.04), glowMat, -0.14, 3.34, 0.42);
     // the ember crest: a molten ridge over the helm between two horn plates swept back
     addMesh(new CylinderGeometry(0.42, 0.5, 0.42, 12), plateTrim, 0, 3.75, 0);
-    addMesh(new BoxGeometry(0.1, 0.34, 0.7), glowMat, 0, 4.06, -0.05);
+    addMesh(armorBox(0.1, 0.34, 0.7), glowMat, 0, 4.06, -0.05);
     const hornL = addMesh(new ConeGeometry(0.16, 0.66, 6), plateTrim, 0.3, 4.12, -0.18);
     hornL.rotation.x = -0.55;
     hornL.rotation.z = -0.22;
@@ -1854,11 +1896,11 @@ function buildBossModel(type, color) {
     hornR.rotation.x = -0.55;
     hornR.rotation.z = 0.22;
     // the cinder thrower: a slab barrel over a molten drum, a hot muzzle
-    const gun = addMesh(new BoxGeometry(1.7, 0.24, 0.22), plateTrim, 1.35, 1.75, 0.95);
+    const gun = addMesh(armorBox(1.7, 0.24, 0.22), plateTrim, 1.35, 1.75, 0.95);
     gun.rotation.y = -0.25;
     const drum = addMesh(new CylinderGeometry(0.26, 0.26, 0.16, 12), plateTrim, 1.15, 1.42, 1.02);
     drum.rotation.x = Math.PI / 2;
-    addMesh(new BoxGeometry(0.14, 0.14, 0.14), glowMat, 2.2, 1.85, 0.75);
+    addMesh(armorBox(0.14, 0.14, 0.14), glowMat, 2.2, 1.85, 0.75);
     // the shoulder vents: the embers drift off them (the old cigar's chimney, twice over)
     addMesh(new CylinderGeometry(0.1, 0.14, 0.14, 8), plateTrim, 1.02, 2.86, 0.1);
     addMesh(new CylinderGeometry(0.1, 0.14, 0.14, 8), plateTrim, -1.02, 2.86, 0.1);
@@ -1890,7 +1932,7 @@ function buildBossModel(type, color) {
     // (hemi 1.15 + sun 2.2 + fill 0.65 over a pale floor), so the amber self-lights - and stays out of
     // the renderer's flash loop (the underside flashes on hits instead)
     const glass = (color, emissive, opacity) => {
-      const mat = new MeshLambertMaterial({
+      const mat = new MeshPhongMaterial({
         color,
         emissive,
         flatShading: true,
@@ -1908,7 +1950,7 @@ function buildBossModel(type, color) {
     head.scale.set(1.2, 1.55, 1.05);
     head.rotation.z = -0.12;
     addMesh(new OctahedronGeometry(0.52, 0), glowMat, 1.75, 2.0, 0).scale.set(1.0, 1.35, 0.95);
-    addMesh(new BoxGeometry(0.1, 0.14, 0.6), glowMat, 2.9, 2.3, 0);
+    addMesh(armorBox(0.1, 0.14, 0.6), glowMat, 2.9, 2.3, 0);
     for (const side of [1, -1]) {
       const jaw = addMesh(new ConeGeometry(0.26, 1.15, 5), vitreDark, 2.45, 1.4, side * 0.42);
       jaw.rotation.set(side * -0.35, 0, -Math.PI / 2 + 0.25);
@@ -2015,7 +2057,7 @@ function buildBossModel(type, color) {
 function wingDroneGeometry() {
   return mergeParts([
     meshPart(new OctahedronGeometry(0.28), 9348036, { y: 0.9, sy: 0.6 }),
-    meshPart(new BoxGeometry(0.5, 0.06, 0.12), 2898514, { x: 0.2, y: 0.9 }),
+    meshPart(armorBox(0.5, 0.06, 0.12), 2898514, { x: 0.2, y: 0.9 }),
   ]);
 }
 function orbitBladeGeometry() {
@@ -2036,10 +2078,7 @@ function shardGeometry() {
   return geo;
 }
 function healCrossGeometry() {
-  return mergeParts([
-    meshPart(new BoxGeometry(0.5, 0.16, 0.16), 16777215),
-    meshPart(new BoxGeometry(0.16, 0.5, 0.16), 16777215),
-  ]);
+  return mergeParts([meshPart(armorBox(0.5, 0.16, 0.16), 16777215), meshPart(armorBox(0.16, 0.5, 0.16), 16777215)]);
 }
 
 export {
