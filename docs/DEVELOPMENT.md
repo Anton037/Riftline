@@ -1,7 +1,7 @@
 # Riftline: development notes
 
 How the code is organised and the rules for changing it. The README covers commands, structure and hosting;
-`CLAUDE.md` holds the short working rules for Claude Code sessions.
+release rules are maintained in README and this document.
 
 ## How the code got here
 

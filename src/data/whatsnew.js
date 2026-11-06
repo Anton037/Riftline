@@ -4,6 +4,17 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "3.62.1",
+    title: "Reliable saves and fairer hazards",
+    items: [
+      "Repeated Endless boss defeats survive Continue, and unusable saves are backed up before replacement.",
+      "Champion rallies expire and every Sunstruck enemy receives its temporary sprint.",
+      "Hazmat and Hazard Seal protect against traps, and fast enemy shots collide along their path.",
+      "Scattergun damage estimates count extra pellets correctly and invalid challenge dates are rejected.",
+      "The Rift Core stops summoning reinforcements into an overcrowded arena.",
+    ],
+  },
+  {
     version: "3.62.0",
     title: "Practice the danger, keep your progress",
     items: [
@@ -48,19 +59,6 @@ export const WHATS_NEW = [
       "Like the Daily it ignores your workshop and pacts, so everyone flies the same drone, and it keeps its own best-of-week and a count of the weeks you played.",
       "You reach it on the Rifts page, under the Daily; the home-screen dot now lights up for an unplayed week too.",
       "The Daily Rift and its streak are unchanged.",
-    ],
-  },
-  {
-    version: "3.58.0",
-    title: "A fairer first run, and no more silent defaults",
-    items: [
-      "Reduce motion now really stills the camera: the shake and the weapon recoil follow the device's setting instead of only the menus.",
-      "The free Pulse hits 8% harder: the bench cleared a wave in 39.9 s with it against 25.2 s with the Ember Jet, and it is the one weapon every new player owns.",
-      "The first boss brings a smaller escort, so learning the Warden's three attacks no longer costs most of a hull.",
-      "Cryo Skates gives +9% speed a level everywhere (was +4%), with the ice bonus on top, so it is not a worse Servo Thrusters outside the Aurora Shelf.",
-      "The Repair Beacon appears in the Glowmarsh: it was in no wave before wave 26, so its Codex entry and its tip reached nobody.",
-      'Every threat level says exactly what it does — hull, damage, wave size, elites, bosses and shards — instead of "only for tuned builds".',
-      "The Glasswyrm gets a medal par of its own (68 s) instead of an unnamed 70 s default, and a self-test now checks every place's boss against the per-boss tables.",
     ],
   },
 ];

@@ -6,7 +6,7 @@ there is no historical release assertion catalog, always-on soak or hidden exten
 | Command | Coverage | Deadline |
 |---|---|---|
 | `npm run check` | Formatting, lint, build and standard tests | Test subprocess 75 s |
-| `npm test` | Ten Node contracts, tablet flow, phone flow, worker update | Build 30 s; tests 75 s |
+| `npm test` | Node contracts, tablet/phone flows, onboarding, training and worker update | Build 30 s; tests 75 s |
 | `npm run test:unit` | Saves, deterministic simulation, data and render geometry | 75 s |
 | `npm run e2e` | Touch, onboarding/audio, training and worker update | Game flows 25–30 s; worker 20 s; process 75 s |
 | `npm run test:render` | Same browser checks with actual drawing | Game flows 90 s each; process 240 s |
@@ -79,6 +79,6 @@ These physical-device, full published-release, long-session and balance checks r
 
 ## Measured duration
 
-The expanded suite has 19 tests. It runs without GPU drawing by default; the optional drawing suite
+The suite includes focused audit regressions for saves, calendars, enemy buffs, traps, projectile collision and summons. It runs without GPU drawing by default; the optional drawing suite
 has a separate deadline because software rasterisation is much slower. Timing depends on hardware
 and CI load; these deadlines are not a mobile FPS target.

@@ -6,6 +6,12 @@ import { weaponOrder } from "../data/weapons.js";
 
 const KEY = /^\d{4}-\d{2}-\d{2}$/;
 
+function isDailyKey(key) {
+  if (typeof key !== "string" || !KEY.test(key)) return false;
+  const time = Date.parse(key + "T00:00:00Z");
+  return Number.isFinite(time) && new Date(time).toISOString().slice(0, 10) === key;
+}
+
 /* the day as 2026-10-06 (UTC) */
 function dailyKey(now = Date.now()) {
   return new Date(now).toISOString().slice(0, 10);
@@ -24,12 +30,13 @@ function hash(text) {
 }
 /* what the Rift of a day is: { key, seed, weapon, threat } (a third of the days are Threat I) */
 function dailySpec(key = dailyKey()) {
-  if (!KEY.test(key)) key = dailyKey();
+  if (!isDailyKey(key)) key = dailyKey();
   const h = hash("riftline-daily-" + key);
   return { key, seed: h, weapon: weaponOrder[h % weaponOrder.length], threat: hash(key + "-threat") % 3 === 0 ? 1 : 0 };
 }
 /* the record of a day's run goes into stats.daily: the day, the best wave and kills of that day, the streak and the days played */
 function recordDaily(daily, key, wave, kills) {
+  if (!isDailyKey(key)) return false;
   if (daily.key !== key) {
     daily.streak = daily.key && daily.key === dayBefore(key) ? daily.streak + 1 : 1;
     daily.days++;
@@ -50,4 +57,4 @@ function liveStreak(daily, key = dailyKey()) {
   return daily.key === key || daily.key === dayBefore(key) ? daily.streak : 0;
 }
 
-export { dailyKey, dayBefore, dailySpec, recordDaily, liveStreak, KEY as DAILY_KEY };
+export { isDailyKey, dailyKey, dayBefore, dailySpec, recordDaily, liveStreak, KEY as DAILY_KEY };
