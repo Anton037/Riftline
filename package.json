@@ -1,16 +1,16 @@
 {
   "name": "riftline",
-  "version": "3.62.1",
+  "version": "3.63.0",
   "private": true,
   "type": "module",
-  "description": "Riftline \u2013 a touch-only 3D arena roguelite shooter for phones and tablets in landscape (three.js, WebAudio).",
+  "description": "Riftline – a touch-only 3D arena roguelite shooter for phones and tablets in landscape (three.js, WebAudio).",
   "homepage": "https://anton037.github.io/Riftline/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Anton037/Riftline.git"
   },
   "riftline": {
-    "build": "r3621a1106a-r1"
+    "build": "r3630a1106a-r1"
   },
   "scripts": {
     "build": "node build.js",
