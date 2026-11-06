@@ -96,3 +96,10 @@ as B completes the wait. The five-second readiness bound and all offline/bundle/
 remain. No service-worker production behavior was changed for this test defect.
 Ten consecutive isolated worker runs passed after this change. Follow-up full-gate and CI results
 are recorded in the PR description for its latest commit. Initial failure logs above remain historical.
+
+
+Software-render follow-up: at the tablet timeout, the live world was unpaused, enemies/markers/pickups
+were empty, and the clear animation had advanced only 1.05 simulated seconds (threshold 1.6).
+Actual drawing on this software GPU advances simulation slowly because each frame delta is capped.
+The optional draw suite now allows 45-second condition waits, 180 seconds per game flow and 600 seconds
+for the process. Normal CI/default deadlines and all state assertions are unchanged.

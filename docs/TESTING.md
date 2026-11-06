@@ -9,7 +9,7 @@ there is no historical release assertion catalog, always-on soak or hidden exten
 | `npm test` | Node contracts, tablet/phone flows, onboarding, training and worker update | Build 30 s; tests 75 s |
 | `npm run test:unit` | Saves, deterministic simulation, data and render geometry | 75 s |
 | `npm run e2e` | Touch, onboarding/audio, training and worker update | Game flows 25–30 s; worker 20 s; process 75 s |
-| `npm run test:render` | Same browser checks with actual drawing | Game flows 90 s each; process 240 s |
+| `npm run test:render` | Same browser checks with actual drawing | Game flows 180 s each; process 600 s |
 | `npm run audit:visual` | Six biomes and bosses on tablet and landscape phone, High | 240 s per layout |
 | `npm run verify:audio` | Optional synthesized sound correctness | 420 s |
 | `npm run verify:audio-budget` | Optional audio scheduler/real-node parity | 180 s |

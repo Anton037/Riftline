@@ -66,7 +66,7 @@ export async function openGame(t, tablet, { fresh = false, audio = false } = {})
   );
   const page = await context.newPage(),
     errors = [];
-  page.setDefaultTimeout(draw ? 15000 : 6000);
+  page.setDefaultTimeout(draw ? 45000 : 6000);
   page.setDefaultNavigationTimeout(15000);
   page.on("pageerror", (e) => errors.push(e.message));
   page.on("console", (m) => {
