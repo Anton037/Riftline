@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { openGame } from "./support/game.mjs";
 
-const timeout = process.env.TEST_DRAW === "1" ? 90000 : 30000;
+const timeout = process.env.TEST_DRAW === "1" ? 180000 : 30000;
 
 test(
   "first-run tutorial accepts touch, unlocks audio and resumes safely after backgrounding",

@@ -19,9 +19,17 @@ function weekKey(now = Date.now()) {
   return `${thursday.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
 }
 
+function isWeeklyKey(key) {
+  if (typeof key !== "string" || !KEY.test(key)) return false;
+  // December 28 always belongs to the final ISO week of its year.
+  const last = weekKey(Date.parse(key.slice(0, 4) + "-12-28T00:00:00Z"));
+  const week = Number(key.slice(6));
+  return week >= 1 && week <= Number(last.slice(6));
+}
+
 /* what the Rift of a week is: { key, seed, weapon, threat, mutators } (two distinct mutators, fixed all week) */
 function weeklySpec(key = weekKey()) {
-  if (!KEY.test(key)) key = weekKey();
+  if (!isWeeklyKey(key)) key = weekKey();
   const first = hashString(key + "-mut-a") % MUTATOR_IDS.length;
   let second = hashString(key + "-mut-b") % MUTATOR_IDS.length;
   if (second === first) second = (second + 1) % MUTATOR_IDS.length;
@@ -36,6 +44,7 @@ function weeklySpec(key = weekKey()) {
 
 /* the record of a week's run goes into stats.weekly: the week, its best wave and kills, the best wave ever, the weeks played */
 function recordWeekly(weekly, key, wave, kills) {
+  if (!isWeeklyKey(key)) return false;
   if (weekly.key !== key) {
     weekly.weeks++;
     weekly.key = key;
@@ -51,4 +60,4 @@ function recordWeekly(weekly, key, wave, kills) {
   return better;
 }
 
-export { weekKey, weeklySpec, recordWeekly, KEY as WEEKLY_KEY };
+export { isWeeklyKey, weekKey, weeklySpec, recordWeekly, KEY as WEEKLY_KEY };

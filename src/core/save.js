@@ -8,8 +8,8 @@ import { weaponDefs } from "../data/weapons.js";
 import { RL_RETIRED_WEAPONS, RL_RETIRED_MODULES, milestones, workshopModules, rlRetired } from "../data/progression.js";
 import { upgradeList, upgradesById, rlRetiredUpgrade } from "../data/upgrades.js";
 import { BOSS_CARD_CHANCE } from "./boss-cards.js";
-import { DAILY_KEY } from "./daily.js";
-import { WEEKLY_KEY } from "./weekly.js";
+import { isDailyKey } from "./daily.js";
+import { isWeeklyKey } from "./weekly.js";
 import { MUTATOR_IDS, MUTATOR_MAX_LEVEL } from "./mutators.js";
 import { cleanPacts } from "../data/pacts.js";
 import { HUD_CONTROL_IDS, HUD_LIMITS } from "../data/hud.js";
@@ -18,6 +18,7 @@ import { HUD_CONTROL_IDS, HUD_LIMITS } from "../data/hud.js";
  save existed). Retry without the unfinished run; null when nothing could be used (3.32.0: the caller backs the
  raw save up and decides what to do: start a fresh profile, or keep this tab's progress). */
 function rlLoadSave(raw) {
+  if (!raw || Array.isArray(raw) || raw.game !== "riftline" || raw.v !== 1) return null;
   try {
     return cleanSave(raw);
   } catch (err) {
@@ -298,7 +299,7 @@ function cleanRun(raw) {
     banished: [],
     banishes: Math.floor(cleanNumber(raw.banishes, 0, 0, 9)),
     // 3.26.0: the day of a Daily Rift run (empty for a normal run)
-    daily: typeof raw.daily === "string" && DAILY_KEY.test(raw.daily) ? raw.daily : "",
+    daily: typeof raw.daily === "string" && isDailyKey(raw.daily) ? raw.daily : "",
     // 3.27.0: the pacts of the run
     pacts: cleanPacts(raw.pacts),
     revived: !!raw.revived,
@@ -325,7 +326,8 @@ function cleanRun(raw) {
     if (level) run.up[upgrade.id] = level;
   }
   const rawBoss = Array.isArray(raw.bossKills) ? raw.bossKills : [];
-  run.bossKills = [...new Set(rawBoss.filter((id) => typeof id === "string" && bossOrder.includes(id)))];
+  // This is an event list: Endless can defeat the same boss more than once.
+  run.bossKills = rawBoss.filter((id) => typeof id === "string" && bossOrder.includes(id));
   const rawStats = asObject(raw.runStats);
   run.runStats.dmgTaken = Math.floor(cleanNumber(rawStats.dmgTaken, 0, 0, 1e12));
   run.runStats.dashes = Math.floor(cleanNumber(rawStats.dashes, 0, 0, 1e7));
@@ -364,7 +366,7 @@ function cleanRun(raw) {
   }
   // 3.58.0: a Weekly Rift carries its week and the mutators it pins. A normal or Daily run carries neither, and
   // the keys stay absent rather than empty so the stored shape of every older run is byte-for-byte unchanged.
-  if (typeof raw.weekly === "string" && WEEKLY_KEY.test(raw.weekly)) run.weekly = raw.weekly;
+  if (typeof raw.weekly === "string" && isWeeklyKey(raw.weekly)) run.weekly = raw.weekly;
   const startMods = cleanStartMods(raw.startMods);
   if (startMods) run.startMods = startMods;
   return run;
@@ -439,7 +441,7 @@ function cleanSave(input) {
   {
     const d = asObject(rawStats.daily);
     stats.daily = {
-      key: typeof d.key === "string" && DAILY_KEY.test(d.key) ? d.key : "",
+      key: typeof d.key === "string" && isDailyKey(d.key) ? d.key : "",
       wave: Math.floor(cleanNumber(d.wave, 0, 0, 999)),
       kills: Math.floor(cleanNumber(d.kills, 0, 0, 1e9)),
       streak: Math.floor(cleanNumber(d.streak, 0, 0, 9999)),
@@ -452,7 +454,7 @@ function cleanSave(input) {
   {
     const wk = asObject(rawStats.weekly);
     stats.weekly = {
-      key: typeof wk.key === "string" && WEEKLY_KEY.test(wk.key) ? wk.key : "",
+      key: typeof wk.key === "string" && isWeeklyKey(wk.key) ? wk.key : "",
       wave: Math.floor(cleanNumber(wk.wave, 0, 0, 999)),
       kills: Math.floor(cleanNumber(wk.kills, 0, 0, 1e9)),
       weeks: Math.floor(cleanNumber(wk.weeks, 0, 0, 9999)),

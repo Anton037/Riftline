@@ -174,7 +174,7 @@ function buildStatRows(weaponId, run, workshop, hp) {
   const weapon = weaponDefs[weaponId] || weaponDefs.pulse,
     now = computeStats(weaponId, run, workshop),
     base = computeStats(weaponId, {}, workshop),
-    shots = (s) => (weapon.count || 1) + (s.extra || 0),
+    shots = (s) => (weapon.count || 1) + (s.extra || 0) * (weapon.cone ? 2 : 1),
     perHit = (s) => weapon.dmg * s.dmgMul,
     perSecond = (s) => perHit(s) * s.rateMul * weapon.rate * shots(s) * (1 + s.crit * (s.critMul - 1)),
     row = (label, f, unit, better = "up", digits = 1) => ({

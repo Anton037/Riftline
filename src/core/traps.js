@@ -120,7 +120,11 @@ const base0 = (fam, wave) => wave >= TRAP_FROM[fam];
 // damage of a trap on the player: its base times the wave's enemy damage multiplier
 // 3.40.0: past wave 20 the trap grows by 1 % of its base a wave as well - the enemy hull curve is
 // quadratic while the player's hazard pressure was linear, and the traps faded out of Endless runs
-const trapDamage = (world, skin) => skin.dmg * world.dmgMul * (1 + 0.01 * Math.max(0, (world.wave || 1) - 20));
+const trapDamage = (world, skin) =>
+  skin.dmg *
+  world.dmgMul *
+  (1 + 0.01 * Math.max(0, (world.wave || 1) - 20)) *
+  Math.max(0, 1 - (world.stats.hazardResist || 0));
 
 // 3.7.1: an ice trap chills, an electric one (plate, rift burst) stuns: both slow the drone, but a stun has its own
 // look and sound (it used to send the frost sparkle and ping of "chill")

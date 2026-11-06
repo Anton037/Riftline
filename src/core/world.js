@@ -1091,9 +1091,6 @@ const rlStep = 1 / 60,
           }
         });
       }
-      if (enemy.rallyT > 0) {
-        enemy.rallyT -= dt;
-      }
       enemy.vt = (enemy.vt || 0) - dt;
       if (enemy.variant === "scorch" && enemy.vt <= 0 && Math.hypot(enemy.vx, enemy.vy) > 0.5) {
         enemy.vt = 1.1;
@@ -2127,6 +2124,7 @@ const rlStep = 1 / 60,
       return boss;
     }
     statusTick(enemy, dt) {
+      if (enemy.rallyT > 0) enemy.rallyT = Math.max(0, enemy.rallyT - dt);
       enemy.age += dt;
       if (enemy.spawnT > 0) {
         enemy.spawnT -= dt;
@@ -3025,29 +3023,33 @@ const rlStep = 1 / 60,
             bullet.vx *= 1 + bullet.accel * dt;
             bullet.vy *= 1 + bullet.accel * dt;
           }
-          bullet.x += bullet.vx * dt;
-          bullet.y += bullet.vy * dt;
-          if (
-            arena.outside(bullet.x, bullet.y, -0.5) ||
-            (bullet.solid !== false && arena.blocked(bullet.x, bullet.y, bullet.r * 0.4))
-          ) {
-            bullet.life = 0;
-            this.emit("pop", { x: bullet.x, y: bullet.y });
-            continue;
-          }
-          if (player.alive) {
-            let dx = player.x - bullet.x,
-              dy = player.y - bullet.y,
-              hitR = player.r * 0.8 + bullet.r;
-            if (dx * dx + dy * dy < hitR * hitR && player.iT <= 0 && player.dashT <= 0) {
+          // Sweep fast Endless shots through walls and the player, rather than testing only the endpoint.
+          const steps = Math.max(1, Math.ceil((Math.hypot(bullet.vx, bullet.vy) * dt) / 0.2));
+          for (let step = 0; step < steps && bullet.life > 0; step++) {
+            bullet.x += (bullet.vx * dt) / steps;
+            bullet.y += (bullet.vy * dt) / steps;
+            if (
+              arena.outside(bullet.x, bullet.y, -0.5) ||
+              (bullet.solid !== false && arena.blocked(bullet.x, bullet.y, bullet.r * 0.4))
+            ) {
               bullet.life = 0;
-              if (
-                this.hurtPlayer(bullet.dmg, bullet.x - bullet.vx * 0.05, bullet.y - bullet.vy * 0.05, bullet.src) &&
-                bullet.frost
-              ) {
-                player.slowT = 1.6;
-                player.slowKind = "chill";
-                this.emit("chill", { x: player.x, y: player.y });
+              this.emit("pop", { x: bullet.x, y: bullet.y });
+              break;
+            }
+            if (player.alive) {
+              let dx = player.x - bullet.x,
+                dy = player.y - bullet.y,
+                hitR = player.r * 0.8 + bullet.r;
+              if (dx * dx + dy * dy < hitR * hitR && player.iT <= 0 && player.dashT <= 0) {
+                bullet.life = 0;
+                if (
+                  this.hurtPlayer(bullet.dmg, bullet.x - bullet.vx * 0.05, bullet.y - bullet.vy * 0.05, bullet.src) &&
+                  bullet.frost
+                ) {
+                  player.slowT = 1.6;
+                  player.slowKind = "chill";
+                  this.emit("chill", { x: player.x, y: player.y });
+                }
               }
             }
           }

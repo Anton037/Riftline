@@ -383,7 +383,7 @@ upgradeList.push(
     rarity: 2,
     max: 4,
     icon: "shield",
-    desc: (level, count = level + 1) => `-${Math.min(88, 25 * count)}% hazard damage (lava, acid)`,
+    desc: (level, count = level + 1) => `-${Math.min(88, 25 * count)}% map hazard damage`,
   },
   {
     id: "echo",
