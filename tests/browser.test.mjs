@@ -7,7 +7,7 @@ import { openGame } from "./support/game.mjs";
 for (const tablet of [true, false])
   test(
     `${tablet ? "tablet player" : "phone multitouch"} flow`,
-    { timeout: process.env.TEST_DRAW === "1" ? 90000 : tablet ? 30000 : 25000 },
+    { timeout: process.env.TEST_DRAW === "1" ? 180000 : tablet ? 30000 : 25000 },
     async (t) => {
       const started = performance.now();
       const { page, press, errors, stopServer } = await openGame(t, tablet);

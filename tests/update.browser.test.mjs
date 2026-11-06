@@ -90,7 +90,9 @@ test("updates keep installed snapshots intact and old bundles available offline"
     }),
     a.files["index.html"],
   );
-  await page.waitForFunction(async () => {
+  // Playwright 1.64 polls the Promise itself as truthy and returns even when it resolves false.
+  // Use lifecycle events and an awaited browser Promise for asynchronous identity checks.
+  await page.evaluate(async () => {
     const identify = (worker) =>
       new Promise((resolve) => {
         if (!worker || worker.state === "redundant") return resolve(null);
@@ -109,11 +111,55 @@ test("updates keep installed snapshots intact and old bundles available offline"
         }
       });
     const reg = await navigator.serviceWorker.getRegistration();
-    // Capture and identify B in the same browser call that requests activation. A live nullable
-    // registration field can change between calls; A or the failed C is never readiness for B.
-    const worker = reg.waiting;
-    if ((await identify(worker)) === "b") worker.postMessage("skipWaiting");
-    return (await identify(navigator.serviceWorker.controller)) === "b";
+    await new Promise((resolve, reject) => {
+      const observed = new Set();
+      let checking = false,
+        again = false;
+      const cleanup = () => {
+        clearTimeout(timer);
+        navigator.serviceWorker.removeEventListener("controllerchange", check);
+        reg.removeEventListener("updatefound", check);
+        for (const worker of observed) worker.removeEventListener("statechange", check);
+      };
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(new Error("Release B did not activate and take control"));
+      }, 5000);
+      async function check() {
+        if (checking) {
+          again = true;
+          return;
+        }
+        checking = true;
+        try {
+          do {
+            again = false;
+            for (const worker of [reg.installing, reg.waiting, reg.active]) {
+              if (worker && !observed.has(worker)) {
+                observed.add(worker);
+                worker.addEventListener("statechange", check);
+              }
+            }
+            const waiting = reg.waiting;
+            if ((await identify(waiting)) === "b") waiting.postMessage("skipWaiting");
+            const controller = navigator.serviceWorker.controller;
+            if (controller?.state === "activated" && (await identify(controller)) === "b") {
+              cleanup();
+              resolve();
+              return;
+            }
+          } while (again);
+        } catch (error) {
+          cleanup();
+          reject(error);
+        } finally {
+          checking = false;
+        }
+      }
+      navigator.serviceWorker.addEventListener("controllerchange", check);
+      reg.addEventListener("updatefound", check);
+      void check();
+    });
   });
   assert.equal(await page.evaluate(() => window.release), "a", "Existing page stays on its running bundle");
   await stopServer();

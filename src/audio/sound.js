@@ -1346,59 +1346,50 @@ const musicChords = {
       let pitch = 1 + (Math.random() - 0.5) * 0.08;
       switch (id) {
         // 2.9.0: seven weapons, seven sound families (waveform, pitch range, envelope, tail)
+        // 3.63: dry, phone-readable transients over a short body; each weapon has a different gesture.
         case "pulse":
-          // 3.42.0: from the bright arcade "pew" (1500 Hz falling sine + square edge) to a weighty
-          // "thoom": the drop an octave lower, a soft noise transient instead of the square, a sub thump
           if (this.gate(id, 0.06)) {
-            this.tone(640 * pitch, 0.09, "sine", 0.055, { to: 170 });
-            this.noise(0.05, 0.028, { type: "bandpass", f: 1400, q: 1.2, attack: 0.001 });
-            this.tone(110 * pitch, 0.08, "sine", 0.04, { to: 48 });
+            this.noise(0.025, 0.046, { type: "bandpass", f: 2400, q: 0.8, attack: 0.001, rev: 0.02 });
+            this.tone(430 * pitch, 0.095, "triangle", 0.055, { to: 145, lp: 2100 });
+            this.tone(118 * pitch, 0.075, "sine", 0.035, { to: 62 });
           }
           break;
         case "scatter":
-          // shotgun: a wide noise blast, a low thump and the click of the pump a moment later
           if (this.gate(id, 0.08)) {
-            this.noise(0.2, 0.26, { f: 3200, to: 350, attack: 0.001 });
-            this.tone(150, 0.16, "sine", 0.3, { to: 42 });
-            this.noise(0.03, 0.06, { type: "bandpass", f: 2600, q: 3, at: 0.17 });
+            this.noise(0.045, 0.14, { type: "bandpass", f: 2300, to: 1250, q: 0.6, attack: 0.001 });
+            this.noise(0.16, 0.12, { f: 950, to: 330, attack: 0.004 });
+            this.tone(165 * pitch, 0.14, "triangle", 0.14, { to: 70, lp: 1100 });
+            this.noise(0.026, 0.045, { type: "bandpass", f: 3200, q: 2, at: 0.14 });
           }
           break;
         case "tesla":
-          // 3.42.0: the crackle leaves the dog-whistle range (2.6-5.8 kHz squares -> 0.7-1.6 kHz, low-passed
-          // hard) and a low arc hum carries it, so the arc sounds like current, not like a fly
           if (this.gate(id, 0.06)) {
-            this.tone(700 + Math.random() * 500, 0.03, "square", 0.022, { lp: 2600 });
-            this.tone(1000 + Math.random() * 600, 0.03, "square", 0.018, { at: 0.03, lp: 2600 });
-            this.noise(0.09, 0.05, { type: "bandpass", f: 3200, q: 4 });
-            this.tone(58, 0.14, "sine", 0.05, { to: 40 });
+            this.noise(0.025, 0.07, { type: "bandpass", f: 2800, q: 1.4, attack: 0.001 });
+            this.tone(920 * pitch, 0.055, "triangle", 0.037, { to: 410, pan: -0.08 });
+            this.tone(1460 * pitch, 0.07, "sine", 0.023, { to: 640, at: 0.02, pan: 0.08 });
+            this.tone(180, 0.1, "sine", 0.04, { to: 85 });
           }
           break;
         case "rail":
-          // railgun: a sharp crack, a supersonic drop from 3.2 kHz, a sub recoil and a ringing metal tail
           if (this.gate(id, 0.1)) {
-            this.noise(0.04, 0.2, { type: "highpass", f: 4e3, attack: 0.001 });
-            this.tone(3200, 0.28, "sine", 0.14, { to: 70 });
-            this.tone(55, 0.3, "sine", 0.17, { to: 35 });
-            this.tone(1320, 0.6, "triangle", 0.06, { at: 0.03 });
-            this.tone(1990, 0.5, "triangle", 0.04, { at: 0.03 });
+            this.noise(0.022, 0.18, { type: "highpass", f: 2700, attack: 0.001, rev: 0.08 });
+            this.tone(1750 * pitch, 0.16, "triangle", 0.075, { to: 180, lp: 3800 });
+            this.tone(138, 0.21, "sine", 0.15, { to: 46 });
+            this.tone(1140, 0.32, "sine", 0.035, { at: 0.025, pan: 0.1, rev: 0.12 });
           }
           break;
         case "rocket":
-          // rocket: the launch "foomp", then a long rising whoosh over a rough motor
           if (this.gate(id, 0.08)) {
-            this.tone(120, 0.14, "sine", 0.2, { to: 55 });
-            this.noise(0.5, 0.2, { type: "bandpass", f: 350, to: 1800, q: 0.8, attack: 0.12 });
-            this.tone(80, 0.45, "sawtooth", 0.05, { to: 150, lp: 350, attack: 0.1 });
+            this.noise(0.035, 0.08, { type: "bandpass", f: 1700, q: 0.6, attack: 0.001 });
+            this.tone(175, 0.14, "triangle", 0.12, { to: 58, lp: 1200 });
+            this.noise(0.32, 0.11, { type: "bandpass", f: 480, to: 2300, q: 0.6, attack: 0.035 });
           }
           break;
         case "disc":
-          // disc launcher: a metallic "shing" (two inharmonic partials, 3.42.0: an octave lower) and a
-          // heavier two-note wub of the spinning blade
           if (this.gate(id, 0.1)) {
-            this.tone(830 * pitch, 0.18, "sine", 0.04);
-            this.tone(1395, 0.14, "sine", 0.024);
-            this.tone(190 * pitch, 0.07, "triangle", 0.08, { to: 320 });
-            this.tone(320 * pitch, 0.08, "triangle", 0.065, { to: 190, at: 0.06 });
+            this.noise(0.035, 0.05, { type: "bandpass", f: 3500, q: 1.8 });
+            this.tone(860 * pitch, 0.18, "triangle", 0.04, { to: 530, pan: -0.08 });
+            this.tone(1375 * pitch, 0.22, "sine", 0.028, { to: 950, at: 0.02, pan: 0.08, rev: 0.08 });
           }
           break;
         case "flame":
@@ -1496,7 +1487,8 @@ const musicChords = {
           {
             const flaming = this.ctx.currentTime - (this.last.flame ?? -9) < 0.3;
             if (this.gate(id, flaming ? 0.12 : 0.035)) {
-              this.tone(1300 * pitch, 0.03, "triangle", flaming ? 0.016 : 0.035);
+              this.noise(0.018, flaming ? 0.012 : 0.035, { type: "bandpass", f: 2100, q: 1.6, attack: 0.001 });
+              if (!flaming) this.tone(460 * pitch, 0.045, "triangle", 0.02, { to: 210 });
             }
           }
           break;
@@ -1525,8 +1517,9 @@ const musicChords = {
           break;
         case "boom":
           if (this.gate(id, 0.05)) {
-            this.noise(0.45, 0.28, { f: 700, to: 120 });
-            this.tone(100, 0.35, "sine", 0.3, { to: 35 });
+            this.noise(0.035, 0.13, { type: "bandpass", f: 2200, q: 0.6, attack: 0.001 });
+            this.noise(0.38, 0.19, { f: 1100, to: 180, attack: 0.008 });
+            this.tone(145, 0.3, "sine", 0.2, { to: 42 });
           }
           break;
         case "smallboom":
@@ -1546,7 +1539,8 @@ const musicChords = {
           this.tone(700, 0.18, "sine", 0.06, { to: 1400 });
           break;
         case "dash":
-          this.noise(0.18, 0.12, { type: "bandpass", f: 700, to: 3200, q: 1.5 });
+          this.noise(0.13, 0.085, { type: "bandpass", f: 850, to: 3400, q: 0.7, attack: 0.008 });
+          this.tone(340, 0.09, "triangle", 0.025, { to: 780, lp: 1800 });
           break;
         // ---- 3.17.0: the walker. A footstep of the ground it comes down on (arg.ground), short and quiet (they come up to
         // six a second), a faint servo whine in each; the landing after a dash is the same, heavier, with a thump ----
@@ -1617,9 +1611,10 @@ const musicChords = {
           break;
         }
         case "nova":
-          this.tone(70, 0.9, "sine", 0.45, { to: 28 });
-          this.noise(0.9, 0.3, { f: 3e3, to: 150 });
-          this.tone(600, 0.5, "sawtooth", 0.06, { to: 60, lp: 2e3 });
+          this.noise(0.045, 0.16, { type: "bandpass", f: 2600, q: 0.7, attack: 0.001 });
+          this.tone(145, 0.65, "sine", 0.26, { to: 38 });
+          this.noise(0.65, 0.18, { f: 2300, to: 240, attack: 0.012 });
+          this.tone(720, 0.38, "triangle", 0.045, { to: 160, lp: 2500, rev: 0.12 });
           break;
         case "novaReady":
           this.tone(880, 0.12, "sine", 0.07);

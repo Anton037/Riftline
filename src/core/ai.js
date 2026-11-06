@@ -22,11 +22,6 @@ function updateEnemyCore(game, enemy, dt) {
     cdy = game.cdy,
     speed = enemy.speed,
     alive = player.alive;
-  // 3.53.0: a Sunstruck enemy sprints while its solar burst lasts (the gleam already showed)
-  if (enemy.sunT > 0) {
-    enemy.sunT -= dt;
-    speed *= 2.1;
-  }
   if (
     enemy.hunt &&
     (enemy.type === "gunner" ||
@@ -1026,6 +1021,10 @@ function updateBoss(game, boss, dt) {
               : phase === 2
                 ? ["grunt", "gunner", "bomber", "striker"]
                 : ["brute", "bulwark", "striker", "mortar"];
+          // Like the other summoning bosses, stop filling an already crowded arena.
+          // Pending markers count too: they become enemies one second later.
+          const room = Math.max(0, 74 - game.enemies.length - game.markers.length);
+          types = types.slice(0, room);
           for (let type of types) {
             let spot = game.arena.freePoint(game.rng, player.x, player.y, 7, 1);
             game.markers.push({ x: spot.x, y: spot.y, t: 0, dur: 1, type, elite: false, done: false, boss: boss.type });
@@ -1593,6 +1592,19 @@ function findOpenSpot(game, x, y, minR, maxR) {
   return null;
 }
 function updateEnemy(game, enemy, dt) {
+  const speed = enemy.speed;
+  if (enemy.sunT > 0) {
+    enemy.sunT = Math.max(0, enemy.sunT - dt);
+    enemy.speed *= 2.1;
+  }
+  try {
+    updateEnemyRole(game, enemy, dt);
+  } finally {
+    enemy.speed = speed;
+  }
+}
+
+function updateEnemyRole(game, enemy, dt) {
   // stragglers (see RL_KITERS): hunting ranged enemies (RL_KITERS) come straight at the player.
   if (enemy.hunt && RL_KITERS.has(enemy.type) && !(enemy.spawnT > 0)) {
     game.chaseDir(enemy);

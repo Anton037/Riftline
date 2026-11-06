@@ -97,3 +97,13 @@ test("confirmed import and reset recover held saves; failed replacements preserv
     assert.equal(new SaveStore().data.shards, reason === "reset" ? 1 : 78);
   }
 });
+
+test("unusable save identities are backed up before autosave replaces them", () => {
+  for (const data of [[], {}, { ...newSave(), game: "other" }, { ...newSave(), v: 2 }]) {
+    const raw = JSON.stringify(data);
+    reset(raw);
+    const store = new SaveStore();
+    store.save("test");
+    assert.ok([...entries].some(([k, v]) => k.startsWith(SAVE_KEY + ".backup-") && v === raw));
+  }
+});

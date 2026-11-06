@@ -6,6 +6,15 @@ Riftline is a touch-only landscape game for phones and tablets. Keep gameplay, r
 biome art and audio coherent. Keep routine checks short and run specialist checks only when relevant.
 The owner merges pull requests. Work remains cumulative with the 3.61.0 graphics/test cleanup.
 
+## Implemented in 3.63.0
+
+- Six material floors with relief normals and directional sheen in one pass.
+- New walker torso/shoulder armor, planar chamfers and metal highlights on actors and substantial props.
+- Compact muzzle jets, directional hit sparks, twin dash trails and shorter Nova ions.
+- Redesigned weapon, hit, explosion, Dash and Nova sound layers.
+- Before/after contact sheets, walker previews and a sound reel in [the design review](DESIGN-3.63.md).
+- Closed-geometry/bounds checks for armor and generated kits; quality and actual-drawing acceptance tracked in the review.
+
 ## Implemented in 3.62.0
 
 - Protect open dialogs from idle updates, including app backgrounding.

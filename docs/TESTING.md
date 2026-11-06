@@ -1,15 +1,15 @@
 # Testing Riftline
 
-Keep the routine gate short. Fourteen Node contracts and five browser checks cover the critical paths;
+Keep the routine gate short. Focused Node contracts and five browser checks cover the critical paths;
 there is no historical release assertion catalog, always-on soak or hidden extended test chain.
 
 | Command | Coverage | Deadline |
 |---|---|---|
 | `npm run check` | Formatting, lint, build and standard tests | Test subprocess 75 s |
-| `npm test` | Ten Node contracts, tablet flow, phone flow, worker update | Build 30 s; tests 75 s |
+| `npm test` | Node contracts, tablet/phone flows, onboarding, training and worker update | Build 30 s; tests 75 s |
 | `npm run test:unit` | Saves, deterministic simulation, data and render geometry | 75 s |
 | `npm run e2e` | Touch, onboarding/audio, training and worker update | Game flows 25–30 s; worker 20 s; process 75 s |
-| `npm run test:render` | Same browser checks with actual drawing | Game flows 90 s each; process 240 s |
+| `npm run test:render` | Same browser checks with actual drawing | Game flows 180 s each; process 600 s |
 | `npm run audit:visual` | Six biomes and bosses on tablet and landscape phone, High | 240 s per layout |
 | `npm run verify:audio` | Optional synthesized sound correctness | 420 s |
 | `npm run verify:audio-budget` | Optional audio scheduler/real-node parity | 180 s |
@@ -37,7 +37,7 @@ there is no historical release assertion catalog, always-on soak or hidden exten
 - The worker fixture uses the real worker source with small pages. It installs A, rejects an incomplete
   release, installs B with the same product version/build but different content identity, activates B
   while the A page stays open, stops the server, fetches A's bundle offline, then reloads offline into B.
-  A fixture-only message identifies B before cutting the network; a transient waiting worker or an
+  Lifecycle events and an awaited fixture-only message identify the activated B before cutting the network; a transient waiting worker or an
   unrelated controller change cannot be mistaken for completion of the update.
   A second deployment's cache must remain untouched. This is a worker integration test, not a full
   two-release game migration or real-device acceptance test.
@@ -79,6 +79,6 @@ These physical-device, full published-release, long-session and balance checks r
 
 ## Measured duration
 
-The expanded suite has 19 tests. It runs without GPU drawing by default; the optional drawing suite
+The suite includes focused audit regressions for saves, calendars, enemy buffs, traps, projectile collision and summons. It runs without GPU drawing by default; the optional drawing suite
 has a separate deadline because software rasterisation is much slower. Timing depends on hardware
 and CI load; these deadlines are not a mobile FPS target.

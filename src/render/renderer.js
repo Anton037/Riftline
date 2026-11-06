@@ -19,6 +19,7 @@ import {
   Matrix4,
   MeshBasicMaterial,
   MeshLambertMaterial,
+  MeshPhongMaterial,
   PerspectiveCamera,
   PlaneGeometry,
   PointLight,
@@ -278,7 +279,7 @@ const RL_MOTION_NONE = { roll: 0, bounce: 0, lean: 0, f: 1, ref: 4, hover: 0, hf
   };
 for (const type in RL_MOTION) RL_MOTION[type] = { ...RL_MOTION_NONE, ...RL_MOTION[type] };
 function makeFlashMaterial(params) {
-  let mat = new MeshLambertMaterial(params);
+  let mat = new MeshPhongMaterial({ specular: 0x3a454b, shininess: 22, ...params });
   mat.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader
       .replace(
@@ -1013,9 +1014,20 @@ const MAX_PARTICLES = 1400,
               dirX = Math.cos(ev.a),
               dirZ = Math.sin(ev.a);
             if (def.id !== "flame") {
-              this.emit(ev.x, 0.8, ev.y, dirX * 2, 0, dirZ * 2, 0.07, def.id === "scatter" ? 1.3 : 0.9, color, {
-                drag: 0,
-              });
+              // A compact white core and directional muzzle jet, rather than a large round flare.
+              this.line(ev.x, ev.y, ev.x + dirX * 0.85, ev.y + dirZ * 0.85, whiteColor, 0.055, 0.09, 0.85);
+              this.emit(
+                ev.x + dirX * 0.35,
+                0.8,
+                ev.y + dirZ * 0.35,
+                dirX * 4,
+                0,
+                dirZ * 4,
+                0.09,
+                def.id === "scatter" ? 0.8 : 0.5,
+                color,
+                { drag: 0 },
+              );
             }
             this.muzzle = Math.min(1, (this.muzzle || 0) + (def.id === "flame" ? 0.12 : 0.6));
             this.pLight.color.copy(color);
@@ -1094,6 +1106,23 @@ const MAX_PARTICLES = 1400,
               }
             }
             if (!ev.burn) {
+              // Short impact fans point away from the walker; critical hits spread farther.
+              const a = Math.atan2(ev.y - world.player.y, ev.x - world.player.x);
+              const n = ev.crit ? 5 : 3;
+              for (let j = 0; j < n; j++) {
+                const angle = a + (j / Math.max(1, n - 1) - 0.5) * 1.8;
+                const length = ev.crit ? 0.65 : 0.35;
+                this.line(
+                  ev.x,
+                  ev.y,
+                  ev.x + Math.cos(angle) * length,
+                  ev.y + Math.sin(angle) * length,
+                  ev.crit ? goldColor : whiteColor,
+                  ev.crit ? 0.13 : 0.075,
+                  0.025,
+                  0.65,
+                );
+              }
               this.burst(
                 ev.x,
                 ev.y,
@@ -1265,7 +1294,8 @@ const MAX_PARTICLES = 1400,
           case "nova":
             this.ring(ev.x, ev.y, 0.5, ev.r, hexColor(8386303), 0.45);
             this.ring(ev.x, ev.y, 0.3, ev.r * 0.8, whiteColor, 0.3);
-            this.burst(ev.x, ev.y, 0.7, 40, 16, hexColor(8386303), 0.5, 0.5);
+            // A fast wavefront and sparse rising ions keep the centre clear after discharge.
+            this.burst(ev.x, ev.y, 0.7, 24, 13, hexColor(8386303), 0.38, 0.28, { spark: true, drag: 5, up: 2 });
             this.flashT = 0.25;
             this.addShake(0.5 * shakeK);
             this.flash(ev.x, ev.y, ev.r * 1.4, 1.6, hexColor(8386303), 3);
@@ -1347,9 +1377,18 @@ const MAX_PARTICLES = 1400,
           case "gadgetDeny":
             this.burst(world.player.x, world.player.y, 0.9, 4, 2.5, resistColor, 0.25, 0.14, { spark: true, drag: 4 });
             break;
-          case "dash":
-            this.ring(world.player.x, world.player.y, 0.3, 1.4, hexColor(8386303), 0.25);
+          case "dash": {
+            const p = world.player,
+              a = Math.atan2(p.vy, p.vx),
+              c = hexColor(8386303);
+            for (const side of [-1, 1]) {
+              const x = p.x - Math.sin(a) * side * 0.3,
+                z = p.y + Math.cos(a) * side * 0.3;
+              this.line(x, z, x - Math.cos(a) * 1.6, z - Math.sin(a) * 1.6, c, 0.2, 0.065, 0.35);
+            }
+            this.ring(p.x, p.y, 0.25, 1.0, c, 0.18);
             break;
+          }
           // 3.17.0: the walker: a foot comes down (a puff of the ground it stands on, at the foot), the landing after a
           // dash (a ring and a burst of it)
           case "step":
