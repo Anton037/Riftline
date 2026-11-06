@@ -72,7 +72,7 @@ Before release, a physical Android phone and iPhone/iPad must cover:
 
 This audit found and fixed concrete defects; it does not certify every requested runtime scenario.
 
-## Final validation
+## Initial validation (superseded by the follow-up below)
 
 `npm run check`: formatting and lint passed; 27/28 tests passed. The existing worker fixture again
 failed at offline reload (`tests/update.browser.test.mjs:129`, expected B, observed A). The full-game
@@ -80,3 +80,19 @@ A/B scenarios both passed. Release gate is therefore **not green**; keep this br
 intermittent worker lifecycle behavior is explained and the full gate passes. No assertion weakened.
 `git diff --check` passed. The final diff was reviewed for timer expiry, damage stacking, save recovery
 and preservation of touch-only gameplay.
+
+
+## Follow-up: worker lifecycle failure
+
+The failing GitHub job 127848193942 (run 42204667613) reproduced the same offline A/B failure.
+The test used `page.waitForFunction(async () => ...)`. In installed Playwright 1.64.1,
+`waitForFunctionExpression` tests the returned Promise for truthiness before awaiting its result:
+a Promise resolving to false ends polling. Consequently the test cut the network before B had
+necessarily claimed the page. Instrumented navigation responses confirmed A still served that reload.
+
+The test now awaits lifecycle events (`updatefound`, worker `statechange`, `controllerchange`)
+and asynchronous identity readback in one browser Promise. Only an activated controller identifying
+as B completes the wait. The five-second readiness bound and all offline/bundle/cache assertions
+remain. No service-worker production behavior was changed for this test defect.
+Ten consecutive isolated worker runs passed after this change. Follow-up full-gate and CI results
+are recorded in the PR description for its latest commit. Initial failure logs above remain historical.
