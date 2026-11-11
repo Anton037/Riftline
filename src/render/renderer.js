@@ -1,8 +1,8 @@
 // three.js renderer (Renderer): scene, camera, lights, instanced pools, particles, per-frame drawing.
+import { hexColor, additiveMaterial } from "./materials.js";
 import { AMBIENT_POOL_SHARE } from "../data/atmosphere.js";
 
 import {
-  AdditiveBlending,
   BoxGeometry,
   CanvasTexture,
   CircleGeometry,
@@ -309,16 +309,6 @@ varying float vFlash;`,
   mat.customProgramCacheKey = () => "flashLambert";
   return mat;
 }
-function additiveMaterial(map, opts = {}) {
-  return new MeshBasicMaterial({
-    map: map || null,
-    transparent: true,
-    depthWrite: false,
-    blending: AdditiveBlending,
-    toneMapped: false,
-    ...opts,
-  });
-}
 function makeCanvasTexture(size, draw) {
   let canvas = document.createElement("canvas");
   canvas.width = canvas.height = size;
@@ -390,15 +380,6 @@ function makeColumnTexture() {
 }
 const MAX_PARTICLES = 1400,
   goldColor = new Color(16762954),
-  colorCache = new Map(),
-  hexColor = (hex) => {
-    let color = colorCache.get(hex);
-    if (!color) {
-      color = new Color(hex);
-      colorCache.set(hex, color);
-    }
-    return color;
-  },
   shardColors = { 1: hexColor(8386303), 5: hexColor(16762954), 25: hexColor(16734936) },
   // 3.17.0: what a foot kicks up on each ground (core/walk.js FLOOR): a puff of dust, snow, mud, droplets or sparks
   STEP_LOOK = {

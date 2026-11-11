@@ -26,12 +26,13 @@ import {
   Vector2,
   Vector4,
 } from "three";
+import { REED_WIND } from "./map-geometry.js";
 import { addMapArchitecture } from "./map-architecture.js";
 import { calderaRidgeParts } from "./caldera-ridge.js";
 import { armorBox } from "./armor-geometry.js";
 import { FLOOR_FRAGMENT as RL_FLOOR_FRAG } from "./surface-shader.js";
 import { clamp, TAU, hashString, makeRng } from "../core/util.js";
-import { hexColor, additiveMaterial } from "./renderer.js";
+import { hexColor, additiveMaterial } from "./materials.js";
 import { addBiomeDetail } from "./biome-props.js";
 import { mergeGeometries } from "./models.js";
 import { mergeStaticMeshes } from "./static-meshes.js";
@@ -446,7 +447,7 @@ const RL_BIOME_BUILD = {
             a,
           );
         }
-        bakeObs.add(new CylinderGeometry(r * 1.08, r * 1.0, 0.14, 18), concrete, obstacle.x, height + 0.07, obstacle.y);
+        bakeObs.add(new CylinderGeometry(r, r, 0.14, 18), concrete, obstacle.x, height + 0.07, obstacle.y);
         bakeObs.add(new CylinderGeometry(r * 0.5, r * 0.7, 0.3, 12), concrete, obstacle.x, height + 0.29, obstacle.y);
         bakeObs.add(new CylinderGeometry(r * 1.0, r * 1.0, 0.05, 18, 1, true), white, obstacle.x, 1.8, obstacle.y);
         bakeObs.add(new TorusGeometry(r * 1.06, 0.045, 4, 32), concrete, obstacle.x, 0.05, obstacle.y, 0, Math.PI / 2);
@@ -634,7 +635,7 @@ void main() {
       rlMesh(group, propBox(sx, wallH, sz), core, bx, wallH / 2, bz);
     const spikes = [],
       tint = [0xbfe8ff, 0xa4d8f4, 0xdff4ff, 0x7ab0dc];
-    for (const off of [0.25, 0.85])
+    for (const off of [0.6, 1.05])
       rlAlongBorder(W, H, off, 0.75, (px, pz, nx, nz) => {
         const len = rng.range(0.7, off < 0.5 ? 1.5 : 2.4),
           tilt = rng.range(0.1, 0.35);
@@ -672,7 +673,7 @@ void main() {
         main.rotation.z = rng.range(-0.08, 0.08);
         for (let j = 0; j < 4; j++) {
           const angle = (j / 4) * Math.PI * 2 + rng.range(-0.4, 0.4),
-            len = rng.range(0.8, 1.4),
+            len = Math.min(rng.range(0.8, 1.4), obstacle.r * 1.4),
             shard = rlMesh(
               props,
               new CylinderGeometry(obstacle.r * 0.14, obstacle.r * 0.24, len, 6),
@@ -740,7 +741,7 @@ void main() {
     const reeds = [],
       rocks = [],
       green = [0x3e6a4a, 0x335a3e, 0x4a7a52, 0x2a4a34];
-    rlAlongBorder(W, H, 0.55, 0.4, (px, pz, nx, nz) => {
+    rlAlongBorder(W, H, 0.95, 0.4, (px, pz, nx, nz) => {
       for (let j = 0; j < 2; j++) {
         const len = rng.range(0.9, 2.3),
           off = rng.range(-0.45, 0.6);
@@ -803,8 +804,8 @@ void main() {
             `#include <begin_vertex>
         // 3.46.0: the slow wind — a small-angle lean of every blade on its own phase, pivoting
         // around the blade's middle (the matrices stay static on the GPU)
-        transformed.x -= sin(uTime * aSpeed + aPhase) * 0.06 * transformed.y;
-        transformed.z += cos(uTime * aSpeed * 0.83 + aPhase) * 0.06 * transformed.y;
+        transformed.x -= sin(uTime * aSpeed + aPhase) * ${REED_WIND} * transformed.y;
+        transformed.z += cos(uTime * aSpeed * 0.83 + aPhase) * ${REED_WIND} * transformed.y;
 `,
           );
       };
@@ -861,11 +862,16 @@ void main() {
             const angle = rng.range(0, Math.PI * 2),
               branch = rlMesh(
                 props,
-                new CylinderGeometry(0.04, 0.1, 1.0, 5),
+                new CylinderGeometry(
+                  Math.min(0.04, obstacle.r * 0.08),
+                  Math.min(0.1, obstacle.r * 0.18),
+                  Math.min(1.0, obstacle.r * 0.9),
+                  5,
+                ),
                 bark,
-                obstacle.x + Math.cos(angle) * 0.3,
+                obstacle.x + Math.cos(angle) * obstacle.r * 0.3,
                 rng.range(1.5, 2.1),
-                obstacle.y + Math.sin(angle) * 0.3,
+                obstacle.y + Math.sin(angle) * obstacle.r * 0.3,
               );
             branch.rotation.set(Math.sin(angle) * 0.9, 0, -Math.cos(angle) * 0.9);
           }
@@ -953,11 +959,18 @@ void main() {
     ]) {
       rlMesh(group, new PlaneGeometry(len, wallH), wall, bx, wallH / 2, bz, rot);
       rlMesh(group, propBox(rot ? 0.06 : len, 0.05, rot ? len : 0.06), rim, bx, 0.03, bz);
-      rlMesh(group, propBox(rot ? 0.04 : len, 0.03, rot ? len : 0.04), rim, bx, wallH, bz);
+      rlMesh(
+        group,
+        propBox(rot ? 0.04 : len, 0.03, rot ? len : 0.04),
+        rim,
+        bx + Math.sign(bx) * 0.025,
+        wallH,
+        bz + Math.sign(bz) * 0.025,
+      );
     }
     for (const sx of [-1, 1])
       for (const sz of [-1, 1]) {
-        const crystal = rlMesh(group, new OctahedronGeometry(0.45), hot, sx * W, 1.3, sz * H);
+        const crystal = rlMesh(group, new OctahedronGeometry(0.45), hot, sx * (W + 0.55), 1.3, sz * (H + 0.55));
         crystal.scale.y = 1.8;
         view.rlAnim.push({ o: crystal, k: "spin", s: 1.2, b: 1.3, ph: sx + sz * 2 });
       }
@@ -1277,7 +1290,7 @@ void main() {
         const a = rng.range(0, Math.PI);
         for (const [dx, dz, lean] of [
           [0, 0, 0.14],
-          [Math.cos(a + 1.2) * 0.55, Math.sin(a + 1.2) * 0.55, -0.12],
+          [Math.cos(a + 1.2) * obstacle.r * 0.32, Math.sin(a + 1.2) * obstacle.r * 0.32, -0.12],
         ]) {
           const sheet = rlMesh(
             props,

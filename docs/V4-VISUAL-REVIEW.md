@@ -49,7 +49,14 @@ High and landscape-phone Saver. Visual acceptance includes looking at the result
 does not establish art quality. Real drawing touch flows exercise movement, effects, pause/resume and transitions.
 Physical-device heat, speaker quality and sustained frame pacing remain manual acceptance work.
 
-## Verification
+## Geometry follow-up
+
+A later [full geometry audit](GEOMETRY-AUDIT-4.0.md) broadens the original three-seed Caldera checks to
+252 scene builds and all map edges/corners. It found additional small obstacle and boundary overhangs;
+those are corrected in the updated PR. The combat comparison sheets and counts below record the initial
+v4 visual snapshot; the linked geometry review records the final follow-up captures and checks.
+
+## Initial verification
 
 - `npm run check`: formatting, lint, build and **35/35 tests passed** (34.5 s test run).
 - `npm run test:render`: **5/5 browser flows passed with real drawing** (163.0 s), covering tablet play,
@@ -101,7 +108,7 @@ work, not an FPS measurement. The added geometry has a cost; batching keeps it t
 | Ashfall Caldera | 78 → 83 | 40,680 → 42,112 |
 | Glass Flats | 96 → 101 | 27,030 → 27,874 |
 
-Full final metrics: [tablet High](review-v4/tablet-high.json), [phone Saver](review-v4/phone-saver.json).
+Initial combat-scene metrics: [tablet High](review-v4/tablet-high.json), [phone Saver](review-v4/phone-saver.json).
 Environment: Chromium 156/SwiftShader, 1024 × 768 tablet and 844 × 390 landscape phone, device scale factor 1.
 The reviewed scenes cover every biome, staged bosses and warnings, and the added edge architecture. They do
 not replace a natural twenty-wave playthrough, every boss attack phase or physical-device acceptance.

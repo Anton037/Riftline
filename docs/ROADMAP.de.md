@@ -10,6 +10,7 @@ The owner merges pull requests. Work remains cumulative with the 3.61.0 graphics
 
 - Six-biome terrain and material redesign with city streets, wind-shaped snow, broken marsh colonies, fractured Core slabs, localized volcanic seams and glass deposits in sand.
 - Collision-aligned architecture and distinct landmarks, richer street props, readable hazard metal and a brighter walker chassis.
+- Full transformed-geometry audit across 252 maps, every director mode and all edge/corner views: [geometry review](GEOMETRY-AUDIT-4.0.md).
 - Full scope and visual acceptance are documented in [the v4 review](V4-VISUAL-REVIEW.md).
 
 ## Implemented in 3.64.0

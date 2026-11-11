@@ -11,6 +11,20 @@ const mobile = ["land", "phone"].includes(process.argv[4]);
 const requestedBiome = process.argv[5] && process.argv[5] !== "all" ? process.argv[5] : null;
 const quality = process.argv[6] || "high";
 assert.ok(["high", "auto", "battery"].includes(quality), `Unknown quality: ${quality}`);
+if (process.argv[7]) assert.equal(process.argv[7], "map", "Unknown visual review mode");
+const mapReview = process.argv[7] === "map";
+const mapPositions = {
+  centre: [0, 0],
+  north: [0, -1],
+  south: [0, 1],
+  west: [-1, 0],
+  east: [1, 0],
+  northwest: [-1, -1],
+  northeast: [1, -1],
+  southwest: [-1, 1],
+  southeast: [1, 1],
+};
+const scenes = mapReview ? Object.keys(mapPositions) : ["encounter", "boss", "warnings", "telegraphs"];
 const out = `verification-output/${tag}-${mobile ? "land" : "tablet"}-${quality}`;
 fs.mkdirSync(out, { recursive: true });
 const browser = await chromium.launch({ args: launchArgs() });
@@ -45,10 +59,10 @@ try {
   }
   const metrics = [];
   for (const id of ids) {
-    for (const scene of ["encounter", "boss", "warnings", "telegraphs"]) {
+    for (const scene of scenes) {
       const boss = scene === "boss";
       const row = await page.evaluate(
-        ({ id, boss, scene, quality }) => {
+        ({ id, boss, scene, quality, position }) => {
           const T = window.__riftTest;
           for (const k of Object.keys(T.store.data.seen)) T.store.data.seen[k] = true;
           T.store.data.settings.quality = quality;
@@ -116,6 +130,11 @@ try {
               }
             }
           }
+          if (position) {
+            w.player.x = position[0] * (w.arena.W - 0.75);
+            w.player.y = position[1] * (w.arena.H - 0.75);
+            r.resetCamera();
+          }
           w.time = 8;
           w.fx.length = 0;
           r.P.n = 0;
@@ -151,7 +170,7 @@ try {
             bossMeshes,
           };
         },
-        { id, boss, scene, quality },
+        { id, boss, scene, quality, position: mapReview ? mapPositions[scene] : null },
       );
       assert.equal(row.actual, id);
       if (boss) assert.ok(row.bossType, `${id}: missing boss`);
