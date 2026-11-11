@@ -1716,7 +1716,7 @@ const rlStep = 1 / 60,
         }
       }
       const reach = this.arena.rayLen(player.x, player.y, angle, dist);
-      dist = Math.max(1.5, Math.min(dist, reach - 0.4));
+      dist = Math.max(0, Math.min(dist, reach - 0.4));
       return { x: player.x + Math.cos(angle) * dist, y: player.y + Math.sin(angle) * dist, dist };
     }
     useGadget(input) {
@@ -3209,18 +3209,22 @@ const rlStep = 1 / 60,
           beam.cur = this.arena.rayLen(beam.x, beam.y, beam.a, beam.len);
           beam.curSet = true;
         }
-        if (beam.live && player.alive) {
+        if (beam.live && beam.cur > 0 && player.alive) {
           let endX = beam.x + Math.cos(beam.a) * beam.cur,
             endY = beam.y + Math.sin(beam.a) * beam.cur,
             dx = endX - beam.x,
             dy = endY - beam.y,
             lenSq = dx * dx + dy * dy,
-            along = ((player.x - beam.x) * dx + (player.y - beam.y) * dy) / lenSq;
+            along = lenSq > 0 ? ((player.x - beam.x) * dx + (player.y - beam.y) * dy) / lenSq : 0;
           along = clamp(along, 0, 1);
           let cx = beam.x + dx * along,
             cy = beam.y + dy * along,
             hitR = beam.w * 0.5 + player.r * 0.7;
-          if ((player.x - cx) ** 2 + (player.y - cy) ** 2 < hitR * hitR) {
+          // The rounded collision end must not reach through the wall that clipped the beam.
+          if (
+            (player.x - cx) ** 2 + (player.y - cy) ** 2 < hitR * hitR &&
+            this.arena.los(beam.x, beam.y, player.x, player.y)
+          ) {
             this.hurtPlayer(beam.dmg, cx, cy, beam.src);
           }
         }

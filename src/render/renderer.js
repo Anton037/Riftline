@@ -68,7 +68,8 @@ import { HazardView } from "./hazards-view.js";
 import { AttackView, MARK_LOOK } from "./attacks-view.js";
 
 // 3.13.0: the colours of the light of the place (lightning, a passing police siren)
-const LIGHTNING_COLOR = new Color(0xcfe0ff),
+const warningDark = new Color(0x100d18),
+  LIGHTNING_COLOR = new Color(0xcfe0ff),
   SIREN_RED = new Color(0xff2a3a),
   SIREN_BLUE = new Color(0x2a6bff);
 // the first `count` values of an instance attribute go to the GPU at the next draw
@@ -528,6 +529,17 @@ const MAX_PARTICLES = 1400,
       let beamGeo = new BoxGeometry(1, 1, 1);
       beamGeo.translate(0.5, 0, 0);
       this.beams = new InstancePool(beamGeo, additiveMaterial(null), 500);
+      // Normal blending is required for a dark keyline; an additive dark colour cannot dim snow.
+      this.warningEdges = new InstancePool(
+        beamGeo.clone(),
+        new MeshBasicMaterial({
+          transparent: true,
+          opacity: 0.85,
+          depthWrite: false,
+          toneMapped: false,
+        }),
+        256,
+      );
       let floorQuad = new PlaneGeometry(1, 1);
       floorQuad.rotateX(-Math.PI / 2);
       this.shadows = new InstancePool(
@@ -564,6 +576,7 @@ const MAX_PARTICLES = 1400,
       this.shadows.mesh.renderOrder = 1;
       this.discs.mesh.renderOrder = 2;
       this.ringPool.mesh.renderOrder = 3;
+      this.warningEdges.mesh.renderOrder = 4;
       this.beams.mesh.renderOrder = 5;
       this.sprites.mesh.renderOrder = 6;
       this.sparks.mesh.renderOrder = 7;
@@ -593,7 +606,7 @@ const MAX_PARTICLES = 1400,
       this.kickA = 0;
     }
     allPools() {
-      // 3.46.0: the sixteen stable pools are cached (the array used to be rebuilt with four
+      // 3.46.0: the stable pools are cached (the array used to be rebuilt with four
       // spreads every frame). The pools of the views come and go with the traps, hazards, zones
       // and boss cards — frame() iterates their lists live.
       return (
@@ -604,6 +617,7 @@ const MAX_PARTICLES = 1400,
           this.ringPool,
           this.columns,
           this.beams,
+          this.warningEdges,
           this.shieldPool,
           this.pbCore,
           this.ebCore,
@@ -1894,8 +1908,8 @@ const MAX_PARTICLES = 1400,
             cos = Math.cos(player.aim),
             sin = Math.sin(player.aim),
             aimBeam = this.beams.seg(
-              player.x + cos * 0.9,
-              player.y + sin * 0.9,
+              player.x + cos * Math.min(0.9, reach),
+              player.y + sin * Math.min(0.9, reach),
               player.x + cos * reach,
               player.y + sin * reach,
               0.08,
@@ -2394,9 +2408,10 @@ const MAX_PARTICLES = 1400,
         }
       }
       for (let beam of world.beams) {
-        let len = beam.cur || beam.len,
+        let len = beam.cur,
           ex = beam.x + Math.cos(beam.a) * len,
           ez = beam.y + Math.sin(beam.a) * len;
+        if (len <= 0) continue;
         // 3.0.0: trap beams wear the colours of their skin (the warning phase below stays red for every beam)
         if (beam.live && beam.skin && this.trapView.drawBeam(beam, ex, ez, len, time, dt)) continue;
         if (beam.live) {
@@ -2451,34 +2466,63 @@ const MAX_PARTICLES = 1400,
       }
     }
     aimLine(world, x, z, angle, locked, k) {
-      let dist = 0.6,
+      const dist = world.arena.rayLen(x, z, angle, 32),
         cos = Math.cos(angle),
-        sin = Math.sin(angle);
-      for (; dist < 32;) {
-        let px = x + cos * dist,
-          pz = z + sin * dist;
-        if (world.arena.outside(px, pz) || world.arena.blocked(px, pz, 0)) break;
-        dist += 0.5;
-      }
-      let idx = this.beams.seg(
-        x + cos * 0.6,
-        z + sin * 0.6,
-        x + cos * dist,
-        z + sin * dist,
-        0.95,
-        locked ? 0.09 : 0.04,
-        locked ? 0.09 : 0.04,
+        sin = Math.sin(angle),
+        from = Math.min(0.6, dist),
+        ex = x + cos * dist,
+        ez = z + sin * dist;
+      if (dist <= from) return;
+      // A steady dark keyline separates the aim from bright ice and sand. Lock is brighter/wider,
+      // rather than a 24 Hz flash; the ground footprint also shows where the shot can hit.
+      this.warningEdges.colC(
+        this.warningEdges.seg(x + cos * from, z + sin * from, ex, ez, 0.95, locked ? 0.2 : 0.13, 0.04),
+        warningDark,
+        0.9,
       );
-      this.beams.colC(idx, warnColor, locked ? (Math.floor(this.time * 24) % 2 ? 1.2 : 0.6) : 0.25 + k * 0.4);
+      this.beams.colC(
+        this.beams.seg(x + cos * from, z + sin * from, ex, ez, 0.98, locked ? 0.09 : 0.05, 0.04),
+        warnColor,
+        locked ? 1 : 0.45 + clamp(k, 0, 1) * 0.35,
+      );
+      this.beams.colC(
+        this.beams.seg(x + cos * from, z + sin * from, ex, ez, 0.07, locked ? 0.15 : 0.08, 0.02),
+        warnColor,
+        locked ? 0.6 : 0.25,
+      );
     }
     chargeLine(x, z, angle, len, width, k) {
-      let ex = x + Math.cos(angle) * len,
-        ez = z + Math.sin(angle) * len,
-        track = this.beams.seg(x, z, ex, ez, 0.06, width, 0.02);
-      this.beams.colC(track, warnColor, 0.12 + k * 0.2);
-      let fill = this.beams.seg(x, z, x + Math.cos(angle) * len * k, z + Math.sin(angle) * len * k, 0.07, width, 0.02);
-      this.beams.colC(fill, warnColor, 0.25);
+      k = clamp(k, 0, 1);
+      const cos = Math.cos(angle),
+        sin = Math.sin(angle),
+        ex = x + cos * len,
+        ez = z + sin * len,
+        dx = -sin * width * 0.5,
+        dz = cos * width * 0.5;
+      this.beams.colC(this.beams.seg(x, z, ex, ez, 0.06, width, 0.02), warnColor, 0.1 + k * 0.12);
+      // Full-width rails remain visible from the start; the interior fill conveys time to strike.
+      for (let side = -1; side <= 1; side += 2) {
+        this.warningEdges.colC(
+          this.warningEdges.seg(x + side * dx, z + side * dz, ex + side * dx, ez + side * dz, 0.08, 0.2, 0.025),
+          warningDark,
+          0.9,
+        );
+        this.beams.colC(
+          this.beams.seg(x + side * dx, z + side * dz, ex + side * dx, ez + side * dz, 0.11, 0.075, 0.025),
+          warnColor,
+          0.7 + k * 0.25,
+        );
+        // An inward chevron identifies the direction of travel without a separate mesh or pool.
+        this.beams.colC(
+          this.beams.seg(ex + side * dx - cos * 0.55, ez + side * dz - sin * 0.55, ex, ez, 0.12, 0.09, 0.025),
+          warnColor,
+          0.85,
+        );
+      }
+      if (k > 0)
+        this.beams.colC(this.beams.seg(x, z, x + cos * len * k, z + sin * len * k, 0.07, width, 0.02), warnColor, 0.2);
     }
+
     drawBoss(dt, world, boss) {
       if (!boss) {
         if (this.bossView) {

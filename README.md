@@ -80,7 +80,7 @@ Their entire process tree is cleaned up after success, failure or cancellation.
 
 ### Test groups
 
-`npm test` builds once and runs fourteen Node contracts and five browser checks. `npm run check` adds
+`npm test` builds once and runs focused Node contracts and five browser checks. `npm run check` adds
 formatting and lint. The tablet touch flow covers settings, movement, dash, pause, upgrades, offline
 save reload, continue and death. The phone flow covers simultaneous sticks and dash, cancellation,
 pause and resume. A fresh profile exercises onboarding and real WebAudio background/resume, and

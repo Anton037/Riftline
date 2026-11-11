@@ -43,21 +43,26 @@ for (const biome of ["yard", "vault", "marsh", "void", "club", "flats"]) {
 
 const warnings = await withAudioPage(url, () => {
   const E = window.__riftTest.game.sound.constructor;
-  return ["lock", "beam", "tcPlate"].map((id) => {
-    const ctx = new OfflineAudioContext(1, 44100, 44100),
-      engine = new E();
-    engine.attach(ctx, { room: false });
-    for (let i = 0; i < 80; i++) engine.tone(440, 1, "sine", 0.01);
-    const saturated = engine.dropped > 0;
-    engine.play(id);
-    return {
-      id,
-      saturated,
-      protected: engine.voices.some((voice) => voice.pri === 2),
-      ducked: engine.duckDepth === 0.15,
-      failed: !!engine.failed,
-    };
-  });
+  return ["lock", "servo", "windHeavy", "windWhine", "windSlash", "windDrill", "windLeap", "beam", "tcPlate"].map(
+    (id) => {
+      const ctx = new OfflineAudioContext(1, 44100, 44100),
+        engine = new E();
+      engine.attach(ctx, { room: false });
+      for (let i = 0; i < 80; i++) engine.tone(440, 1, "sine", 0.01);
+      const saturated = engine.dropped > 0;
+      engine.play(id);
+      const protectedCount = engine.voices.filter((voice) => voice.pri === 2).length;
+      // Ordinary shots after the cue may steal other ordinary voices, never this cue.
+      for (let i = 0; i < 80; i++) engine.tone(440, 1, "sine", 0.01);
+      return {
+        id,
+        saturated,
+        protected: protectedCount > 0 && engine.voices.filter((voice) => voice.pri === 2).length === protectedCount,
+        ducked: engine.duckDepth === 0.15,
+        failed: !!engine.failed,
+      };
+    },
+  );
 });
 for (const row of warnings) assert.ok(row.saturated && row.protected && row.ducked && !row.failed, JSON.stringify(row));
-console.log("Sniper, beam and trap warnings survive saturated effects and duck the background mix.");
+console.log("Aim, charge, beam and trap warnings survive saturated effects and duck the background mix.");

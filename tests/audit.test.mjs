@@ -145,3 +145,46 @@ test("Core reinforcements include pending spawns in their crowd limit", () => {
   updateBoss(w, boss, 1 / 60);
   assert.equal(w.enemies.length + w.markers.length, 74, "summoning resumes when room returns");
 });
+
+test("rays stop exactly at thin/nearby cover and arena edges", () => {
+  const a = world().arena;
+  const close = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-8, `${actual} != ${expected}`);
+  a.obs = [{ t: "b", x: 1.025, y: 0, w: 0.025, h: 1 }];
+  close(a.rayLen(0, 0, 0, 10), 1);
+  close(a.rayLen(0, 0, Math.PI, 10), 10);
+  close(a.rayLen(0, 2, 0, 10), 10);
+  a.obs = [{ t: "c", x: 0.45, y: 0, r: 0.1 }];
+  close(a.rayLen(0, 0, 0, 10), 0.35);
+  close(a.rayLen(0.45, 0, 0, 10), 0);
+  a.obs = [{ t: "b", x: 2, y: 2, w: 0.5, h: 0.5 }];
+  close(a.rayLen(0, 0, Math.PI / 4, 10), 1.5 * Math.SQRT2);
+  close(a.rayLen(2, 2, 0, 10), 0);
+  a.obs = [];
+  close(a.rayLen(a.W - 0.1, 0, 0, 10), 0.1);
+  close(a.rayLen(0, a.H - 0.2, Math.PI / 2, 10), 0.2);
+  close(a.rayLen(0, 0, 0, 0), 0);
+});
+
+test("nearby cover blocks beams and gadget landings", () => {
+  const w = world();
+  w.arena.obs = [{ t: "b", x: 1.025, y: 0, w: 0.025, h: 1 }];
+  w.player.x = 2;
+  w.player.y = 0;
+  w.player.iT = 0;
+  const beam = w.beam({ x: 0, y: 0, a: 0, warn: 0, len: 10 });
+  w.updateBeams(1 / 60);
+  assert.equal(w.player.hp, 100);
+  assert.ok(Math.abs(beam.cur - 1) < 1e-8);
+  w.player.x = 1.65;
+  w.updateBeams(1 / 60);
+  assert.equal(w.player.hp, 100, "the beam's rounded endpoint must not reach through cover");
+  w.player.x = w.player.y = 0;
+  const target = w.singularityTarget({ aim: true, ax: 1, ay: 0 });
+  assert.ok(target.x >= 0 && target.x < 1, `gadget crossed wall: ${target.x}`);
+  w.arena.obs = [{ t: "b", x: 0, y: 0, w: 0.1, h: 0.1 }];
+  w.beams.length = 0;
+  const blocked = w.beam({ x: 0, y: 0, a: 0, warn: 0, len: 10 });
+  w.updateBeams(1 / 60);
+  assert.equal(blocked.cur, 0);
+  assert.equal(w.player.hp, 100, "a fully blocked beam cannot hit at its origin");
+});

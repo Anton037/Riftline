@@ -313,11 +313,14 @@ const RL_ENEMY_BUILDERS = {
       spike(P.dark, 0.36, 5, [-0.08, 1.35, 0], [-0.3, 1.02, 0]),
       pipe(P.metal, 0.06, 0.045, 6, [-0.1, 1.05, 0.2], [1.5, 1.05, 0.2]),
       box(P.dark, 0.36, 0.13, 0.13, { x: 0.3, y: 1.05, z: 0.2 }),
-      pipe(P.lite, 0.075, 0.075, 6, [0.5, 1.15, 0.2], [0.8, 1.15, 0.2]),
+      // Broad scope hood and inset lens read at phone scale, inside the existing rifle footprint.
+      pipe(P.dark, 0.14, 0.14, 6, [0.46, 1.2, 0.2], [0.84, 1.2, 0.2]),
+      box(P.lite, 0.34, 0.045, 0.24, { x: 0.65, y: 1.34, z: 0.2 }),
       spike(P.metal, 0.025, 3, [-0.2, 1.6, -0.1], [-0.36, 2.15, -0.1]),
     ],
     glow: [
       ball(P.white, 0.14, 7, 5, { x: 0.28, y: 1.28 }),
+      pipe(P.white, 0.1, 0.1, 6, [0.84, 1.2, 0.2], [0.86, 1.2, 0.2]),
       ball(P.white, 0.05, 5, 3, { x: 1.54, y: 1.05, z: 0.2 }),
       meshPart(new OctahedronGeometry(0.06), P.white, { x: -0.36, y: 2.2, z: -0.1 }),
     ],
