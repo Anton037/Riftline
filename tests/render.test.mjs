@@ -81,6 +81,11 @@ test("all redesigned enemy and hero kits produce finite bounded geometry", async
   };
   for (const [type, def] of Object.entries(enemyDefs)) {
     const model = enemyGeometry(type, def.color);
+    const triangles = Object.values(model).reduce(
+      (sum, g) => sum + (g.index?.count ?? g.attributes.position.count) / 3,
+      0,
+    );
+    assert.ok(triangles <= 810, `${type}: ${triangles} triangles exceeds the mobile kit budget`);
     check(model.body);
     check(model.glow);
   }

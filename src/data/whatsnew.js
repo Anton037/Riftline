@@ -4,6 +4,16 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "3.64.0",
+    title: "Read the rush, trust the cover",
+    items: [
+      "Beams, aim lines and Singularity targeting stop at thin walls and nearby cover.",
+      "Charge lanes show steady edges and direction markers, while sniper lock stays bright without rapid flashing.",
+      "Snipers carry a more readable scope hood and lens within the same silhouette.",
+      "Charge and turret warning sounds keep their voices in busy fights, with clearer charger and leaper cues.",
+    ],
+  },
+  {
     version: "3.63.1",
     title: "A clear path through the Caldera",
     items: [
@@ -45,20 +55,6 @@ export const WHATS_NEW = [
       "Sniper, beam and trap cues keep their voice in busy fights and briefly lower music and ambience.",
       "The Codex counts current discoveries; remembered retired bosses and Overdrives live in an archive.",
       "DASH, NOVA and Singularity accept touch only, and Dust Devils use the same armour rules as other map hazards.",
-    ],
-  },
-  {
-    version: "3.61.0",
-    title: "Six places, one visual standard",
-    items: [
-      "Touch-only controls: phone vibration stays, while controller and keyboard/mouse gameplay are removed.",
-      "Offline updates keep complete snapshots and preserve the previous build for open tabs.",
-      "Snow buries the Shelf's bright grid, the Core wears fractured slate, and quieter marsh veins, molten seams and glass edges give enemies and danger more room to read.",
-      "Wet asphalt and glass gain finer grain, and biome coatings leave more of each enemy type's own colour visible.",
-      "Weather and decorative motes fade back during busy fights so hits and explosions stay readable.",
-      "On phones the boss health bar sits between the sticks, leaving the boss and the wave/combo readouts clear.",
-      "Beam warnings outline the full danger lane, and boss warning sounds briefly rise above the background mix.",
-      "Your first card choice explains permanent Workshop upgrades, and the run recap names the final hit.",
     ],
   },
 ];

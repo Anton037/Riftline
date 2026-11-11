@@ -142,15 +142,32 @@ const Arena = class {
     return true;
   }
   rayLen(x, y, angle, maxLen) {
-    let dirX = Math.cos(angle),
-      dirY = Math.sin(angle);
-    for (let dist = 0.8; dist < maxLen; dist += 0.35) {
-      let px = x + dirX * dist,
-        py = y + dirY * dist;
-      if (this.outside(px, py) || this.blocked(px, py, 0)) return dist;
+    // Analytic intersections cannot step over narrow cover or skip cover close to the muzzle.
+    if (maxLen <= 0 || this.outside(x, y)) return 0;
+    const dx = Math.cos(angle),
+      dy = Math.sin(angle);
+    let reach = maxLen;
+    if (Math.abs(dx) > 1e-12) reach = Math.min(reach, ((dx > 0 ? this.W : -this.W) - x) / dx);
+    if (Math.abs(dy) > 1e-12) reach = Math.min(reach, ((dy > 0 ? this.H : -this.H) - y) / dy);
+    for (const ob of this.obs) {
+      let hit;
+      if (ob.t === "c") {
+        const ox = x - ob.x,
+          oy = y - ob.y,
+          c = ox * ox + oy * oy - ob.r * ob.r,
+          along = ox * dx + oy * dy,
+          disc = along * along - c;
+        if (c <= 0) return 0;
+        if (disc < 0) continue;
+        hit = -along - Math.sqrt(disc);
+      } else {
+        hit = rayBoxEntry(x, y, dx, dy, ob.x - ob.w, ob.y - ob.h, ob.x + ob.w, ob.y + ob.h);
+      }
+      if (hit >= 0 && hit < reach) reach = hit;
     }
-    return maxLen;
+    return Math.max(0, reach);
   }
+
   featureBlocked(x, y, pad = 0.35) {
     let near = (fx, fy, fr, margin = 0.55) => {
       let dx = x - fx,
@@ -1186,3 +1203,26 @@ function rlHazardRoom250(arena, hazard, want) {
   return Math.max(hazard.r, rad);
 }
 export { rlAddHazard250, rlPortalPair250, rlHazardRoom250, RL_HAZARD_SIZE_250, spawnZone as rlSpawnZone };
+
+// Entry distance along a unit ray; parallel slabs are handled without division by zero.
+function rayBoxEntry(x, y, dx, dy, minX, minY, maxX, maxY) {
+  let near = 0,
+    far = Infinity;
+  if (Math.abs(dx) < 1e-12) {
+    if (x < minX || x > maxX) return Infinity;
+  } else {
+    const a = (minX - x) / dx,
+      b = (maxX - x) / dx;
+    near = Math.max(near, Math.min(a, b));
+    far = Math.min(far, Math.max(a, b));
+  }
+  if (Math.abs(dy) < 1e-12) {
+    if (y < minY || y > maxY) return Infinity;
+  } else {
+    const a = (minY - y) / dy,
+      b = (maxY - y) / dy;
+    near = Math.max(near, Math.min(a, b));
+    far = Math.min(far, Math.max(a, b));
+  }
+  return near <= far ? near : Infinity;
+}

@@ -25,8 +25,19 @@ try {
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+  // Keep the live loop for boot, then make staged captures advance only through explicit frames.
+  await page.addInitScript(() => {
+    const raf = window.requestAnimationFrame.bind(window);
+    window.requestAnimationFrame = (fn) =>
+      raf((t) => {
+        if (!window.__visualManualFrames) fn(t);
+      });
+  });
   await page.goto(url);
   await page.waitForFunction(() => window.__riftTest?.renderer, null, { timeout: 90000 });
+  await page.evaluate(() => {
+    window.__visualManualFrames = true;
+  });
   let ids = await page.evaluate(() => window.__riftTest.biomeList.map((b) => b.id));
   if (requestedBiome) {
     assert.ok(ids.includes(requestedBiome), `Unknown biome: ${requestedBiome}`);
@@ -34,7 +45,7 @@ try {
   }
   const metrics = [];
   for (const id of ids) {
-    for (const scene of ["encounter", "boss", "warnings"]) {
+    for (const scene of ["encounter", "boss", "warnings", "telegraphs"]) {
       const boss = scene === "boss";
       const row = await page.evaluate(
         ({ id, boss, scene, quality }) => {
@@ -59,6 +70,7 @@ try {
           w.startWave(n);
           g.intro = null;
           w.god = true;
+          w.player.iT = 0;
           r.focusOn(null);
           if (boss && w.bossPending) {
             w.spawnBoss(w.bossPending);
@@ -94,6 +106,16 @@ try {
               w.shoot(-5 + i * 2, 1, 0, 4, 10, { kind }),
             );
           }
+          if (scene === "telegraphs") {
+            for (const e of w.enemies) {
+              if (e.type === "sniper" || e.type === "brute") {
+                e.st = 1;
+                e.t2 = 0.2;
+                e.ta = Math.atan2(w.player.y - e.y, w.player.x - e.x);
+                e.face = e.ta;
+              }
+            }
+          }
           w.time = 8;
           w.fx.length = 0;
           r.P.n = 0;
@@ -101,7 +123,15 @@ try {
           r.lines.length = 0;
           r.flashes.length = 0;
           r.time = 8;
-          for (let i = 0; i < 12; i++) r.frame(1 / 12, w);
+          // Settle transforms, weather and pools without submitting eleven discarded pixel frames.
+          const draw = r.renderer.render;
+          try {
+            r.renderer.render = () => {};
+            for (let i = 0; i < 11; i++) r.frame(1 / 12, w);
+          } finally {
+            r.renderer.render = draw;
+          }
+          r.frame(1 / 12, w);
           T.ui.hud(w);
           let bossMeshes = 0;
           if (boss)

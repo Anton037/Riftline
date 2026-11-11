@@ -328,7 +328,8 @@ const RL_TRAP_SOUND = {
 const THREAT_WARNING_VOICES = new Set([
   "lock",
   "fuse",
-  "windHeavy",
+  ...Object.values(RL_CHARGE_VOICE),
+  "servo",
   "beam",
   "beamSmall",
   ...Object.values(BEAM_VOICE),
@@ -1992,8 +1993,10 @@ const musicChords = {
           break;
         case "windWhine":
           if (this.gate(id, 0.15)) {
-            this.tone(300, 0.5, "sawtooth", 0.04, { to: 1400, lp: 3e3, attack: 0.3 });
-            this.tone(150, 0.5, "square", 0.02, { to: 700, lp: 1500, attack: 0.3 });
+            // A short relay click gives the rising motor an audible start on small speakers.
+            this.noise(0.025, 0.035, { type: "bandpass", f: 1800, q: 1.2, attack: 0.002 });
+            this.tone(420, 0.5, "sawtooth", 0.04, { to: 1600, lp: 3e3, attack: 0.08 });
+            this.tone(210, 0.5, "square", 0.02, { to: 800, lp: 1500, attack: 0.12 });
           }
           break;
         case "windSlash":
@@ -2011,8 +2014,10 @@ const musicChords = {
           break;
         case "windLeap":
           if (this.gate(id, 0.12)) {
-            this.tone(210, 0.16, "sine", 0.07, { to: 100 });
-            this.tone(150, 0.14, "sine", 0.06, { to: 430, at: 0.15 });
+            // Retain the two-part spring gesture, with a midrange harmonic for phone speakers.
+            this.tone(210, 0.16, "triangle", 0.06, { to: 100, lp: 1800 });
+            this.tone(420, 0.12, "sine", 0.025, { to: 220 });
+            this.tone(300, 0.14, "triangle", 0.05, { to: 860, at: 0.15, lp: 2200 });
           }
           break;
         case "lock":

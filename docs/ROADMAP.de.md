@@ -6,6 +6,14 @@ Riftline is a touch-only landscape game for phones and tablets. Keep gameplay, r
 biome art and audio coherent. Keep routine checks short and run specialist checks only when relevant.
 The owner merges pull requests. Work remains cumulative with the 3.61.0 graphics/test cleanup.
 
+## Implemented in 3.64.0
+
+- Exact cover intersections for beams, aim lines and gadget targeting, including close-wall landing and beam endpoint protection.
+- Steady outlined charge lanes and sniper locks; a more readable sniper scope and lens.
+- Protect every mapped charge/aim cue under voice pressure, with revised charger/leaper recipes.
+- Visual review adds charge/sniper scenes and skips discarded settling draws while retaining real final pixel rendering.
+- Review criteria, the applied improvement prompt, before/after captures, audio reel and verification are in [the review](REVIEW-3.64.md).
+
 ## Implemented in 3.63.0
 
 - Six material floors with relief normals and directional sheen in one pass.

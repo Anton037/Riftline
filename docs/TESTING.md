@@ -19,7 +19,9 @@ there is no historical release assertion catalog, always-on soak or hidden exten
 ## Standard contracts
 
 - Node checks cover seeded finite combat for each weapon, snapshot restoration, biome/boss/hazard
-  references, upgrade data, release notes, atmosphere budgeting and static mesh bounds.
+  references, upgrade data, release notes, atmosphere budgeting, static mesh bounds and the 810-triangle enemy
+  kit budget. Exact rays cover thin/nearby obstacles, diagonal boxes, arena edges and zero reach; live
+  beam/gadget checks exercise cover protection.
 - Save checks cover round-trip persistence, migration, unknown future fields and corrupt-save recovery
   when storage is full. Failed explicit imports/resets retain old progress; successful ones recover held saves.
 - Choice snapshots keep the RNG through rerolls, banishes and repeated resumes. Every training boss and
@@ -58,8 +60,11 @@ node tools/verify.js visual review tablet all auto
 
 Arguments after `visual`: output tag, layout (`land`/`phone` or `tablet`), biome ID or `all`, quality
 (`high`, `auto`, `battery`). Screenshots and metrics go to `verification-output/<tag>-<layout>-<quality>/`.
-Each biome has encounter, boss and warning/projectile scenes. These are staged encounters, not a claim that every boss attack/phase has been visually reviewed.
-Auto captures its starting configuration, not sustained thermal adaptation. Use a physical device for that.
+Each biome has encounter, boss, warning/projectile and charge/sniper telegraph scenes. These are staged
+encounters, not a claim that every boss attack/phase has been visually reviewed.
+The capture freezes the live loop after boot, advances twelve settling updates with only the final WebGL
+submission, and captures real pixels. Auto captures its starting configuration, not sustained thermal adaptation.
+Use a physical device for that.
 
 All npm probes use the same temporary server and bounded process wrapper. Cleanup runs after failure,
 timeout and cancellation, including orphan Chromium children. Direct scripts take a base URL and expect
