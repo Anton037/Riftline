@@ -87,5 +87,7 @@ serially to limit resource contention. Physical-device testing and continuous-an
 [Run 43046287472](https://github.com/Anton037/Riftline/actions/runs/43046287472) was cancelled during
 `playwright install --with-deps chromium`. Its logs show DNS resolution failures for Ubuntu package mirrors,
 and the five-minute job deadline expired during dependency installation. The `npm run check` step never ran.
-Both browser workflows now pin Ubuntu 24.04 instead of following `ubuntu-latest` to a newer image. The final
-PR check result is reported separately; the cancelled installation run is not a passing test result.
+Both browser workflows now pin Ubuntu 24.04 and install Playwright's pinned headless Chromium directly,
+using the Chrome runtime libraries already supplied by the runner image. This avoids repeating apt/font
+downloads; the browser tests still require the actual browser to launch successfully. The final PR check
+result is reported separately; a cancelled installation run is not a passing test result.

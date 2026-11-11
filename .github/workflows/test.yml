@@ -18,5 +18,6 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      # Ubuntu 24.04 runners include Chrome runtime libraries; avoid redundant apt/font downloads.
+      - run: npx playwright install --only-shell chromium
       - run: npm run check
