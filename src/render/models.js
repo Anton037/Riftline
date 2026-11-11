@@ -1258,10 +1258,10 @@ function debrisGeometry() {
 function buildPlayerModel(weapon, color) {
   // 3.17.0: a walker instead of a gunship: a two-legged robot. A squat torso with a glowing visor and a back pack on a
   // pelvis, two legs (a thigh, a shin, a flat foot) that swing, bend and plant as the drone walks (setWalk), and the
-  // weapon mount on top. The footprint (about 0.65 around the centre), the hull colours and the weapon colour on the
-  // glowing parts are the same as before; `base` is still the part that turns with the drone, `turret` aims.
+  // weapon mount on top. The footprint stays about 0.65 around the centre, with brighter v4 hull armor.
+  // `base` is the part that turns with the drone; `turret` aims.
   const hullMat = new MeshPhongMaterial({
-      color: 0x738b9b,
+      color: 0xa5bec9,
       emissive: 0,
       specular: 0x53616b,
       shininess: 28,
@@ -1303,6 +1303,7 @@ function buildPlayerModel(weapon, color) {
       box(2898514, 0.3, 0.32, 0.42, { x: -0.3, y: HIP + 0.36 }),
     ],
     trim = [
+      ...both((s) => [box(0xcbd8db, 0.28, 0.04, 0.18, { x: 0.06, y: HIP + 0.62, z: s * 0.29 })]),
       box(9348036, 0.34, 0.035, 0.46, { x: 0.1, y: HIP + 0.525 }),
       ...[-0.13, 0, 0.13].map((z) => box(9348036, 0.13, 0.025, 0.035, { x: -0.31, y: HIP + 0.535, z })),
       box(9348036, 0.38, 0.05, 0.54, { x: 0, y: HIP + 0.1 }),

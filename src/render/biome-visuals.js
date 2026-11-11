@@ -26,11 +26,13 @@ import {
   Vector2,
   Vector4,
 } from "three";
+import { REED_WIND } from "./map-geometry.js";
+import { addMapArchitecture } from "./map-architecture.js";
 import { calderaRidgeParts } from "./caldera-ridge.js";
 import { armorBox } from "./armor-geometry.js";
 import { FLOOR_FRAGMENT as RL_FLOOR_FRAG } from "./surface-shader.js";
 import { clamp, TAU, hashString, makeRng } from "../core/util.js";
-import { hexColor, additiveMaterial } from "./renderer.js";
+import { hexColor, additiveMaterial } from "./materials.js";
 import { addBiomeDetail } from "./biome-props.js";
 import { mergeGeometries } from "./models.js";
 import { mergeStaticMeshes } from "./static-meshes.js";
@@ -134,6 +136,7 @@ void main() {
       );
       // 2.9.0: clutter, backdrop and ground decals (its own rng, so the props above keep their layout)
       addBiomeDetail(this, biome, layout.W, layout.H, layout.obs, makeRng(hashString(layout.key + ":detail")));
+      addMapArchitecture(this, biome, layout.W, layout.H, layout.obs);
       mergeStaticMeshes(this.group, new Set(this.rlAnim.map((a) => a.o)));
       this.rise = animate && !first ? 0 : 1;
       props.position.y = this.rise < 1 ? -2.6 : 0;
@@ -380,8 +383,8 @@ const RL_BIOME_BUILD = {
   yard(view, biome, W, H, obs, rng) {
     const group = view.group,
       props = view.obsGroup,
-      concrete = new MeshLambertMaterial({ color: 0x3a3c42, flatShading: true }),
-      darkConcrete = new MeshLambertMaterial({ color: 0x24262b, flatShading: true }),
+      concrete = new MeshLambertMaterial({ color: 0x69727a, flatShading: true }),
+      darkConcrete = new MeshLambertMaterial({ color: 0x414b58, flatShading: true }),
       red = rlGlow(biome.accent),
       white = rlGlow(0xd8d4c8),
       amber = rlGlow(0xffb347),
@@ -410,7 +413,7 @@ const RL_BIOME_BUILD = {
         bakeBorder.add(propBox(0.8, 1.1, 0.8), darkConcrete, sx * (W + 0.45), 0.55, sz * (H + 0.45));
         bakeBorder.add(propBox(0.3, 0.18, 0.3), amber, sx * (W + 0.45), 1.2, sz * (H + 0.45));
       }
-    const paint = [0x2b3a4a, 0x4a2b2b, 0x2e3b2e, 0x3d3d44, 0x4a4030];
+    const paint = [0x536e82, 0x855950, 0x526c5d, 0x747584, 0x85744f];
     for (const obstacle of obs)
       if (obstacle.t === "c") {
         // an advertising column: concrete drum, a band of torn posters, a cap
@@ -424,10 +427,30 @@ const RL_BIOME_BUILD = {
           1.15,
           obstacle.y,
         );
-        bakeObs.add(new CylinderGeometry(r * 1.08, r * 1.0, 0.14, 18), concrete, obstacle.x, height + 0.07, obstacle.y);
+        // Torn paper panels and a metal collar make the column legible at game scale.
+        for (let panel = 0; panel < 3; panel++) {
+          const a = (panel * Math.PI * 2) / 3 + 0.4;
+          bakeObs.add(
+            propBox(r * 0.65, 0.65, 0.025),
+            paintedMat(0xaaa494),
+            obstacle.x + Math.sin(a) * r,
+            1.2,
+            obstacle.y + Math.cos(a) * r,
+            a,
+          );
+          bakeObs.add(
+            propBox(r * 0.42, 0.08, 0.03),
+            paintedMat(0x526b79),
+            obstacle.x + Math.sin(a) * (r + 0.02),
+            1.32,
+            obstacle.y + Math.cos(a) * (r + 0.02),
+            a,
+          );
+        }
+        bakeObs.add(new CylinderGeometry(r, r, 0.14, 18), concrete, obstacle.x, height + 0.07, obstacle.y);
         bakeObs.add(new CylinderGeometry(r * 0.5, r * 0.7, 0.3, 12), concrete, obstacle.x, height + 0.29, obstacle.y);
         bakeObs.add(new CylinderGeometry(r * 1.0, r * 1.0, 0.05, 18, 1, true), white, obstacle.x, 1.8, obstacle.y);
-        bakeObs.add(new TorusGeometry(r * 1.1, 0.04, 4, 32), accentMat, obstacle.x, 0.05, obstacle.y, 0, Math.PI / 2);
+        bakeObs.add(new TorusGeometry(r * 1.06, 0.045, 4, 32), concrete, obstacle.x, 0.05, obstacle.y, 0, Math.PI / 2);
       } else if (obstacle.w < 1.3 && obstacle.h < 1.3) {
         // a dumpster with its lid half open
         const height = 1.1;
@@ -448,7 +471,23 @@ const RL_BIOME_BUILD = {
           0,
           0.18,
         );
-        bakeObs.add(propBox(obstacle.w * 2 + 0.3, 0.05, obstacle.h * 2 + 0.3), accentMat, obstacle.x, 0.03, obstacle.y);
+        for (const side of [-1, 1]) {
+          bakeObs.add(
+            propBox(obstacle.w * 1.7, 0.07, 0.06),
+            concrete,
+            obstacle.x,
+            0.35,
+            obstacle.y + side * obstacle.h,
+          );
+          bakeObs.add(propBox(0.35, 0.06, 0.08), concrete, obstacle.x, 0.85, obstacle.y + side * obstacle.h);
+        }
+        bakeObs.add(
+          propBox(obstacle.w * 2 + 0.12, 0.04, obstacle.h * 2 + 0.12),
+          concrete,
+          obstacle.x,
+          0.03,
+          obstacle.y,
+        );
       } else {
         // a wrecked car: body, cabin, wheels, dead headlights and one red tail light still on
         const long = obstacle.w >= obstacle.h,
@@ -475,7 +514,13 @@ const RL_BIOME_BUILD = {
         bakeObs.addIn(propBox(0.04, 0.12, 0.3), red, car, -L / 2 - 0.01, 0.62, D * 0.32);
         // the roll stays unconditional (the run's rng must see the same draws as before)
         if (rng.chance(0.3)) bakeObs.addIn(propBox(0.04, 0.1, 0.28), white, car, L / 2 + 0.01, 0.6, -D * 0.3);
-        bakeObs.add(propBox(obstacle.w * 2 + 0.3, 0.05, obstacle.h * 2 + 0.3), accentMat, obstacle.x, 0.03, obstacle.y);
+        bakeObs.add(
+          propBox(obstacle.w * 2 + 0.12, 0.05, obstacle.h * 2 + 0.12),
+          accentMat,
+          obstacle.x,
+          0.03,
+          obstacle.y,
+        );
       }
     // steam out of a few manholes (decor; the live ones are the vents)
     if (!view.rlEmit) view.rlEmit = [];
@@ -590,7 +635,7 @@ void main() {
       rlMesh(group, propBox(sx, wallH, sz), core, bx, wallH / 2, bz);
     const spikes = [],
       tint = [0xbfe8ff, 0xa4d8f4, 0xdff4ff, 0x7ab0dc];
-    for (const off of [0.25, 0.85])
+    for (const off of [0.6, 1.05])
       rlAlongBorder(W, H, off, 0.75, (px, pz, nx, nz) => {
         const len = rng.range(0.7, off < 0.5 ? 1.5 : 2.4),
           tilt = rng.range(0.1, 0.35);
@@ -628,7 +673,7 @@ void main() {
         main.rotation.z = rng.range(-0.08, 0.08);
         for (let j = 0; j < 4; j++) {
           const angle = (j / 4) * Math.PI * 2 + rng.range(-0.4, 0.4),
-            len = rng.range(0.8, 1.4),
+            len = Math.min(rng.range(0.8, 1.4), obstacle.r * 1.4),
             shard = rlMesh(
               props,
               new CylinderGeometry(obstacle.r * 0.14, obstacle.r * 0.24, len, 6),
@@ -670,7 +715,7 @@ void main() {
   marsh(view, biome, W, H, obs, rng) {
     const group = view.group,
       props = view.obsGroup,
-      bark = new MeshLambertMaterial({ color: 0x241f16, flatShading: true }),
+      bark = new MeshLambertMaterial({ color: 0x544b38, flatShading: true }),
       moss = new MeshLambertMaterial({ color: 0x1e4a3a, emissive: 0x062a1e, flatShading: true }),
       stem = new MeshLambertMaterial({ color: 0xcfd8c4, flatShading: true }),
       cap = new MeshLambertMaterial({ color: 0x2a8a68, emissive: 0x0c3a2a, flatShading: true }),
@@ -688,7 +733,7 @@ void main() {
       rlMesh(
         group,
         propBox(sx, 0.22, sz),
-        new MeshLambertMaterial({ color: 0x14211e, flatShading: true }),
+        new MeshLambertMaterial({ color: 0x344b42, flatShading: true }),
         bx,
         0.11,
         bz,
@@ -696,7 +741,7 @@ void main() {
     const reeds = [],
       rocks = [],
       green = [0x3e6a4a, 0x335a3e, 0x4a7a52, 0x2a4a34];
-    rlAlongBorder(W, H, 0.55, 0.4, (px, pz, nx, nz) => {
+    rlAlongBorder(W, H, 0.95, 0.4, (px, pz, nx, nz) => {
       for (let j = 0; j < 2; j++) {
         const len = rng.range(0.9, 2.3),
           off = rng.range(-0.45, 0.6);
@@ -759,8 +804,8 @@ void main() {
             `#include <begin_vertex>
         // 3.46.0: the slow wind — a small-angle lean of every blade on its own phase, pivoting
         // around the blade's middle (the matrices stay static on the GPU)
-        transformed.x -= sin(uTime * aSpeed + aPhase) * 0.06 * transformed.y;
-        transformed.z += cos(uTime * aSpeed * 0.83 + aPhase) * 0.06 * transformed.y;
+        transformed.x -= sin(uTime * aSpeed + aPhase) * ${REED_WIND} * transformed.y;
+        transformed.z += cos(uTime * aSpeed * 0.83 + aPhase) * ${REED_WIND} * transformed.y;
 `,
           );
       };
@@ -817,11 +862,16 @@ void main() {
             const angle = rng.range(0, Math.PI * 2),
               branch = rlMesh(
                 props,
-                new CylinderGeometry(0.04, 0.1, 1.0, 5),
+                new CylinderGeometry(
+                  Math.min(0.04, obstacle.r * 0.08),
+                  Math.min(0.1, obstacle.r * 0.18),
+                  Math.min(1.0, obstacle.r * 0.9),
+                  5,
+                ),
                 bark,
-                obstacle.x + Math.cos(angle) * 0.3,
+                obstacle.x + Math.cos(angle) * obstacle.r * 0.3,
                 rng.range(1.5, 2.1),
-                obstacle.y + Math.sin(angle) * 0.3,
+                obstacle.y + Math.sin(angle) * obstacle.r * 0.3,
               );
             branch.rotation.set(Math.sin(angle) * 0.9, 0, -Math.cos(angle) * 0.9);
           }
@@ -896,7 +946,7 @@ void main() {
   void(view, biome, W, H, obs, rng) {
     const group = view.group,
       props = view.obsGroup,
-      obsid = new MeshLambertMaterial({ color: 0x2a1a4a, emissive: 0x12072a, flatShading: true }),
+      obsid = new MeshLambertMaterial({ color: 0x52416c, emissive: 0x12072a, flatShading: true }),
       rim = rlGlow(biome.grid),
       hot = rlGlow(biome.accent),
       wall = additiveMaterial(null, { color: biome.grid, opacity: 0.13, side: DoubleSide }),
@@ -909,11 +959,18 @@ void main() {
     ]) {
       rlMesh(group, new PlaneGeometry(len, wallH), wall, bx, wallH / 2, bz, rot);
       rlMesh(group, propBox(rot ? 0.06 : len, 0.05, rot ? len : 0.06), rim, bx, 0.03, bz);
-      rlMesh(group, propBox(rot ? 0.04 : len, 0.03, rot ? len : 0.04), rim, bx, wallH, bz);
+      rlMesh(
+        group,
+        propBox(rot ? 0.04 : len, 0.03, rot ? len : 0.04),
+        rim,
+        bx + Math.sign(bx) * 0.025,
+        wallH,
+        bz + Math.sign(bz) * 0.025,
+      );
     }
     for (const sx of [-1, 1])
       for (const sz of [-1, 1]) {
-        const crystal = rlMesh(group, new OctahedronGeometry(0.45), hot, sx * W, 1.3, sz * H);
+        const crystal = rlMesh(group, new OctahedronGeometry(0.45), hot, sx * (W + 0.55), 1.3, sz * (H + 0.55));
         crystal.scale.y = 1.8;
         view.rlAnim.push({ o: crystal, k: "spin", s: 1.2, b: 1.3, ph: sx + sz * 2 });
       }
@@ -990,7 +1047,7 @@ void main() {
         sx: size,
         sy: size * rng.range(1.3, 2.4),
         sz: size,
-        c: rng.pick([0x241a30, 0x241a30, 0x9fd8f0, 0x2a4a3c, 0x46e8ff, 0x2a1a4a]),
+        c: rng.pick([0x241a30, 0x241a30, 0x9fd8f0, 0x2a4a3c, 0x46e8ff, 0x52416c]),
       });
     }
     rlInst(
@@ -1054,6 +1111,18 @@ void main() {
         mono.position.set(obstacle.x, 0.3 + height / 2, obstacle.y);
         props.add(mono);
         rlMesh(mono, propBox(obstacle.w * 2 * 0.92, height, obstacle.h * 2 * 0.92), obsid, 0, 0, 0);
+        // Recessed crown plates break up the broad flat top without adding floor clutter.
+        for (const side of [-1, 1]) {
+          rlMesh(
+            mono,
+            propBox(obstacle.w * 0.62, 0.09, obstacle.h * 1.35),
+            obsid,
+            side * obstacle.w * 0.43,
+            height / 2 + 0.045,
+            0,
+          );
+          rlMesh(mono, propBox(0.035, 0.012, obstacle.h * 0.6), rim, side * obstacle.w * 0.43, height / 2 + 0.096, 0);
+        }
         for (const sx of [-1, 1])
           for (const sz of [-1, 1])
             rlMesh(mono, propBox(0.05, height + 0.02, 0.05), rim, sx * obstacle.w * 0.92, 0, sz * obstacle.h * 0.92);
@@ -1070,9 +1139,9 @@ void main() {
   club(view, biome, W, H, obs, rng) {
     const group = view.group,
       props = view.obsGroup,
-      rock = new MeshLambertMaterial({ color: 0x43382f, flatShading: true }),
-      darkRock = new MeshLambertMaterial({ color: 0x392e28, flatShading: true }),
-      obsidian = new MeshLambertMaterial({ color: 0x252433, flatShading: true }),
+      rock = new MeshLambertMaterial({ color: 0x66584f, flatShading: true }),
+      darkRock = new MeshLambertMaterial({ color: 0x51483f, flatShading: true }),
+      obsidian = new MeshLambertMaterial({ color: 0x44424e, flatShading: true }),
       emberMat = rlGlow(0xff9c3a),
       hotMat = rlGlow(0xffe19a),
       accentMat = new MeshBasicMaterial({ color: biome.accent, toneMapped: false }),
@@ -1194,13 +1263,13 @@ void main() {
       sand = new MeshLambertMaterial({ color: 0x8a7048, flatShading: true }),
       sandstone = new MeshLambertMaterial({ color: 0x745c38, flatShading: true }),
       glass = new MeshLambertMaterial({
-        color: 0xe2d8b4,
-        emissive: 0x6a5c34,
+        color: 0xa4d4d8,
+        emissive: 0x253d40,
         transparent: true,
         opacity: 0.84,
         flatShading: true,
       }),
-      hotGlass = new MeshLambertMaterial({ color: 0xf2e6c0, emissive: 0x8a6a30, flatShading: true }),
+      hotGlass = new MeshLambertMaterial({ color: 0xdbf0e9, emissive: 0x435c58, flatShading: true }),
       glow = rlGlow(biome.grid, 0.7),
       hot = rlGlow(biome.accent, 0.8),
       bake = rlMerger();
@@ -1221,7 +1290,7 @@ void main() {
         const a = rng.range(0, Math.PI);
         for (const [dx, dz, lean] of [
           [0, 0, 0.14],
-          [Math.cos(a + 1.2) * 0.55, Math.sin(a + 1.2) * 0.55, -0.12],
+          [Math.cos(a + 1.2) * obstacle.r * 0.32, Math.sin(a + 1.2) * obstacle.r * 0.32, -0.12],
         ]) {
           const sheet = rlMesh(
             props,

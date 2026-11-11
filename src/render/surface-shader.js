@@ -36,13 +36,22 @@ void main() {
   albedo=mix(vec3(0.035,0.048,0.063),vec3(0.015,0.023,0.031),wet)*(0.7+0.5*grain);
   float lane=(1.0-smoothstep(0.08,0.14,abs(abs(p.x)-0.3)))*step(0.28,fract(p.y/4.0));
   albedo=mix(albedo,vec3(0.34,0.25,0.09),lane*smoothstep(0.24,0.55,grain));
+  // Worn road shoulders, repaired asphalt and crosswalk paint establish a real street scale.
+  float shoulder=(1.0-smoothstep(0.04,0.09,abs(abs(p.x)-8.0)))*smoothstep(0.3,0.55,grain);
+  float crossing=step(abs(p.y+7.0),1.4)*step(abs(p.x),7.8)*step(0.38,fract(p.x/1.2));
+  float wear=smoothstep(0.28,0.65,stone(p*3.5));
+  albedo=mix(albedo,vec3(0.18,0.2,0.19),max(shoulder,crossing*wear*0.55));
+  float repair=step(0.78,hash(floor((p+1.7)/2.8)))*(1.0-seam);
+  albedo*=1.0-repair*0.28;
   height=(grain*0.035-seam*0.055)*(1.0-wet); gloss=wet*0.8; rough=0.18;
   // Warm street lights smear across water, never a bright stripe across the combat space.
   emission=vec3(0.08,0.035,0.008)*wet*pow(max(0.0,sin(p.y*0.7+p.x*0.2)),8.0);
  } else if(st==2) { // Aurora Shelf: deep ice with snow accumulated in fissures.
   vec2 c=cell(p*0.27+3.0); float crack=1.0-smoothstep(0.015,0.08,c.x);
-  float snow=smoothstep(0.48,0.73,stone(p*0.22));
+  float drift=sin(p.x*0.8+p.y*1.6+stone(p*0.15)*6.0);
+  float snow=smoothstep(0.48,0.76,stone(p*0.22)+drift*0.045);
   albedo=mix(vec3(0.027,0.09,0.15)*(0.8+0.4*grain),vec3(0.32,0.44,0.48),snow);
+  albedo*=1.0-0.09*snow*(0.5+0.5*sin(p.y*9.0+p.x*2.0+grain*2.0));
   height=snow*0.16+grain*0.025-crack*0.09; gloss=(1.0-snow)*0.75; rough=0.15;
   emission=vec3(0.025,0.12,0.17)*crack*(1.0-snow)*0.5;
   key=vec3(0.65,0.84,1.0);
@@ -53,13 +62,20 @@ void main() {
   height=bank*0.2+grain*0.04*bank+ripple*0.008*(1.0-bank);
   gloss=(1.0-bank)*0.7; rough=0.24; key=vec3(0.54,0.9,0.82);
   float shore=1.0-smoothstep(0.02,0.075,abs(stone(p*0.23)-0.5));
-  emission=vec3(0.015,0.13,0.09)*shore*(0.65+0.15*sin(uTime*0.7));
+  // Broken colonies along the banks, rather than a continuous glowing contour.
+  float colonies=smoothstep(0.48,0.7,stone(p*1.3));
+  emission=vec3(0.015,0.13,0.09)*shore*colonies*(0.45+0.1*sin(uTime*0.7));
+  albedo+=vec3(0.018,0.028,0.009)*bank*smoothstep(0.55,0.75,grain);
  } else if(st==4) { // Shattered Core: beveled hex slabs, dark gaps and a low rift glow.
   vec2 q=p/2.3, r=vec2(1.0,1.7320508), a=mod(q,r)-r*0.5, b=mod(q-r*0.5,r)-r*0.5;
   vec2 g=dot(a,a)<dot(b,b)?a:b; float d=max(dot(abs(g),normalize(r)),abs(g.x));
   vec2 id=floor((q-g)*2.0+0.5); float bevel=smoothstep(0.41,0.48,d), gap=smoothstep(0.475,0.49,d);
   albedo=mix(vec3(0.065,0.056,0.105)*(0.72+hash(id)*0.5),vec3(0.006,0.008,0.022),gap);
-  height=(1.0-bevel)*0.16+grain*0.012; gloss=0.28; rough=0.38;
+  float fracture=1.0-smoothstep(0.008,0.025,abs(g.y-g.x*0.48+(hash(id)-0.5)*0.5));
+  fracture*=step(0.62,hash(id+9.0))*(1.0-gap);
+  albedo*=1.0-fracture*0.65;
+  albedo+=vec3(0.012,0.017,0.025)*smoothstep(0.5,0.8,grain)*(1.0-bevel);
+  height=(1.0-bevel)*0.16+grain*0.012-fracture*0.035; gloss=0.28; rough=0.38;
   emission=vec3(0.075,0.025,0.16)*gap+vec3(0.04,0.1,0.14)*bevel*(1.0-gap)*0.15;
   key=vec3(0.78,0.68,1.0);
  } else if(st==6) { // Ashfall Caldera: volcanic plates; molten rock stays below their edges.
@@ -67,13 +83,16 @@ void main() {
   float shelf=smoothstep(0.02,0.18,c.x);
   albedo=vec3(0.055,0.04,0.035)*(0.55+grain*0.65+c.y*0.25);
   height=shelf*0.19+grain*0.055; gloss=0.08; rough=0.65; key=vec3(1.0,0.73,0.5);
-  emission=mix(vec3(0.22,0.018,0.001),vec3(0.7,0.16,0.015),stone(p*0.3))*crack*0.65;
+  emission=mix(vec3(0.22,0.018,0.001),vec3(0.7,0.16,0.015),stone(p*0.3))*crack*smoothstep(0.38,0.7,stone(p*0.18+7.0))*0.48;
+  albedo+=vec3(0.025,0.022,0.021)*smoothstep(0.45,0.7,stone(p*0.24+3.0));
  } else { // Glass Flats: cool translucent fragments embedded in wind-rippled ochre sand.
-  vec2 c=cell(p*0.24+4.0); float glass=smoothstep(0.04,0.15,c.x)*smoothstep(0.25,0.55,stone(p*0.17));
+  vec2 c=cell(p*0.48+4.0); float glass=smoothstep(0.05,0.19,c.x)*smoothstep(0.45,0.7,stone(p*0.21));
   float dune=sin(p.x*2.3+p.y*1.4+stone(p*0.22)*5.0);
   vec3 sand=vec3(0.25,0.18,0.095)*(0.9+grain*0.2);
   vec3 sheet=mix(vec3(0.12,0.22,0.24),vec3(0.28,0.34,0.29),c.y);
+  sand*=0.94+0.06*dune;
   albedo=mix(sand,sheet,glass);
+  emission=vec3(0.035,0.05,0.045)*glass*(1.0-smoothstep(0.05,0.1,c.x));
   height=(1.0-glass)*(dune*0.025+grain*0.012)+glass*smoothstep(0.05,0.2,c.x)*0.1;
   gloss=glass*0.65; rough=0.2; key=vec3(1.0,0.88,0.65);
  }

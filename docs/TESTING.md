@@ -16,6 +16,12 @@ there is no historical release assertion catalog, always-on soak or hidden exten
 | `npm run probe:audio` | Audio fault recovery | 120 s |
 | `npm run probe:mix` / `probe:music` / `probe:place` | Optional sound measurements | 300 / 420 / 180 s |
 
+The map geometry suite is part of the normal gate. `node --test tests/map-geometry.test.mjs` runs its
+252-layout scene audit on its own. It checks transformed triangle faces, collision footprints, exterior
+bounds, animation samples and GPU reed wind extrema. See [the geometry audit](GEOMETRY-AUDIT-4.0.md).
+For centre/edge/corner screenshots use `node tools/verify.js visual <tag> tablet all high map` or
+`node tools/verify.js visual <tag> land all battery map`; each covers nine views in every biome.
+
 ## Standard contracts
 
 - Node checks cover seeded finite combat for each weapon, snapshot restoration, biome/boss/hazard

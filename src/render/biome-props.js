@@ -21,6 +21,7 @@ import {
   TorusGeometry,
   Vector3,
 } from "three";
+import { keepExteriorPartsOutside } from "./map-geometry.js";
 import { meshPart, mergeParts, box, ball, bar, pipe, spike } from "./models.js";
 
 const PI = Math.PI,
@@ -43,15 +44,17 @@ const cyl = (c, r0, r1, h, seg, x, y, z, ex = {}) =>
   ring = (c, r, tube, x, y, z, ex = {}) =>
     meshPart(new TorusGeometry(r, tube, 3, 14), c, { x, y, z, rx: PI / 2, ...ex });
 
-const list = () => ({ body: [], glow: [] });
+const list = (W, H) => ({ body: [], glow: [], arena: W == null ? null : { W, H } });
 // moves the parts of a prop to (x, y, z), turned by ry and scaled by s, and adds them to `into`
 function put(into, prop, x, y, z, ry = 0, s = 1) {
   tmpM.compose(tmpP.set(x, y, z), tmpQ.setFromAxisAngle(UP, ry), tmpS.set(s, s, s));
   for (const k of ["body", "glow"])
     for (const g of prop[k]) {
       g.applyMatrix4(tmpM);
-      into[k].push(g);
     }
+  if (into.arena && (Math.abs(x) > into.arena.W || Math.abs(z) > into.arena.H))
+    keepExteriorPartsOutside(prop, into.arena.W, into.arena.H, x, z);
+  for (const k of ["body", "glow"]) into[k].push(...prop[k]);
 }
 const faceIn = (nx, nz) => Math.atan2(-nx, -nz);
 
@@ -127,7 +130,7 @@ function crack(into, color, x, z, rng, segs, step, w = 0.05) {
    (most still burning), traffic lights at the corners, parked and burned-out cars, a bus shelter; on the street:
    manhole covers, storm drains along the kerb, litter and cracks. ---- */
 function yardDetail(biome, W, H, obs, rng) {
-  const out = list(),
+  const out = list(W, H),
     red = biome.accent,
     pale = biome.grid,
     tower = [0x16181d, 0x1c1f26, 0x22252d, 0x191b20, 0x262a33],
@@ -255,7 +258,7 @@ const pick3 = (rng, items) => items[Math.floor(rng.next() * items.length)];
    the horizon, snow drifts and half-buried arks around the arena; frost, shards, cracks and snow
    on the floor. The crest of a tall ridge carries a faint aurora-green rim light. ---- */
 function vaultDetail(biome, W, H, obs, rng) {
-  const out = list(),
+  const out = list(W, H),
     cyan = biome.grid,
     ice = [0x8fc4ec, 0xaadcf4, 0x6ea6d4, 0xc8e8ff, 0x5a92c4],
     snow = 0xe8f4ff;
@@ -427,7 +430,7 @@ function vaultDetail(biome, W, H, obs, rng) {
    puddles, lily pads, small glowcaps, grass, bones and spore pods on the ground. The glow colours
    follow the biome (lime = grid, yellow = accent), so the wisps and veins shift with the palette. ---- */
 function marshDetail(biome, W, H, obs, rng) {
-  const out = list(),
+  const out = list(W, H),
     lime = biome.grid,
     yellow = biome.accent,
     bark = [0x2a2519, 0x221e15, 0x302a1b],
@@ -583,15 +586,15 @@ function marshDetail(biome, W, H, obs, rng) {
     put(out, t, p.x, 0, p.z, rng.range(0, TAU));
   }
   // mud mounds and will-o'-the-wisp stakes (the marsh's own lanterns)
-  for (const p of outsideSpots(rng, W, H, 10, 0.8, 5, 2.4))
-    out.body.push(
+  for (const p of outsideSpots(rng, W, H, 10, 0.8, 5, 2.4)) {
+    const t = list();
+    t.body.push(
       meshPart(new SphereGeometry(rng.range(0.9, 1.9), 7, 4), 0x1c1a12, {
-        x: p.x,
-        y: 0,
-        z: p.z,
         sy: rng.range(0.22, 0.4),
       }),
     );
+    put(out, t, p.x, 0, p.z);
+  }
   for (const p of outsideSpots(rng, W, H, 10, 0.8, 3, 3.6)) {
     out.body.push(pipe(0x2a2519, 0.04, 0.03, 4, [p.x, 0, p.z], [p.x, 1.5, p.z]));
     out.glow.push(
@@ -676,7 +679,7 @@ function marshDetail(biome, W, H, obs, rng) {
 /* ---- The Glass Flats (3.55.0): pale sand dunes, glass ridges and dry shrubs outside; glass
    blisters, glare patches and shard tufts on the ground. ---- */
 function flatsDetail(biome, W, H, obs, rng) {
-  const out = list(),
+  const out = list(W, H),
     hot = biome.accent,
     // 3.55.0: the dunes and the berm read as pale sand (they used to be dark brown boxes against
     // the near-white floor - clutter, not detail), the glass reads brighter than the floor
@@ -754,7 +757,7 @@ function flatsDetail(biome, W, H, obs, rng) {
 }
 
 function voidDetail(biome, W, H, obs, rng) {
-  const out = list(),
+  const out = list(W, H),
     violet = biome.grid,
     red = biome.accent,
     rockCol = [0x2a1a4a, 0x3a2660, 0x22143c, 0x33205a],
@@ -919,7 +922,7 @@ function voidDetail(biome, W, H, obs, rng) {
   for (const p of scatter(rng, W, H, obs, 11, { gap: 1.8 }))
     // 3.44.0: the drifting shards rest (was 18)
     out.glow.push(
-      gem(dim(rng.pick(glows), 0.75), rng.range(0.03, 0.08), p.x, rng.range(0.25, 0.7), p.z, {
+      gem(dim(rng.pick(glows), 0.75), rng.range(0.03, 0.08), p.x, rng.range(0.25, 0.6), p.z, {
         sy: 1.6,
         rx: rng.range(0, 3),
         ry: rng.range(0, 3),
@@ -934,7 +937,7 @@ function voidDetail(biome, W, H, obs, rng) {
    around the arena; inside: low ember scars
    dot the plates, a scatter of settling embers, clusters of obsidian shards. ---- */
 function calderaDetail(biome, W, H, obs, rng) {
-  const out = list(),
+  const out = list(W, H),
     hot = biome.accent,
     lava = 0xff7a1e, // the interior molten glow - the accent is cream, too pale for lava
     crust = 0x1c0f08,
@@ -945,10 +948,10 @@ function calderaDetail(biome, W, H, obs, rng) {
   // (the camera looks at the -z far field, so the cone row is hand-placed there and on the back
   // corners of the side walls - the near side is never in frame)
   const cones = [
-    { x: -9, z: -H - 5.5, r: 8.2, h: 12.5 },
-    { x: 6.5, z: -H - 9.5, r: 10.5, h: 15.5 },
-    { x: -W - 8, z: -H - 2.5, r: 6.6, h: 10 },
-    { x: W + 9, z: -H - 3.5, r: 7.2, h: 11 },
+    { x: -9, z: -H - 14, r: 8.2, h: 12.5 },
+    { x: 6.5, z: -H - 18, r: 10.5, h: 15.5 },
+    { x: -W - 8, z: -H - 10.5, r: 6.6, h: 10 },
+    { x: W + 9, z: -H - 12.5, r: 7.2, h: 11 },
   ];
   for (const c of cones) {
     const t = list(),

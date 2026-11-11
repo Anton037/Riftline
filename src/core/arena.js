@@ -1089,7 +1089,7 @@ function placeFeatures(rng, biomeId, obs, W, H) {
   return features;
 }
 
-export { mapTemplates, hitsObstacle, obstacleShapes, Arena, buildLayout, isConnected, SpatialHash };
+export { placeObstacles, mapTemplates, hitsObstacle, obstacleShapes, Arena, buildLayout, isConnected, SpatialHash };
 
 // ---- 2.5.0 C: stronger biomes. A hazard wave now has about five hazards (was ~3.3), each about
 // 25–30% bigger than the 2.4.6 sizes, and the Shattered Core has two portal pairs in most waves (was 40%).

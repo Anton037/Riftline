@@ -1,7 +1,7 @@
 // Renderer data/geometry contracts without GPU timing or screenshot comparisons.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { Group, Mesh, BoxGeometry, MeshLambertMaterial, Box3 } from "three";
+import { Group, Mesh, BoxGeometry, MeshLambertMaterial, Box3, Vector3 } from "three";
 import { mergeStaticMeshes } from "../src/render/static-meshes.js";
 import { biomeList } from "../src/data/biomes.js";
 import { biomeAtmosphere, atmosphereDensity } from "../src/data/atmosphere.js";
@@ -127,7 +127,7 @@ test("Caldera ridges rotate the entire decorated model with their collision foot
   for (const p of [...horizontal, ...vertical]) p.geometry.dispose();
 });
 
-test("Caldera decoration keeps the walker spawn clear instead of piling pond rocks at the origin", async () => {
+test("Caldera decoration keeps the spawn and playable edges clear", async () => {
   globalThis.__RL_VERSION__ ??= "test";
   globalThis.__RL_BUILD__ ??= "test";
   const { makeRng } = await import("../src/core/util.js");
@@ -140,9 +140,46 @@ test("Caldera decoration keeps the walker spawn clear instead of piling pond roc
       const p = mesh.geometry.attributes.position;
       for (let i = 0; i < p.count; i++) {
         assert.ok(Math.hypot(p.getX(i), p.getZ(i) - 2) > 3, `seed ${seed}: decorative vertex in spawn clearing`);
+        if (Math.abs(p.getX(i)) < 18 && Math.abs(p.getZ(i)) < 18)
+          assert.ok(p.getY(i) < 0.8, `seed ${seed}: tall backdrop overhangs the playable arena`);
       }
       mesh.geometry.dispose();
       mesh.material.dispose();
+    }
+  }
+});
+
+test("v4 architecture stays on solid footprints and outside the arena", async () => {
+  const { addMapArchitecture } = await import("../src/render/map-architecture.js");
+  for (const biome of biomeList) {
+    for (const ob of [
+      { t: "b", x: 3, y: -2, w: 0.5, h: 3 },
+      { t: "c", x: -3, y: 4, r: 1 },
+    ]) {
+      const view = { group: new Group(), obsGroup: new Group() };
+      addMapArchitecture(view, biome, 15, 12, [ob]);
+      const bounds = new Box3().setFromObject(view.obsGroup);
+      const w = ob.r ?? ob.w,
+        h = ob.r ?? ob.h;
+      assert.ok(bounds.min.x >= ob.x - w - 0.001 && bounds.max.x <= ob.x + w + 0.001, biome.id + " x footprint");
+      assert.ok(bounds.min.z >= ob.y - h - 0.001 && bounds.max.z <= ob.y + h + 0.001, biome.id + " z footprint");
+      assert.ok(bounds.max.y < 0.5, biome.id + " foundations stay low");
+      if (ob.t === "c") {
+        view.obsGroup.updateMatrixWorld(true);
+        for (const mesh of view.obsGroup.children) {
+          const positions = mesh.geometry.attributes.position;
+          for (let i = 0; i < positions.count; i++) {
+            const vertex = new Vector3().fromBufferAttribute(positions, i).applyMatrix4(mesh.matrixWorld);
+            assert.ok(Math.hypot(vertex.x - ob.x, vertex.z - ob.y) <= ob.r + 0.001, biome.id + " circular footprint");
+          }
+        }
+      }
+      assert.ok(new Box3().setFromObject(view.group).max.z < -12, biome.id + " landmarks beyond wall");
+      for (const group of [view.group, view.obsGroup])
+        group.traverse((o) => {
+          o.geometry?.dispose();
+          o.material?.dispose();
+        });
     }
   }
 });

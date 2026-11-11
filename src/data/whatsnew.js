@@ -4,6 +4,15 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "4.0.0",
+    title: "Six worlds, rebuilt",
+    items: [
+      "Six rebuilt environments: worn city streets, wind-carved snow, living marsh banks, fractured Core slabs, cooled volcanic crust and glass-strewn dunes.",
+      "Map obstacles gain foundations, layered materials and physical detail, with new landmarks framing each arena.",
+      "Weathered manhole metal, cooler glass and brighter walker armor keep the world and combat readable.",
+    ],
+  },
+  {
     version: "3.64.0",
     title: "Read the rush, trust the cover",
     items: [
@@ -42,19 +51,6 @@ export const WHATS_NEW = [
       "Hazmat and Hazard Seal protect against traps, and fast enemy shots collide along their path.",
       "Scattergun damage estimates count extra pellets correctly and invalid challenge dates are rejected.",
       "The Rift Core stops summoning reinforcements into an overcrowded arena.",
-    ],
-  },
-  {
-    version: "3.62.0",
-    title: "Practice the danger, keep your progress",
-    items: [
-      "Practise all six bosses with a fixed kit and opening, mid-fight or enraged patterns, while your saved run and records stay untouched.",
-      "Updates wait for open dialogs; importing or resetting progress reports storage failures and can recover a held save.",
-      "Saved card choices preserve the next reroll and banish, and Continue explains its wave checkpoint.",
-      "Warnings gain a steady outline and hostile shots a dark footprint; quieter marsh and Core seams leave more room for danger.",
-      "Sniper, beam and trap cues keep their voice in busy fights and briefly lower music and ambience.",
-      "The Codex counts current discoveries; remembered retired bosses and Overdrives live in an archive.",
-      "DASH, NOVA and Singularity accept touch only, and Dust Devils use the same armour rules as other map hazards.",
     ],
   },
 ];
