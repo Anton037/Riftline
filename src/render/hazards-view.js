@@ -357,13 +357,13 @@ const MODELS = {
   // pool, ember studs where the seams breathe, no rocks
   nozzle: () => {
     const rng = makeRng(0x1a7b),
-      body = [meshPart(new CylinderGeometry(0.92, 1.1, 0.07, 22, 1, true), 0x241418, { y: 0.035 })],
+      body = [meshPart(new CylinderGeometry(0.92, 1.1, 0.07, 22, 1, true), 0x51483f, { y: 0.035 })],
       glow = [];
     for (let i = 0; i < 12; i++) {
       const a = (i / 12) * TAU + rng.range(-0.08, 0.08),
         d = rng.range(1.0, 1.08);
       body.push(
-        box(i % 2 ? 0x2a1c14 : 0x1c1210, 0.22, 0.09, 0.1, {
+        box(i % 2 ? 0x685345 : 0x49413b, 0.22, 0.09, 0.1, {
           x: Math.cos(a) * d,
           z: Math.sin(a) * d,
           y: 0.075,
@@ -404,21 +404,21 @@ const MODELS = {
   // live manhole: the concrete collar (the cover is its own part, it moves)
   collar: () => ({
     body: [
-      meshPart(new CylinderGeometry(1.0, 1.06, 0.06, 24), 0x3c3e44, { y: 0.03 }),
+      meshPart(new CylinderGeometry(1.0, 1.06, 0.06, 24), 0x77838d, { y: 0.03 }),
       meshPart(new CylinderGeometry(0.85, 0.85, 0.064, 24), 0x0c0d10, { y: 0.032 }),
     ],
     // the light that leaks from under the cover
     glow: [meshPart(new TorusGeometry(0.83, 0.025, 4, 28), 0x8fd0ff, { rx: Math.PI / 2, y: 0.07 })],
   }),
   cover: () => {
-    const body = [meshPart(new CylinderGeometry(0.8, 0.8, 0.05, 24), 0x2a2d33, { y: 0.025 })],
+    const body = [meshPart(new CylinderGeometry(0.8, 0.8, 0.05, 24), 0x485562, { y: 0.025 })],
       glow = [];
     // a raised grid, a ring of bolts and two pick holes; the slots between the bars glow
     for (let i = -3; i <= 3; i++) {
       const u = i * 0.19,
         len = 2 * Math.sqrt(Math.max(0, 0.74 * 0.74 - u * u)) * 0.92;
       if (len < 0.1) continue;
-      body.push(box(0x3b3f47, len, 0.022, 0.05, { z: u, y: 0.06 }), box(0x3b3f47, 0.05, 0.022, len, { x: u, y: 0.06 }));
+      body.push(box(0x82919c, len, 0.022, 0.05, { z: u, y: 0.06 }), box(0x82919c, 0.05, 0.022, len, { x: u, y: 0.06 }));
       if (i < 3) {
         const v = u + 0.095,
           len2 = 2 * Math.sqrt(Math.max(0, 0.7 * 0.7 - v * v)) * 0.85;
@@ -428,7 +428,7 @@ const MODELS = {
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * TAU + 0.26;
       body.push(
-        meshPart(new CylinderGeometry(0.035, 0.035, 0.03, 6), 0x5a5e66, {
+        meshPart(new CylinderGeometry(0.035, 0.035, 0.03, 6), 0xa0abb2, {
           x: Math.cos(a) * 0.71,
           z: Math.sin(a) * 0.71,
           y: 0.06,

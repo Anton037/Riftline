@@ -945,10 +945,10 @@ function calderaDetail(biome, W, H, obs, rng) {
   // (the camera looks at the -z far field, so the cone row is hand-placed there and on the back
   // corners of the side walls - the near side is never in frame)
   const cones = [
-    { x: -9, z: -H - 5.5, r: 8.2, h: 12.5 },
-    { x: 6.5, z: -H - 9.5, r: 10.5, h: 15.5 },
-    { x: -W - 8, z: -H - 2.5, r: 6.6, h: 10 },
-    { x: W + 9, z: -H - 3.5, r: 7.2, h: 11 },
+    { x: -9, z: -H - 14, r: 8.2, h: 12.5 },
+    { x: 6.5, z: -H - 18, r: 10.5, h: 15.5 },
+    { x: -W - 8, z: -H - 10.5, r: 6.6, h: 10 },
+    { x: W + 9, z: -H - 12.5, r: 7.2, h: 11 },
   ];
   for (const c of cones) {
     const t = list(),

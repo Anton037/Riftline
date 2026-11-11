@@ -6,6 +6,12 @@ Riftline is a touch-only landscape game for phones and tablets. Keep gameplay, r
 biome art and audio coherent. Keep routine checks short and run specialist checks only when relevant.
 The owner merges pull requests. Work remains cumulative with the 3.61.0 graphics/test cleanup.
 
+## V4 visual update
+
+- Six-biome terrain and material redesign with city streets, wind-shaped snow, broken marsh colonies, fractured Core slabs, localized volcanic seams and glass deposits in sand.
+- Collision-aligned architecture and distinct landmarks, richer street props, readable hazard metal and a brighter walker chassis.
+- Full scope and visual acceptance are documented in [the v4 review](V4-VISUAL-REVIEW.md).
+
 ## Implemented in 3.64.0
 
 - Exact cover intersections for beams, aim lines and gadget targeting, including close-wall landing and beam endpoint protection.
