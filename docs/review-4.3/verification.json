@@ -1,0 +1,56 @@
+{
+  "version": "4.3.0",
+  "build": "r430a1112a-r1",
+  "baseCommit": "7fea2f2f8132c3afaf023008b23807bc846fdcf4",
+  "buildInfo": {
+    "version": "4.3.0",
+    "build_id": "r430a1112a-r1",
+    "build": "r430a1112a-r1",
+    "assets": "6546af82e2f45c6d"
+  },
+  "standardChecks": {
+    "passed": 68,
+    "testSeconds": 59.4,
+    "testDeadlineSeconds": 75,
+    "mapsAudited": 252
+  },
+  "finalFocusedGeometryAndPowers": {
+    "passed": 17,
+    "weaponAttachmentPoses": 1344,
+    "playerTriangleBudgetIncludingShield": 3000
+  },
+  "gpu": {
+    "tabletScenes": 37,
+    "phoneScenes": 37,
+    "browserAndShaderErrors": 0,
+    "powerBeamPoolBorrowing": 0,
+    "screenWidePowerFlashes": 0
+  },
+  "audio": {
+    "sounds": 439,
+    "musicRenders": 18,
+    "budgetCases": 36,
+    "failures": 0,
+    "seconds": 329.8,
+    "faultRecoveryPassed": true,
+    "reelClips": 8,
+    "novaBeforeVoices": [
+      "boom",
+      "nova"
+    ],
+    "novaAfterVoices": [
+      "nova"
+    ]
+  },
+  "unchanged": [
+    "damage",
+    "ranges",
+    "timings",
+    "collision",
+    "seeded layouts",
+    "save schema",
+    "dependencies"
+  ],
+  "physicalDevicesTested": false,
+  "pendingPreference": "Retain or replace the Shelf shipwreck theme; wrecks are unchanged."
+}

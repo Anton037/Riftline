@@ -135,6 +135,10 @@ void main() {
    albedo=mix(albedo,vec3(.25,.26,.25),shoulder*.7);
   } else if(st==2) {
    gloss=.55; rough=.2; key=vec3(.7,.87,1.0);
+   // Broad, faint sky color on exposed ice; snow stays diffuse. No foreground aurora stripe.
+   float exposed=1.0-smoothstep(.22,.48,dot(albedo,vec3(.2126,.7152,.0722)));
+   float skyBand=.5+.5*sin(p.x*.12+p.y*.055+sin(p.y*.08+uTime*.025));
+   emission+=mix(vec3(.008,.035,.025),vec3(.025,.012,.038),skyBand)*exposed*.22;
   } else if(st==3) {
    gloss=.32; rough=.4; key=vec3(.6,.86,.8);
    height+=sin(p.x*2.5+p.y*1.7+uTime*.65)*.002;

@@ -1,5 +1,6 @@
 // three.js renderer (Renderer): scene, camera, lights, instanced pools, particles, per-frame drawing.
 import { SmokeView } from "./smoke-view.js";
+import { AbilityEffectsView } from "./ability-effects-view.js";
 import { WeaponEffectsView } from "./weapon-effects-view.js";
 import { BOSS_EFFECTS, WEAPON_EFFECTS } from "../data/combat-effects.js";
 import { ActorEffectsView } from "./actor-effects-view.js";
@@ -492,6 +493,7 @@ const MAX_PARTICLES = 1400,
       // 3.10.0: the attacks of enemies and bosses (zones, mines, shells, shots) and the marks they leave
       this.attackView = new AttackView(this, InstancePool);
       this.weaponView = new WeaponEffectsView(this, InstancePool);
+      this.abilityView = new AbilityEffectsView(this, InstancePool);
       this.actorView = new ActorEffectsView(this);
       // 3.15.0: the boss cards (cages, burning ground, splinters, larvae, the implosion of Event Collapse)
       this.bossCardView = new BossCardView(this, InstancePool);
@@ -678,12 +680,13 @@ const MAX_PARTICLES = 1400,
       }
       this.arena.build(biome, lay, !!layout);
       if (layout && prevKey != null && prevKey !== this.arena.layKey) {
-        let color = hexColor(biome.grid);
-        for (let obstacle of layout.obs) {
-          let size = obstacle.t === "c" ? obstacle.r : Math.max(obstacle.w, obstacle.h);
-          this.burst(obstacle.x, obstacle.y, 0.2, 10, 3 + size, color, 0.7, 0.45, { up: 1.5, drag: 3 });
-          this.ring(obstacle.x, obstacle.y, size * 0.6, size * 1.8, color, 0.5);
-        }
+        const dust = hexColor(
+          { city: 0x5c6670, shelf: 0xa9c6d3, marsh: 0x384f3c, core: 0x716a89, caldera: 0x625b53, flats: 0xa58a5e }[
+            biome.id
+          ],
+        );
+        for (const obstacle of layout.obs)
+          this.burst(obstacle.x, obstacle.y, 0.12, 4, 1.8, dust, 0.3, 0.14, { drag: 4, grav: 1 });
         this.addShake(0.12);
         this.mapChanged = true;
       }
@@ -988,6 +991,7 @@ const MAX_PARTICLES = 1400,
       let showNumbers = opts.numbers !== false && this.numbers !== false,
         shakeK = (opts.shake === false ? 0 : 1) * this.motion;
       for (let ev of events) {
+        if (this.abilityView.event(ev, world, shakeK)) continue;
         if (this.bossCardView.event(ev, world, shakeK)) continue;
         if (this.actorView.consume(ev, shakeK, world)) continue;
         switch (ev.k) {
@@ -1276,29 +1280,21 @@ const MAX_PARTICLES = 1400,
             if (ev.kind === "trap") break;
             // the Combo Surge shockwave is drawn by its own "surge" event
             if (ev.kind === "surge") break;
-            if (ev.kind === "singularity") {
-              this.trapView.singularityBlast(ev, world, shakeK);
-              break;
-            }
             // 3.10.0: the blasts of the attacks of enemies and bosses look like what they are
             if (this.attackView.impact(ev, world, shakeK)) break;
             let color =
-                ev.kind === "nova"
-                  ? hexColor(8386303)
-                  : ev.kind === "pop"
-                    ? hexColor(16769354)
-                    : ev.kind === "payload"
-                      ? hexColor(16752957)
-                      : ev.kind === "rocket"
-                        ? hexColor(16738877)
-                        : ev.kind === "frost" || ev.kind === "glacier" // 2.4.6: Frost Prism ice
-                          ? hexColor(12578815)
-                          : hexColor(16734778),
+                ev.kind === "pop"
+                  ? hexColor(16769354)
+                  : ev.kind === "payload"
+                    ? hexColor(16752957)
+                    : ev.kind === "rocket"
+                      ? hexColor(16738877)
+                      : ev.kind === "frost" || ev.kind === "glacier" // 2.4.6: Frost Prism ice
+                        ? hexColor(12578815)
+                        : hexColor(16734778),
               radius = ev.r;
-            if (ev.kind !== "nova") {
-              this.burst(ev.x, ev.y, 0.5, Math.round(6 + radius * 5), radius * 5, color, 0.45, 0.5 + radius * 0.12);
-              this.emit(ev.x, 0.6, ev.y, 0, 0, 0, 0.15, radius * 2.4, color, { drag: 0 });
-            }
+            this.burst(ev.x, ev.y, 0.5, Math.round(6 + radius * 5), radius * 5, color, 0.45, 0.5 + radius * 0.12);
+            this.emit(ev.x, 0.6, ev.y, 0, 0, 0, 0.15, radius * 2.4, color, { drag: 0 });
             this.ring(ev.x, ev.y, radius * 0.3, radius, color, 0.3);
             this.addShake(
               (ev.kind === "payload"
@@ -1310,13 +1306,7 @@ const MAX_PARTICLES = 1400,
             if (ev.kind !== "payload" || Math.random() < 0.3) {
               this.flash(ev.x, ev.y, radius * 1.6, ev.kind === "payload" ? 0.5 : 1.1, color, 4.5);
             }
-            if (
-              ev.kind !== "payload" &&
-              ev.kind !== "nova" &&
-              ev.kind !== "pop" &&
-              ev.kind !== "frost" &&
-              ev.kind !== "glacier"
-            ) {
+            if (ev.kind !== "payload" && ev.kind !== "pop" && ev.kind !== "frost" && ev.kind !== "glacier") {
               this.addScorch(ev.x, ev.y, radius * 0.7);
             }
             if (ev.kind === "frost" || ev.kind === "glacier") {
@@ -1329,29 +1319,6 @@ const MAX_PARTICLES = 1400,
             }
             break;
           }
-          case "surge": {
-            // Combo Surge: an amber shockwave in the colour of the combo counter, a white ring inside it and
-            // sparks thrown outwards; bigger combos throw more sparks
-            const amber = hexColor(0xffc84a),
-              radius = ev.r || 3.5;
-            this.ring(ev.x, ev.y, 0.4, radius, amber, 0.42);
-            this.ring(ev.x, ev.y, 0.2, radius * 0.72, whiteColor, 0.28);
-            this.burst(ev.x, ev.y, 0.6, Math.min(48, 20 + (ev.n || 15)), radius * 4.5, amber, 0.4, 0.32, {
-              spark: true,
-            });
-            this.flash(ev.x, ev.y, radius * 1.5, 1.3, amber, 4);
-            this.addShake(0.16 * shakeK);
-            break;
-          }
-          case "nova":
-            this.ring(ev.x, ev.y, 0.5, ev.r, hexColor(8386303), 0.45);
-            this.ring(ev.x, ev.y, 0.3, ev.r * 0.8, whiteColor, 0.3);
-            // A fast wavefront and sparse rising ions keep the centre clear after discharge.
-            this.burst(ev.x, ev.y, 0.7, 24, 13, hexColor(8386303), 0.38, 0.28, { spark: true, drag: 5, up: 2 });
-            this.flashT = 0.25;
-            this.addShake(0.5 * shakeK);
-            this.flash(ev.x, ev.y, ev.r * 1.4, 1.6, hexColor(8386303), 3);
-            break;
           case "chain": {
             let pts = ev.pts;
             for (let i = 0; i + 3 < pts.length; i += 2)
@@ -1408,16 +1375,6 @@ const MAX_PARTICLES = 1400,
           case "trapFire":
           case "trapArm":
             this.trapView.event(ev, world, shakeK);
-            break;
-          // 3.12.0: the Singularity leaves the hand with a violet flick; where it opens, a ring of light runs out to the
-          // pull radius
-          case "singularity":
-            this.burst(ev.x, ev.y, 0.9, 6, 4, hexColor(0xb57bff), 0.25, 0.16, { spark: true, drag: 4 });
-            this.ring(ev.x, ev.y, 0.2, 0.9, hexColor(0x7ae8ff), 0.2, 0.9);
-            break;
-          case "singOpen":
-            this.ring(ev.x, ev.y, 0.3, ev.r, hexColor(0x7ae8ff), 0.35);
-            this.flash(ev.x, ev.y, ev.r, 0.9, hexColor(0x7a3cff), 5);
             break;
           case "gadgetReady":
             this.ring(world.player.x, world.player.y, 0.3, 1.2, hexColor(16757575), 0.3, 0.1);
@@ -1480,11 +1437,6 @@ const MAX_PARTICLES = 1400,
           case "hurt":
             this.addShake(0.35 * shakeK);
             this.burst(ev.x, ev.y, 0.7, 10, 6, hurtColor, 0.35, 0.3);
-            break;
-          case "shieldBreak":
-            this.ring(ev.x, ev.y, 0.5, 2.2, hexColor(8386303), 0.35);
-            this.burst(ev.x, ev.y, 0.7, 14, 7, hexColor(8386303), 0.35, 0.28, { spark: true });
-            this.addShake(0.15 * shakeK);
             break;
           case "heal":
             this.burst(ev.x, ev.y, 0.5, 8, 2.5, healColor, 0.6, 0.3, { up: 3 });
@@ -1705,6 +1657,7 @@ const MAX_PARTICLES = 1400,
       }
     }
     frame(dt, world, opts = {}) {
+      this.abilityView.useWorld(opts.menu ? null : world);
       // 2.5.0 C: Whiteout (the Aurora Shelf) blows wind-driven snow across the view; it fades in and out
       // over about a second and stays within the shared particle budget.
       const want =
@@ -1803,6 +1756,7 @@ const MAX_PARTICLES = 1400,
       for (let pool of this.hazardView.list) pool.begin();
       for (let pool of this.attackView.list) pool.begin();
       for (let pool of this.weaponView.list) pool.begin();
+      for (let pool of this.abilityView.list) pool.begin();
       for (let pool of this.bossCardView.list) pool.begin();
       for (let type in this.enemyPools) {
         this.enemyPools[type].body.begin();
@@ -1812,6 +1766,7 @@ const MAX_PARTICLES = 1400,
         this.drawMenuPlayer(dt);
       } else {
         this.drawWorld(dt, world);
+        this.abilityView.draw(dt, world);
       }
       this.updateLights(dt, menu ? null : world);
       this.drawDebris(dt);
@@ -1820,6 +1775,7 @@ const MAX_PARTICLES = 1400,
       for (let pool of this.bossCardView.list) pool.end();
       for (let pool of this.attackView.list) pool.end();
       for (let pool of this.weaponView.list) pool.end();
+      for (let pool of this.abilityView.list) pool.end();
       for (let pool of this.hazardView.list) pool.end();
       for (let pool of this.trapView.list) pool.end();
       for (let pool of pools) pool.end();
@@ -1903,8 +1859,12 @@ const MAX_PARTICLES = 1400,
           drone.group.position.set(player.x, body + jump * 0.6, player.y);
           drone.aimAt(player.aim, dt);
         }
-        drone.shield.visible = player.shield;
-        drone.shield.material.opacity = 0.12 + Math.sin(time * 6) * 0.04;
+        const shieldHit = Math.max(0, 1 - (time - this.abilityView.shieldHitAt) / 0.28);
+        drone.shield.visible = player.shield || shieldHit > 0;
+        const shieldUniforms = drone.shield.material.uniforms;
+        shieldUniforms.uTime.value = time;
+        shieldUniforms.uHit.value = shieldHit;
+        shieldUniforms.uFade.value = player.shield ? 1 : shieldHit;
         let blink =
             player.iT > 0 && player.hurtT <= 0 && world.state === "fight" && Math.floor(time * 20) % 2 ? 0.35 : 0,
           hurt = player.hurtT > 0 ? player.hurtT / 0.3 : 0;

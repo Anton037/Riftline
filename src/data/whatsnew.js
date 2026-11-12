@@ -4,6 +4,17 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "4.3.0",
+    title: "Powerful abilities, a natural frozen horizon",
+    items: [
+      "Nova sends out one rising pressure wave with a single, weighty discharge.",
+      "Singularity suspends a dark core inside swirling matter, with distinct flight, pull and collapse effects.",
+      "Aegis reacts to absorbed hits; Event Collapse and portals gain clearer, deeper effects.",
+      "The Shelf gains fractured ice cliffs, distant northern lights and a subtle sheen on exposed ice.",
+      "Arena changes throw up brief material dust instead of glowing obstacle rings.",
+    ],
+  },
+  {
     version: "4.2.0",
     title: "Weapons with character, bosses with identity",
     items: [
@@ -42,16 +53,6 @@ export const WHATS_NEW = [
       "Six rebuilt environments: worn city streets, wind-carved snow, living marsh banks, fractured Core slabs, cooled volcanic crust and glass-strewn dunes.",
       "Map obstacles gain foundations, layered materials and physical detail, with new landmarks framing each arena.",
       "Weathered manhole metal, cooler glass and brighter walker armor keep the world and combat readable.",
-    ],
-  },
-  {
-    version: "3.64.0",
-    title: "Read the rush, trust the cover",
-    items: [
-      "Beams, aim lines and Singularity targeting stop at thin walls and nearby cover.",
-      "Charge lanes show steady edges and direction markers, while sniper lock stays bright without rapid flashing.",
-      "Snipers carry a more readable scope hood and lens within the same silhouette.",
-      "Charge and turret warning sounds keep their voices in busy fights, with clearer charger and leaper cues.",
     ],
   },
 ];

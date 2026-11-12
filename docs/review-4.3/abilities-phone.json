@@ -1,0 +1,1215 @@
+[
+  {
+    "kind": "nova",
+    "biome": "city",
+    "time": 0.07,
+    "events": [
+      "dmg",
+      "boom",
+      "nova",
+      "erupt"
+    ],
+    "calls": 100,
+    "triangles": 42186,
+    "sharedBeams": 3,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 1,
+    "particles": 112,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 1
+      }
+    ],
+    "singularities": [],
+    "errors": 0
+  },
+  {
+    "kind": "nova",
+    "biome": "city",
+    "time": 0.22,
+    "events": [
+      "dmg",
+      "boom",
+      "nova",
+      "erupt"
+    ],
+    "calls": 98,
+    "triangles": 41488,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 1,
+    "particles": 111,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 1
+      }
+    ],
+    "singularities": [],
+    "errors": 0
+  },
+  {
+    "kind": "nova",
+    "biome": "city",
+    "time": 0.5,
+    "events": [
+      "dmg",
+      "boom",
+      "nova",
+      "erupt"
+    ],
+    "calls": 99,
+    "triangles": 42326,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 1,
+    "particles": 104,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 1
+      }
+    ],
+    "singularities": [],
+    "errors": 0
+  },
+  {
+    "kind": "nova",
+    "biome": "city",
+    "time": 0.85,
+    "events": [
+      "dmg",
+      "boom",
+      "nova",
+      "erupt"
+    ],
+    "calls": 98,
+    "triangles": 41750,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 0,
+    "particles": 72,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 0
+      }
+    ],
+    "singularities": [],
+    "errors": 0
+  },
+  {
+    "kind": "collapse",
+    "biome": "city",
+    "time": 0.15,
+    "events": [
+      "implode",
+      "erupt"
+    ],
+    "calls": 99,
+    "triangles": 41724,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 1,
+    "particles": 93,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 32,
+        "n": 1
+      },
+      {
+        "max": 16,
+        "n": 1
+      }
+    ],
+    "singularities": [],
+    "errors": 0
+  },
+  {
+    "kind": "collapse",
+    "biome": "city",
+    "time": 0.55,
+    "events": [
+      "implode",
+      "erupt",
+      "dmg",
+      "boom",
+      "nova"
+    ],
+    "calls": 99,
+    "triangles": 42344,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 1,
+    "particles": 113,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 1
+      },
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 16,
+        "n": 0
+      }
+    ],
+    "singularities": [],
+    "errors": 0
+  },
+  {
+    "kind": "surge",
+    "biome": "city",
+    "time": 0.16,
+    "events": [
+      "surge",
+      "erupt"
+    ],
+    "calls": 98,
+    "triangles": 41476,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 1,
+    "particles": 105,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 1
+      },
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 16,
+        "n": 0
+      }
+    ],
+    "singularities": [],
+    "errors": 0
+  },
+  {
+    "kind": "singularity",
+    "biome": "city",
+    "time": 0.12,
+    "events": [
+      "singularity",
+      "erupt"
+    ],
+    "calls": 100,
+    "triangles": 42582,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 1,
+    "particles": 96,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 32,
+        "n": 1
+      },
+      {
+        "max": 16,
+        "n": 1
+      }
+    ],
+    "singularities": [
+      {
+        "t": 0.11666666666666665,
+        "pullT": -1
+      }
+    ],
+    "errors": 0
+  },
+  {
+    "kind": "singularity",
+    "biome": "city",
+    "time": 0.45,
+    "events": [
+      "singularity",
+      "erupt",
+      "singOpen"
+    ],
+    "calls": 100,
+    "triangles": 42402,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 0,
+    "particles": 70,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 32,
+        "n": 2
+      },
+      {
+        "max": 16,
+        "n": 1
+      }
+    ],
+    "singularities": [
+      {
+        "t": 0.44999999999999996,
+        "pullT": 0.18333333333333332,
+        "r": 5.779999999999999
+      }
+    ],
+    "errors": 0
+  },
+  {
+    "kind": "singularity",
+    "biome": "city",
+    "time": 1,
+    "events": [
+      "singularity",
+      "erupt",
+      "singOpen"
+    ],
+    "calls": 100,
+    "triangles": 43594,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 1,
+    "particles": 144,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 32,
+        "n": 2
+      },
+      {
+        "max": 16,
+        "n": 1
+      }
+    ],
+    "singularities": [
+      {
+        "t": 1.0000000000000013,
+        "pullT": 0.733333333333334,
+        "r": 5.779999999999999
+      }
+    ],
+    "errors": 0
+  },
+  {
+    "kind": "singularity",
+    "biome": "city",
+    "time": 1.65,
+    "events": [
+      "singularity",
+      "erupt",
+      "singOpen"
+    ],
+    "calls": 100,
+    "triangles": 44958,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 1,
+    "particles": 166,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 32,
+        "n": 2
+      },
+      {
+        "max": 16,
+        "n": 1
+      }
+    ],
+    "singularities": [
+      {
+        "t": 1.649999999999999,
+        "pullT": 1.3833333333333333,
+        "r": 5.779999999999999
+      }
+    ],
+    "errors": 0
+  },
+  {
+    "kind": "singularity",
+    "biome": "city",
+    "time": 2.05,
+    "events": [
+      "singularity",
+      "erupt",
+      "singOpen",
+      "dmg",
+      "boom"
+    ],
+    "calls": 99,
+    "triangles": 44344,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 1,
+    "particles": 123,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 1
+      },
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 16,
+        "n": 0
+      }
+    ],
+    "singularities": [],
+    "errors": 0
+  },
+  {
+    "kind": "singularity",
+    "biome": "city",
+    "time": 2.8,
+    "events": [
+      "singularity",
+      "erupt",
+      "singOpen",
+      "dmg",
+      "boom"
+    ],
+    "calls": 98,
+    "triangles": 42054,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 0,
+    "particles": 86,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 16,
+        "n": 0
+      }
+    ],
+    "singularities": [],
+    "errors": 0
+  },
+  {
+    "kind": "searing",
+    "biome": "city",
+    "time": 2.4,
+    "events": [
+      "singularity",
+      "erupt",
+      "singOpen",
+      "dmg",
+      "boom"
+    ],
+    "calls": 101,
+    "triangles": 43584,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 0,
+    "particles": 128,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 1
+      },
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 16,
+        "n": 0
+      }
+    ],
+    "singularities": [],
+    "errors": 0
+  },
+  {
+    "kind": "shield",
+    "biome": "city",
+    "time": 0.15,
+    "events": [
+      "erupt"
+    ],
+    "calls": 98,
+    "triangles": 41362,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 1,
+    "particles": 84,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 16,
+        "n": 0
+      }
+    ],
+    "singularities": [],
+    "errors": 0
+  },
+  {
+    "kind": "block",
+    "biome": "city",
+    "time": 0.08,
+    "events": [
+      "shieldBreak",
+      "erupt"
+    ],
+    "calls": 99,
+    "triangles": 42218,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 1,
+    "particles": 86,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 16,
+        "n": 0
+      }
+    ],
+    "singularities": [],
+    "errors": 0
+  },
+  {
+    "kind": "block",
+    "biome": "city",
+    "time": 0.32,
+    "events": [
+      "shieldBreak",
+      "erupt"
+    ],
+    "calls": 97,
+    "triangles": 41104,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 1,
+    "particles": 79,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 16,
+        "n": 0
+      }
+    ],
+    "singularities": [],
+    "errors": 0
+  },
+  {
+    "kind": "portal",
+    "biome": "core",
+    "time": 0.4,
+    "events": [],
+    "calls": 108,
+    "triangles": 17560,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 0,
+    "particles": 32,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 16,
+        "n": 0
+      }
+    ],
+    "singularities": [],
+    "errors": 0
+  },
+  {
+    "kind": "sky",
+    "biome": "shelf",
+    "position": "centre",
+    "time": 0.2,
+    "events": [],
+    "calls": 87,
+    "triangles": 17376,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 0,
+    "particles": 32,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 16,
+        "n": 0
+      }
+    ],
+    "singularities": [],
+    "errors": 0
+  },
+  {
+    "kind": "sky",
+    "biome": "shelf",
+    "position": "north",
+    "time": 0.2,
+    "events": [],
+    "calls": 80,
+    "triangles": 17138,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 0,
+    "particles": 33,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 16,
+        "n": 0
+      }
+    ],
+    "singularities": [],
+    "errors": 0
+  },
+  {
+    "kind": "sky",
+    "biome": "shelf",
+    "position": "south",
+    "time": 0.2,
+    "events": [],
+    "calls": 86,
+    "triangles": 17292,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 0,
+    "particles": 30,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 16,
+        "n": 0
+      }
+    ],
+    "singularities": [],
+    "errors": 0
+  },
+  {
+    "kind": "sky",
+    "biome": "shelf",
+    "position": "east",
+    "time": 0.2,
+    "events": [],
+    "calls": 85,
+    "triangles": 17194,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 0,
+    "particles": 21,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 16,
+        "n": 0
+      }
+    ],
+    "singularities": [],
+    "errors": 0
+  },
+  {
+    "kind": "sky",
+    "biome": "shelf",
+    "position": "west",
+    "time": 0.2,
+    "events": [],
+    "calls": 81,
+    "triangles": 17208,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 0,
+    "particles": 28,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 16,
+        "n": 0
+      }
+    ],
+    "singularities": [],
+    "errors": 0
+  },
+  {
+    "kind": "sky",
+    "biome": "shelf",
+    "position": "northwest",
+    "time": 0.2,
+    "events": [],
+    "calls": 80,
+    "triangles": 17122,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 0,
+    "particles": 25,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 16,
+        "n": 0
+      }
+    ],
+    "singularities": [],
+    "errors": 0
+  },
+  {
+    "kind": "sky",
+    "biome": "shelf",
+    "position": "northeast",
+    "time": 0.2,
+    "events": [],
+    "calls": 82,
+    "triangles": 17084,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 0,
+    "particles": 22,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 16,
+        "n": 0
+      }
+    ],
+    "singularities": [],
+    "errors": 0
+  },
+  {
+    "kind": "sky",
+    "biome": "shelf",
+    "position": "southwest",
+    "time": 0.2,
+    "events": [],
+    "calls": 84,
+    "triangles": 17122,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 0,
+    "particles": 25,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 16,
+        "n": 0
+      }
+    ],
+    "singularities": [],
+    "errors": 0
+  },
+  {
+    "kind": "sky",
+    "biome": "shelf",
+    "position": "southeast",
+    "time": 0.2,
+    "events": [],
+    "calls": 81,
+    "triangles": 17204,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 0,
+    "particles": 26,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 16,
+        "n": 0
+      }
+    ],
+    "singularities": [],
+    "errors": 0
+  },
+  {
+    "kind": "nova",
+    "biome": "shelf",
+    "time": 0.22,
+    "events": [
+      "dmg",
+      "boom",
+      "nova"
+    ],
+    "calls": 89,
+    "triangles": 22386,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 0,
+    "particles": 49,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 1
+      },
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 16,
+        "n": 0
+      }
+    ],
+    "singularities": [],
+    "errors": 0
+  },
+  {
+    "kind": "singularity",
+    "biome": "shelf",
+    "time": 1,
+    "events": [
+      "singularity",
+      "singOpen"
+    ],
+    "calls": 90,
+    "triangles": 22776,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 0,
+    "particles": 76,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 32,
+        "n": 2
+      },
+      {
+        "max": 16,
+        "n": 1
+      }
+    ],
+    "singularities": [
+      {
+        "t": 1.0000000000000013,
+        "pullT": 0.733333333333334,
+        "r": 5.779999999999999
+      }
+    ],
+    "errors": 0
+  },
+  {
+    "kind": "nova",
+    "biome": "marsh",
+    "time": 0.22,
+    "events": [
+      "dmg",
+      "boom",
+      "nova"
+    ],
+    "calls": 82,
+    "triangles": 43176,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 0,
+    "particles": 38,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 1
+      },
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 16,
+        "n": 0
+      }
+    ],
+    "singularities": [],
+    "errors": 0
+  },
+  {
+    "kind": "singularity",
+    "biome": "marsh",
+    "time": 1,
+    "events": [
+      "singularity",
+      "singOpen"
+    ],
+    "calls": 83,
+    "triangles": 43538,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 0,
+    "particles": 51,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 32,
+        "n": 2
+      },
+      {
+        "max": 16,
+        "n": 1
+      }
+    ],
+    "singularities": [
+      {
+        "t": 1.0000000000000013,
+        "pullT": 0.733333333333334,
+        "r": 5.779999999999999
+      }
+    ],
+    "errors": 0
+  },
+  {
+    "kind": "nova",
+    "biome": "core",
+    "time": 0.22,
+    "events": [
+      "dmg",
+      "boom",
+      "nova"
+    ],
+    "calls": 110,
+    "triangles": 22842,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 0,
+    "particles": 47,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 1
+      },
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 16,
+        "n": 0
+      }
+    ],
+    "singularities": [],
+    "errors": 0
+  },
+  {
+    "kind": "singularity",
+    "biome": "core",
+    "time": 1,
+    "events": [
+      "singularity",
+      "singOpen"
+    ],
+    "calls": 111,
+    "triangles": 23270,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 0,
+    "particles": 93,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 32,
+        "n": 2
+      },
+      {
+        "max": 16,
+        "n": 1
+      }
+    ],
+    "singularities": [
+      {
+        "t": 1.0000000000000013,
+        "pullT": 0.733333333333334,
+        "r": 5.779999999999999
+      }
+    ],
+    "errors": 0
+  },
+  {
+    "kind": "nova",
+    "biome": "caldera",
+    "time": 0.22,
+    "events": [
+      "dmg",
+      "boom",
+      "nova",
+      "erupt"
+    ],
+    "calls": 75,
+    "triangles": 29820,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 2,
+    "particles": 144,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 1
+      },
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 16,
+        "n": 0
+      }
+    ],
+    "singularities": [],
+    "errors": 0
+  },
+  {
+    "kind": "singularity",
+    "biome": "caldera",
+    "time": 1,
+    "events": [
+      "singularity",
+      "erupt",
+      "singOpen"
+    ],
+    "calls": 76,
+    "triangles": 29516,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 0,
+    "particles": 161,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 32,
+        "n": 2
+      },
+      {
+        "max": 16,
+        "n": 1
+      }
+    ],
+    "singularities": [
+      {
+        "t": 1.0000000000000013,
+        "pullT": 0.733333333333334,
+        "r": 5.779999999999999
+      }
+    ],
+    "errors": 0
+  },
+  {
+    "kind": "nova",
+    "biome": "flats",
+    "time": 0.22,
+    "events": [
+      "dmg",
+      "boom",
+      "nova"
+    ],
+    "calls": 95,
+    "triangles": 24494,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 0,
+    "particles": 75,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 1
+      },
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 16,
+        "n": 0
+      }
+    ],
+    "singularities": [],
+    "errors": 0
+  },
+  {
+    "kind": "singularity",
+    "biome": "flats",
+    "time": 1,
+    "events": [
+      "singularity",
+      "singOpen"
+    ],
+    "calls": 96,
+    "triangles": 24950,
+    "sharedBeams": 0,
+    "borrowedBeams": 0,
+    "screenFlash": 0,
+    "rings": 0,
+    "particles": 135,
+    "abilityPools": [
+      {
+        "max": 32,
+        "n": 0
+      },
+      {
+        "max": 32,
+        "n": 2
+      },
+      {
+        "max": 16,
+        "n": 1
+      }
+    ],
+    "singularities": [
+      {
+        "t": 1.0000000000000013,
+        "pullT": 0.733333333333334,
+        "r": 5.779999999999999
+      }
+    ],
+    "errors": 0
+  }
+]

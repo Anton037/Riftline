@@ -1309,7 +1309,7 @@ const musicChords = {
             // 3.0.0: the traps have blasts of their own (trapFire), 3.12.0: so has the Singularity (singCollapse);
             // 3.6.0: so has the
             // Combo Surge ("surge")
-            if (ev.kind === "trap" || ev.kind === "surge") break;
+            if (ev.kind === "trap" || ev.kind === "surge" || ev.kind === "nova") break;
             // 3.10.0: the attacks of enemies and bosses sound like what they are
             if (attackVoice(ev.kind, ev.src, this.biome, ev.chill)) {
               this.play(attackVoice(ev.kind, ev.src, this.biome, ev.chill), ev.r);
