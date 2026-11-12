@@ -1,9 +1,9 @@
 {
   "version": "4.2.0",
   "base": "18b2c36",
-  "bundle": "game-v4.2.0-f9413bc56412eb46.js",
+  "bundle": "game-v4.2.0-d978818d4a1a89e2.js",
   "standardTests": 63,
-  "standardSeconds": 57.4,
+  "standardSeconds": 57.2,
   "aiAttackCases": 75,
   "sourceCheckedProjectiles": 2318,
   "geometryLayouts": 252,
@@ -35,8 +35,8 @@
   "limits": "Browser emulation/software rendering and staged scenes, not physical-device FPS, heat, or subjective speaker/listening acceptance.",
   "bundleBytes": {
     "before": 1255543,
-    "after": 1236964,
-    "difference": -18579
+    "after": 1236957,
+    "difference": -18586
   },
   "combatDrawing": {
     "maxCalls": 165,
@@ -48,5 +48,5 @@
     "biomeBaseAndEquipment": "game-v4.2.0-1910a419225da920.js",
     "finalBossPortraitsAndMenus": "game-v4.2.0-d6741f66d6a562a3.js"
   },
-  "captureNote": "Final source cleanup after captures removed an empty UI conditional and stale comments. CI checks the final commit. Boss portraits were recaptured after model polish; the full biome matrices also cover encounters and warnings."
+  "captureNote": "After the captures, final cleanup removed an empty UI conditional/stale comments and fixed redundant unchanged-viewport drawing-buffer resets. The browser test covers repeated notifications and real viewport changes. Boss portraits were recaptured after model polish; full biome matrices also cover encounters and warnings."
 }

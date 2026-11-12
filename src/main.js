@@ -240,7 +240,7 @@ function _scheduleResize(why) {
       _resizeRaf = 0;
       try {
         if (renderer) {
-          renderer.resize(true);
+          renderer.resize();
         }
         // a turn of the phone switches to the button layout of the other orientation
         if (hudEditor.isOpen) hudEditor.onResize();

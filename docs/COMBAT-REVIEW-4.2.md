@@ -91,6 +91,10 @@ kept in [save compatibility metadata](../src/core/save-compat.js). No retired di
 remain. Conversion is idempotent. Repeated Endless defeats remain repeated events. Seed compatibility
 preserves the original map-director and Ashfall-event streams.
 
+Repeated startup and `visualViewport` notifications no longer force WebGL to reset an unchanged drawing
+buffer. CI exposed that race during the settings flow. The browser regression now dispatches repeated
+notifications and checks that genuine viewport changes still update the drawing buffer.
+
 ## Main game focus
 
 Daily/Weekly challenges, pacts and boss training are deleted: source modules, UI controls/screens,
@@ -106,7 +110,7 @@ are assembled once after their definitions.
 
 ## What was checked
 
-- `npm run check`: formatting, lint, build and **63/63 tests** in 57.4 seconds (75-second test deadline).
+- `npm run check`: formatting, lint, build and **63/63 tests** in 57.2 seconds (75-second test deadline).
 - Actual AI: **75 normal, middle-phase and enraged attack cases**, **2,318 source-checked projectiles**,
   all 25 enemy roles and every ranged shot voice. Registry contracts reject orphan bosses and trap skins.
 - Geometry: **252 transformed map layouts** across every biome/director mode, plus **45 pre-update map,

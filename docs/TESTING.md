@@ -39,7 +39,8 @@ For centre/edge/corner screenshots use `node tools/verify.js visual <tag> tablet
   saved-run continuation, death recap and returning home. Death/wave completion are arranged through
   the simulation interface rather than waiting through whole fights. An import dialog survives a pending
   update during a simulated visibility change, and mouse/pen action events are ignored.
-  Startup health checks must report no failures, and settings changes must retain the drawing buffer.
+  Startup health checks must report no failures. Settings and repeated viewport notifications must retain
+  an unchanged drawing buffer; actual viewport changes must resize it.
 - The landscape phone flow holds both sticks and taps dash with a third finger, cancels the touches,
   then pauses/resumes. A gamepad API counter must stay at zero.
 - A fresh profile uses real touch through all four tutorial coaches and real WebAudio through pause,

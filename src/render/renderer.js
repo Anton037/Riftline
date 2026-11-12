@@ -638,12 +638,13 @@ const MAX_PARTICLES = 1400,
         spark: new Uint8Array(max),
       };
     }
-    resize(force) {
+    resize() {
       let canvas = this.canvas,
         w = Math.max(1, canvas.clientWidth || window.innerWidth),
         h = Math.max(1, canvas.clientHeight || window.innerHeight),
         dpr = Math.min(window.devicePixelRatio || 1, this.dprCap);
-      if (!(!force && w === this.w && h === this.h && dpr === this.dpr)) {
+      // Startup and visualViewport can repeat a resize notification without changing the buffer.
+      if (!(w === this.w && h === this.h && dpr === this.dpr)) {
         this.w = w;
         this.h = h;
         this.dpr = dpr;
