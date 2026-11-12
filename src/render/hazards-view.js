@@ -48,7 +48,6 @@ const WHITE = new Color(0xffffff),
   ASH_HOT = new Color(0x6a5c50),
   ARC = new Color(0x8fd0ff),
   ARC_WHITE = new Color(0xdff2ff),
-  ICE = new Color(0xbff4ff),
   ICE_SHARD = new Color(0xffffff),
   ACID = new Color(0x8fd43a),
   ACID_LITE = new Color(0xc8f06a),
@@ -83,7 +82,6 @@ const SURF_LIB = `
 #include <common>
 #include <fog_pars_fragment>
 uniform float uTime;
-uniform float uLod;
 varying vec2 vP;
 varying vec3 vI;
 float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
@@ -98,19 +96,11 @@ float fbm(vec2 p) {
     s += a * vnoise(p);
     p = p * 2.03 + 17.1;
     a *= 0.5;
-    // 3.46.0: the low tiers drop octaves (three on high, two on auto-low, one on battery)
-    if (float(i) >= 2.0 - uLod) break;
   }
   return s / 0.875;
 }
 // x: distance to the nearest cell centre, y: distance to the cell border, z: cell id
 vec3 voro(vec2 p) {
-  // 3.46.0: the battery tier looks one cell up instead of nine (softer seams, a ninth of the work)
-  if (uLod > 1.5) {
-    vec2 n = floor(p);
-    float d = length(fract(p) - 0.5 - (h22(n) - 0.5) * 0.8);
-    return vec3(d, 0.4 + 0.3 * d, h21(n));
-  }
   vec2 n = floor(p), f = fract(p);
   float d1 = 8.0, d2 = 8.0, id = 0.0;
   for (int j = -1; j <= 1; j++)
@@ -169,11 +159,11 @@ void main() {
   #include <fog_fragment>
   #include <colorspace_fragment>
 }`,
-  // ice: a frozen sheet with frost drifts, facets, white cracks, a bright rim and glints; the floor shows through
+  // Ice blends frost, cracks and glints into the surrounding terrain without a decorative rim.
   ice: `
 void main() {
-  float r = length(vP), a = atan(vP.y, vP.x), seed = vI.g * 37.0;
-  float edge = 0.93 + 0.07 * vnoise(vec2(a * 2.2 + seed, seed));
+  float r = length(vP), seed = vI.g * 37.0;
+  float edge = 0.90 + 0.10 * vnoise(vP * 2.2 + seed);
   if (r > edge) discard;
   vec2 q = vP * 3.4 + seed;
   vec3 v = voro(q);
@@ -187,13 +177,11 @@ void main() {
   vec3 col = mix(deep, clear, smoothstep(0.0, edge, r) * 0.7 + 0.25 * v.z);
   col = mix(col, vec3(0.39, 0.57, 0.65), frost * 0.35);
   col += vec3(0.7, 0.88, 1.0) * crack * 0.18;
-  float rim = smoothstep(edge - 0.06, edge - 0.005, r);
-  col = mix(col, vec3(0.78, 0.92, 1.0), rim * 0.13);
   vec2 gc = floor(vP * 9.0 + seed), gf = fract(vP * 9.0 + seed) - 0.5;
   float glint = step(0.93, h21(gc)) * smoothstep(0.12, 0.0, length(gf)) * (0.5 + 0.5 * sin(uTime * 1.5 + h21(gc + 3.0) * 30.0));
   col += vec3(glint * 0.42);
   col *= 0.8 + 0.35 * vI.r;
-  gl_FragColor = vec4(col, clamp(0.48 + 0.12 * frost + 0.08 * rim + 0.12 * crack + glint, 0.0, 0.8) * smoothstep(edge, edge-.07, r));
+  gl_FragColor = vec4(col, clamp(0.40 + 0.12 * frost + 0.12 * crack + glint, 0.0, 0.72) * smoothstep(edge, edge-.14, r));
   #include <fog_fragment>
   #include <colorspace_fragment>
 }`,
@@ -202,8 +190,8 @@ void main() {
   // instance r fades a pool that is drying up
   acid: `
 void main() {
-  float r = length(vP), a = atan(vP.y, vP.x), seed = vI.g * 29.0;
-  float edge = 0.9 + 0.08 * vnoise(vec2(a * 2.4 + seed, seed + uTime * 0.05));
+  float r = length(vP), seed = vI.g * 29.0;
+  float edge = 0.90 + 0.10 * vnoise(vP * 2.4 + seed);
   if (r > edge) discard;
   vec2 q = vP * 2.4 + seed;
   vec3 deep = mix(vec3(0.002, 0.038, 0.032), vec3(0.02, 0.14, 0.18), vI.b);
@@ -218,8 +206,8 @@ void main() {
   float bub = step(0.55, h21(bc + 2.0)) * smoothstep(0.035, 0.0, abs(length(bf) - bt * 0.3)) * (1.0 - bt);
   col += lite * bub * 0.75;
   float foam = smoothstep(edge - 0.15, edge - 0.02, r) * (0.55 + 0.45 * fbm(q * 3.0 + uTime * 0.3));
-  col = mix(col, lite * 0.5 + 0.025, foam * 0.35);
-  gl_FragColor = vec4(col, (0.84 + 0.14 * foam) * vI.r);
+  col = mix(col, lite * 0.5 + 0.025, foam * 0.16);
+  gl_FragColor = vec4(col, (0.84 + 0.14 * foam) * vI.r * smoothstep(edge, edge-.07, r));
   #include <fog_fragment>
   #include <colorspace_fragment>
 }`,
@@ -285,7 +273,7 @@ void main() {
 function surfaceMaterial(kind) {
   const fire = kind === "fire" || kind === "pyro";
   return new ShaderMaterial({
-    uniforms: UniformsUtils.merge([UniformsLib.fog, { uTime: { value: 0 }, uLod: { value: 0 } }]),
+    uniforms: UniformsUtils.merge([UniformsLib.fog, { uTime: { value: 0 } }]),
     vertexShader: (fire ? "#define FIRE\n" : "") + SURF_VERT,
     fragmentShader: SURF_LIB + SURF_FRAG[kind],
     fog: !fire,
@@ -313,7 +301,7 @@ const MODELS = {
   // lava vent: a low bank of basalt around the pool, rocks of different size on it, hot cracks running out of it
   crater: () => {
     const rng = makeRng(0x1a7a),
-      body = [meshPart(new CylinderGeometry(0.86, 1.14, 0.08, 22, 1, true), 0x1e1714, { y: 0.04 })],
+      body = [],
       glow = [];
     for (let i = 0; i < 11; i++) {
       const a = (i / 11) * TAU + rng.range(-0.15, 0.15),
@@ -344,11 +332,10 @@ const MODELS = {
     }
     return { body, glow };
   },
-  // 3.49.0: the Caldera's fumarole: a basalt ring set into the crater floor around the molten
-  // pool, ember studs where the seams breathe, no rocks
+  // Broken cooled basalt banks surround the actual molten pool, without a manufactured circular collar.
   nozzle: () => {
     const rng = makeRng(0x1a7b),
-      body = [meshPart(new TorusGeometry(1.0, 0.06, 4, 32), 0x414c56, { rx: Math.PI / 2, y: 0.025 })],
+      body = [],
       glow = [];
     for (let i = 0; i < 15; i++) {
       const a = (i / 15) * TAU + rng.range(-0.12, 0.12),
@@ -447,10 +434,10 @@ const MODELS = {
   bank: () => {
     const rng = makeRng(0xac1d),
       body = [];
-    for (let i = 0; i < 14; i++) {
-      const a = (i / 14) * TAU + rng.range(-0.12, 0.12),
-        d = rng.range(0.95, 1.05),
-        s = rng.range(0.07, 0.12);
+    for (let i = 0; i < 7; i++) {
+      const a = rng.range(0, TAU),
+        d = rng.range(1.05, 1.18),
+        s = rng.range(0.08, 0.15);
       body.push(
         meshPart(new SphereGeometry(s, 6, 4), [0x1c221c, 0x18201a, 0x232a20][i % 3], {
           x: Math.cos(a) * d,
@@ -817,13 +804,11 @@ class HazardView {
         rr = patch.r,
         seed = seedOf(x, z),
         key = x + ":" + z + ":" + rr;
-      this.put(sheet, x, 0.03, z, seed * TAU, rr, 1, seed);
+      this.put(sheet, x, 0.03, z, seed * TAU, rr * 1.1, 1, seed);
       let list = this.shards.get(key);
       if (!list) this.shards.set(key, (list = shardsOf(rr, seed)));
       for (const s of list)
         shard.colC(shard.yr(x + s.dx, -0.02, z + s.dz, s.a, s.w, s.h, s.w, -s.lean, 0), ICE_SHARD, s.tone * 0.7);
-      const ring = r.ringPool.y(x, 0.05, z, 0, rr);
-      r.ringPool.colC(ring, ICE, 0.015);
       if (Math.random() < dt * 2 * rr * quality) {
         const a = Math.random() * TAU,
           d = Math.random() * rr;
@@ -845,14 +830,15 @@ class HazardView {
         seed = seedOf(x, z),
         rot = seed * TAU,
         coat = !!puddle.mine;
-      this.put(pool, x, 0.035, z, rot, rr, fade, seed, coat ? 1 : 0);
+      const permanent = puddle.life == null && !coat;
+      this.put(pool, x, 0.035, z, rot, rr * (permanent ? 1.18 : 1), fade, seed, coat ? 1 : 0);
       // only the pools of the map have a bank; the splashes of traps, bosses and the Acid Coating come and go
-      if (puddle.life == null && !coat) {
+      if (permanent) {
         bank = bank || this.get("bank");
         bank.body.y(x, 0, z, rot, rr, 1, rr);
       }
       const col = coat ? COAT : ACID_LITE;
-      r.ringPool.colC(r.ringPool.y(x, 0.045, z, 0, rr), coat ? COAT : ACID, (coat ? 0.3 : 0.12) * fade);
+      if (!permanent) r.ringPool.colC(r.ringPool.y(x, 0.045, z, 0, rr), coat ? COAT : ACID, (coat ? 0.3 : 0.12) * fade);
       // three bubbles rise and pop at their own pace
       for (let i = 0; i < 3; i++) {
         const f = (time * (0.45 + 0.1 * i) + seed * 5 + i / 3) % 1,

@@ -887,14 +887,12 @@ function applySettings() {
   input.stickScale = settings.stickSize;
   input.fixedMove = settings.stickFixed ? (radius) => fixedStickCenter(store.data.settings, radius) : null;
   placeHud();
-  overlay.dprCap = 2;
   if (renderer) {
     // 3.57.0: the camera distance, the warning contrast and the screen-shake toggle were settings nobody
     // needed: the camera now sits at its tuned distance, warnings draw in their own colours, and the shake
     // is a fixed, gentler amount (endless mode used to stack it into something unpleasant).
     renderer.numbers = settings.numbers !== false;
     renderer.motion = reducedMotion() ? 0 : 1;
-    renderer.setQuality(2, 1400);
   }
 }
 let loopFrameId = 0,
@@ -1814,7 +1812,7 @@ window.addEventListener("storage", (ev) => {
   }
 });
 // Shared browser interface for the functional flows and visual/audio probes.
-window.__riftTest = { game, ui, store, renderer, World, biomeList };
+window.__riftTest = { game, ui, store, renderer, World, biomeList, health: rlRunHealth };
 
 /* ==========================================================================
    2.5.0 B: workshop merge notice and the events of the new modules

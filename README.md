@@ -33,13 +33,13 @@ controller gameplay are not supported. Menus keep native browser accessibility a
 ```
 npm install          # node 22.13+ or 24+
 npm run build        # bundle src/ into dist/ (esbuild), substitute version + build id
-npm run dev          # rebuild on every change
+npm run dev          # rebuild after source, public asset or package metadata changes
 npm run serve        # serve dist/ for a quick look
 npm test             # focused unit contracts + touch/onboarding/training flows + worker update check
 npm run audit:visual # all six biomes + bosses, tablet and landscape phone, metrics and images
 npm run e2e          # the bounded touch and worker browser checks
 npm run test:render  # same flows with real pixel drawing
-npm run verify:audio # optional synthesized sound catalog (several minutes)
+npm run verify:audio # optional recorded/physical audio catalog (several minutes)
 npm run lint         # catch undefined names and unused game declarations
 npm run format       # prettier
 ```
@@ -118,9 +118,11 @@ src/
     renderer.js    three.js scene, enemy/projectile meshes, biome visuals, effects
     overlay.js     2D HUD canvas: health bars, off-screen markers, hints
     interp.js      interpolation between simulation steps
-    pacing.js      frame pacing, mobile frame halving
+    pacing.js      30/60/120 FPS deadlines, independent of the 60 Hz simulation
   audio/
-    sound.js       the whole sound engine: synthesized music, sfx, room tones, event beds
+    sound.js       routing, voice budgets, synthesized music, room tones, event beds
+    physical-voices.js recorded material voices and modeled environmental accents
+    source-bank.js offsets into the compact CC0 recording bank
     place.js       the sounds of the place: biome far-scenes, hazard proximity loops
   ui/
     ui.js          screens, HUD DOM, banners, cards, settings
@@ -134,7 +136,10 @@ tests/             the suites above
 tools/             test runner, optional verification, dev server
 ```
 
-**Sound:** there are no audio files. Music, weapons, enemies, biome room tones and the far-off scenes (city sirens, marsh frogs, the void's breath) are all synthesized in WebAudio and checked with the optional offline audio renderer.
+**Sound:** WebAudio combines a compact CC0 recording bank with damped material bodies and modeled weather,
+wildlife and machinery. The synthesized score retains its biome arrangements. The bank is precached for offline
+play; [source credits and pinned recordings](public/audio/SOURCES.md) accompany the optional asset builder.
+The offline renderer checks real samples, mixing, continuous fire and voice limits.
 
 ## Releases
 
@@ -147,3 +152,6 @@ The game keeps its own flight recorder. A crashed run shows a report (version, d
 The 4.1 review covers the painted worlds, characters/equipment, physical sound sources and the 30/60/120 FPS
 control: [art and sound review](docs/ART-REVIEW-4.1.md). High detail is standard at every FPS limit; the default is 60.
 Recording credits and pinned source links are in [audio sources](public/audio/SOURCES.md).
+
+The [4.1.1 checkup](docs/CHECKUP-4.1.1.md) covers the connected walker, biome cleanup, material-specific hits,
+repository maintenance and the checks actually performed.

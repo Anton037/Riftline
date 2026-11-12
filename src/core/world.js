@@ -2281,7 +2281,7 @@ const rlStep = 1 / 60,
             this.emit("shieldPop", { x: enemy.x, y: enemy.y, r: enemy.r });
           }
           if (dmg <= 0) {
-            this.emit("dmg", { x: enemy.x, y: enemy.y, v: absorbed, shield: true, id: enemy.id });
+            this.emit("dmg", { x: enemy.x, y: enemy.y, v: absorbed, shield: true, id: enemy.id, type: enemy.type });
             return;
           }
         }
@@ -2315,7 +2315,7 @@ const rlStep = 1 / 60,
         if (enemy.boss) {
           this.addNova(dmg * 0.045);
         }
-        this.emit("dmg", { x: enemy.x, y: enemy.y, v: dmg, crit: crit, id: enemy.id });
+        this.emit("dmg", { x: enemy.x, y: enemy.y, v: dmg, crit: crit, id: enemy.id, type: enemy.type });
         if (enemy.hp <= 0) {
           this.killEnemy(enemy);
         }

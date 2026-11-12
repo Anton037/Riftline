@@ -1,7 +1,7 @@
 // Renderer data/geometry contracts without GPU timing or screenshot comparisons.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { Group, Mesh, BoxGeometry, MeshLambertMaterial, Box3, Vector3 } from "three";
+import { Group, Mesh, BoxGeometry, MeshLambertMaterial, Box3, Vector3, Quaternion } from "three";
 import { mergeStaticMeshes } from "../src/render/static-meshes.js";
 import { biomeList } from "../src/data/biomes.js";
 import { biomeAtmosphere, atmosphereDensity } from "../src/data/atmosphere.js";
@@ -120,11 +120,13 @@ test("Caldera ridges rotate the entire decorated model with their collision foot
     assert.ok(v.max.x <= 1.04 && v.min.x >= -1.04, "all details must stay on the narrow collision footprint");
   }
   assert.ok(bounds(horizontal[0]).min.y >= 0 && bounds(horizontal[0]).min.y < 0.02, "ridge must sit on the floor");
-  const ventCenters = vertical.slice(-3).map((p) => {
-    const box = bounds(p);
-    return (box.min.z + box.max.z) / 2;
-  });
-  assert.ok(Math.max(...ventCenters) - Math.min(...ventCenters) > 4, "vents must span the long axis");
+  const seamCenters = vertical
+    .filter((p) => p.role === "emberMat")
+    .map((p) => {
+      const box = bounds(p);
+      return (box.min.z + box.max.z) / 2;
+    });
+  assert.ok(Math.max(...seamCenters) - Math.min(...seamCenters) > 3.5, "fissures must span the long axis");
   for (const p of [...horizontal, ...vertical]) p.geometry.dispose();
 });
 
@@ -182,5 +184,50 @@ test("v4 architecture stays on solid footprints and outside the arena", async ()
           o.material?.dispose();
         });
     }
+  }
+});
+
+// Aiming is independent of body yaw, lean and walk sway; the physical bearing remains a shared pivot.
+test("every weapon stays attached and aims correctly through turns, banking and recoil", async () => {
+  const { buildPlayerModel } = await import("../src/render/models.js"),
+    { weaponDefs } = await import("../src/data/weapons.js");
+  const a = new Vector3(),
+    b = new Vector3(),
+    direction = new Vector3(),
+    expected = new Vector3(),
+    rotation = new Quaternion();
+  for (const [weapon, def] of Object.entries(weaponDefs)) {
+    const model = buildPlayerModel(weapon, def.color);
+    let triangles = 0,
+      gunMeshes = 0;
+    model.group.traverse((o) => {
+      if (o.geometry) triangles += (o.geometry.index?.count ?? o.geometry.attributes.position.count) / 3;
+    });
+    model.gun.traverse((o) => {
+      if (o.geometry) gunMeshes++;
+    });
+    assert.ok(gunMeshes > 0, `${weapon}: independent weapon geometry is missing`);
+    assert.ok(triangles <= 3000, `${weapon}: player exceeds the 3,000-triangle budget including its shield`);
+    for (let facing = 0; facing < 8; facing++)
+      for (let aim = 0; aim < 8; aim++)
+        for (const pose of [0, 1, 2]) {
+          model.base.rotation.set(pose === 0 ? 0 : 0.35, (-facing * Math.PI) / 4, pose === 2 ? -0.22 : 0, "YZX");
+          model.group.position.set(3, model.setWalk(facing * 0.8, pose === 0 ? 0 : 1, pose === 2 ? 1 : 0, 5), -4);
+          model.recoil = 0.07;
+          model.aimAt((aim * Math.PI) / 4);
+          model.group.updateMatrixWorld(true);
+          model.weaponMount.getWorldPosition(a);
+          model.turret.getWorldPosition(b);
+          assert.ok(a.distanceTo(b) < 1e-8, `${weapon}: bearing separated`);
+          direction.set(1, 0, 0).applyQuaternion(model.turret.getWorldQuaternion(rotation));
+          expected.set(Math.cos((aim * Math.PI) / 4), 0, Math.sin((aim * Math.PI) / 4));
+          assert.ok(direction.distanceTo(expected) < 1e-8, `${weapon}: aim drifts with the body`);
+          assert.ok(model.muzzle.getWorldPosition(b).toArray().every(Number.isFinite));
+          assert.equal(model.gun.position.x, -0.07);
+        }
+    model.group.traverse((o) => {
+      o.geometry?.dispose();
+      if (o.material) o.material.dispose();
+    });
   }
 });

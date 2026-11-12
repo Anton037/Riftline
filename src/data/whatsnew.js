@@ -4,6 +4,16 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "4.1.1",
+    title: "Grounded worlds, connected walker",
+    items: [
+      "The rebuilt walker keeps its gun attached while turning, walking and firing.",
+      "Stray floor rings, volcanic lamps and block pedestals give way to natural rock, ice and glass.",
+      "Enemy impacts match armor, flesh, stone, energy and crystal, including critical hits.",
+      "Adjusting frame rate, sound or HUD settings no longer briefly clears the scene.",
+    ],
+  },
+  {
     version: "4.1.0",
     title: "Painted worlds, physical sound",
     items: [
@@ -41,16 +51,6 @@ export const WHATS_NEW = [
       "Pond rocks stay with their ponds instead of collecting near the start, and basalt obstacles have more readable faces.",
       "Vertical lava ridges carry their seams and ember vents along the full ridge instead of bunching them at the centre.",
       "Broken rune etchings distinguish the Core's floor decoration from active circular hazards.",
-    ],
-  },
-  {
-    version: "3.63.0",
-    title: "Surfaces, steel and impact",
-    items: [
-      "Wet asphalt, blue ice, peat islands, beveled rift slabs, volcanic crust and glass in sand give each arena its own material and light.",
-      "The walker wears a new armored torso and shoulders, with shaped edges and metal highlights on machines and boss armor.",
-      "Muzzle jets, directional hit sparks and twin dash trails make attacks read at a glance, while Nova clears its centre faster.",
-      "Weapons have distinct dry attacks and shorter bodies, with redesigned hit, explosion, dash and Nova sounds.",
     ],
   },
 ];

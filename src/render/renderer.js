@@ -1,5 +1,6 @@
 // three.js renderer (Renderer): scene, camera, lights, instanced pools, particles, per-frame drawing.
 import { SmokeView } from "./smoke-view.js";
+import { actorMaterial } from "../data/materials.js";
 import { setWorldShadows, WORLD_SURFACES, worldMaterial, enemySurface } from "./world-material.js";
 import { hexColor, additiveMaterial } from "./materials.js";
 import { AMBIENT_POOL_SHARE } from "../data/atmosphere.js";
@@ -28,13 +29,11 @@ import {
   PlaneGeometry,
   PointLight,
   Quaternion,
-  Raycaster,
   RingGeometry,
   Scene,
   SphereGeometry,
   SRGBColorSpace,
   NeutralToneMapping,
-  Vector2,
   Vector3,
   WebGLRenderer,
 } from "three";
@@ -422,7 +421,7 @@ const MAX_PARTICLES = 1400,
       this.renderer.toneMapping = NeutralToneMapping;
       this.renderer.toneMappingExposure = 1.12;
       this.renderer.setClearColor(329485, 1);
-      this.dprCap = opts.dpr || 1.5;
+      this.dprCap = opts.dpr || 2;
       this.zoom = 1;
       this.scene = new Scene();
       this.scene.fog = new Fog(395798, 30, 75);
@@ -438,7 +437,7 @@ const MAX_PARTICLES = 1400,
       this.sun.shadow.radius = 2;
       this.sun.shadow.intensity = 0.8;
       this.renderer.shadowMap.type = PCFShadowMap;
-      this.renderer.shadowMap.enabled = this.dprCap > 1.3;
+      this.renderer.shadowMap.enabled = true;
       // 3.29.0: a fill light from the other side, in a colour that goes against the sun's (set per biome, no shadows)
       this.fill = new DirectionalLight(0xffffff, 0);
       this.fill.position.set(-9, 5, 8);
@@ -646,26 +645,6 @@ const MAX_PARTICLES = 1400,
         grav: new Float32Array(max),
         spark: new Uint8Array(max),
       };
-    }
-    setQuality(dprCap, particles) {
-      this.dprCap = dprCap;
-      this.renderer.shadowMap.enabled = dprCap > 1.3;
-      // 3.46.0: the procedural shaders scale their detail with the tier (the floor's fbm +
-      // voronoi + starfield and the zone/hazard fills used to cost the same on a battery phone
-      // at dpr 1 as on a desktop at dpr 2): 0 full, 1 fewer octaves, 2 one-cell voronoi
-      const lod = dprCap <= 1.05 ? 2 : dprCap <= 1.3 ? 1 : 0;
-      if (this.arena) this.arena.uniforms.uLod.value = lod;
-      for (const mat of this.attackView ? this.attackView.mats : [])
-        if (mat.uniforms.uLod) mat.uniforms.uLod.value = lod;
-      if (this.attackView && this.attackView.zoneMat) this.attackView.zoneMat.uniforms.uLod.value = lod;
-      if (this.attackView && this.attackView.markMat) this.attackView.markMat.uniforms.uLod.value = lod;
-      for (const mat of this.hazardView ? this.hazardView.mats : [])
-        if (mat.uniforms.uLod) mat.uniforms.uLod.value = lod;
-      if (particles && particles !== this.maxParticles) {
-        this.maxParticles = particles;
-        this.initParticles();
-      }
-      this.resize(true);
     }
     resize(force) {
       let canvas = this.canvas,
@@ -1024,13 +1003,31 @@ const MAX_PARTICLES = 1400,
               color = hexColor(def.color),
               dirX = Math.cos(ev.a),
               dirZ = Math.sin(ev.a);
+            const muzzle = this._shotMuzzle || (this._shotMuzzle = new Vector3());
+            this.player.aimAt(ev.a);
+            this.player.muzzle.getWorldPosition(muzzle);
+            muzzle.x += ev.x - this.player.group.position.x;
+            muzzle.z += ev.y - this.player.group.position.z;
+            this.player.recoil = Math.min(
+              0.07,
+              this.player.recoil + (def.id === "rail" || def.id === "scatter" ? 0.06 : 0.035) * this.motion,
+            );
             if (def.id !== "flame") {
               // Warm combustion flashes and compact energy jets leave a little material smoke.
-              this.line(ev.x, ev.y, ev.x + dirX * 0.85, ev.y + dirZ * 0.85, whiteColor, 0.055, 0.09, 0.85);
+              this.line(
+                muzzle.x,
+                muzzle.z,
+                muzzle.x + dirX * 0.26,
+                muzzle.z + dirZ * 0.26,
+                whiteColor,
+                0.055,
+                0.075,
+                muzzle.y,
+              );
               this.emit(
-                ev.x + dirX * 0.35,
-                0.8,
-                ev.y + dirZ * 0.35,
+                muzzle.x,
+                muzzle.y,
+                muzzle.z,
                 dirX * 4,
                 0,
                 dirZ * 4,
@@ -1041,21 +1038,14 @@ const MAX_PARTICLES = 1400,
               );
             }
             if (["pulse", "scatter", "rocket", "flame"].includes(def.id))
-              this.smokeView.emit(
-                ev.x + dirX * 0.72,
-                1.15,
-                ev.y + dirZ * 0.72,
-                def.id === "scatter" ? 0.5 : 0.3,
-                0x9da7a8,
-                0.32,
-              );
+              this.smokeView.emit(muzzle.x, muzzle.y, muzzle.z, def.id === "scatter" ? 0.5 : 0.3, 0x9da7a8, 0.32);
             this.muzzle = Math.min(1, (this.muzzle || 0) + (def.id === "flame" ? 0.12 : 0.6));
             this.pLight.color.copy(color);
             if (!this.lastMuzzleT || this.time - this.lastMuzzleT > 0.05) {
               this.lastMuzzleT = this.time;
               let muzzleFlash = {
-                x: ev.x + dirX * 0.6,
-                z: ev.y + dirZ * 0.6,
+                x: muzzle.x,
+                z: muzzle.z,
                 r: def.id === "rail" ? 3.2 : 2.2,
                 i: def.id === "flame" ? 0.35 : 0.55,
                 col: color,
@@ -1127,9 +1117,16 @@ const MAX_PARTICLES = 1400,
             }
             if (!ev.burn) {
               // Short impact fans point away from the walker; critical hits spread farther.
-              const a = Math.atan2(ev.y - world.player.y, ev.x - world.player.x);
+              const a = Math.atan2(ev.y - world.player.y, ev.x - world.player.x),
+                material = ev.shield ? "energy" : actorMaterial(ev.type),
+                hard = material === "armor" || material === "crystal",
+                impactColor = hexColor(
+                  { armor: 0xc8b98f, organic: 0x729568, stone: 0x8d8375, energy: 0xa18abd, crystal: 0xbadbdc }[
+                    material
+                  ],
+                );
               const n = ev.crit ? 5 : 3;
-              for (let j = 0; j < n; j++) {
+              for (let j = 0; hard && j < n; j++) {
                 const angle = a + (j / Math.max(1, n - 1) - 0.5) * 1.8;
                 const length = ev.crit ? 0.65 : 0.35;
                 this.line(
@@ -1137,26 +1134,16 @@ const MAX_PARTICLES = 1400,
                   ev.y,
                   ev.x + Math.cos(angle) * length,
                   ev.y + Math.sin(angle) * length,
-                  ev.crit ? goldColor : whiteColor,
+                  ev.crit ? goldColor : impactColor,
                   ev.crit ? 0.13 : 0.075,
                   0.025,
                   0.65,
                 );
               }
-              this.burst(
-                ev.x,
-                ev.y,
-                0.6,
-                ev.crit ? 4 : 2,
-                5,
-                ev.crit ? hexColor(16767050) : hexColor(0xc8c1a5),
-                0.18,
-                0.18,
-                {
-                  spark: true,
-                  drag: 6,
-                },
-              );
+              this.burst(ev.x, ev.y, 0.6, ev.crit ? 4 : 2, hard ? 5 : 2.2, impactColor, 0.18, 0.18, {
+                spark: hard,
+                drag: 6,
+              });
             }
             break;
           }
@@ -1224,7 +1211,7 @@ const MAX_PARTICLES = 1400,
               2.6 + scale * 1.7,
             );
             // 2.7.0: the model does not vanish at once: it shrinks, spins and hops for a moment (drawWorld), and a
-            // second handful of debris in the lighter shade of its colour flies off (skipped on the battery preset)
+            // second handful of debris in the lighter shade of its colour flies off.
             if (!ev.boss && this.corpses.length < 40 && enemyDefs[ev.type]) {
               this.corpses.push({
                 type: ev.type,
@@ -1717,7 +1704,7 @@ const MAX_PARTICLES = 1400,
     }
     frame(dt, world, opts = {}) {
       // 2.5.0 C: Whiteout (the Aurora Shelf) blows wind-driven snow across the view; it fades in and out
-      // over about a second and scales with the particle budget of the quality setting
+      // over about a second and stays within the shared particle budget.
       const want =
         !opts.menu &&
         world &&
@@ -1855,9 +1842,9 @@ const MAX_PARTICLES = 1400,
       drone.group.visible = true;
       // 3.17.0: the walker stands on the floor and breathes; its body turns slowly and the weapon scans
       drone.group.position.set(0, drone.setWalk(0, 0, 0, this.time), 0);
-      drone.turret.rotation.y = Math.sin(this.time * 0.7) * 1.2;
       drone.shield.visible = false;
       drone.base.rotation.set(0, this.time * 0.3, 0);
+      drone.aimAt(-Math.sin(this.time * 0.7) * 1.2, dt);
       this.corpses.length = 0;
       for (let mat of drone.mats) mat.emissive.setScalar(0);
       this.shadows.y(0, 0.02, 0, 0, 2.2);
@@ -1893,7 +1880,6 @@ const MAX_PARTICLES = 1400,
       drone.group.visible = player.alive;
       if (player.alive) {
         drone.base.rotation.y = -player.face;
-        drone.turret.rotation.y = -player.aim;
         // 3.17.0: the walker: the legs follow the stride of the world (a foot comes down every STEP_LEN metres, the
         // same moment as the footstep sound), a dash is a jump (the legs tuck, the body rises and falls), the body
         // leans into the movement and banks in turns
@@ -1912,6 +1898,7 @@ const MAX_PARTICLES = 1400,
           drone.base.rotation.x = drone.bank;
           const body = drone.setWalk((player.stride / STEP_LEN) * Math.PI, amount, jump, time);
           drone.group.position.set(player.x, body + jump * 0.6, player.y);
+          drone.aimAt(player.aim, dt);
         }
         drone.shield.visible = player.shield;
         drone.shield.material.opacity = 0.12 + Math.sin(time * 6) * 0.04;
@@ -2789,17 +2776,6 @@ const MAX_PARTICLES = 1400,
       out.nx = ndc.x;
       out.ny = ndc.y;
       return out;
-    }
-    groundAt(sx, sy) {
-      let caster = this._ray || (this._ray = new Raycaster()),
-        ndc = this._nd || (this._nd = new Vector2());
-      ndc.set((sx / this.w) * 2 - 1, -(sy / this.h) * 2 + 1);
-      caster.setFromCamera(ndc, this.camera);
-      let origin = caster.ray.origin,
-        dir = caster.ray.direction;
-      if (Math.abs(dir.y) < 1e-4) return null;
-      let dist = (0.75 - origin.y) / dir.y;
-      return { x: origin.x + dir.x * dist, y: origin.z + dir.z * dist };
     }
     resetCamera() {
       this.smokeView.clear();

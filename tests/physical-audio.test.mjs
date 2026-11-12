@@ -87,3 +87,28 @@ test("ambient weather, wildlife and machinery stay independent of weapon and imp
     assert.ok(Math.abs(a.at(-1)) < 0.002, id);
   }
 });
+
+test("hits and critical hits use the target material; only crystal targets use glass", () => {
+  const families = {
+    grunt: "hitArmor",
+    sniper: "hitArmor",
+    beacon: "hitArmor",
+    swarmer: "hitOrganic",
+    mender: "hitOrganic",
+    carrier: "hitOrganic",
+    core: "hitStone",
+    kingpin: "hitStone",
+    prism: "hitCrystal",
+    wyrm: "hitCrystal",
+    phantom: "hitEnergy",
+  };
+  for (const [type, family] of Object.entries(families)) {
+    const hit = physicalProfile("hit", { type }),
+      crit = physicalProfile("crit", { type });
+    assert.equal(hit.family, family, type);
+    assert.equal(crit.family, family, type);
+    assert.equal(hit.sample === "glass", family === "hitCrystal", type);
+    assert.ok(crit.gain > hit.gain && hit.dur <= 0.17, type);
+  }
+  assert.equal(physicalProfile("hit", { type: "grunt", shield: true }).family, "hitEnergy");
+});

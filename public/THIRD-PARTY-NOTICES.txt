@@ -1,4 +1,5 @@
 Riftline contains third-party software and fonts. Their copyright notices and licenses follow.
+The physical sound bank's CC0 recording credits and source links are listed in audio/SOURCES.md.
 
 ===============================================================================
 three.js r187

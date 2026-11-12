@@ -7,7 +7,7 @@ These are settings of the repository on github.com. They are not files, so only 
 
 **Description:**
 
-> Riftline: a 3D arena roguelite shooter for the browser. Touch-only controls, six biomes, synthesized sound.
+> Riftline: a 3D arena roguelite shooter for the browser. Touch-only controls, six painted biomes, physical sound.
 
 **Website:** `https://anton037.github.io/Riftline/`
 
@@ -20,7 +20,7 @@ These are settings of the repository on github.com. They are not files, so only 
 
 An image of 1280 x 640 px shows when the link is shared. A good starting point is the Blackout City
 image from `npm run audit:visual`, with RIFTLINE added in the display font. The command writes the
-current tablet scenes to `verification-output/current-tablet-high/`. The optional visual workflow
+current tablet scenes to `verification-output/current-tablet-60fps/`. The optional visual workflow
 also uploads its images and metrics as a downloadable artifact, including after a failed check.
 
 ## The licence (decide, then add a LICENSE file)

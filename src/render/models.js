@@ -1257,116 +1257,128 @@ function debrisGeometry() {
   return new IcosahedronGeometry(0.58, 0);
 }
 function buildPlayerModel(weapon, color) {
-  // 3.17.0: a walker instead of a gunship: a two-legged robot. A squat torso with a glowing visor and a back pack on a
-  // pelvis, two legs (a thigh, a shin, a flat foot) that swing, bend and plant as the drone walks (setWalk), and the
-  // weapon mount on top. The footprint stays about 0.65 around the centre, with brighter v4 hull armor.
-  // `base` is the part that turns with the drone; `turret` aims.
-  const hullMat = worldMaterial({
-      surface: "armor",
-      color: 0xa5bec9,
-      emissive: 0,
-      specular: 0x53616b,
-      shininess: 28,
-      flatShading: true,
-    }),
-    trimMat = worldMaterial({
-      surface: "armor",
-      color: 0xd4d9cf,
-      emissive: 0,
-      specular: 0x53616b,
-      shininess: 28,
-      flatShading: true,
-    }),
-    mechanismMat = worldMaterial({ surface: "rubber", color: 0x253137, shininess: 9 }),
-    steelMat = worldMaterial({ surface: "metal", color: 0x849697, shininess: 40 }),
+  // A compact industrial walker: an ivory armored shell over visible joints and a stabilized weapon bearing.
+  const hullMat = worldMaterial({ surface: "armor", color: 0xc5c9bb, shininess: 30 }),
+    trimMat = worldMaterial({ surface: "armor", color: 0x66868a, shininess: 24 }),
+    mechanismMat = worldMaterial({ surface: "rubber", color: 0x222d32, shininess: 8 }),
+    steelMat = worldMaterial({ surface: "metal", color: 0x99a6a2, shininess: 42 }),
     glowMat = new MeshBasicMaterial({ color, toneMapped: false }),
-    visorMat = worldMaterial({ surface: "crystal", color: 7454463, emissive: 1058362, flatShading: true }),
+    visorMat = worldMaterial({ surface: "crystal", color: 0x142a30, shininess: 68 }),
     group = new Group(),
     base = new Group(),
     torso = new Group(),
-    HIP = 0.6,
-    THIGH = 0.28,
-    SHIN = 0.28,
+    HIP = 0.68,
+    THIGH = 0.3,
+    SHIN = 0.3,
     addPart = (parts, material, parent) => {
       const mesh = new Mesh(mergeParts(parts), material);
       parent.add(mesh);
       return mesh;
-    },
-    // the torso: a pelvis box, a chest that is wider at the shoulders, a back pack with a glowing vent, a visor
-    hull = [
-      box(2898514, 0.34, 0.14, 0.5, { x: 0, y: HIP + 0.02 }),
-      meshPart(armorBox(0.66, 0.42, 0.66, 0.1), 2898514, { x: -0.02, y: HIP + 0.3 }),
+    };
+  // Broad beveled shoulders and a sloped chest surround an inset sensor; the dark gaps expose the frame.
+  addPart(
+    [
+      meshPart(armorBox(0.62, 0.42, 0.58, 0.075), 0xffffff, { x: -0.025, y: 0.99 }),
+      meshPart(armorBox(0.22, 0.23, 0.43, 0.045), 0xffffff, { x: 0.27, y: 1.1, rz: -0.1 }),
       ...both((s) => [
-        box(2898514, 0.37, 0.12, 0.23, { x: 0.06, y: HIP + 0.54, z: s * 0.27, rx: s * 0.22 }),
-        box(2898514, 0.22, 0.3, 0.25, { x: -0.28, y: HIP + 0.28, z: s * 0.35 }),
+        meshPart(armorBox(0.39, 0.2, 0.25, 0.045), 0xffffff, { x: -0.04, y: 1.12, z: s * 0.38, rx: s * 0.14 }),
       ]),
-      ...both((s) => [
-        // shoulders and upper arms, short and blocky (the weapon is on the back, the arms hold the sides)
-        box(2898514, 0.2, 0.26, 0.16, { x: 0, y: HIP + 0.34, z: s * 0.44 }),
-        bar(2898514, 0.1, [0.02, HIP + 0.26, s * 0.5], [0.16, HIP + 0.04, s * 0.5], 0.1),
-      ]),
-      box(2898514, 0.3, 0.32, 0.42, { x: -0.3, y: HIP + 0.36 }),
-      // Overlapping chest and shoulder plates reveal the darker walker frame below.
-      box(0xb7c5bf, 0.045, 0.22, 0.45, { x: 0.315, y: HIP + 0.24 }),
-      ...both((s) => [box(0x9baeb0, 0.32, 0.055, 0.21, { x: 0.05, y: HIP + 0.57, z: s * 0.31 })]),
+      box(0xffffff, 0.055, 0.2, 0.39, { x: 0.305, y: 0.93, rz: -0.12 }),
     ],
-    trim = [
-      ...both((s) => [box(0xcbd8db, 0.28, 0.04, 0.18, { x: 0.06, y: HIP + 0.62, z: s * 0.29 })]),
-      box(9348036, 0.34, 0.035, 0.46, { x: 0.1, y: HIP + 0.525 }),
-      ...[-0.13, 0, 0.13].map((z) => box(9348036, 0.13, 0.025, 0.035, { x: -0.31, y: HIP + 0.535, z })),
-      box(9348036, 0.38, 0.05, 0.54, { x: 0, y: HIP + 0.1 }),
+    hullMat,
+    torso,
+  );
+  addPart(
+    [
       ...both((s) => [
-        pipe(9348036, 0.07, 0.07, 6, [-0.42, HIP + 0.5, s * 0.14], [-0.5, HIP + 0.14, s * 0.14]),
-        box(9348036, 0.12, 0.1, 0.14, { x: 0.18, y: HIP + 0.02, z: s * 0.2 }),
+        box(0xffffff, 0.27, 0.25, 0.19, { x: -0.27, y: 0.99, z: s * 0.25 }),
+        box(0xffffff, 0.13, 0.19, 0.17, { x: 0.09, y: 0.87, z: s * 0.41, rz: -0.15 }),
       ]),
-      box(9348036, 0.16, 0.05, 0.3, { x: 0.3, y: HIP + 0.52 }),
+      box(0xffffff, 0.21, 0.07, 0.4, { x: 0.06, y: 0.78 }),
     ],
-    glowParts = [
-      box(color, 0.04, 0.05, 0.36, { x: 0.38, y: HIP + 0.34 }),
+    trimMat,
+    torso,
+  );
+  addPart(
+    [
+      box(0xffffff, 0.43, 0.3, 0.5, { x: -0.06, y: 0.91 }),
       ...both((s) => [
-        box(color, 0.2, 0.03, 0.04, { x: -0.3, y: HIP + 0.46, z: s * 0.12 }),
-        ball(color, 0.04, 5, 3, { x: 0.12, y: HIP + 0.04, z: s * 0.5 }),
+        pipe(0xffffff, 0.06, 0.06, 8, [-0.11, 1.05, s * 0.43], [0.13, 0.78, s * 0.43]),
+        ...[-0.08, 0, 0.08].map((z) => box(0xffffff, 0.025, 0.15, 0.04, { x: -0.414, y: 1.01, z: s * 0.25 + z })),
       ]),
-    ];
-  addPart(hull, hullMat, torso);
-  addPart(trim, trimMat, torso);
-  addPart(glowParts, glowMat, torso);
-  const visor = new Mesh(armorBox(0.1, 0.14, 0.34), visorMat);
-  visor.position.set(0.34, HIP + 0.36, 0);
+    ],
+    mechanismMat,
+    torso,
+  );
+  addPart(
+    [
+      ...both((s) => [
+        pipe(0xffffff, 0.035, 0.035, 8, [-0.08, 1.0, s * 0.43], [0.13, 0.8, s * 0.43]),
+        box(0xffffff, 0.13, 0.04, 0.16, { x: 0.1, y: 0.77, z: s * 0.2 }),
+      ]),
+    ],
+    steelMat,
+    torso,
+  );
+  const visor = new Mesh(armorBox(0.025, 0.1, 0.31, 0.01), visorMat);
+  visor.position.set(0.386, 1.1, 0);
   torso.add(visor);
+  addPart(
+    [
+      box(color, 0.027, 0.026, 0.22, { x: 0.402, y: 1.115 }),
+      ...both((s) => [box(color, 0.04, 0.025, 0.09, { x: -0.41, y: 1.1, z: s * 0.25 })]),
+    ],
+    glowMat,
+    torso,
+  );
+  addPart([box(0xffffff, 0.31, 0.18, 0.46, { y: HIP + 0.025 })], mechanismMat, base);
+  addPart([...both((s) => [pipe(0xffffff, 0.105, 0.105, 10, [0, HIP, s * 0.19], [0, HIP, s * 0.29])])], steelMat, base);
   base.add(torso);
-  // the legs: a group at the hip (pitch about z: positive swings the foot forward), a knee group below it
   const legs = [];
   for (const side of [-1, 1]) {
     const hip = new Group(),
       knee = new Group(),
       ankle = new Group();
-    hip.position.set(0, HIP, side * 0.2);
-    hip.add(
-      new Mesh(
-        mergeParts([bar(2898514, 0.12, [0, 0, 0], [0.02, -THIGH, 0], 0.14), ball(9348036, 0.09, 6, 4)]),
-        hullMat,
-      ),
+    hip.position.set(0, HIP, side * 0.235);
+    addPart([box(0xffffff, 0.22, 0.26, 0.21, { x: 0.025, y: -0.14, rz: 0.08 })], trimMat, hip);
+    addPart(
+      [
+        pipe(0xffffff, 0.055, 0.065, 8, [-0.1, 0, 0], [-0.08, -THIGH, 0]),
+        pipe(0xffffff, 0.038, 0.038, 8, [0.09, -0.03, side * 0.08], [0.11, -0.26, side * 0.08]),
+      ],
+      steelMat,
+      hip,
     );
     knee.position.set(0.02, -THIGH, 0);
-    knee.add(
-      new Mesh(
-        mergeParts([bar(9348036, 0.1, [0, 0, 0], [-0.02, -SHIN, 0], 0.12), ball(2898514, 0.075, 6, 4)]),
-        trimMat,
-      ),
+    addPart(
+      [
+        pipe(0xffffff, 0.1, 0.1, 10, [0, 0, -0.12], [0, 0, 0.12]),
+        bar(0xffffff, 0.1, [-0.015, -0.04, 0], [-0.04, -SHIN, 0], 0.12),
+      ],
+      mechanismMat,
+      knee,
+    );
+    addPart(
+      [
+        box(0xffffff, 0.16, 0.13, 0.23, { x: 0.09, y: -0.015 }),
+        box(0xffffff, 0.19, 0.23, 0.19, { x: 0.025, y: -0.19, rz: -0.08 }),
+      ],
+      hullMat,
+      knee,
     );
     ankle.position.set(-0.02, -SHIN, 0);
-    ankle.add(new Mesh(mergeParts([box(2898514, 0.3, 0.07, 0.17, { x: 0.07, y: 0.0 })]), hullMat));
-    ankle.add(new Mesh(mergeParts([box(color, 0.04, 0.03, 0.14, { x: 0.22, y: 0.0 })]), glowMat));
-    // the glow of the weapon colour on the knee and the outer side of the shin (the dark legs read against the floor)
-    knee.add(
-      new Mesh(
-        mergeParts([
-          ball(color, 0.055, 5, 3, { x: 0.03, z: side * 0.03 }),
-          bar(color, 0.035, [0.02, -0.05, side * 0.075], [-0.01, -SHIN + 0.06, side * 0.075], 0.03),
-        ]),
-        glowMat,
-      ),
+    addPart(
+      [
+        box(0xffffff, 0.38, 0.075, 0.25, { x: 0.075, y: -0.025 }),
+        box(0xffffff, 0.035, 0.11, 0.23, { x: -0.1, y: 0.005 }),
+      ],
+      mechanismMat,
+      ankle,
+    );
+    addPart(
+      [box(0xffffff, 0.29, 0.075, 0.24, { x: 0.1, y: 0.035 }), box(0xffffff, 0.07, 0.05, 0.25, { x: 0.245, y: 0.01 })],
+      hullMat,
+      ankle,
     );
     knee.add(ankle);
     hip.add(knee);
@@ -1375,36 +1387,54 @@ function buildPlayerModel(weapon, color) {
   }
   base.rotation.order = "YZX";
   group.add(base);
-  /* the walk cycle: `phase` (radians, one cycle is two steps; core/walk.js: a foot comes down every metre), `amount`
-     how much the drone walks (0 standing, 1 at full speed), `air` 0..1 how far a dash has it up (the legs tuck).
-     The thigh swings, the knee bends while the leg swings forward, the torso turns against the hips and the body
-     bobs; standing still the body breathes. Returns the height of the body above the ground. */
   const setWalk = (phase, amount, air, time) => {
-    let bob = 0;
     for (const leg of legs) {
       const p = phase + (leg.side > 0 ? 0 : Math.PI),
-        swing = Math.sin(p) * 0.85 * amount,
-        bend = Math.max(0, Math.cos(p)) * 1.0 * amount;
-      // in the air both legs tuck: knees up, feet under the body
+        swing = Math.sin(p) * 0.65 * amount,
+        bend = Math.max(0, Math.cos(p)) * 0.8 * amount;
       leg.hip.rotation.z = swing * (1 - air) + 0.55 * air;
       leg.knee.rotation.z = -bend * (1 - air) - 1.1 * air;
       leg.ankle.rotation.z = (bend * 0.5 - swing * 0.3) * (1 - air) + 0.5 * air;
     }
-    torso.rotation.y = Math.sin(phase) * 0.12 * amount;
-    torso.rotation.z = Math.sin(phase * 2) * 0.02 * amount;
-    bob = -Math.abs(Math.sin(phase)) * 0.07 * amount;
-    // breathing while it stands
-    bob += Math.sin(time * 2.2) * 0.012 * (1 - amount);
-    return bob;
+    torso.rotation.y = Math.sin(phase) * 0.06 * amount;
+    torso.rotation.z = Math.sin(phase * 2) * 0.018 * amount;
+    return -Math.abs(Math.sin(phase)) * 0.045 * amount + Math.sin(time * 2.2) * 0.008 * (1 - amount);
   };
-  let turret = new Group();
-  turret.position.y = HIP + 0.62;
-  turret.position.x = -0.05;
-  let dome = new Mesh(new SphereGeometry(0.21, 10, 5, 0, Math.PI * 2, 0, Math.PI / 2), trimMat);
-  turret.add(dome);
-  let sight = new Mesh(armorBox(0.08, 0.08, 0.3), glowMat);
-  sight.position.set(0.22, 0.12, 0);
-  turret.add(sight);
+  const weaponMount = new Group(),
+    turret = new Group(),
+    gun = new Group();
+  weaponMount.position.set(0, 1.23, 0);
+  torso.add(weaponMount);
+  weaponMount.add(turret);
+  turret.add(gun);
+  // The ball-and-ring bearing stays on the chest; only the stabilized yoke rotates and the gun recoils locally.
+  addPart(
+    [meshPart(new CylinderGeometry(0.22, 0.25, 0.12, 14), 0xffffff, { y: weaponMount.position.y - 0.06 })],
+    mechanismMat,
+    torso,
+  );
+  addPart(
+    [meshPart(new TorusGeometry(0.19, 0.035, 5, 16), 0xffffff, { y: weaponMount.position.y - 0.025, rx: Math.PI / 2 })],
+    steelMat,
+    torso,
+  );
+  const gimbal = new Mesh(new SphereGeometry(0.16, 10, 6), steelMat);
+  gimbal.position.y = 0.005;
+  turret.add(gimbal);
+  const cradle = new Mesh(armorBox(0.38, 0.16, 0.3, 0.035), trimMat);
+  cradle.position.set(0, 0.105, 0);
+  turret.add(cradle);
+  gun.position.y = 0.16;
+  const axis = new Vector3(0, 1, 0),
+    worldAim = new Quaternion(),
+    parentRotation = new Quaternion();
+  const aimAt = (angle, dt = 0) => {
+    weaponMount.getWorldQuaternion(parentRotation).invert();
+    worldAim.setFromAxisAngle(axis, -angle);
+    turret.quaternion.copy(parentRotation).multiply(worldAim);
+    model.recoil = Math.max(0, model.recoil - dt * 0.65);
+    gun.position.x = -model.recoil;
+  };
   let addBarrel = (len, thick, z = 0, y = 0.02) => {
     const housing = new Mesh(armorBox(len * 0.65, thick * 1.5, thick * 1.45), hullMat);
     housing.position.set(len * 0.32 + 0.1, y, z);
@@ -1417,11 +1447,11 @@ function buildPlayerModel(weapon, color) {
     const bore = new Mesh(new CylinderGeometry(thick * 0.36, thick * 0.36, 0.012, 10), mechanismMat);
     bore.rotation.z = -Math.PI / 2;
     bore.position.set(len + 0.145, y, z);
-    turret.add(housing, tube, collar, bore);
+    gun.add(housing, tube, collar, bore);
     for (const f of [0.25, 0.45, 0.65]) {
       const vent = new Mesh(armorBox(0.025, 0.012, thick * 0.85), mechanismMat);
       vent.position.set(len * f + 0.1, y + thick * 0.76, z);
-      turret.add(vent);
+      gun.add(vent);
     }
   };
   if (weapon === "scatter") {
@@ -1431,11 +1461,11 @@ function buildPlayerModel(weapon, color) {
     addBarrel(0.95, 0.1);
     let rail = new Mesh(armorBox(0.8, 0.04, 0.26), trimMat);
     rail.position.set(0.55, 0.02, 0);
-    turret.add(rail);
+    gun.add(rail);
   } else if (weapon === "rocket") {
     let pod = new Mesh(armorBox(0.46, 0.26, 0.36), hullMat);
     pod.position.set(0.3, 0.05, 0);
-    turret.add(pod);
+    gun.add(pod);
     for (let z of [-0.09, 0.09])
       for (let y of [-0.03, 0.12]) {
         const rim = new Mesh(new TorusGeometry(0.042, 0.01, 4, 10), steelMat);
@@ -1444,7 +1474,7 @@ function buildPlayerModel(weapon, color) {
         const bore = new Mesh(new CylinderGeometry(0.033, 0.033, 0.01, 10), mechanismMat);
         bore.rotation.z = -Math.PI / 2;
         bore.position.set(0.557, y, z);
-        turret.add(rim, bore);
+        gun.add(rim, bore);
       }
   } else if (weapon === "tesla") {
     addBarrel(0.55, 0.12);
@@ -1456,7 +1486,7 @@ function buildPlayerModel(weapon, color) {
     const winding = new Mesh(new TorusGeometry(0.085, 0.012, 4, 14), glowMat);
     winding.rotation.y = Math.PI / 2;
     winding.position.set(0.46, 0.02, 0);
-    turret.add(coil, coil2, winding);
+    gun.add(coil, coil2, winding);
   } else if (weapon === "disc") {
     let mount = new Mesh(armorBox(0.62, 0.08, 0.34), hullMat);
     mount.position.set(0.35, 0, 0);
@@ -1465,7 +1495,7 @@ function buildPlayerModel(weapon, color) {
     const rim = new Mesh(new TorusGeometry(0.18, 0.014, 4, 16), glowMat);
     rim.rotation.x = Math.PI / 2;
     rim.position.set(0.42, 0.11, 0);
-    turret.add(mount, disc, rim);
+    gun.add(mount, disc, rim);
   } else if (weapon === "flame") {
     let tank = new Mesh(new CylinderGeometry(0.12, 0.12, 0.5, 10), steelMat);
     tank.rotation.x = Math.PI / 2;
@@ -1475,10 +1505,17 @@ function buildPlayerModel(weapon, color) {
     nozzle.position.set(0.42, 0.02, 0);
     let pilot = new Mesh(new SphereGeometry(0.06, 8, 6), glowMat);
     pilot.position.set(0.72, 0.02, 0);
-    turret.add(tank, nozzle, pilot);
+    gun.add(tank, nozzle, pilot);
   } else addBarrel(0.62, 0.13);
-  mergeStaticMeshes(turret);
-  group.add(turret);
+  const muzzle = new Group();
+  muzzle.position.set(
+    { pulse: 0.77, scatter: 0.65, tesla: 0.7, rail: 1.1, rocket: 0.56, disc: 0.62, flame: 0.74 }[weapon] || 0.77,
+    0.02,
+    0,
+  );
+  gun.add(muzzle);
+  mergeStaticMeshes(torso);
+  mergeStaticMeshes(gun);
   let shield = new Mesh(
     new IcosahedronGeometry(1, 2),
     new MeshBasicMaterial({
@@ -1493,10 +1530,15 @@ function buildPlayerModel(weapon, color) {
   shield.position.y = 0.8;
   shield.scale.setScalar(1.1);
   group.add(shield);
-  return {
+  const model = {
     group,
     base,
     turret,
+    weaponMount,
+    gun,
+    muzzle,
+    aimAt,
+    recoil: 0,
     shield,
     mats: [hullMat, trimMat, mechanismMat, steelMat],
     glowMat,
@@ -1505,6 +1547,8 @@ function buildPlayerModel(weapon, color) {
     lean: 0,
     bank: 0,
   };
+  aimAt(0);
+  return model;
 }
 function buildBossModel(type, color) {
   const finish =

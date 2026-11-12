@@ -1,5 +1,6 @@
 // Recorded material transients and damped physical bodies, shared by combat and place sounds.
 import { SOURCE_CLIPS } from "./source-bank.js";
+import { actorMaterial } from "../data/materials.js";
 
 let bytesPromise, decodedPromise;
 export function preloadPhysicalAudio() {
@@ -44,6 +45,20 @@ const P = {
   flame: { dur: 0.23, sample: "soft", body: 125, air: 0.5, grain: 0.12, gain: 0.26, gate: 0.07, hold: true },
   event: { dur: 1.25, sample: "heavy", body: 58, air: 0.32, grain: 0.1, gain: 0.33, gate: 0.4 },
   impact: { dur: 0.16, sample: "metal", body: 230, air: 0.1, grain: 0.05, gain: 0.19, gate: 0.025 },
+  hitArmor: { dur: 0.13, sample: "heavy", body: 135, air: 0.035, grain: 0.015, gain: 0.2, gate: 0.035, lowpass: 2200 },
+  hitOrganic: { dur: 0.14, sample: "flesh", body: 95, air: 0.05, grain: 0.025, gain: 0.21, gate: 0.035, lowpass: 1800 },
+  hitStone: { dur: 0.16, sample: "wood", body: 110, air: 0.07, grain: 0.065, gain: 0.2, gate: 0.035, lowpass: 2600 },
+  hitCrystal: {
+    dur: 0.17,
+    sample: "glass",
+    body: 480,
+    air: 0.07,
+    grain: 0.035,
+    gain: 0.17,
+    gate: 0.035,
+    lowpass: 6000,
+  },
+  hitEnergy: { dur: 0.14, sample: "soft", body: 180, air: 0.16, grain: 0.03, gain: 0.2, gate: 0.035, lowpass: 1600 },
   organic: { dur: 0.29, sample: "flesh", body: 95, air: 0.13, grain: 0.1, gain: 0.25, gate: 0.035 },
   armor: { dur: 0.4, sample: "plate", body: 135, air: 0.12, grain: 0.08, gain: 0.28, gate: 0.04 },
   glass: { dur: 0.4, sample: "glass", body: 710, air: 0.15, grain: 0.2, gain: 0.24, gate: 0.045 },
@@ -71,6 +86,18 @@ const P = {
 };
 export function physicalProfile(id, arg, place = false) {
   let family = P[id] ? id : "impact";
+  if (!place && (id === "hit" || id === "crit")) {
+    family = arg?.shield
+      ? "hitEnergy"
+      : {
+          armor: "hitArmor",
+          organic: "hitOrganic",
+          stone: "hitStone",
+          crystal: "hitCrystal",
+          energy: "hitEnergy",
+        }[actorMaterial(arg?.type)];
+    return { ...P[family], family, gain: P[family].gain * (id === "crit" ? 1.25 : 1) };
+  }
   if (place) {
     family = /helicopter/i.test(id)
       ? "rotor"
@@ -201,6 +228,8 @@ export class PhysicalVoices {
       low = 0,
       band = 0,
       phase = 0;
+    let recordedLow = 0;
+    const recordedAlpha = p.lowpass ? 1 - Math.exp((-Math.PI * 2 * p.lowpass) / rate) : 1;
     const center = p.model === "air" ? 0.08 : p.family === "tesla" ? 0.4 : p.family === "flame" ? 0.14 : 0.23;
     for (let i = 0; i < n; i++) {
       const t = i / rate,
@@ -260,10 +289,11 @@ export class PhysicalVoices {
         const position = (region.start + t * (1 + (variant - 1) * 0.035)) * sr;
         const at = Math.floor(position),
           f = position - at;
-        if (t < region.duration && at + 1 < raw.length)
+        if (t * (1 + (variant - 1) * 0.035) < region.duration && at + 1 < raw.length)
           recorded = (raw[at] * (1 - f) + raw[at + 1] * f) * (p.warn || p.hold ? 0.11 : 0.66);
       }
-      data[i] = (recorded + modes * envelope + air + grains) * attack * tail;
+      recordedLow += recordedAlpha * (recorded - recordedLow);
+      data[i] = (recordedLow + modes * envelope + air + grains) * attack * tail;
     }
     this.buffers.set(key, b);
     if (this.buffers.size > 48) this.buffers.delete(this.buffers.keys().next().value);
@@ -302,7 +332,7 @@ export class PhysicalVoices {
       return;
     }
     const p = physicalProfile(id, arg);
-    if (!engine.gate(id, p.gate)) return;
+    if (!engine.gate(id === "hit" || id === "crit" ? `${id}:${p.family}` : id, p.gate)) return;
     this.source(engine, id, p);
     if (["scatter", "rail"].includes(id))
       this.source(engine, "chamber", { ...P.ui, sample: "metal", gain: 0.11 }, { at: id === "scatter" ? 0.13 : 0.18 });

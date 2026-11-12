@@ -37,6 +37,7 @@ For centre/edge/corner screenshots use `node tools/verify.js visual <tag> tablet
   saved-run continuation, death recap and returning home. Death/wave completion are arranged through
   the simulation interface rather than waiting through whole fights. An import dialog survives a pending
   update during a simulated visibility change, and mouse/pen action events are ignored.
+  Startup health checks must report no failures, and settings changes must retain the drawing buffer.
 - The landscape phone flow holds both sticks and taps dash with a third finger, cancels the touches,
   then pauses/resumes. A gamepad API counter must stay at zero.
 - A fresh profile uses real touch through all four tutorial coaches and real WebAudio through pause,
@@ -63,7 +64,7 @@ No arbitrary sleep is used to wait for gameplay. The runner terminates its proce
 node tools/verify.js visual review land void 30
 # Every biome on a tablet with the default 60 FPS cap
 node tools/verify.js visual review tablet all 60
-# Seven weapons, all 25 enemies, smoke/rockets and FPS controls
+# Seven weapons, eight player turn/lean/recoil views, all 25 enemies, smoke/rockets and FPS controls
 node tools/verify.js equipment review
 ```
 
@@ -110,3 +111,7 @@ serialize lifecycle notifications. Failed activation includes the worker states 
 The full audio health suite requires the recorded bank to decode, then checks samples, tails, mixing, continuous
 fire and voice protection. Its cache includes the binary bank, so changing a recording invalidates previous results.
 Rebuild the CC0 source bank with `python tools/build-audio-bank.py` (Python 3 and ffmpeg), then run `npm run format`.
+
+Player geometry checks cover 1,344 combinations of weapon, body facing, aim and walking/banking/dash pose.
+The weapon bearing must stay connected and the muzzle must follow the independent aim. Material checks cover
+damage-event identity, normal/critical hit families and shield impacts; the audio catalog renders each family.

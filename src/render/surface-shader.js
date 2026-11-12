@@ -9,9 +9,9 @@ export const FLOOR_FRAGMENT = `
 #include <shadowmask_pars_fragment>
 uniform sampler2D uOcclusion, uTerrainMap;
 uniform float uTerrainReady;
-uniform vec3 uBase, uGrid, uAccent;
-uniform vec2 uHalf, uPlayer;
-uniform float uTime, uPulse, uStyle, uDark, uVivid, uGain, uLod;
+uniform vec3 uGrid;
+uniform vec2 uHalf;
+uniform float uTime, uPulse, uStyle, uDark, uVivid, uGain;
 uniform vec4 uL[6]; uniform vec3 uLC[6];
 varying vec2 vW;
 float hash(vec2 p) { p = fract(p * vec2(123.34,456.21)); p += dot(p,p+45.32); return fract(p.x*p.y); }
@@ -19,7 +19,7 @@ float noise(vec2 p) {
  vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
  return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+1.0),f.x),f.y);
 }
-float stone(vec2 p) { return uLod>1.5?noise(p):noise(p)*0.7+noise(p*2.07+11.0)*0.3; }
+float stone(vec2 p) { return noise(p)*0.7+noise(p*2.07+11.0)*0.3; }
 // Cell edge and identity for the procedural fallback while the painted atlas loads.
 vec2 cell(vec2 p) {
  vec2 i=floor(p), f=fract(p); float a=8.0,b=8.0,id=0.0;
@@ -151,7 +151,6 @@ void main() {
  vec2 dx=dFdx(p),dy=dFdy(p); float det=dx.x*dy.y-dx.y*dy.x;
  float hx=dFdx(height),hy=dFdy(height);
  vec2 grad=vec2(hx*dy.y-hy*dx.y,hy*dx.x-hx*dy.x)/max(abs(det),0.000001)*sign(det);
- grad*=uLod>1.5?0.45:1.0;
  vec3 N=normalize(vec3(-grad.x,1.0,-grad.y)), L=normalize(vec3(0.35,0.8,0.45));
  vec3 V=normalize(cameraPosition-vec3(p.x,0.0,p.y));
  float diffuse=max(dot(N,L),0.0), spec=pow(max(dot(N,normalize(L+V)),0.0),mix(70.0,18.0,rough));

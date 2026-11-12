@@ -133,3 +133,22 @@ test("every training boss uses its own arena and starting phase, and ends withou
   assert.throws(() => createTrainingWorld({ biome: "constructor" }));
   assert.ok(createTrainingWorld({ biome: "yard", threat: 5 }).boss.hp > createTrainingWorld({ biome: "yard" }).boss.hp);
 });
+
+test("damage events retain the target type for material-specific hit feedback", () => {
+  const w = new World({ seed: 731, weapon: "pulse", threat: 0, ws: {} });
+  for (const type of ["grunt", "swarmer", "mender"]) {
+    const enemy = w.spawnEnemy(type, 3, 3, {});
+    w.fx.length = 0;
+    w.hurtEnemy(enemy, 1, 1, 0, 0, true);
+    const event = w.fx.find((e) => e.k === "dmg");
+    assert.ok(event, type);
+    assert.equal(event.type, type);
+    assert.equal(event.crit, true);
+  }
+  const shielded = w.spawnEnemy("grunt", -3, 3, {});
+  shielded.shield = 100;
+  w.fx.length = 0;
+  w.hurtEnemy(shielded, 1, 1, 0, 0, false);
+  assert.equal(w.fx.find((e) => e.k === "dmg")?.type, "grunt");
+  assert.equal(w.fx.find((e) => e.k === "dmg")?.shield, true);
+});
