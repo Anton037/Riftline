@@ -1,6 +1,7 @@
 // V4 map architecture: collision-sized obstacle detailing and landmarks beyond the arena walls.
 // Static opaque pieces are merged per material by ArenaView; no additional simulation obstacles.
-import { BoxGeometry, CylinderGeometry, ConeGeometry, Mesh, MeshLambertMaterial, MeshBasicMaterial } from "three";
+import { BoxGeometry, CylinderGeometry, ConeGeometry, Mesh, MeshBasicMaterial } from "three";
+import { worldMaterial } from "./world-material.js";
 import { armorBox } from "./armor-geometry.js";
 
 const PALETTES = {
@@ -14,7 +15,7 @@ const PALETTES = {
 export function addMapArchitecture(view, biome, W, H, obstacles) {
   const colors = PALETTES[biome.id];
   if (!colors) return;
-  const mats = colors.slice(0, 3).map((color) => new MeshLambertMaterial({ color, flatShading: true }));
+  const mats = colors.slice(0, 3).map((color) => worldMaterial({ color, flatShading: true }));
   mats.push(new MeshBasicMaterial({ color: colors[3], toneMapped: false }));
   const part = (parent, geometry, m, x, y, z, rotation = 0) => {
     const mesh = new Mesh(geometry, mats[m]);

@@ -37,6 +37,7 @@ for (let at = 0; at < names.length; at += CHUNK) {
           rows.push({
             name,
             finite: r.finite,
+            physicalReady: r.physicalReady,
             peak: r.peak,
             rms: r.rms,
             tail: r.maxEnd,
@@ -55,6 +56,7 @@ for (let at = 0; at < names.length; at += CHUNK) {
   for (const r of rows) {
     if (
       !r.finite ||
+      !r.physicalReady ||
       r.failed ||
       r.badFrequency ||
       !(r.peak > 0.001 && r.peak < 0.95 && r.rms > 1e-5) ||

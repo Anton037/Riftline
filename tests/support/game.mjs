@@ -45,7 +45,7 @@ export async function openGame(t, tablet, { fresh = false, audio = false } = {})
             v: 1,
             game: "riftline",
             seen: fresh ? {} : { tutorial: true },
-            settings: { quality: "battery", sfx: audio ? 0.8 : 0, music: audio ? 0.45 : 0, ambience: audio ? 0.8 : 0 },
+            settings: { frameRate: 30, sfx: audio ? 0.8 : 0, music: audio ? 0.45 : 0, ambience: audio ? 0.8 : 0 },
           }),
         );
       }
@@ -74,6 +74,14 @@ export async function openGame(t, tablet, { fresh = false, audio = false } = {})
   });
   await page.goto(url);
   await page.waitForFunction(() => window.__riftTest?.game && window.__riftTest.renderer);
+  await page.waitForFunction(
+    () =>
+      window.__riftTest.renderer.finishAtlasReady &&
+      window.__riftTest.renderer.arena.uniforms.uTerrainReady.value === 1 &&
+      window.__riftTest.renderer.renderer.info.render.frame > 0,
+    null,
+    { timeout: 15000 },
+  );
   return {
     page,
     errors,

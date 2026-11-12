@@ -428,9 +428,9 @@ const getById = (id) => document.getElementById(id),
           this.g.settingsChanged();
         });
       }
-      for (let btn of getById("setQuality").querySelectorAll("button"))
+      for (let btn of getById("setFrameRate").querySelectorAll("button"))
         this.click(btn, () => {
-          settings().quality = btn.dataset.v;
+          settings().frameRate = +btn.dataset.v;
           this.renderSettings();
           this.g.settingsChanged();
         });
@@ -923,9 +923,8 @@ const getById = (id) => document.getElementById(id),
       getById("setSfx").value = settings.sfx;
       getById("setMusic").value = settings.music;
       getById("setAmb").value = settings.ambience;
-      for (let btn of getById("setQuality").querySelectorAll("button"))
-        btn.classList.toggle("on", btn.dataset.v === settings.quality);
-      getById("qualityNote").textContent = this.g.qualityNote();
+      for (let btn of getById("setFrameRate").querySelectorAll("button"))
+        btn.classList.toggle("on", +btn.dataset.v === settings.frameRate);
       getById("storageWarn").hidden = this.g.store.storageOk;
       getById("storageWarnText").textContent = this.g.store.held
         ? "the old save is kept unread (storage full): progress is not saved"

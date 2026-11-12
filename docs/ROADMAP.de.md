@@ -6,6 +6,16 @@ Riftline is a touch-only landscape game for phones and tablets. Keep gameplay, r
 biome art and audio coherent. Keep routine checks short and run specialist checks only when relevant.
 The owner merges pull requests. Work remains cumulative with the 3.61.0 graphics/test cleanup.
 
+## 4.1 world, equipment and sound update
+
+- Painted terrain across all six biomes; material-specific armor, steel, hide, bark and crystal finishes on characters, bosses and scenery.
+- Matching painted equipment panels and quieter menu accents, preserving rarity signals and touch layout.
+- High detail by default, with a 30/60/120 FPS cap replacing Auto/Saver and 60 FPS as the default.
+- Baked ground contact and a directional shadow pass; layered walker armor, detailed barrels and physical projectile/effect treatment.
+- Rebuilt SFX and place accents around a compact CC0 recording bank, damped physical bodies and bounded buffer reuse.
+- Sculpted basalt, smaller street covers, quieter ice surfaces and translucent dust vortices.
+- The [art review](ART-REVIEW-4.1.md) records the art brief, actual game comparisons and resource cost.
+
 ## V4 visual update
 
 - Six-biome terrain and material redesign with city streets, wind-shaped snow, broken marsh colonies, fractured Core slabs, localized volcanic seams and glass deposits in sand.

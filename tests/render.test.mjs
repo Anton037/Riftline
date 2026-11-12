@@ -119,6 +119,7 @@ test("Caldera ridges rotate the entire decorated model with their collision foot
     assert.ok(Math.abs(h.min.y - v.min.y) < 1e-5);
     assert.ok(v.max.x <= 1.04 && v.min.x >= -1.04, "all details must stay on the narrow collision footprint");
   }
+  assert.ok(bounds(horizontal[0]).min.y >= 0 && bounds(horizontal[0]).min.y < 0.02, "ridge must sit on the floor");
   const ventCenters = vertical.slice(-3).map((p) => {
     const box = bounds(p);
     return (box.min.z + box.max.z) / 2;

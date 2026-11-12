@@ -52,6 +52,7 @@ export function soundInputs() {
   walk(path.join(ROOT, "src", "audio", "sound.js"));
   return [
     ...seen,
+    path.join(ROOT, "public", "audio", "physical-bank.wav"),
     path.join(ROOT, "tools", "verification", "audio.mjs"),
     path.join(ROOT, "tools", "verification", "audio-page.mjs"),
     playwrightCorePkg(),
@@ -87,13 +88,11 @@ export async function soundCache() {
   const files = soundInputs(),
     hash = crypto.createHash("sha256"),
     data = path.join(ROOT, "src", "data") + path.sep;
-  for (const file of files)
-    hash.update(
-      path.relative(ROOT, file) +
-        "\0" +
-        (file.startsWith(data) ? await dataView(file) : fs.readFileSync(file, "utf8")) +
-        "\0",
-    );
+  for (const file of files) {
+    hash.update(path.relative(ROOT, file) + "\0");
+    hash.update(file.startsWith(data) ? await dataView(file) : fs.readFileSync(file));
+    hash.update("\0");
+  }
   const key = hash.digest("hex"),
     full = process.argv.includes("--full");
   let entries = [];

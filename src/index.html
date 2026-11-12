@@ -1356,6 +1356,43 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
   #choose .card p { font-size: 14px; line-height: 1.2; margin-top: 1px; }
   #choose .card .delta, #choose .card .evo-hint { font-size: 11px; margin-top: 2px; }
 }
+#setFrameRate button { min-height: 44px; min-width: 60px; }
+/* Painted equipment finish: quieter pigments and tactile panels, with combat cues kept crisp. */
+:root {
+  --ink: #101619; --ink2: #172125;
+  --panel: rgba(26, 35, 39, 0.94); --panel2: rgba(34, 45, 50, 0.97); --panel3: rgba(47, 61, 66, 0.98);
+  --line: rgba(184, 198, 193, 0.2); --line2: rgba(184, 198, 193, 0.36);
+  --text: #e5e7df; --dim: #adb8b6; --mute: #768781;
+  --cyan: #87cfd1; --cyan-d: #4a979f; --amber: #dfbd80;
+  --painted-panel: url("textures/surface-atlas.webp");
+}
+.panel, .set-group, .stat-grid .cell {
+  background-image: linear-gradient(130deg, rgba(23, 32, 35, 0.9), rgba(15, 24, 28, 0.96)), var(--painted-panel);
+  background-size: auto, 300% 200%; background-position: 0 0, 50% 0;
+  box-shadow: inset 0 1px rgba(239, 237, 218, 0.08), inset 0 -2px rgba(0, 0, 0, 0.22);
+}
+.btn:not(.ghost), .icon-btn, .bottom-nav button {
+  background-image: linear-gradient(120deg, rgba(40, 54, 58, 0.88), rgba(25, 36, 40, 0.95)), var(--painted-panel);
+  background-size: auto, 300% 200%; background-position: 0 0, 50% 0;
+  box-shadow: inset 0 1px rgba(239, 237, 218, 0.12), inset 0 -2px rgba(0, 0, 0, 0.28);
+}
+.btn.primary {
+  background-image: linear-gradient(115deg, rgba(131, 192, 185, 0.88), rgba(98, 162, 165, 0.96)), var(--painted-panel);
+  color: #102326; border-color: #99c5bd; text-shadow: none;
+  box-shadow: inset 0 1px rgba(255, 255, 234, 0.4), inset 0 -3px rgba(18, 48, 51, 0.32);
+}
+.btn.primary.alt {
+  background-image: linear-gradient(115deg, rgba(221, 187, 133, 0.9), rgba(185, 146, 91, 0.96)), var(--painted-panel);
+  color: #261d10; border-color: #d6bd93;
+}
+.card:not(.r4):not(.r5):not(.r6) {
+  background-image: linear-gradient(120deg, rgba(32, 44, 48, 0.91), rgba(19, 28, 31, 0.97)), var(--painted-panel);
+  background-size: auto, 300% 200%; background-position: 0 0, 50% 0;
+}
+.logo { color: #e0e6de; text-shadow: 0 2px #25383e, 0 5px 18px rgba(0, 0, 0, 0.55); }
+.logo::before { opacity: 0.16; animation: none; }
+.logo::after { opacity: 0.65; box-shadow: none; }
+.screen.overlay { background: rgba(6, 12, 15, 0.76); }
 </style>
 
 <script>
@@ -1699,8 +1736,8 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
       </div>
       <h3 class="section-h">Display</h3>
       <div class="set-group">
-        <div class="set-row"><span><b>Graphics</b><small id="qualityNote"></small></span>
-          <div class="seg" id="setQuality"><button data-v="auto">Auto</button><button data-v="high">High</button><button data-v="battery">Saver</button></div></div>
+        <div class="set-row"><span><b>Frame rate</b><small>High graphics at every frame rate.</small></span>
+          <div class="seg" id="setFrameRate"><button data-v="30">30 FPS</button><button data-v="60">60 FPS</button><button data-v="120">120 FPS</button></div></div>
         <label class="set-row"><span><b>Damage numbers</b></span><input type="checkbox" id="setNumbers" class="toggle"></label>
       </div>
       <h3 class="section-h">Tutorial</h3>

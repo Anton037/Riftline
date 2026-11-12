@@ -1,4 +1,5 @@
 // Mesh builders for the player drone, enemies, bosses and props.
+import { worldMaterial, enemySurface } from "./world-material.js";
 import { armorBox } from "./armor-geometry.js";
 import { mergeStaticMeshes } from "./static-meshes.js";
 
@@ -18,7 +19,6 @@ import {
   Matrix4,
   Mesh,
   MeshBasicMaterial,
-  MeshPhongMaterial,
   OctahedronGeometry,
   Quaternion,
   Shape,
@@ -976,10 +976,11 @@ const RL_ENEMY_DETAIL = {
 };
 function enemyGeometry(type, color) {
   const base = new Color(color),
+    painted = base.clone().lerp(new Color(0x86938f), enemySurface(type) === "armor" ? 0.16 : 0.06),
     palette = {
-      mid: darken(color, 0.55),
-      dark: darken(color, 0.3),
-      lite: darken(color, 0.8),
+      mid: painted.clone().multiplyScalar(0.62).getHex(),
+      dark: painted.clone().multiplyScalar(0.28).getHex(),
+      lite: painted.clone().multiplyScalar(0.9).getHex(),
       pale: base.clone().lerp(RL_PALE_WHITE, 0.6).multiplyScalar(0.8).getHex(),
       metal: 3818070,
       white: 16777215,
@@ -1260,22 +1261,26 @@ function buildPlayerModel(weapon, color) {
   // pelvis, two legs (a thigh, a shin, a flat foot) that swing, bend and plant as the drone walks (setWalk), and the
   // weapon mount on top. The footprint stays about 0.65 around the centre, with brighter v4 hull armor.
   // `base` is the part that turns with the drone; `turret` aims.
-  const hullMat = new MeshPhongMaterial({
+  const hullMat = worldMaterial({
+      surface: "armor",
       color: 0xa5bec9,
       emissive: 0,
       specular: 0x53616b,
       shininess: 28,
       flatShading: true,
     }),
-    trimMat = new MeshPhongMaterial({
+    trimMat = worldMaterial({
+      surface: "armor",
       color: 0xd4d9cf,
       emissive: 0,
       specular: 0x53616b,
       shininess: 28,
       flatShading: true,
     }),
+    mechanismMat = worldMaterial({ surface: "rubber", color: 0x253137, shininess: 9 }),
+    steelMat = worldMaterial({ surface: "metal", color: 0x849697, shininess: 40 }),
     glowMat = new MeshBasicMaterial({ color, toneMapped: false }),
-    visorMat = new MeshPhongMaterial({ color: 7454463, emissive: 1058362, flatShading: true }),
+    visorMat = worldMaterial({ surface: "crystal", color: 7454463, emissive: 1058362, flatShading: true }),
     group = new Group(),
     base = new Group(),
     torso = new Group(),
@@ -1301,6 +1306,9 @@ function buildPlayerModel(weapon, color) {
         bar(2898514, 0.1, [0.02, HIP + 0.26, s * 0.5], [0.16, HIP + 0.04, s * 0.5], 0.1),
       ]),
       box(2898514, 0.3, 0.32, 0.42, { x: -0.3, y: HIP + 0.36 }),
+      // Overlapping chest and shoulder plates reveal the darker walker frame below.
+      box(0xb7c5bf, 0.045, 0.22, 0.45, { x: 0.315, y: HIP + 0.24 }),
+      ...both((s) => [box(0x9baeb0, 0.32, 0.055, 0.21, { x: 0.05, y: HIP + 0.57, z: s * 0.31 })]),
     ],
     trim = [
       ...both((s) => [box(0xcbd8db, 0.28, 0.04, 0.18, { x: 0.06, y: HIP + 0.62, z: s * 0.29 })]),
@@ -1398,11 +1406,23 @@ function buildPlayerModel(weapon, color) {
   sight.position.set(0.22, 0.12, 0);
   turret.add(sight);
   let addBarrel = (len, thick, z = 0, y = 0.02) => {
-    let tube = new Mesh(armorBox(len, thick, thick), hullMat);
-    tube.position.set(len / 2 + 0.12, y, z);
-    let tip = new Mesh(armorBox(0.08, thick * 1.2, thick * 1.2), glowMat);
-    tip.position.set(len + 0.14, y, z);
-    turret.add(tube, tip);
+    const housing = new Mesh(armorBox(len * 0.65, thick * 1.5, thick * 1.45), hullMat);
+    housing.position.set(len * 0.32 + 0.1, y, z);
+    const tube = new Mesh(new CylinderGeometry(thick * 0.48, thick * 0.56, len * 0.46, 10), steelMat);
+    tube.rotation.z = -Math.PI / 2;
+    tube.position.set(len * 0.77 + 0.12, y, z);
+    const collar = new Mesh(new TorusGeometry(thick * 0.5, thick * 0.15, 4, 10), steelMat);
+    collar.rotation.y = Math.PI / 2;
+    collar.position.set(len + 0.14, y, z);
+    const bore = new Mesh(new CylinderGeometry(thick * 0.36, thick * 0.36, 0.012, 10), mechanismMat);
+    bore.rotation.z = -Math.PI / 2;
+    bore.position.set(len + 0.145, y, z);
+    turret.add(housing, tube, collar, bore);
+    for (const f of [0.25, 0.45, 0.65]) {
+      const vent = new Mesh(armorBox(0.025, 0.012, thick * 0.85), mechanismMat);
+      vent.position.set(len * f + 0.1, y + thick * 0.76, z);
+      turret.add(vent);
+    }
   };
   if (weapon === "scatter") {
     addBarrel(0.5, 0.13, 0.1);
@@ -1418,26 +1438,36 @@ function buildPlayerModel(weapon, color) {
     turret.add(pod);
     for (let z of [-0.09, 0.09])
       for (let y of [-0.03, 0.12]) {
-        let tube = new Mesh(armorBox(0.05, 0.08, 0.08), glowMat);
-        tube.position.set(0.55, y, z);
-        turret.add(tube);
+        const rim = new Mesh(new TorusGeometry(0.042, 0.01, 4, 10), steelMat);
+        rim.rotation.y = Math.PI / 2;
+        rim.position.set(0.55, y, z);
+        const bore = new Mesh(new CylinderGeometry(0.033, 0.033, 0.01, 10), mechanismMat);
+        bore.rotation.z = -Math.PI / 2;
+        bore.position.set(0.557, y, z);
+        turret.add(rim, bore);
       }
   } else if (weapon === "tesla") {
     addBarrel(0.55, 0.12);
-    let coil = new Mesh(new TorusGeometry(0.12, 0.03, 5, 14), glowMat);
+    let coil = new Mesh(new TorusGeometry(0.12, 0.03, 5, 14), steelMat);
     coil.rotation.y = Math.PI / 2;
     coil.position.set(0.45, 0.02, 0);
     let coil2 = coil.clone();
     coil2.position.x = 0.3;
-    turret.add(coil, coil2);
+    const winding = new Mesh(new TorusGeometry(0.085, 0.012, 4, 14), glowMat);
+    winding.rotation.y = Math.PI / 2;
+    winding.position.set(0.46, 0.02, 0);
+    turret.add(coil, coil2, winding);
   } else if (weapon === "disc") {
     let mount = new Mesh(armorBox(0.62, 0.08, 0.34), hullMat);
     mount.position.set(0.35, 0, 0);
-    let disc = new Mesh(new CylinderGeometry(0.2, 0.2, 0.05, 16), glowMat);
+    let disc = new Mesh(new CylinderGeometry(0.2, 0.2, 0.05, 16), steelMat);
     disc.position.set(0.42, 0.08, 0);
-    turret.add(mount, disc);
+    const rim = new Mesh(new TorusGeometry(0.18, 0.014, 4, 16), glowMat);
+    rim.rotation.x = Math.PI / 2;
+    rim.position.set(0.42, 0.11, 0);
+    turret.add(mount, disc, rim);
   } else if (weapon === "flame") {
-    let tank = new Mesh(new CylinderGeometry(0.12, 0.12, 0.5, 10), trimMat);
+    let tank = new Mesh(new CylinderGeometry(0.12, 0.12, 0.5, 10), steelMat);
     tank.rotation.x = Math.PI / 2;
     tank.position.set(-0.05, 0.1, 0);
     let nozzle = new Mesh(new CylinderGeometry(0.07, 0.12, 0.55, 10), hullMat);
@@ -1447,6 +1477,7 @@ function buildPlayerModel(weapon, color) {
     pilot.position.set(0.72, 0.02, 0);
     turret.add(tank, nozzle, pilot);
   } else addBarrel(0.62, 0.13);
+  mergeStaticMeshes(turret);
   group.add(turret);
   let shield = new Mesh(
     new IcosahedronGeometry(1, 2),
@@ -1462,18 +1493,33 @@ function buildPlayerModel(weapon, color) {
   shield.position.y = 0.8;
   shield.scale.setScalar(1.1);
   group.add(shield);
-  return { group, base, turret, shield, mats: [hullMat, trimMat], glowMat, setWalk, legs, lean: 0, bank: 0 };
+  return {
+    group,
+    base,
+    turret,
+    shield,
+    mats: [hullMat, trimMat, mechanismMat, steelMat],
+    glowMat,
+    setWalk,
+    legs,
+    lean: 0,
+    bank: 0,
+  };
 }
 function buildBossModel(type, color) {
+  const finish =
+    { queen: "organic", prism: "crystal", wyrm: "crystal", core: "stone", kingpin: "basalt" }[type] || "armor";
   let group = new Group(),
-    hullMat = new MeshPhongMaterial({
+    hullMat = worldMaterial({
+      surface: finish,
       color: darken(color, 0.35),
       emissive: 0,
       specular: 0x53616b,
       shininess: 28,
       flatShading: true,
     }),
-    darkMat = new MeshPhongMaterial({
+    darkMat = worldMaterial({
+      surface: "rubber",
       color: 2435898,
       emissive: 0,
       specular: 0x53616b,
@@ -1590,7 +1636,8 @@ function buildBossModel(type, color) {
     // rock chunks (darkMat), orbiting frost shards and a frozen ring below. Everything fades out while
     // it blinks (fadeMats); the ice keeps its own translucency (userData.opacity).
     const ice = (color, emissive, opacity) => {
-      const mat = new MeshPhongMaterial({
+      const mat = worldMaterial({
+        surface: finish,
         color,
         emissive,
         flatShading: true,
@@ -1758,7 +1805,8 @@ function buildBossModel(type, color) {
     // a heavy rim, a head with a glowing visor and a furnace mouth at the front (+x), hammer fists,
     // two chimneys and a flywheel on its back. The renderer lets the chimneys throw embers
     // (userData.chimneys).
-    let ironMat = new MeshPhongMaterial({
+    let ironMat = worldMaterial({
+      surface: finish,
       color: 2366244,
       emissive: 0,
       specular: 0x53616b,
@@ -1866,7 +1914,8 @@ function buildBossModel(type, color) {
     // figure in cracked obsidian plate (hullMat, the boss colour turned ember) with molten seams, an
     // ember crest on the helm and molten fists. The renderer throws embers off its shoulder vents
     // (userData.chimneys) and draws its charge aim-line.
-    const plateTrim = new MeshPhongMaterial({
+    const plateTrim = worldMaterial({
+      surface: finish,
       color: 0x1a1412,
       emissive: 0,
       specular: 0x53616b,
@@ -1936,7 +1985,8 @@ function buildBossModel(type, color) {
     // (hemi 1.15 + sun 2.2 + fill 0.65 over a pale floor), so the amber self-lights - and stays out of
     // the renderer's flash loop (the underside flashes on hits instead)
     const glass = (color, emissive, opacity) => {
-      const mat = new MeshPhongMaterial({
+      const mat = worldMaterial({
+        surface: finish,
         color,
         emissive,
         flatShading: true,
@@ -2058,6 +2108,17 @@ function buildBossModel(type, color) {
   mergeStaticMeshes(group, new Set(spin.map((part) => part.m)));
   return { group, mats: [hullMat, darkMat, ...(group.userData.mats || [])], glowMat, spin };
 }
+// Compact missile casing with a pointed nose and four stabilizer fins; +X is forward.
+function rocketProjectileGeometry() {
+  return mergeParts([
+    pipe(0xc5cec8, 0.075, 0.075, 8, [-0.24, 0, 0], [0.16, 0, 0]),
+    spike(0x3a4548, 0.075, 8, [0.16, 0, 0], [0.32, 0, 0]),
+    ...both((side) => [
+      box(0x586b70, 0.16, 0.025, 0.14, { x: -0.17, z: side * 0.09 }),
+      box(0x586b70, 0.16, 0.14, 0.025, { x: -0.17, y: side * 0.09 }),
+    ]),
+  ]);
+}
 function wingDroneGeometry() {
   return mergeParts([
     meshPart(new OctahedronGeometry(0.28), 9348036, { y: 0.9, sy: 0.6 }),
@@ -2086,6 +2147,7 @@ function healCrossGeometry() {
 }
 
 export {
+  rocketProjectileGeometry,
   meshPart,
   mergeParts,
   mergeGeometries,

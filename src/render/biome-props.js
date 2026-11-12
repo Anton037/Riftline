@@ -14,13 +14,13 @@ import {
   Matrix4,
   Mesh,
   MeshBasicMaterial,
-  MeshLambertMaterial,
   OctahedronGeometry,
   Quaternion,
   SphereGeometry,
   TorusGeometry,
   Vector3,
 } from "three";
+import { worldMaterial } from "./world-material.js";
 import { keepExteriorPartsOutside } from "./map-geometry.js";
 import { meshPart, mergeParts, box, ball, bar, pipe, spike } from "./models.js";
 
@@ -940,9 +940,9 @@ function calderaDetail(biome, W, H, obs, rng) {
   const out = list(W, H),
     hot = biome.accent,
     lava = 0xff7a1e, // the interior molten glow - the accent is cream, too pale for lava
-    crust = 0x1c0f08,
-    basalt = [0x241a16, 0x2a1e18, 0x1e1512],
-    slope = [0x3a2a20, 0x40301f, 0x342318];
+    crust = 0x363b42,
+    basalt = [0x424a54, 0x4b515b, 0x363f49],
+    slope = [0x626975, 0x565e68, 0x4c5662];
   // the volcano and its two shoulder cones, out past the far wall: truncated dark slopes with a
   // molten crater rim, veins of lava wandering down the flank, an ash plume leaning off the mouth
   // (the camera looks at the -z far field, so the cone row is hand-placed there and on the back
@@ -1005,7 +1005,7 @@ function calderaDetail(biome, W, H, obs, rng) {
       py += pr * rng.range(0.9, 1.2);
       pr *= rng.range(1.12, 1.26);
       t.body.push(
-        meshPart(new DodecahedronGeometry(pr, 0), s % 2 ? 0x3a322e : 0x322a26, {
+        meshPart(new DodecahedronGeometry(pr, 0), s % 2 ? 0x666970 : 0x4d515b, {
           x: px,
           y: py,
           z: pz,
@@ -1063,7 +1063,7 @@ function calderaDetail(biome, W, H, obs, rng) {
   // glowing throat ring, a side vent on some
   for (const p of outsideSpots(rng, W, H, 14, 2.6, 7, 3.4)) {
     const t = list(),
-      mound = 0x211712;
+      mound = 0x424851;
     if (rng.chance(0.45)) {
       t.body.push(box(rng.pick(basalt), 1.1, 5.5, 1.1, { y: 2.75 }), box(dim(hot, 0.22), 1.14, 0.06, 1.14, { y: 0.5 }));
     } else {
@@ -1088,7 +1088,7 @@ function calderaDetail(biome, W, H, obs, rng) {
   }
   // standing stones: thin basalt stacks, a warm glow at the tip of a few
   for (const p of outsideSpots(rng, W, H, 8, 2.2, 6, 3)) {
-    out.body.push(cone(0x1c1512, 0.5, rng.range(4, 6.5), 6, p.x, 0, p.z));
+    out.body.push(cone(0x3e4650, 0.5, rng.range(4, 6.5), 6, p.x, 0, p.z));
     if (rng.chance(0.5)) out.glow.push(box(0xffb45a, 0.1, 0.14, 0.1, { x: p.x, y: rng.range(3.4, 5.2), z: p.z }));
   }
   // Open combat floor: the legacy straight channel had no collision and read as a black runway.
@@ -1107,13 +1107,6 @@ function calderaDetail(biome, W, H, obs, rng) {
       disc(dim(lava, rng.range(0.65, 0.85)), r * rng.range(0.16, 0.28), p.x + r * 0.18, 0.021, p.z - r * 0.12, 8),
     );
   }
-  for (const p of scatter(rng, W, H, obs, 9, { gap: 2.6 }))
-    out.body.push(
-      disc(rng.pick([0x2e2a28, 0x262220, 0x332e2a]), rng.range(0.7, 1.5), p.x, 0.012, p.z, 12, {
-        sz: rng.range(0.5, 0.9),
-        ry: rng.range(0, 3),
-      }),
-    );
   for (const p of scatter(rng, W, H, obs, 9, { gap: 2.6 }))
     crack(out, dim(lava, rng.range(0.45, 0.7)), p.x, p.z, rng, rng.int(4, 7), 0.7, 0.045);
   for (const p of scatter(rng, W, H, obs, 14, { gap: 1.6 })) {
@@ -1140,7 +1133,7 @@ function calderaDetail(biome, W, H, obs, rng) {
   }
   // ember scars on the plates and a scatter of settling embers
   for (const p of scatter(rng, W, H, obs, 12, { gap: 2.4 })) {
-    out.body.push(disc(0x160e0a, 0.16, p.x, 0.014, p.z, 10), ring(dim(lava, 0.55), 0.16, 0.015, p.x, 0.026, p.z));
+    out.body.push(disc(0x59616b, 0.16, p.x, 0.014, p.z, 10), ring(dim(lava, 0.55), 0.16, 0.015, p.x, 0.026, p.z));
   }
   const embers = [hot, 0xff9c3a, 0x8a7f74, 0xffe19a];
   for (const p of scatter(rng, W, H, obs, 38, { gap: 0.7 })) {
@@ -1177,7 +1170,9 @@ function addBiomeDetail(view, biome, W, H, obs, rng) {
   if (!build) return;
   const parts = build(biome, W, H, obs, rng);
   if (parts.body.length) {
-    const mesh = new Mesh(mergeParts(parts.body), new MeshLambertMaterial({ vertexColors: true, flatShading: true }));
+    const surface =
+      { yard: "metal", vault: "ice", marsh: "wood", club: "basalt", flats: "sandstone" }[biome.id] || "stone";
+    const mesh = new Mesh(mergeParts(parts.body), worldMaterial({ surface, vertexColors: true, flatShading: true }));
     mesh.frustumCulled = false;
     view.group.add(mesh);
   }

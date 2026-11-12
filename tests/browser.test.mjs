@@ -20,6 +20,10 @@ for (const tablet of [true, false])
       if (tablet) {
         await press('[data-go="settings"]');
         await visible("settings");
+        await press('#setFrameRate [data-v="120"]');
+        assert.equal(await page.evaluate(() => window.__riftTest.store.data.settings.frameRate), 120);
+        assert.equal(await page.evaluate(() => window.__riftTest.renderer.renderer.shadowMap.enabled), true);
+        await press('#setFrameRate [data-v="30"]');
         await press("#setNumbers");
         assert.equal(await page.evaluate(() => window.__riftTest.renderer.numbers), false);
         // A phone may background while the player fetches a backup from another app.
@@ -141,6 +145,7 @@ for (const tablet of [true, false])
         () => window.__riftTest.game.world?.wave === 2 && !document.getElementById("hud").hidden,
       );
       assert.equal(await page.evaluate(() => window.__riftTest.store.data.settings.numbers), false);
+      await page.waitForFunction(() => !!window.__riftTest.game.sound.physical?.bank);
       phase("offline reload and saved-run continue");
       const hullBeforeFinalHit = await page.evaluate(() => {
         const w = window.__riftTest.game.world;

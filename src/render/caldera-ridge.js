@@ -1,4 +1,5 @@
 import { CylinderGeometry } from "three";
+import { strataGeometry } from "./strata-geometry.js";
 import { armorBox } from "./armor-geometry.js";
 
 // Author the whole ridge along local X, then rotate every detail with its collision footprint.
@@ -14,12 +15,18 @@ export function calderaRidgeParts(obstacle) {
     geometry.translate(obstacle.x, 0, obstacle.y);
     parts.push({ role, geometry });
   };
-  add("rock", armorBox(length, 0.95, depth), 0, 0.48, 0);
-  add("darkRock", armorBox(length + 0.06, 0.1, depth + 0.06), 0, 1.0, 0);
-  add("emberMat", armorBox(length * 0.88, 0.05, 0.07), 0, 1.055, 0);
-  for (const f of [-0.24, 0.24]) add("emberMat", armorBox(0.06, 0.045, depth * 0.72), length * f, 1.055, 0);
+  add("rock", strataGeometry(length, 0.95, depth, length * 11 + depth * 7), 0, 0.01, 0);
+  add("darkRock", strataGeometry(length * 0.88, 0.1, depth * 0.85, length + depth), 0, 0.88, 0);
+  add("emberMat", armorBox(length * 0.54, 0.018, 0.03), 0, 0.78, depth * 0.35);
+  for (const f of [-0.24, 0.24]) add("emberMat", armorBox(0.025, 0.018, depth * 0.35), length * f, 0.985, 0);
   for (let k = 0; k < 3; k++) {
-    add(k === 1 ? "hotMat" : "accentMat", new CylinderGeometry(0.09, 0.12, 0.18, 6), (k - 1) * length * 0.26, 1.14, 0);
+    add(
+      k === 1 ? "hotMat" : "accentMat",
+      new CylinderGeometry(0.035, 0.06, 0.055, 6),
+      (k - 1) * length * 0.26,
+      0.99,
+      0,
+    );
   }
   return parts;
 }

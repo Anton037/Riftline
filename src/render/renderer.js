@@ -1,10 +1,14 @@
 // three.js renderer (Renderer): scene, camera, lights, instanced pools, particles, per-frame drawing.
+import { SmokeView } from "./smoke-view.js";
+import { setWorldShadows, WORLD_SURFACES, worldMaterial, enemySurface } from "./world-material.js";
 import { hexColor, additiveMaterial } from "./materials.js";
 import { AMBIENT_POOL_SHARE } from "../data/atmosphere.js";
 
 import {
   BoxGeometry,
   CanvasTexture,
+  TextureLoader,
+  LinearFilter,
   CircleGeometry,
   Color,
   CylinderGeometry,
@@ -19,8 +23,8 @@ import {
   Matrix4,
   MeshBasicMaterial,
   MeshLambertMaterial,
-  MeshPhongMaterial,
   PerspectiveCamera,
+  PCFShadowMap,
   PlaneGeometry,
   PointLight,
   Quaternion,
@@ -36,6 +40,7 @@ import {
 } from "three";
 import { logError } from "../core/diagnostics.js";
 import {
+  rocketProjectileGeometry,
   debrisGeometry,
   discGeometry,
   enemyGeometry,
@@ -279,35 +284,9 @@ const RL_MOTION_NONE = { roll: 0, bounce: 0, lean: 0, f: 1, ref: 4, hover: 0, hf
     weaver: { roll: 0.07, bounce: 0.03, lean: 0.06, f: 2.6, ref: 4 },
   };
 for (const type in RL_MOTION) RL_MOTION[type] = { ...RL_MOTION_NONE, ...RL_MOTION[type] };
-function makeFlashMaterial(params) {
-  let mat = new MeshPhongMaterial({ specular: 0x3a454b, shininess: 22, ...params });
-  mat.onBeforeCompile = (shader) => {
-    shader.vertexShader = shader.vertexShader
-      .replace(
-        "#include <common>",
-        `#include <common>
-attribute float aFlash;
-varying float vFlash;`,
-      )
-      .replace(
-        "#include <begin_vertex>",
-        `#include <begin_vertex>
-vFlash = aFlash;`,
-      );
-    shader.fragmentShader = shader.fragmentShader
-      .replace(
-        "#include <common>",
-        `#include <common>
-varying float vFlash;`,
-      )
-      .replace(
-        "#include <opaque_fragment>",
-        `outgoingLight = mix(outgoingLight, vec3(1.0), vFlash);
-#include <opaque_fragment>`,
-      );
-  };
-  mat.customProgramCacheKey = () => "flashLambert";
-  return mat;
+function makeEnemyMaterial(params, type) {
+  // Biome finish and hit flashes are layered onto this material before its first combat draw.
+  return worldMaterial({ color: 0xffffff, surface: enemySurface(type), ...params });
 }
 function makeCanvasTexture(size, draw) {
   let canvas = document.createElement("canvas");
@@ -337,9 +316,9 @@ function makeShadowTexture() {
   return makeCanvasTexture(64, (ctx, size) => {
     let half = size / 2,
       grad = ctx.createRadialGradient(half, half, 0, half, half, half);
-    grad.addColorStop(0, "rgba(0,0,0,0.8)");
-    grad.addColorStop(0.52, "rgba(0,0,0,0.44)");
-    grad.addColorStop(0.82, "rgba(0,0,0,0.1)");
+    grad.addColorStop(0, "rgba(0,0,0,0.5)");
+    grad.addColorStop(0.42, "rgba(0,0,0,0.24)");
+    grad.addColorStop(0.76, "rgba(0,0,0,0.06)");
     grad.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, size, size);
@@ -426,7 +405,7 @@ const MAX_PARTICLES = 1400,
   Renderer = class {
     constructor(canvas, opts = {}) {
       this.canvas = canvas;
-      // opts.antialias false for the Saver setting
+      // The game enables MSAA; isolated rendering probes can opt out.
       this.antialias = opts.antialias !== false;
       this.renderer = new WebGLRenderer({
         canvas,
@@ -450,12 +429,42 @@ const MAX_PARTICLES = 1400,
       this.camera = new PerspectiveCamera(42, 1, 0.5, 200);
       this.hemi = new HemisphereLight(2771594, 657944, 1.9);
       this.sun = new DirectionalLight(16777215, 1.5);
-      this.sun.position.set(6, 14, 9);
+      this.sun.position.set(18, 42, 27);
+      this.sun.castShadow = true;
+      this.sun.shadow.mapSize.set(1024, 1024);
+      Object.assign(this.sun.shadow.camera, { left: -30, right: 30, top: 30, bottom: -30, near: 5, far: 120 });
+      this.sun.shadow.normalBias = 0.035;
+      this.sun.shadow.bias = -0.00015;
+      this.sun.shadow.radius = 2;
+      this.sun.shadow.intensity = 0.8;
+      this.renderer.shadowMap.type = PCFShadowMap;
+      this.renderer.shadowMap.enabled = this.dprCap > 1.3;
       // 3.29.0: a fill light from the other side, in a colour that goes against the sun's (set per biome, no shadows)
       this.fill = new DirectionalLight(0xffffff, 0);
       this.fill.position.set(-9, 5, 8);
       this.scene.add(this.hemi, this.sun, this.fill);
       this.arena = new ArenaView(this.scene);
+      this.smokeView = new SmokeView(this.scene);
+      this.terrainAtlas = new TextureLoader().load("textures/terrain-atlas.webp", (texture) => {
+        WORLD_SURFACES.map.value = texture;
+        WORLD_SURFACES.ready.value = 1;
+        this.arena.uniforms.uTerrainMap.value = texture;
+        this.arena.uniforms.uTerrainReady.value = 1;
+      });
+      this.terrainAtlas.colorSpace = SRGBColorSpace;
+      this.terrainAtlas.flipY = false;
+      this.terrainAtlas.minFilter = this.terrainAtlas.magFilter = LinearFilter;
+      this.terrainAtlas.generateMipmaps = false;
+      this.finishAtlasReady = false;
+      this.finishAtlas = new TextureLoader().load("textures/surface-atlas.webp", (texture) => {
+        WORLD_SURFACES.finishMap.value = texture;
+        WORLD_SURFACES.finishReady.value = 1;
+        this.finishAtlasReady = true;
+      });
+      this.finishAtlas.colorSpace = SRGBColorSpace;
+      this.finishAtlas.flipY = false;
+      this.finishAtlas.minFilter = this.finishAtlas.magFilter = LinearFilter;
+      this.finishAtlas.generateMipmaps = false;
       this.time = 0;
       this.shake = 0;
       // 3.58.0: how much the camera may move (1: as tuned, 0: still). main.js sets it from the OS motion
@@ -538,16 +547,17 @@ const MAX_PARTICLES = 1400,
         new MeshBasicMaterial({ toneMapped: false, vertexColors: true }),
         40,
       );
-      this.blades = new InstancePool(orbitBladeGeometry(), new MeshBasicMaterial({ toneMapped: false }), 8);
-      this.wing = new InstancePool(wingDroneGeometry(), new MeshLambertMaterial({ vertexColors: true }), 4, {
+      this.blades = new InstancePool(orbitBladeGeometry(), worldMaterial({ surface: "metal", color: 0xb2c2c2 }), 8);
+      this.wing = new InstancePool(wingDroneGeometry(), worldMaterial({ surface: "armor", vertexColors: true }), 4, {
         color: false,
       });
       this.shieldPool = new InstancePool(shieldArcGeometry(), additiveMaterial(null, { side: DoubleSide }), 24);
-      this.discPool = new InstancePool(
-        discGeometry(),
-        new MeshBasicMaterial({ toneMapped: false, vertexColors: true }),
-        60,
+      this.rocketBodies = new InstancePool(
+        rocketProjectileGeometry(),
+        worldMaterial({ surface: "metal", vertexColors: true }),
+        180,
       );
+      this.discPool = new InstancePool(discGeometry(), worldMaterial({ surface: "metal", vertexColors: true }), 60);
       this.debris = new InstancePool(debrisGeometry(), new MeshLambertMaterial({ flatShading: true }), 320);
       let columnGeo = new CylinderGeometry(1, 1, 1, 16, 1, true);
       columnGeo.translate(0, 0.5, 0);
@@ -566,10 +576,11 @@ const MAX_PARTICLES = 1400,
         let def = enemyDefs[type],
           geo = enemyGeometry(type, def.color),
           max = def.r > 0.9 ? 40 : 120,
-          body = new InstancePool(geo.body, makeFlashMaterial({ vertexColors: true, flatShading: true }), max, {
+          body = new InstancePool(geo.body, makeEnemyMaterial({ vertexColors: true, flatShading: true }, type), max, {
             flash: true,
           }),
           glow = new InstancePool(geo.glow, new MeshBasicMaterial({ toneMapped: false, vertexColors: true }), max);
+        body.mesh.castShadow = body.mesh.receiveShadow = true;
         this.enemyPools[type] = { body, glow, color: hexColor(def.color) };
         scene.add(body.mesh, glow.mesh);
       }
@@ -601,6 +612,7 @@ const MAX_PARTICLES = 1400,
           this.warningEdges,
           this.shieldPool,
           this.pbCore,
+          this.rocketBodies,
           this.ebCore,
           this.discPool,
           this.shardPool,
@@ -637,6 +649,7 @@ const MAX_PARTICLES = 1400,
     }
     setQuality(dprCap, particles) {
       this.dprCap = dprCap;
+      this.renderer.shadowMap.enabled = dprCap > 1.3;
       // 3.46.0: the procedural shaders scale their detail with the tier (the floor's fbm +
       // voronoi + starfield and the zone/hazard fills used to cost the same on a battery phone
       // at dpr 1 as on a desktop at dpr 2): 0 full, 1 fewer octaves, 2 one-cell voronoi
@@ -710,6 +723,8 @@ const MAX_PARTICLES = 1400,
       // 2.4.0: sun colour and fog density of the biome look
       const look = RL_BIOME_LOOK[biome.id] || RL_BIOME_LOOK.yard,
         fog = this.scene.fog;
+      this.hemi.color.setHex(look.skyFill || biome.sky);
+      this.hemi.groundColor.setHex(look.groundFill || biome.ground);
       this.sun.color.setHex(look.sun);
       this.fill.color.setHex(look.fill ? look.fill[0] : 0xffffff);
       if (look.fog) {
@@ -754,6 +769,7 @@ const MAX_PARTICLES = 1400,
         }
         this.player = buildPlayerModel(weapon, weaponDefs[weapon].color);
         this.playerWeapon = weapon;
+        setWorldShadows(this.player.group);
         this.scene.add(this.player.group);
       }
     }
@@ -894,7 +910,7 @@ const MAX_PARTICLES = 1400,
       }
       this.hemi.intensity = 1.9;
       this.sun.intensity = 1.5;
-      this.pLight.intensity = this.muzzle * 6;
+      this.pLight.intensity = this.muzzle * 2.2;
       let big = sorted.find((flash) => !flash.muzzle);
       if (big) {
         this.bLight.position.set(big.x, 1.6, big.z);
@@ -1009,7 +1025,7 @@ const MAX_PARTICLES = 1400,
               dirX = Math.cos(ev.a),
               dirZ = Math.sin(ev.a);
             if (def.id !== "flame") {
-              // A compact white core and directional muzzle jet, rather than a large round flare.
+              // Warm combustion flashes and compact energy jets leave a little material smoke.
               this.line(ev.x, ev.y, ev.x + dirX * 0.85, ev.y + dirZ * 0.85, whiteColor, 0.055, 0.09, 0.85);
               this.emit(
                 ev.x + dirX * 0.35,
@@ -1024,6 +1040,15 @@ const MAX_PARTICLES = 1400,
                 { drag: 0 },
               );
             }
+            if (["pulse", "scatter", "rocket", "flame"].includes(def.id))
+              this.smokeView.emit(
+                ev.x + dirX * 0.72,
+                1.15,
+                ev.y + dirZ * 0.72,
+                def.id === "scatter" ? 0.5 : 0.3,
+                0x9da7a8,
+                0.32,
+              );
             this.muzzle = Math.min(1, (this.muzzle || 0) + (def.id === "flame" ? 0.12 : 0.6));
             this.pLight.color.copy(color);
             if (!this.lastMuzzleT || this.time - this.lastMuzzleT > 0.05) {
@@ -1124,7 +1149,7 @@ const MAX_PARTICLES = 1400,
                 0.6,
                 ev.crit ? 4 : 2,
                 5,
-                ev.crit ? hexColor(16767050) : hexColor(weaponDefs[world.weapon].color),
+                ev.crit ? hexColor(16767050) : hexColor(0xc8c1a5),
                 0.18,
                 0.18,
                 {
@@ -1146,18 +1171,28 @@ const MAX_PARTICLES = 1400,
               ev.x,
               ev.y,
               0.6,
-              Math.round(10 * scale),
-              7 * Math.sqrt(scale),
-              color,
-              0.55,
-              0.45 * Math.sqrt(scale),
+              Math.round((ev.boss ? 10 : 4) * scale),
+              5 * Math.sqrt(scale),
+              ev.boss ? color : hexColor(enemySurface(ev.type) === "organic" ? 0x7b9877 : 0xc7b89e),
+              ev.boss ? 0.55 : 0.28,
+              (ev.boss ? 0.45 : 0.16) * Math.sqrt(scale),
             );
             this.burst(ev.x, ev.y, 0.6, Math.round(6 * scale), 10 * Math.sqrt(scale), whiteColor, 0.3, 0.22, {
               spark: true,
               drag: 5,
             });
-            this.ring(ev.x, ev.y, 0.2, 1.6 * scale, color, 0.35);
-            this.emit(ev.x, 0.8, ev.y, 0, 0, 0, 0.12, 2.2 * scale, color, { drag: 0 });
+            if (ev.boss) {
+              this.ring(ev.x, ev.y, 0.2, 1.6 * scale, color, 0.35);
+              this.emit(ev.x, 0.8, ev.y, 0, 0, 0, 0.12, 2.2 * scale, color, { drag: 0 });
+            } else
+              this.smokeView.emit(
+                ev.x,
+                0.6,
+                ev.y,
+                0.6 * scale,
+                enemySurface(ev.type) === "organic" ? 0x5e7562 : 0x89908d,
+                0.5,
+              );
             // 3.50.0: the Hive Queen goes out in a burst of spores: slow glowing motes that hang
             // over the pools a moment, and a pale ring of the bloom (the standard bursts stay)
             if (ev.type === "queen") {
@@ -1209,7 +1244,8 @@ const MAX_PARTICLES = 1400,
             if (ev.r >= 0.5 || ev.elite || ev.boss) {
               this.addScorch(ev.x, ev.y, ev.r * 1.3 + 0.3);
             }
-            this.flash(ev.x, ev.y, 2 + scale * 1.6, 0.7 + scale * 0.2, color, 5);
+            if (ev.boss) this.flash(ev.x, ev.y, 2 + scale * 1.6, 0.7 + scale * 0.2, color, 5);
+            else this.flash(ev.x, ev.y, 0.8 + scale * 0.6, 0.22, hexColor(0xffd4a0), 12);
             this.addShake((ev.boss ? 0.9 : ev.elite ? 0.18 : 0.04) * shakeK);
             break;
           }
@@ -2054,7 +2090,7 @@ const MAX_PARTICLES = 1400,
         }
         this.shadows.y(enemy.x, 0.02, enemy.y, 0, enemy.r * 2.8 * scale);
         let halo = this.sprites.bb(enemy.x, 0.35, enemy.y, enemy.r * (enemy.elite ? 4.4 : 3.4) * scale, basis);
-        this.sprites.colC(halo, enemy.elite ? goldColor : pools.color, enemy.elite ? 0.3 : 0.2);
+        this.sprites.colC(halo, enemy.elite ? goldColor : pools.color, enemy.elite ? 0.2 : 0.075);
         if (enemy.burnT > 0 && Math.random() < dt * 14) {
           this.emit(
             enemy.x + (Math.random() - 0.5) * enemy.r,
@@ -2246,10 +2282,15 @@ const MAX_PARTICLES = 1400,
           len = 0.5;
           thick = 0.1;
         }
-        let core = this.pbCore.y(shot.x, 0.75, shot.y, angle, len, thick, thick);
-        this.pbCore.col(core, 0.55 + color.r * 0.6, 0.55 + color.g * 0.6, 0.55 + color.b * 0.6);
-        let halo = this.sprites.bb(shot.x, 0.75, shot.y, shot.r * (def.rail ? 7 : 6.5), basis);
-        this.sprites.colC(halo, color, 0.75);
+        if (def.id === "rocket") {
+          const body = this.rocketBodies.y(shot.x, 0.85, shot.y, angle, shot.bomblet ? 0.7 : 1);
+          this.rocketBodies.col(body, 1, 1, 1);
+        } else {
+          const core = this.pbCore.y(shot.x, 0.75, shot.y, angle, len, thick, thick);
+          this.pbCore.col(core, 0.55 + color.r * 0.6, 0.55 + color.g * 0.6, 0.55 + color.b * 0.6);
+        }
+        let halo = this.sprites.bb(shot.x, 0.75, shot.y, shot.r * (def.rail ? 4.5 : 3.8), basis);
+        this.sprites.colC(halo, color, 0.35);
         if (def.id === "rocket" && Math.random() < (shot.bomblet ? 0.3 : 0.6)) {
           this.emit(
             shot.x - shot.vx * 0.02,
@@ -2525,6 +2566,7 @@ const MAX_PARTICLES = 1400,
         }
         let model = buildBossModel(boss.type, bossDefs[boss.type].color);
         model.id = boss.type;
+        setWorldShadows(model.group);
         this.bossView = model;
         this.scene.add(model.group);
       }
@@ -2691,6 +2733,7 @@ const MAX_PARTICLES = 1400,
       parts.n = count;
     }
     drawTransient(dt) {
+      this.smokeView.update(dt, this.B);
       for (let line of this.lines) {
         line.life -= dt;
         let k = Math.max(0, line.life / line.max);
@@ -2759,6 +2802,7 @@ const MAX_PARTICLES = 1400,
       return { x: origin.x + dir.x * dist, y: origin.z + dir.z * dist };
     }
     resetCamera() {
+      this.smokeView.clear();
       this.camInit = false;
       this.shake = 0;
     }

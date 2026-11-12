@@ -19,6 +19,7 @@
 // away. All of it is a few instance pools, made when first needed: one shader draws every zone; the marks are painted
 // once per biome into an atlas and drawn as texture lookups (they are many and stay for seconds).
 
+import { worldMaterial } from "./world-material.js";
 import {
   CircleGeometry,
   Color,
@@ -31,7 +32,6 @@ import {
   ConeGeometry,
   CylinderGeometry,
   MeshBasicMaterial,
-  MeshLambertMaterial,
   OctahedronGeometry,
   ShaderMaterial,
   SphereGeometry,
@@ -494,7 +494,7 @@ class AttackView {
     this.list.push(pool);
     return pool;
   }
-  // the pools of a model (body: Lambert with vertex colours, glow: unlit, its colour from the instance)
+  // Model pools keep physical painted bodies separate from the unlit combat glow.
   get(name) {
     let set = this.pl[name];
     if (set) return set;
@@ -506,7 +506,11 @@ class AttackView {
             mergeParts(parts.flat()),
             glow
               ? new MeshBasicMaterial({ toneMapped: false, vertexColors: true })
-              : new MeshLambertMaterial({ vertexColors: true, flatShading: true }),
+              : worldMaterial({
+                  surface: name === "spore" ? "organic" : name === "spike" ? "ice" : "metal",
+                  vertexColors: true,
+                  flatShading: true,
+                }),
             max,
           ),
           glow ? 5 : 3,

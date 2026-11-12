@@ -10,11 +10,12 @@ import {
   ConeGeometry,
   CylinderGeometry,
   MeshBasicMaterial,
-  MeshLambertMaterial,
   OctahedronGeometry,
   SphereGeometry,
   TorusGeometry,
 } from "three";
+import { worldMaterial } from "./world-material.js";
+import { strataGeometry } from "./strata-geometry.js";
 import { meshPart, mergeParts, box, ball, bar, spike } from "./models.js";
 import { clamp, TAU, angleDiff } from "../core/util.js";
 import { MARK_LOOK } from "./attacks-view.js";
@@ -179,7 +180,7 @@ const MODELS = {
     seed = 11;
     return {
       body: [
-        cyl(0x2a4a63, 0.95, 1, 0.04, 14),
+        meshPart(strataGeometry(2, 0.04, 2, 11, true), 0x527e93),
         cyl(0x3d6f90, 0.58, 0.62, 0.05, 12),
         ...ring(9, (a, i) => {
           const h = 0.28 + rnd() * 0.22;
@@ -223,8 +224,8 @@ const MODELS = {
       body: [
         // 3.55.0: the sandy disc reads as sunlit sand (the old dark browns read as chocolate
         // cookies dropped on the near-white glass)
-        cyl(0x8a744a, 0.95, 1, 0.05, 12),
-        cyl(0x9a8558, 0.6, 0.7, 0.06, 10, { y: 0.02 }),
+        meshPart(strataGeometry(2, 0.05, 2, 17, true), 0xbaa783),
+        cyl(0xc1b18e, 0.6, 0.7, 0.06, 10, { y: 0.02 }),
         ...ring(8, (a, i) =>
           spike(
             i % 2 ? 0xd8ccb0 : 0xc8b890,
@@ -261,9 +262,9 @@ const MODELS = {
     seed = 5;
     return {
       body: [
-        cyl(0x1a231a, 0.95, 1, 0.05, 12),
-        cyl(0x212c1e, 0.55, 0.9, 0.16, 12, { y: 0.03 }),
-        meshPart(new TorusGeometry(0.5, 0.1, 6, 14), 0x27331f, { y: 0.18, rx: Math.PI / 2 }),
+        meshPart(strataGeometry(2, 0.05, 2, 7, true), 0x4a5541),
+        cyl(0x3a4a35, 0.55, 0.9, 0.16, 12, { y: 0.03 }),
+        meshPart(new TorusGeometry(0.5, 0.1, 6, 14), 0x526047, { y: 0.18, rx: Math.PI / 2 }),
         cyl(0x04100c, 0.42, 0.42, 0.02, 12, { y: 0.19 }),
         ...ring(7, (a) =>
           ball(0x1e2a1a, 0.1 + rnd() * 0.07, 6, 4, {
@@ -299,9 +300,9 @@ const MODELS = {
     seed = 5;
     return {
       body: [
-        cyl(0x1c1014, 0.95, 1, 0.05, 12),
-        cyl(0x2a1c14, 0.55, 0.9, 0.14, 12, { y: 0.03 }),
-        meshPart(new TorusGeometry(0.5, 0.09, 6, 14), 0x241812, { y: 0.16, rx: Math.PI / 2 }),
+        meshPart(strataGeometry(2, 0.05, 2, 5, true), 0x4b5359),
+        cyl(0x3f484e, 0.55, 0.9, 0.14, 12, { y: 0.03 }),
+        meshPart(new TorusGeometry(0.5, 0.09, 6, 14), 0x505b62, { y: 0.16, rx: Math.PI / 2 }),
         cyl(0x0d0808, 0.42, 0.42, 0.02, 12, { y: 0.17 }),
         ...ring(6, (a) =>
           ball(0x3a2418, 0.09 + rnd() * 0.06, 6, 4, {
@@ -336,8 +337,8 @@ const MODELS = {
     seed = 3;
     return {
       body: [
-        cyl(0x0c0a16, 0.96, 1, 0.05, 10),
-        cyl(0x171028, 0.7, 0.72, 0.03, 10, { y: 0.05 }),
+        meshPart(strataGeometry(2, 0.05, 2, 3, true), 0x35313f),
+        cyl(0x454050, 0.7, 0.72, 0.03, 10, { y: 0.05 }),
         ...ring(8, (a) => {
           const h = 0.35 + rnd() * 0.25;
           return spike(
@@ -576,9 +577,23 @@ class TrapView {
           mergeParts(parts.flat()),
           glow
             ? new MeshBasicMaterial({ toneMapped: false, vertexColors: true })
-            : new MeshLambertMaterial({ vertexColors: true, flatShading: true }),
+            : worldMaterial({
+                color: 0xffffff,
+                vertexColors: true,
+                surface:
+                  name === "sunspike"
+                    ? "sandstone"
+                    : name === "geyser" || name === "spore"
+                      ? "wood"
+                      : name === "pyro"
+                        ? "basalt"
+                        : name === "icespike" || name === "frost" || name === "cryo"
+                          ? "ice"
+                          : "stone",
+              }),
           max,
         );
+        if (!glow) pool.mesh.castShadow = pool.mesh.receiveShadow = true;
         this.r.scene.add(pool.mesh);
         this.list.push(pool);
         pool.mesh.renderOrder = glow ? 2 : 1;
