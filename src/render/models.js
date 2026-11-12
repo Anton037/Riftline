@@ -1,5 +1,7 @@
 // Mesh builders for the player drone, enemies, bosses and props.
 import { worldMaterial, enemySurface } from "./world-material.js";
+import { BOSS_EFFECTS } from "../data/combat-effects.js";
+import { strataGeometry as basaltStrata, shardGeometry as basaltShard } from "./strata-geometry.js";
 import { armorBox } from "./armor-geometry.js";
 import { mergeStaticMeshes } from "./static-meshes.js";
 
@@ -1246,10 +1248,23 @@ function shieldArcGeometry() {
   return geo;
 }
 function discGeometry() {
+  const edge = new Shape();
+  for (let i = 0; i < 24; i++) {
+    const a = (i * Math.PI) / 12,
+      radius = i % 2 ? 0.81 : 1.07;
+    if (i === 0) edge.moveTo(Math.cos(a) * radius, Math.sin(a) * radius);
+    else edge.lineTo(Math.cos(a) * radius, Math.sin(a) * radius);
+  }
+  edge.closePath();
+  const blade = new ExtrudeGeometry(edge, { depth: 0.07, bevelEnabled: false, steps: 1 });
   return mergeParts([
-    meshPart(new CylinderGeometry(1, 1, 0.12, 20), 16777215),
-    meshPart(new CylinderGeometry(0.45, 0.45, 0.2, 12), 10474239),
-    meshPart(new BoxGeometry(2.1, 0.14, 0.18), 13625599),
+    meshPart(blade, 0xc9d4d0, { rx: -Math.PI / 2, y: -0.035 }),
+    meshPart(new CylinderGeometry(0.34, 0.34, 0.13, 20), 0x293d43),
+    meshPart(new CylinderGeometry(0.17, 0.17, 0.15, 16), 0xe3e8de),
+    ...[0, 1, 2, 3, 4, 5].map((i) => {
+      const a = (i * Math.PI) / 3;
+      return box(0x61d5df, 0.22, 0.014, 0.035, { x: Math.cos(a) * 0.57, z: Math.sin(a) * 0.57, y: 0.042, ry: -a });
+    }),
   ]);
 }
 function debrisGeometry() {
@@ -1550,9 +1565,12 @@ function buildPlayerModel(weapon, color) {
   aimAt(0);
   return model;
 }
+function volcanicBoulder(width, height, depth, seed) {
+  // The same chipped strata as the terrain, centered for articulated stone limbs.
+  return basaltStrata(width, height, depth, seed).translate(0, -height * 0.5, 0);
+}
 function buildBossModel(type, color) {
-  const finish =
-    { queen: "organic", prism: "crystal", wyrm: "crystal", core: "stone", kingpin: "basalt" }[type] || "armor";
+  const finish = BOSS_EFFECTS[type]?.surface || "armor";
   let group = new Group(),
     hullMat = worldMaterial({
       surface: finish,
@@ -1579,101 +1597,112 @@ function buildBossModel(type, color) {
       return mesh;
     };
   if (type === "warden") {
-    addMesh(new CylinderGeometry(1.8, 2.05, 1.5, 6), hullMat, 0, 0.9, 0);
-    addMesh(armorBox(1.8, 0.9, 1.6), darkMat, -0.2, 2, 0);
-    addMesh(armorBox(0.9, 1.1, 0.9), darkMat, 0, 1.2, 1.9);
-    addMesh(armorBox(0.9, 1.1, 0.9), darkMat, 0, 1.2, -1.9);
-    addMesh(armorBox(0.12, 0.28, 1.3), glowMat, 0.72, 2.05, 0);
-    addMesh(armorBox(0.2, 0.2, 0.2), glowMat, 0.46, 1.25, 1.9);
-    addMesh(armorBox(0.2, 0.2, 0.2), glowMat, 0.46, 1.25, -1.9);
-    let ring = addMesh(new TorusGeometry(1.95, 0.07, 5, 36), glowMat, 0, 0.35, 0);
-    ring.rotation.x = Math.PI / 2;
-    // 2.7.0: pauldrons, a horned head with a visor, twin cannons and a chest emblem
-    for (const side of [1, -1]) {
-      addMesh(armorBox(1.1, 0.55, 1.05), hullMat, 0, 2.75, side * 1.15);
-      addMesh(armorBox(0.5, 0.2, 0.9), glowMat, 0.35, 3.05, side * 1.15);
-      addMesh(new CylinderGeometry(0.2, 0.24, 1.7, 8), darkMat, 1.05, 2.15, side * 0.85).rotation.z = Math.PI / 2;
-      addMesh(new CylinderGeometry(0.26, 0.26, 0.12, 8), glowMat, 1.95, 2.15, side * 0.85).rotation.z = Math.PI / 2;
-      const horn = addMesh(new ConeGeometry(0.17, 0.95, 5), hullMat, 0.35, 3.75, side * 0.42);
-      horn.rotation.set(side * 0.35, 0, 0.25);
-      addMesh(armorBox(0.1, 0.1, 0.34), glowMat, 1.03, 2.98, side * 0.28);
+    // Layered security armor, exposed running gear and actual cannon bores. Light stays in lenses.
+    hullMat.color.setHex(0x566b78);
+    darkMat.color.setHex(0x14232c);
+    const plate = worldMaterial({ surface: "armor", color: 0xa2aaa6, shininess: 25 }),
+      steel = worldMaterial({ surface: "steel", color: 0x738a91, shininess: 44 });
+    addMesh(armorBox(2.55, 1.15, 2.8, 0.24), hullMat, -0.1, 1.05, 0);
+    addMesh(armorBox(2.2, 0.3, 2.55, 0.12), darkMat, -0.05, 0.42, 0);
+    addMesh(armorBox(1.8, 0.95, 1.8, 0.18), darkMat, -0.25, 1.95, 0);
+    addMesh(armorBox(0.22, 0.7, 1.25, 0.08), plate, 1.17, 1.25, 0);
+    for (const side of [-1, 1]) {
+      addMesh(armorBox(1.2, 0.38, 1.0, 0.13), plate, -0.1, 2.7, side * 1.08);
+      addMesh(armorBox(1.5, 0.16, 0.88, 0.06), hullMat, -0.05, 2.96, side * 1.08);
+      addMesh(armorBox(2.15, 0.65, 0.56, 0.16), darkMat, -0.15, 0.6, side * 1.58);
+      for (let i = 0; i < 6; i++) {
+        addMesh(armorBox(0.18, 0.53, 0.59, 0.045), steel, -1.0 + i * 0.35, 0.58, side * 1.58);
+        addMesh(armorBox(0.055, 0.28, 0.38, 0.015), darkMat, -1.14, 1.64 + i * 0.12, side * 0.62);
+      }
+      addMesh(armorBox(1.05, 0.45, 0.67, 0.12), hullMat, 0.55, 2.1, side * 1.04);
+      addMesh(new CylinderGeometry(0.15, 0.2, 1.15, 12), steel, 1.31, 2.15, side * 1.04).rotation.z = Math.PI / 2;
+      addMesh(new CylinderGeometry(0.23, 0.23, 0.15, 12), darkMat, 1.91, 2.15, side * 1.04).rotation.z = Math.PI / 2;
+      addMesh(new CylinderGeometry(0.12, 0.12, 0.015, 12), glowMat, 1.994, 2.15, side * 1.04).rotation.z = Math.PI / 2;
+      const brace = mergeParts([
+        pipe(0xffffff, 0.07, 0.07, 8, [-0.8, 1.45, side * 1.3], [-0.75, 2.55, side * 1.1]),
+        pipe(0xffffff, 0.06, 0.06, 8, [-0.45, 2.85, side * 0.72], [-0.45, 3.32, side * 0.72]),
+        ...[-1, 1].map((i) => ball(0xffffff, 0.055, 6, 4, { x: 0.25 + i * 0.45, y: 3.05, z: side * 1.08 })),
+      ]);
+      addMesh(brace, steel, 0, 0, 0);
     }
-    addMesh(armorBox(1, 0.75, 1.1), darkMat, 0.55, 3.0, 0);
-    addMesh(new OctahedronGeometry(0.34, 0), glowMat, 1.0, 1.55, 0).scale.set(0.4, 1.3, 1);
-    for (let i = -1; i <= 1; i++) addMesh(armorBox(0.06, 0.6, 0.12), glowMat, -1.02, 2.2, i * 0.4);
-    // 3.4.0: the Enforcer of the Blackout carries a police light bar that turns, red and blue
-    const bar = new Group();
-    bar.position.set(0.5, 3.48, 0);
-    group.add(bar);
-    addMesh(armorBox(0.5, 0.12, 0.5), darkMat, 0, -0.08, 0, bar);
-    addMesh(
-      armorBox(0.22, 0.16, 0.42),
-      new MeshBasicMaterial({ color: 0xff2030, toneMapped: false }),
-      0.13,
-      0.06,
-      0,
-      bar,
-    );
-    addMesh(
-      armorBox(0.22, 0.16, 0.42),
-      new MeshBasicMaterial({ color: 0x2050ff, toneMapped: false }),
-      -0.13,
-      0.06,
-      0,
-      bar,
-    );
-    spin.push({ m: bar, ax: "y", v: 7 });
-  } else if (type === "queen") {
-    addMesh(new SphereGeometry(1.35, 16, 10), hullMat, 0.3, 1.9, 0).scale.set(1.1, 0.8, 1);
-    addMesh(new SphereGeometry(1.1, 14, 9), darkMat, -1.3, 1.6, 0).scale.set(1.3, 0.85, 0.9);
-    addMesh(new SphereGeometry(0.2, 8, 6), glowMat, 1.5, 2.1, 0.45);
-    addMesh(new SphereGeometry(0.2, 8, 6), glowMat, 1.5, 2.1, -0.45);
-    addMesh(new SphereGeometry(0.34, 10, 8), glowMat, -2.4, 1.6, 0);
-    let halo = addMesh(new TorusGeometry(2.1, 0.09, 5, 40), glowMat, 0, 2.2, 0);
-    halo.rotation.x = Math.PI / 2 - 0.25;
-    spin.push({ m: halo, ax: "z", v: 0.8 });
-    for (let i = 0; i < 6; i++) {
-      let angle = (i / 6) * Math.PI * 2;
-      addMesh(armorBox(0.18, 1.3, 0.18), darkMat, Math.cos(angle) * 1.2, 0.6, Math.sin(angle) * 1.2).rotation.set(
-        Math.sin(angle) * 0.5,
-        0,
-        -Math.cos(angle) * 0.5,
-      );
-    }
-    // 2.7.0: a real head with mandibles and antennae, spines along the back, glowing egg sacs on the abdomen
-    addMesh(new SphereGeometry(0.72, 12, 8), hullMat, 1.55, 1.75, 0).scale.set(1.15, 0.85, 1);
-    for (const side of [1, -1]) {
-      const jaw = addMesh(new ConeGeometry(0.16, 1.1, 5), darkMat, 2.25, 1.35, side * 0.42);
-      jaw.rotation.set(side * 0.1, side * -0.45, -Math.PI / 2 - 0.35);
-      const feeler = addMesh(armorBox(0.06, 1.1, 0.06), darkMat, 1.8, 2.7, side * 0.35);
-      feeler.rotation.set(side * 0.5, 0, -0.5);
-      addMesh(new SphereGeometry(0.1, 6, 4), glowMat, 2.2, 3.2, side * 0.72);
-    }
-    for (let i = 0; i < 5; i++) {
-      const spine = addMesh(new ConeGeometry(0.13, 0.75 - i * 0.05, 5), darkMat, 0.9 - i * 0.7, 2.75 - i * 0.14, 0);
-      spine.rotation.z = 0.2;
-    }
-    for (let i = 0; i < 4; i++) {
-      const angle = i * 1.6;
+    addMesh(armorBox(1.0, 0.65, 1.12, 0.14), hullMat, 0.35, 2.75, 0);
+    addMesh(armorBox(0.1, 0.2, 0.8, 0.025), darkMat, 0.89, 2.82, 0);
+    addMesh(armorBox(0.025, 0.055, 0.63, 0.012), glowMat, 0.951, 2.84, 0);
+    const lightbar = new Group();
+    lightbar.position.set(0.05, 3.24, 0);
+    group.add(lightbar);
+    addMesh(armorBox(0.42, 0.1, 1.25, 0.025), darkMat, 0, 0, 0, lightbar);
+    for (const side of [-1, 1])
       addMesh(
-        new SphereGeometry(0.2 + (i % 2) * 0.06, 8, 6),
-        glowMat,
-        -1.3 + Math.cos(angle) * 0.55,
-        2.15 + Math.sin(angle) * 0.25,
-        Math.sin(angle * 1.7) * 0.75,
+        armorBox(0.28, 0.09, 0.4, 0.025),
+        new MeshBasicMaterial({ color: side < 0 ? 0x2766ff : 0xff3045, toneMapped: false }),
+        0,
+        0.085,
+        side * 0.32,
+        lightbar,
       );
-    }
-    // 3.50.0: a crown of glowcaps on the abdomen - the marsh's own light lives on the mother of
-    // the swarm (small stems, glowing cap domes; the glow follows her colour)
+    spin.push({ m: lightbar, ax: "y", v: 7 });
+    group.userData.mats = [plate, steel];
+  } else if (type === "queen") {
+    // A heavy plated insect with an abdomen, articulated legs and a crown of living glowcaps.
+    hullMat.color.setHex(0x4b7560);
+    darkMat.color.setHex(0x132c28);
+    const chitin = worldMaterial({ surface: "organic", color: 0x627c50, shininess: 18, flatShading: false }),
+      membrane = worldMaterial({ surface: "organic", color: 0x304c43, shininess: 24, flatShading: false });
+    addMesh(new SphereGeometry(1.25, 24, 16), membrane, -0.95, 1.65, 0).scale.set(1.55, 0.86, 0.92);
+    addMesh(new SphereGeometry(0.92, 20, 14), hullMat, 0.78, 1.65, 0).scale.set(1.2, 0.9, 0.9);
     for (let i = 0; i < 5; i++) {
-      const a = (i / 5) * Math.PI * 2 + 0.3,
-        mx = -1.3 + Math.cos(a) * 0.5,
-        my = 2.4 + Math.sin(a * 1.7) * 0.14,
-        mz = Math.sin(a * 1.7) * 0.62;
-      addMesh(new CylinderGeometry(0.035, 0.05, 0.3, 5), darkMat, mx, my, mz);
-      addMesh(new SphereGeometry(0.12, 6, 4, 0, Math.PI * 2, 0, Math.PI / 2), glowMat, mx, my + 0.14, mz).scale.y =
-        0.62;
+      const x = -2.15 + i * 0.63,
+        radius = 0.65 + Math.sin(((i + 1) / 6) * Math.PI) * 0.45;
+      const shell = addMesh(new SphereGeometry(radius, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.62), chitin, x, 1.65, 0);
+      shell.scale.set(0.56, 0.95, 0.96);
+      const spine = addMesh(basaltShard(0.19, 0.65, 0.18), hullMat, x, 2.2 + radius * 0.18, 0);
+      spine.rotation.z = 0.3;
     }
+    const legs = [];
+    for (const side of [-1, 1]) {
+      for (let i = 0; i < 3; i++) {
+        const x = 0.9 - i * 0.95,
+          knee = [x - 0.38, 1.32, side * (1.65 + (i === 1 ? 0.14 : 0))],
+          foot = [x + 0.2, 0.13, side * 2.12];
+        legs.push(
+          pipe(0xffffff, 0.12, 0.18, 9, [x, 1.76, side * 0.62], knee),
+          pipe(0xffffff, 0.045, 0.11, 9, knee, foot),
+          ball(0xffffff, 0.19, 10, 7, { x: knee[0], y: knee[1], z: knee[2] }),
+        );
+      }
+      const jaw = mergeParts([
+        pipe(0xffffff, 0.13, 0.2, 10, [1.5, 1.35, side * 0.4], [2.0, 1.05, side * 0.6]),
+        spike(0xffffff, 0.12, 8, [2.0, 1.05, side * 0.6], [2.38, 1.2, side * 0.25]),
+        pipe(0xffffff, 0.035, 0.07, 8, [1.3, 2.0, side * 0.35], [1.7, 2.8, side * 0.65]),
+      ]);
+      addMesh(jaw, darkMat, 0, 0, 0);
+      for (let i = 0; i < 3; i++)
+        addMesh(
+          new SphereGeometry(0.065 + (i === 0 ? 0.02 : 0), 10, 7),
+          glowMat,
+          1.6 - i * 0.14,
+          1.95 + i * 0.11,
+          side * (0.38 + i * 0.12),
+        );
+      for (let i = 0; i < 4; i++) {
+        const x = -1.95 + i * 0.52,
+          z = side * (0.48 + Math.sin(i) * 0.15),
+          y = 2.25 + Math.sin(i * 0.8) * 0.22;
+        addMesh(new SphereGeometry(0.18, 12, 8), membrane, x, y, z).scale.set(0.8, 1.3, 1);
+        addMesh(new SphereGeometry(0.075, 8, 6), glowMat, x + 0.04, y + 0.12, z);
+      }
+    }
+    addMesh(mergeParts(legs), chitin, 0, 0, 0);
+    for (let i = 0; i < 5; i++) {
+      const x = -1.8 + i * 0.43,
+        y = 2.56 + Math.sin(i * 0.6) * 0.22,
+        z = Math.sin(i * 2.3) * 0.4;
+      addMesh(new CylinderGeometry(0.035, 0.06, 0.32, 8), darkMat, x, y, z);
+      addMesh(new SphereGeometry(0.18, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), chitin, x, y + 0.15, z).scale.y = 0.6;
+      addMesh(new SphereGeometry(0.055, 8, 6), glowMat, x + 0.04, y + 0.26, z);
+    }
+    group.userData.mats = [chitin, membrane];
   } else if (type === "prism") {
     // 2.4.6: Frost Prism, a floating ice golem: a tall translucent crystal body with a cold glow
     // core and visor, crystal shoulders and crown (hullMat: frosted ice, flashes on hits), dark-blue
@@ -1771,9 +1800,6 @@ function buildBossModel(type, color) {
     // frozen ring on the ground
     const ring = addMesh(new TorusGeometry(1.9, 0.07, 4, 40), glowMat, 0, 0.12, 0);
     ring.rotation.x = Math.PI / 2;
-    // 2.9.0: detail pass (Prism and Crucible were still plain 2.4.6 builds): a ring of standing crystals, frozen
-    // runes in the chest, a halo and a tilted ring around the core, brow and cheek crystals, back spikes, snow
-    // caps, more icicles and floating rock. Merged per material: four draw calls.
     {
       const WH = 0xffffff,
         hull = [],
@@ -1844,182 +1870,61 @@ function buildBossModel(type, color) {
       addMerged(glow, glowMat);
     }
     group.userData.fadeMats = [iceMat, paleIceMat, hullMat, darkMat, glowMat, auroraA, auroraB];
-  } else if (type === "forge") {
-    // 2.4.6: THE CRUCIBLE, a furnace golem: an iron crucible on stubby legs with molten metal inside
-    // a heavy rim, a head with a glowing visor and a furnace mouth at the front (+x), hammer fists,
-    // two chimneys and a flywheel on its back. The renderer lets the chimneys throw embers
-    // (userData.chimneys).
-    let ironMat = worldMaterial({
-      surface: finish,
-      color: 2366244,
-      emissive: 0,
-      specular: 0x53616b,
-      shininess: 28,
-      flatShading: true,
-    });
-    addMesh(armorBox(1, 1, 0.9), darkMat, -0.1, 0.5, 0.95);
-    addMesh(armorBox(1, 1, 0.9), darkMat, -0.1, 0.5, -0.95);
-    addMesh(new CylinderGeometry(1.55, 1.15, 2, 8), ironMat, 0, 2, 0);
-    addMesh(new CylinderGeometry(0.95, 0.95, 0.1, 12), glowMat, -0.25, 3.02, 0);
-    addMesh(armorBox(0.75, 0.6, 1.05), darkMat, 1.05, 3.1, 0);
-    addMesh(armorBox(0.1, 0.14, 0.75), glowMat, 1.44, 3.14, 0);
-    addMesh(armorBox(0.3, 0.55, 1.1), glowMat, 1.3, 1.85, 0).rotation.set(0, 0, 0.2);
-    let rim = addMesh(new TorusGeometry(1.3, 0.26, 5, 16), hullMat, 0, 3, 0);
-    rim.rotation.x = Math.PI / 2;
-    for (let side of [1, -1]) {
-      addMesh(armorBox(0.85, 0.85, 0.85), hullMat, 0, 2.35, side * 1.75);
-      addMesh(armorBox(1.2, 0.95, 0.95), darkMat, 0.55, 1.35, side * 1.95);
-      addMesh(new CylinderGeometry(0.26, 0.34, 1.7, 6), darkMat, -1.05, 3.1, side * 0.55);
-      addMesh(new CylinderGeometry(0.2, 0.2, 0.08, 6), glowMat, -1.05, 3.97, side * 0.55);
-    }
-    let wheel = addMesh(new TorusGeometry(0.6, 0.14, 4, 8), hullMat, -1.62, 1.9, 0);
-    wheel.rotation.y = Math.PI / 2;
-    spin.push({ m: wheel, ax: "z", v: 1.4 });
-    // 2.9.0: detail pass (Prism and Crucible were still plain 2.4.6 builds): rim rivets, cauldron bands, molten
-    // cracks, pipes, brow, eyes, furnace teeth, knuckles and toe plates. Merged per material: three draw calls.
-    {
-      const WH = 0xffffff,
-        hull = [],
-        dark = [],
-        glow = [],
-        // a point on the 8-sided cauldron wall (faces are at 0.92 of the vertex radius)
-        wall = (theta, y, lateral = 0) => {
-          const r = 0.92 * (1.15 + 0.2 * (y - 1)) + 0.03;
-          return [r * Math.sin(theta) + Math.cos(theta) * lateral, y, r * Math.cos(theta) - Math.sin(theta) * lateral];
-        };
-      for (let i = 0; i < 12; i++) {
-        const a = (i / 12) * Math.PI * 2;
-        dark.push(box(WH, 0.14, 0.1, 0.14, { x: Math.cos(a) * 1.3, y: 3.29, z: Math.sin(a) * 1.3, ry: -a }));
-      }
-      for (const y of [1.55, 2.5]) {
-        const r = 0.93 * (1.15 + 0.2 * (y - 1)) + 0.05;
-        hull.push(meshPart(new TorusGeometry(r, 0.07, 4, 16), WH, { y, rx: Math.PI / 2 }));
-      }
-      // molten cracks running down the faces
-      for (const theta of [0.5, 1.5, 2.5, 5.5, 4.5]) {
-        let prev = wall(theta, 1.15);
-        for (const [y, lat] of [
-          [1.6, 0.1],
-          [2.05, -0.08],
-          [2.5, 0.06],
-          [2.9, -0.04],
-        ]) {
-          const next = wall(theta, y, lat);
-          glow.push(bar(WH, 0.05, prev, next, 0.03));
-          prev = next;
-        }
-      }
-      // pipes from the chimneys down the back, with elbows
-      for (const s of [1, -1]) {
-        hull.push(
-          pipe(WH, 0.09, 0.09, 6, [-1.05, 3.0, s * 0.55], [-1.42, 2.3, s * 0.72]),
-          pipe(WH, 0.09, 0.09, 6, [-1.42, 2.3, s * 0.72], [-1.45, 1.2, s * 0.72]),
-          ball(WH, 0.12, 6, 4, { x: -1.42, y: 2.3, z: s * 0.72 }),
-        );
-        glow.push(ball(WH, 0.06, 5, 3, { x: -1.44, y: 1.7, z: s * 0.72 }));
-        // toe plates and hazard marks on the legs
-        dark.push(box(WH, 0.42, 0.3, 0.95, { x: 0.46, y: 0.15, z: s * 0.95 }));
-        for (let i = 0; i < 3; i++) glow.push(box(WH, 0.03, 0.1, 0.62, { x: 0.41, y: 0.42 + i * 0.22, z: s * 0.95 }));
-        // hammer fist: knuckles and a hydraulic forearm
-        for (let c = -1; c <= 1; c++)
-          for (let r = 0; r < 2; r++)
-            dark.push(box(WH, 0.14, 0.16, 0.18, { x: 1.2, y: 1.05 + r * 0.42, z: s * 1.95 + c * 0.3 }));
-        hull.push(pipe(WH, 0.1, 0.1, 6, [0, 2.7, s * 1.85], [0.45, 1.75, s * 1.95]));
-        glow.push(box(WH, 0.05, 0.08, 0.5, { x: 1.17, y: 1.35, z: s * 1.95 }));
-        // head: eyes
-        glow.push(box(WH, 0.08, 0.12, 0.16, { x: 1.43, y: 3.22, z: s * 0.3 }));
-      }
-      // head: brow ridge and cheek plates, furnace mouth with teeth, slag drips, a pressure dial on the back
-      dark.push(
-        box(WH, 0.14, 0.1, 1.1, { x: 1.4, y: 3.46 }),
-        box(WH, 0.3, 0.3, 0.12, { x: 1.1, y: 2.85, z: 0.56 }),
-        box(WH, 0.3, 0.3, 0.12, { x: 1.1, y: 2.85, z: -0.56 }),
-      );
-      for (let i = -2; i <= 2; i++)
-        dark.push(
-          box(WH, 0.14, 0.14, 0.1, { x: 1.43, y: 2.12, z: i * 0.2 }),
-          box(WH, 0.14, 0.14, 0.1, { x: 1.43, y: 1.6, z: i * 0.2 + 0.1 }),
-        );
-      for (const z of [-0.3, 0.05, 0.4]) glow.push(spike(WH, 0.06, 4, [1.47, 1.6, z], [1.47, 1.2 - z * 0.2, z]));
-      glow.push(pipe(WH, 0.14, 0.14, 8, [-1.4, 2.6, 0.3], [-1.5, 2.6, 0.3]));
-      hull.push(pipe(WH, 0.19, 0.19, 8, [-1.36, 2.6, 0.3], [-1.42, 2.6, 0.3]));
-      const addMerged = (parts, mat) => parts.length && addMesh(mergeParts(parts), mat, 0, 0, 0);
-      addMerged(hull, hullMat);
-      addMerged(dark, darkMat);
-      addMerged(glow, glowMat);
-    }
-    group.userData.chimneys = [
-      [-1.05, 4.05, 0.55],
-      [-1.05, 4.05, -0.55],
-    ];
-    group.userData.mats = [ironMat];
-  } else if (type === "kingpin") {
-    // 3.49.0: THE ASH TYRANT, master of the Ashfall Caldera (was the Onyx Club's Kingpin): a hulking
-    // figure in cracked obsidian plate (hullMat, the boss colour turned ember) with molten seams, an
-    // ember crest on the helm and molten fists. The renderer throws embers off its shoulder vents
-    // (userData.chimneys) and draws its charge aim-line.
-    const plateTrim = worldMaterial({
-      surface: finish,
-      color: 0x1a1412,
-      emissive: 0,
-      specular: 0x53616b,
-      shininess: 28,
-      flatShading: true,
-    });
-    // the body: a broad chest plate with a molten seam down the front, the lava core under it
-    addMesh(armorBox(2.3, 1.7, 1.5), hullMat, 0, 1.95, 0);
-    addMesh(armorBox(0.62, 1.35, 0.14), plateTrim, 0, 2.05, 0.78);
-    addMesh(armorBox(0.16, 0.95, 0.06), glowMat, 0, 2.2, 0.86);
-    addMesh(armorBox(1.9, 0.5, 1.25), hullMat, 0, 0.85, 0);
+  } else if (type === "tyrant") {
+    // A living basalt colossus, facing +x: broken volcanic armor, a molten chest and a crown of rock.
+    // No inherited gun, jewelry, coin ring or manufactured chimney remains from its predecessor.
+    const basalt = worldMaterial({ surface: "basalt", color: 0x494942, shininess: 7, flatShading: false }),
+      crust = worldMaterial({ surface: "basalt", color: 0x292e31, shininess: 11, flatShading: false }),
+      cooled = worldMaterial({ surface: "basalt", color: 0x676154, shininess: 5 });
+    addMesh(volcanicBoulder(2.2, 2.05, 1.85, 71), basalt, -0.05, 2.0, 0);
+    addMesh(basaltStrata(1.3, 0.65, 1.3, 73, true), crust, -0.2, 0.72, 0);
     for (const side of [-1, 1]) {
-      addMesh(new CylinderGeometry(0.34, 0.42, 1.15, 8), plateTrim, side * 0.55, 0.55, 0);
-      addMesh(armorBox(0.44, 0.22, 0.8), plateTrim, side * 0.55, 0.11, 0.12);
-      // pauldrons and molten cuffs
-      addMesh(new SphereGeometry(0.52, 10, 8), hullMat, side * 1.28, 2.62, 0);
-      addMesh(armorBox(0.3, 0.12, 0.3), glowMat, side * 1.55, 1.72, 0.18);
-    }
-    // the head: a basalt helm, glowing eyes deep in its shadow
-    addMesh(armorBox(0.78, 0.72, 0.78), plateTrim, 0, 3.2, 0);
-    addMesh(armorBox(0.6, 0.14, 0.06), glowMat, 0, 3.3, 0.41);
-    addMesh(armorBox(0.1, 0.06, 0.04), glowMat, 0.18, 3.34, 0.42);
-    addMesh(armorBox(0.1, 0.06, 0.04), glowMat, -0.14, 3.34, 0.42);
-    // the ember crest: a molten ridge over the helm between two horn plates swept back
-    addMesh(new CylinderGeometry(0.42, 0.5, 0.42, 12), plateTrim, 0, 3.75, 0);
-    addMesh(armorBox(0.1, 0.34, 0.7), glowMat, 0, 4.06, -0.05);
-    const hornL = addMesh(new ConeGeometry(0.16, 0.66, 6), plateTrim, 0.3, 4.12, -0.18);
-    hornL.rotation.x = -0.55;
-    hornL.rotation.z = -0.22;
-    const hornR = addMesh(new ConeGeometry(0.16, 0.66, 6), plateTrim, -0.3, 4.12, -0.18);
-    hornR.rotation.x = -0.55;
-    hornR.rotation.z = 0.22;
-    // the cinder thrower: a slab barrel over a molten drum, a hot muzzle
-    const gun = addMesh(armorBox(1.7, 0.24, 0.22), plateTrim, 1.35, 1.75, 0.95);
-    gun.rotation.y = -0.25;
-    const drum = addMesh(new CylinderGeometry(0.26, 0.26, 0.16, 12), plateTrim, 1.15, 1.42, 1.02);
-    drum.rotation.x = Math.PI / 2;
-    addMesh(armorBox(0.14, 0.14, 0.14), glowMat, 2.2, 1.85, 0.75);
-    // the shoulder vents: the embers drift off them (the old cigar's chimney, twice over)
-    addMesh(new CylinderGeometry(0.1, 0.14, 0.14, 8), plateTrim, 1.02, 2.86, 0.1);
-    addMesh(new CylinderGeometry(0.1, 0.14, 0.14, 8), plateTrim, -1.02, 2.86, 0.1);
-    group.userData.chimneys = [
-      [1.02, 2.98, 0.1],
-      [-1.02, 2.98, 0.1],
-    ];
-    // the molten chain across the chest plate, a ring of cast-off embers burning at the feet
-    const chain = addMesh(new TorusGeometry(0.52, 0.045, 5, 26), glowMat, 0, 2.35, 0.62);
-    chain.rotation.x = 1.25;
-    for (let i = 0; i < 6; i++) {
-      const angle = (i / 6) * Math.PI * 2;
-      const coin = addMesh(
-        new CylinderGeometry(0.09, 0.09, 0.02, 10),
+      addMesh(volcanicBoulder(0.78, 1.5, 0.85, 81 + side), crust, -0.2, 0.83, side * 0.62);
+      addMesh(basaltStrata(1.15, 0.28, 0.9, 89 + side), cooled, 0.14, 0.02, side * 0.66);
+      addMesh(volcanicBoulder(1.1, 1.35, 1.12, 93 + side), basalt, -0.17, 2.66, side * 1.04);
+      const arm = addMesh(volcanicBoulder(0.8, 1.35, 0.9, 101 + side), crust, 0.3, 1.98, side * 1.17);
+      arm.rotation.z = -0.28;
+      addMesh(new IcosahedronGeometry(0.45, 1), basalt, 0.83, 1.48, side * 1.12).scale.set(1.15, 0.9, 0.9);
+      addMesh(basaltShard(0.43, 1.05, 0.38), crust, -0.55, 2.78, side * 0.97).rotation.z = 0.23;
+      addMesh(basaltStrata(0.4, 0.65, 0.48, 109 + side), cooled, -0.68, 2.52, side * 0.78);
+      addMesh(
+        mergeParts([
+          bar(0xffffff, 0.035, [0.64, 1.48, side * 1.42], [1.08, 1.58, side * 1.2], 0.025),
+          bar(0xffffff, 0.04, [-0.64, 2.66, side * 1.46], [0.12, 2.91, side * 1.43], 0.025),
+        ]),
         glowMat,
-        Math.cos(angle) * 2.05,
-        0.05,
-        Math.sin(angle) * 2.05,
+        0,
+        0,
+        0,
       );
-      coin.rotation.x = Math.PI / 2;
     }
-    group.userData.mats = [hullMat, plateTrim];
+    addMesh(volcanicBoulder(1.1, 0.95, 1.02, 117), crust, 0.48, 2.99, 0);
+    addMesh(basaltStrata(0.65, 0.2, 0.75, 121), cooled, 0.77, 3.16, 0);
+    for (const side of [-1, 1]) {
+      addMesh(armorBox(0.04, 0.14, 0.23, 0.015), darkMat, 0.958, 3.03, side * 0.23);
+      addMesh(armorBox(0.05, 0.055, 0.15, 0.01), glowMat, 0.986, 3.035, side * 0.23);
+    }
+    for (let i = 0; i < 5; i++) {
+      const z = (i - 2) * 0.27,
+        height = 0.75 + (0.3 - Math.abs(i - 2) * 0.12),
+        horn = addMesh(basaltShard(0.3, height, 0.27), i % 2 ? cooled : crust, -0.05 + Math.abs(i - 2) * 0.09, 3.15, z);
+      horn.rotation.set((i - 2) * 0.12, 0, 0.2);
+    }
+    for (const side of [-1, 1]) {
+      const chest = addMesh(basaltStrata(0.48, 1.35, 0.86, 137 + side), cooled, 0.77, 1.48, side * 0.43);
+      chest.rotation.set(side * 0.12, side * 0.15, -0.12);
+      addMesh(
+        mergeParts([
+          bar(0xffffff, 0.035, [0.83, 1.62, side * 0.1], [0.84, 2.34, side * 0.12], 0.025),
+          bar(0xffffff, 0.025, [0.84, 2.34, side * 0.12], [0.69, 2.59, side * 0.32], 0.025),
+        ]),
+        glowMat,
+        0,
+        0,
+        0,
+      );
+    }
+    group.userData.mats = [basalt, crust, cooled];
   } else if (type === "wyrm") {
     // 3.56.0: THE GLASSWYRM: a serpent of living fused glass. A diamond head with a hot core, a
     // glowing visor and an open maw, an S-curved body of glass segments that undulates as it swims
@@ -2041,8 +1946,8 @@ function buildBossModel(type, color) {
       mat.userData.opacity = opacity;
       return mat;
     };
-    const vitre = glass(0x402c0a, 0x9a6a1a, 0.9), // the hot amber glass of the body (self-lit)
-      vitreDark = glass(0x1a1206, 0x000000, 0.94); // the sand-flecked glass of the underside (diffuse dark)
+    const vitre = glass(0x5c736d, 0x302914, 0.94), // the hot amber glass of the body (self-lit)
+      vitreDark = glass(0x273a38, 0x000000, 0.96); // the sand-flecked glass of the underside (diffuse dark)
     // the head: a tall diamond with a hot core seen through the glass, a visor slit and an open maw (+x)
     const head = addMesh(new OctahedronGeometry(1.1, 0), vitre, 1.9, 2.0, 0);
     head.scale.set(1.2, 1.55, 1.05);
@@ -2097,16 +2002,50 @@ function buildBossModel(type, color) {
     }
     group.add(orbit);
     spin.push({ m: orbit, ax: "y", v: -1.2 });
-    // a hot ring inside a sand skirt on the ground
-    const skirt = addMesh(new TorusGeometry(1.95, 0.16, 4, 40), vitreDark, 1.4, 0.12, 0);
-    skirt.rotation.x = Math.PI / 2;
-    const hotRing = addMesh(new TorusGeometry(1.2, 0.1, 4, 36), glowMat, 1.4, 0.16, 0);
-    hotRing.rotation.x = Math.PI / 2;
+    for (let i = 0; i < 7; i++) {
+      const a = (i / 7) * Math.PI * 2,
+        shard = addMesh(
+          basaltShard(0.45, 0.28 + (i % 3) * 0.1, 0.42),
+          vitreDark,
+          1.4 + Math.cos(a) * 1.25,
+          0.04,
+          Math.sin(a) * 1.12,
+        );
+      shard.rotation.y = -a;
+    }
     group.userData.fadeMats = [vitre, vitreDark, glowMat];
     // (vitre stays out of mats: the flash loop would zero its emissive - the dark underside flashes)
     group.userData.mats = [vitreDark];
   } else {
-    addMesh(new SphereGeometry(1.15, 18, 12), glowMat, 0, 2.4, 0);
+    // Depth and slow folded currents inside the Core, instead of a flat solid-color ball.
+    const energy = glowMat.clone(),
+      clock = { value: 0 };
+    energy.color = glowMat.color;
+    energy.onBeforeCompile = (shader) => {
+      shader.uniforms.uCoreTime = clock;
+      shader.vertexShader = shader.vertexShader
+        .replace("#include <common>", "#include <common>\nvarying vec3 vCoreP;")
+        .replace("#include <begin_vertex>", "#include <begin_vertex>\nvCoreP=position;");
+      shader.fragmentShader = shader.fragmentShader
+        .replace("#include <common>", "#include <common>\nuniform float uCoreTime; varying vec3 vCoreP;")
+        .replace(
+          "#include <color_fragment>",
+          `#include <color_fragment>
+          vec3 coreN=normalize(vCoreP);
+          float coreLight=.18+.82*max(0.0,dot(coreN,normalize(vec3(.6,.8,.4))));
+          float fold=sin(coreN.y*9.0+sin(coreN.x*7.0+uCoreTime*.4)*1.5+coreN.z*8.0-uCoreTime*.8);
+          float filament=.045/(.045+abs(fold));
+          float cloud=.5+.5*sin(coreN.x*11.0+coreN.z*6.0+sin(coreN.y*8.0-uCoreTime*.2));
+          diffuseColor.rgb*=.12+coreLight*(.18+cloud*.32)+filament*.55;
+          diffuseColor.rgb+=vec3(.08,.035,.12)*filament*coreLight;
+        `,
+        );
+    };
+    energy.customProgramCacheKey = () => "rift-core-volume-v1";
+    const orb = addMesh(new SphereGeometry(1.15, 28, 20), energy, 0, 2.4, 0);
+    spin.push({ m: orb, ax: "y", v: 0.18 });
+    group.userData.energyTime = clock;
+    group.userData.fadeMats = [energy];
     for (let i = 0; i < 3; i++) {
       let band = addMesh(new TorusGeometry(1.75 + i * 0.35, 0.16, 6, 36), i === 1 ? darkMat : hullMat, 0, 2.4, 0);
       band.rotation.set(i * 1.1, i * 0.6, 0);

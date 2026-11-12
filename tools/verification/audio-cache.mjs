@@ -15,8 +15,6 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const FILE = path.join(ROOT, "node_modules", ".cache", "riftline", "deep-sound.json");
-// sound.js imports diagnostics.js only for logError (error logging); following it would pull in the whole game
-const NOT_SOUND = new Set([path.join(ROOT, "src", "core", "diagnostics.js")]);
 const SLOTS = 4;
 // keys whose string values are player-facing text, left out of a data file's view
 const TEXT_KEYS = /^(name|desc|text|lore|hint|tip|tips|flavor|label|title|short|long|note|blurb)$/;
@@ -43,7 +41,7 @@ const playwrightCorePkg = () => {
 export function soundInputs() {
   const seen = new Set();
   const walk = (file) => {
-    if (seen.has(file) || NOT_SOUND.has(file)) return;
+    if (seen.has(file)) return;
     seen.add(file);
     const text = fs.readFileSync(file, "utf8");
     for (const m of text.matchAll(/^\s*(?:import|export)\b[^;]*?\bfrom\s+"(\.[^"]+)"/gm))

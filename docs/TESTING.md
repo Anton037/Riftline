@@ -6,12 +6,13 @@ there is no historical release assertion catalog, always-on soak or hidden exten
 | Command | Coverage | Deadline |
 |---|---|---|
 | `npm run check` | Formatting, lint, build and standard tests | Test subprocess 75 s |
-| `npm test` | Node contracts, tablet/phone flows, onboarding, training and worker update | Build 30 s; tests 75 s |
+| `npm test` | Node contracts, tablet/phone flows, onboarding, progression and worker update | Build 30 s; tests 75 s |
 | `npm run test:unit` | Saves, deterministic simulation, data and render geometry | 75 s |
-| `npm run e2e` | Touch, onboarding/audio, training and worker update | Game flows 25–30 s; worker 20 s; process 75 s |
+| `npm run e2e` | Touch, onboarding/audio, progression and worker update | Game flows 25–30 s; worker 20 s; process 75 s |
 | `npm run test:render` | Same browser checks with actual drawing | Game flows 180 s each; process 600 s |
 | `npm run audit:visual` | Six biomes and bosses on tablet and landscape phone, High | 240 s per layout |
 | `node tools/verify.js equipment <tag>` | Seven weapons, all 25 enemies, smoke/rockets and FPS controls | 240 s |
+| `npm run verify:combat` | Every current boss pattern/Overdrive, seven weapons and biome beam/trap skins | 300 s |
 | `npm run verify:audio` | Optional recorded/physical sound correctness | 420 s |
 | `npm run verify:audio-budget` | Optional audio scheduler/real-node parity | 180 s |
 | `npm run probe:audio` | Audio fault recovery | 120 s |
@@ -27,23 +28,26 @@ For centre/edge/corner screenshots use `node tools/verify.js visual <tag> tablet
 
 - Node checks cover seeded finite combat for each weapon, snapshot restoration, biome/boss/hazard
   references, upgrade data, release notes, atmosphere budgeting, static mesh bounds and the 810-triangle enemy
-  kit budget. Exact rays cover thin/nearby obstacles, diagonal boxes, arena edges and zero reach; live
+  kit budget. Combat contracts exercise actual AI for every boss pattern/phase and all ranged enemies,
+  preserve source identity through effects/sound, reject orphan content and bound Arc Caster rendering at 420 shots.
+  Exact rays cover thin/nearby obstacles, diagonal boxes, arena edges and zero reach; live
   beam/gadget checks exercise cover protection.
 - Save checks cover round-trip persistence, migration, unknown future fields and corrupt-save recovery
   when storage is full. Failed explicit imports/resets retain old progress; successful ones recover held saves.
-- Choice snapshots keep the RNG through rerolls, banishes and repeated resumes. Every training boss and
-  starting phase uses the matching arena and finishes without a normal upgrade reward.
+- Choice snapshots keep the RNG through rerolls, banishes and repeated resumes.
 - The tablet flow uses touch for settings, movement, dash, pause/resume, card choice, offline reload,
   saved-run continuation, death recap and returning home. Death/wave completion are arranged through
   the simulation interface rather than waiting through whole fights. An import dialog survives a pending
   update during a simulated visibility change, and mouse/pen action events are ignored.
-  Startup health checks must report no failures, and settings changes must retain the drawing buffer.
+  Startup health checks must report no failures. Settings and repeated viewport notifications must retain
+  an unchanged drawing buffer; actual viewport changes must resize it.
 - The landscape phone flow holds both sticks and taps dash with a third finger, cancels the touches,
   then pauses/resumes. A gamepad API counter must stay at zero.
 - A fresh profile uses real touch through all four tutorial coaches and real WebAudio through pause,
   simulated backgrounding and resume. Kills are arranged through the simulation interface.
-- Training starts, wins, retries and loses through the real game/UI flow without changing the saved run,
-  currency, statistics or discoveries. The Codex archive retains old discoveries outside completion totals.
+- The simplified menu buys a workshop level, claims an achievement once, persists both across reload and
+  starts a run with the purchased benefit. Removed modes/Codex have no DOM or navigation targets.
+  Old challenge checkpoints resume as normal runs; discovery flags and mode configuration are discarded.
 - The worker fixture uses the real worker source with small pages. It installs A, rejects an incomplete
   release, installs B with the same product version/build but different content identity, activates B
   while the A page stays open, stops the server, fetches A's bundle offline, then reloads offline into B.
@@ -61,18 +65,25 @@ No arbitrary sleep is used to wait for gameplay. The runner terminates its proce
 
 ```sh
 # One biome on a phone with the 30 FPS cap, retaining High detail
-node tools/verify.js visual review land void 30
+node tools/verify.js visual review land core 30
 # Every biome on a tablet with the default 60 FPS cap
 node tools/verify.js visual review tablet all 60
 # Seven weapons, eight player turn/lean/recoil views, all 25 enemies, smoke/rockets and FPS controls
 node tools/verify.js equipment review
+# Every current boss attack, seven weapons and elemental traps
+node tools/verify.js combat review
+# Smaller phone capture: weapons, Overdrives and beam/trap skins
+node tools/verify.js combat review land phone-review
+# Recapture just the six biome boss portraits after model changes
+node tools/verify.js visual review tablet all 60 boss
 ```
 
 Arguments after `visual`: output tag, layout (`land`/`phone` or `tablet`), biome ID or `all`, FPS limit
 (`30`, `60`, `120`). Screenshots and metrics go to `verification-output/<tag>-<layout>-<fps>fps/`.
 All limits retain High detail, shadows and the full particle budget.
 Each biome has encounter, boss, warning/projectile and charge/sniper telegraph scenes. These are staged
-encounters, not a claim that every boss attack/phase has been visually reviewed.
+encounters. The combat review separately stages each unique current boss pattern, including the Core’s
+middle phase, Overdrives and close-ups of every boss. Node contracts exercise all normal/enraged phase combinations.
 The capture freezes the live loop after boot, advances twelve settling updates with only the final WebGL
 submission, and captures real pixels. FPS limits are pacing ceilings; the staged capture is not a sustained performance benchmark.
 Use a physical device for that.
@@ -86,7 +97,7 @@ backend flags. Software frame times are not mobile GPU benchmarks.
 
 PRs run `npm run check`. Pages runs the Node contracts and builds without downloading Chromium.
 Both normal jobs have a five-minute ceiling. The manual verification workflow runs the selected
-specialist check and uploads biome/equipment screenshots and metrics even after failures (seven-day retention).
+specialist check and uploads biome/equipment/combat screenshots and metrics even after failures (seven-day retention).
 
 Before release, play boss fights on a phone/tablet in landscape. Check warnings against bright ice/glass,
 multitouch ownership, speaker audibility, 30/60/120 FPS pacing and several minutes of heat/memory.

@@ -1,25 +1,5 @@
-// 3.10.0: how the attacks of enemies and bosses look. Until 3.9.0 every zone of `world.hazards` (the Warden's stomp, the
-// Crucible's hammer, slag rings and eruptions, the Frost Prism's nova and glaciers, the Hive Queen's plague, the Rift
-// Core's bombardments, mortar shells, minebot mines, sapper charges, burning and volatile ground) was the same red ring
-// around a flat red disc, every blast left the same black blob in every biome, and every enemy shot was a glowing ball.
-// Now each attack shows what it is:
-//   crack      the ground breaks: plates and seams that run out from the middle and glow (stomp, drill)
-//   lava crack the same with seams of lava (the Crucible's hammer)
-//   molten     a pool of lava wells up and grows (slag rings, eruptions, the Crucible's slag lobs)
-//   frost      frost creeps in from the rim, ice spikes burst up and shatter (frost nova, glacier)
-//   acid       acid wells up and bubbles (the Hive Queen's plague)
-//   rift       a violet tear that winds tighter and strikes as a bolt of light (the Rift Core's bombardments)
-//   target     a marker that turns, a sweep that counts down (mortar shells, mines and charges, which have models)
-//   burn       the ground smoulders and flickers (burning and volatile enemies)
-// The warning keeps the language of the game: the red ring at the edge of the danger (yellow with Clear warnings) and a
-// ring that fills it; the red tint of the old disc is part of every surface. What is left on the floor belongs to the
-// place: a blast leaves burnt wet asphalt in Blackout City, a melted star of frost in the
-// Aurora Shelf, a splash of peat in the Glowmarsh, charred crust over burning seams in the Ashfall Caldera, a glassy star
-// fused into the sand in the Glass Flats and a violet scar in the Shattered Core; slag cools to a crust, frost melts
-// away. All of it is a few instance pools, made when first needed: one shader draws every zone; the marks are painted
-// once per biome into an atlas and drawn as texture lookups (they are many and stay for seconds).
-
 import { worldMaterial } from "./world-material.js";
+import { attackSurface, BOSS_EFFECTS, ENEMY_EFFECTS } from "../data/combat-effects.js";
 import {
   CircleGeometry,
   Color,
@@ -31,6 +11,7 @@ import {
   WebGLRenderTarget,
   ConeGeometry,
   CylinderGeometry,
+  IcosahedronGeometry,
   MeshBasicMaterial,
   OctahedronGeometry,
   ShaderMaterial,
@@ -47,7 +28,7 @@ const WHITE = new Color(0xffffff),
   LAVA = new Color(0xff6a1f),
   LAVA_HOT = new Color(0xffd27a),
   ICE = new Color(0xbff0ff),
-  // 3.50.0: the Glowmarsh's bloom (was the Toxin Marsh's bile green)
+  // 3.50.0: the Glowmarsh's bloom
   ACID = new Color(0x3ee8ac),
   ACID_LITE = new Color(0xbaffdc),
   RIFT = new Color(0xb070ff),
@@ -55,24 +36,15 @@ const WHITE = new Color(0xffffff),
   FIRE = new Color(0xff8a2a),
   FIRE_HOT = new Color(0xffd27a),
   SMOKE = new Color(0x4a4440),
-  // the enemy shots: the hot core and the halo of each kind (the danger stays red to pink, the Prism's ice and the
-  // Crucible's slag keep their own colours)
   SHOT = {
     orb: new Color(0xff3f7f),
+    bolt: new Color(0xff8063),
     fast: new Color(0xff2e2a),
-    shard: new Color(0x8fe8ff),
-    slag: new Color(0xff7a2a),
     turret: new Color(0xff3a5a),
     drone: new Color(0xff4f9a),
     weaver: new Color(0xd04dff),
     carrier: new Color(0xff5a6a),
-    // 3.16.0: the bosses' own shots: the Warden's siren slugs flash red and blue, the Hive Queen's spores glow mint
-    // (3.50.0, was toxic green), the Rift Core's rings violet
-    siren: new Color(0xff3346),
-    spore: new Color(0x52f0b8),
-    riftorb: new Color(0xb070ff),
-    // 3.56.0: the Glasswyrm's hot glass slivers
-    glass: new Color(0xffd98a),
+    ...Object.fromEntries(Object.values(BOSS_EFFECTS).map((effect) => [effect.projectile, new Color(effect.color)])),
   },
   SIREN_BLUE = new Color(0x3d7bff),
   // 3.34.0: the current of a Shorted enemy (the cold blue-white of Blackout City's live manholes)
@@ -83,55 +55,27 @@ const WHITE = new Color(0xffffff),
 
 // the dust of each biome (stomps and cracks throw it), the index of its marks in the shader
 const DUST = {
-    yard: new Color(0x6a7280),
-    vault: new Color(0xdff6ff),
+    city: new Color(0x6a7280),
+    shelf: new Color(0xdff6ff),
     marsh: new Color(0x2f3830),
-    void: new Color(0x5a3a90),
+    core: new Color(0x5a3a90),
     // 3.49.0: the Ashfall Caldera: warm ash dust
-    club: new Color(0x7a6c5e),
+    caldera: new Color(0x7a6c5e),
     // 3.53.0: the Glass Flats: pale sand
     flats: new Color(0xd8c8a8),
   },
-  // 3.49.0: the atlas slot 1 was the Ember Works' glowing-cracks mark; the index stays for the
-  // atlas layout (the marks are painted by index, the empty slot costs nothing)
-  BIOME_INDEX = { yard: 0, vault: 2, marsh: 3, void: 4, club: 5, flats: 6 };
+  BIOME_INDEX = { city: 0, shelf: 2, marsh: 3, core: 4, caldera: 5, flats: 6 };
 
 /* the look of a zone (index into the zone shader) */
-const Z = { crack: 0, lavaCrack: 1, molten: 2, frost: 3, acid: 4, rift: 5, target: 6, burn: 7 };
+const Z = { crack: 0, lavaCrack: 1, molten: 2, frost: 3, acid: 4, rift: 5, target: 6, burn: 7, glass: 8 };
 /* the marks on the floor (index into the mark shader) and how long each stays */
-const M = { burn: 0, crack: 1, slag: 2, frost: 3, slime: 4, rift: 5 },
+const M = { burn: 0, crack: 1, molten: 2, frost: 3, slime: 4, rift: 5 },
   MARK_LIFE = [7, 6, 8, 5, 6, 5];
 
 /* which look a zone has: by its kind, and where the kind is shared (rain, mortar, stomp) by who made it, else by the
    biome; 3.32.0: a zone that chills (a Frost mortar's shell) is frost whatever its kind */
 function lookOf(kind, src, biome, chill) {
-  if (chill) return Z.frost;
-  switch (kind) {
-    case "stomp":
-      return src === "forge" ? Z.lavaCrack : Z.crack;
-    case "drill":
-    case "shorted":
-      return Z.crack;
-    case "slag":
-      return Z.molten;
-    case "frost":
-    case "glacier":
-      return Z.frost;
-    case "fire":
-    case "volatile":
-      return Z.burn;
-    case "mortar":
-      return src === "forge" ? Z.molten : Z.target;
-    case "rain":
-      if (src === "forge") return Z.molten;
-      if (src === "queen") return Z.acid;
-      if (src === "core") return Z.rift;
-      // 3.49.0: the Ash Tyrant's molotovs burst into fire
-      if (src === "kingpin") return Z.burn;
-      return biome === "marsh" ? Z.acid : biome === "void" ? Z.rift : Z.target;
-    default:
-      return Z.target;
-  }
+  return Z[attackSurface(kind, src, biome, chill)];
 }
 
 /* ---------- shaders: a disc of radius 1; instance colour r the level (zone: how far the warning is, mark: how much
@@ -201,11 +145,11 @@ ${LAYERS}void main() {
     // acid: it wells up and spreads, bubbles come faster
     float pr = (0.15 + 0.85 * k) * (0.88 + 0.14 * vnoise(vec2(a * 3.0 + seed, uTime * 0.3)));
     float murk = fbm(q * 1.2 + uTime * 0.1);
-    vec3 col = mix(vec3(0.06, 0.16, 0.02), vec3(0.4, 0.75, 0.12), murk * 0.7);
+    vec3 col = mix(vec3(0.015, 0.11, 0.075), vec3(0.12, 0.58, 0.39), murk * 0.7);
     vec2 bc = floor(q * 2.0), bf = fract(q * 2.0) - 0.5;
     float bt = fract(uTime * (0.6 + 1.6 * k) + h21(bc) * 5.0);
-    col += vec3(0.75, 1.0, 0.4) * step(0.45, h21(bc + 2.0)) * smoothstep(0.04, 0.0, abs(length(bf) - bt * 0.32)) * (1.0 - bt);
-    col = mix(col, vec3(0.75, 0.95, 0.4), smoothstep(pr - 0.12, pr - 0.02, r) * 0.6);
+    col += vec3(0.4, 1.0, 0.72) * step(0.45, h21(bc + 2.0)) * smoothstep(0.04, 0.0, abs(length(bf) - bt * 0.32)) * (1.0 - bt);
+    col = mix(col, vec3(0.35, 0.9, 0.64), smoothstep(pr - 0.12, pr - 0.02, r) * 0.6);
     lay(col, smoothstep(pr, pr - 0.03, r) * 0.9);
   } else if (look == 5) {
     // rift: arms of light wind in tighter and faster, a dark core opens
@@ -228,6 +172,15 @@ ${LAYERS}void main() {
     lay(uWarn * 0.8, sweep * 0.22);
     lay(mix(uWarn, vec3(1.0), 0.35) * 1.3, clamp(rings + ticks, 0.0, 1.0) * (0.55 + 0.4 * k));
     lay(vec3(1.0, 0.9, 0.85), smoothstep(0.07, 0.03, r) * (0.5 + 0.5 * k));
+  } else if (look == 8) {
+    // Living fused glass bends the noon light; warm facets and sand replace an icy/ordinary stomp.
+    vec3 cell=voro(q*2.0+seed);
+    float glint=pow(max(0.0,sin(cell.z*31.0+uTime*2.0)),14.0);
+    float fracture=cracks(r,a,seed,.25+k*.8);
+    vec3 glass=mix(vec3(.22,.16,.08),vec3(.72,.57,.31),cell.z);
+    lay(glass,(.25+.4*k)*smoothstep(1.0,.65,r));
+    lay(vec3(1.0,.76,.35),fracture*(.3+.6*k));
+    lay(vec3(1.0,.95,.75),glint*.45*smoothstep(.85,.2,r));
   } else {
     // burn: the ground smoulders; flames lick over it, more as it nears
     float n = fbm(vec2(vP.x * 3.0 + seed, vP.y * 3.0 - uTime * 1.6));
@@ -267,7 +220,6 @@ ${LAYERS}void main() {
       float ember = step(0.9, h21(ec)) * smoothstep(0.22, 0.05, length(ef));
       lay(vec3(1.0, 0.4, 0.08) * 1.5, ember * smoothstep(0.7, 0.0, t) * f * f * f);
     } else if (b == 1) {
-      // Ember Works: char with cracks that glow and cool
       lay(vec3(0.015, 0.008, 0.005), ch * 0.9);
       vec3 v = voro(q * 1.6);
       float seam = smoothstep(0.06, 0.0, v.y) * smoothstep(1.0, 0.2, t);
@@ -309,7 +261,7 @@ ${LAYERS}void main() {
     lay(vec3(0.4, 0.38, 0.36), smoothstep(0.05, 0.4, c) * 0.25 * smoothstep(1.0, 0.5, t));
     lay(vec3(0.0), smoothstep(0.3, 0.8, c) * 0.9);
   } else if (look == 2) {
-    // slag: the lava cools from orange to a black crust
+    // Molten rock cools from orange to a black crust.
     vec3 v = voro(q * 1.3);
     vec3 hot = mix(vec3(0.7, 0.08, 0.0), vec3(1.0, 0.5, 0.1), fbm(q * 2.0)) * (0.3 + 1.2 * f * f);
     float crust = smoothstep(0.04, 0.12, v.y) * (1.0 - 0.6 * f * f);
@@ -422,7 +374,40 @@ const MODELS = {
     return { body: [meshPart(geo, 0xd8f4ff)] };
   },
   // enemy shots: a crystal (the Prism's shards, the weaver's), a dart (needles and homing pods), both along +x
-  crystal: () => ({ glow: [meshPart(new OctahedronGeometry(1), 0xffffff, { sx: 1.9, sy: 0.7, sz: 0.7 })] }),
+  crystal: () => ({
+    body: [meshPart(new OctahedronGeometry(1), 0xa9d9e2, { sx: 1.9, sy: 0.7, sz: 0.7 })],
+    glow: [meshPart(new OctahedronGeometry(1), 0xffffff, { sx: 1.65, sy: 0.15, sz: 0.15 })],
+  }),
+  cinder: () => ({
+    body: [meshPart(new IcosahedronGeometry(1, 1), 0x473c34, { sx: 1.4, sy: 0.85, sz: 0.85 })],
+    glow: [
+      box(0xffffff, 0.9, 0.055, 0.1, { x: 0.2, y: 0.74, rz: 0.2 }),
+      box(0xffffff, 0.45, 0.08, 0.055, { x: -0.3, y: -0.3, z: 0.73, rz: -0.5 }),
+      meshPart(new OctahedronGeometry(0.28), 0xffffff, { x: 1.15, sx: 1.4, sy: 0.7 }),
+    ],
+  }),
+  glasshot: () => ({
+    body: [meshPart(new OctahedronGeometry(1), 0xc1b18c, { sx: 2.1, sy: 0.42, sz: 0.7, rx: 0.24 })],
+    glow: [box(0xffffff, 2.9, 0.035, 0.04)],
+  }),
+  weavershot: () => ({
+    glow: [
+      meshPart(new TorusGeometry(0.65, 0.07, 4, 14, Math.PI * 1.5), 0xffffff, { ry: Math.PI / 2, sx: 1.3 }),
+      meshPart(new TorusGeometry(0.4, 0.055, 4, 12, Math.PI * 1.45), 0xffffff, { ry: Math.PI / 2, rz: Math.PI }),
+    ],
+  }),
+  pod: () => ({
+    body: [
+      meshPart(new SphereGeometry(1, 12, 8), 0x4c6269, { sx: 1.2, sy: 0.7, sz: 0.7 }),
+      ...[-1, 1].map((s) =>
+        meshPart(new ConeGeometry(0.23, 0.9, 7), 0x3b4e5b, { x: -0.75, z: s * 0.5, rz: Math.PI / 3 }),
+      ),
+    ],
+    glow: [
+      meshPart(new SphereGeometry(0.2, 10, 6), 0xffffff, { x: 0.9, sx: 1.5, sy: 0.5 }),
+      ...[-1, 1].map((s) => box(0xffffff, 0.55, 0.04, 0.04, { x: -0.15, z: s * 0.65 })),
+    ],
+  }),
   dart: () => ({
     glow: [
       meshPart(new ConeGeometry(0.5, 1.6, 6), 0xffffff, { rz: -Math.PI / 2 }),
@@ -440,8 +425,8 @@ const MODELS = {
     ],
   }),
   spore: () => ({
+    body: [meshPart(new SphereGeometry(0.68, 12, 8), 0x365d49)],
     glow: [
-      meshPart(new SphereGeometry(0.62, 8, 6), 0xffffff),
       ...[0, 1, 2, 3, 4, 5].map((i) =>
         meshPart(new ConeGeometry(0.16, 0.5, 4), 0xffffff, {
           x: Math.cos(i * 1.047) * 0.66,
@@ -464,11 +449,15 @@ const MAX = {
   charge: 16,
   shell: 24,
   spike: 160,
-  crystal: 160,
-  dart: 120,
-  slug: 120,
-  spore: 120,
-  ringshot: 120,
+  crystal: 360,
+  dart: 360,
+  slug: 360,
+  spore: 360,
+  ringshot: 360,
+  cinder: 360,
+  glasshot: 900,
+  weavershot: 360,
+  pod: 360,
 };
 
 class AttackView {
@@ -505,7 +494,15 @@ class AttackView {
             glow
               ? new MeshBasicMaterial({ toneMapped: false, vertexColors: true })
               : worldMaterial({
-                  surface: name === "spore" ? "organic" : name === "spike" ? "ice" : "metal",
+                  surface:
+                    {
+                      spore: "organic",
+                      pod: "organic",
+                      spike: "ice",
+                      crystal: "ice",
+                      cinder: "basalt",
+                      glasshot: "crystal",
+                    }[name] || "metal",
                   vertexColors: true,
                   flatShading: true,
                 }),
@@ -594,7 +591,7 @@ class AttackView {
     this.marks.push({ x, z, r: radius, look, life, max: life, a: Math.random() * TAU, seed: Math.random() });
   }
   biomeId() {
-    return (this.r.biome && this.r.biome.id) || "yard";
+    return (this.r.biome && this.r.biome.id) || "city";
   }
   update(dt, world) {
     const r = this.r,
@@ -636,7 +633,7 @@ class AttackView {
     this.marks.length = keep;
   }
   /* the zones of world.hazards while they warn: the ring at the edge, the ring that fills, the surface of the look,
-     the models of mines and charges, the shell or the slag in flight */
+     the models of mines and charges, the mortar shell or basalt cinder in flight */
   drawZones(dt, world) {
     const r = this.r,
       time = r.time,
@@ -683,7 +680,6 @@ class AttackView {
         blink = Math.sin(time * (8 + 50 * k * k)) > 0 ? 1.4 : 0.25;
       P.glow.colC(led, r.warnColor, blink);
     }
-    // in flight: a mortar shell turning along its arc, or a lump of slag (the Crucible) with a trail of embers
     if (hazard.sx != null) {
       const hx = hazard.sx + (x - hazard.sx) * k,
         hz = hazard.sy + (z - hazard.sy) * k,
@@ -692,17 +688,12 @@ class AttackView {
         pitch = Math.atan2(7 * Math.PI * Math.cos(Math.PI * k), dist),
         yaw = Math.atan2(z - hazard.sy, x - hazard.sx);
       r.shadows.y(hx, 0.025, hz, 0, 0.9 * (0.4 + 0.6 * k));
-      if (look === Z.molten) {
-        const flick = 0.9 + Math.sin(time * 30 + seed * 9) * 0.1,
-          core = r.ebCore.y(hx, hy, hz, 0, 0.32 * flick);
-        r.ebCore.col(core, 1, 0.6, 0.25);
-        r.sprites.colC(r.sprites.bb(hx, hy, hz, 2, r.B), LAVA, 0.9);
-        if (Math.random() < 0.6)
-          r.emit(hx, hy, hz, (Math.random() - 0.5) * 1.5, -0.5, (Math.random() - 0.5) * 1.5, 0.5, 0.22, FIRE_HOT, {
-            drag: 1,
-            grav: 4,
-            spark: true,
-          });
+      if (hazard.src === "tyrant") {
+        const P = this.get("cinder"),
+          size = 0.34;
+        P.body.col(P.body.yr(hx, hy, hz, yaw, size, size, size, pitch, time * 4), 1, 1, 1);
+        P.glow.colC(P.glow.yr(hx, hy, hz, yaw, size, size, size, pitch, time * 4), FIRE, 1.1);
+        if (chance(10)) r.emit(hx, hy, hz, 0, 0.3, 0, 0.4, 0.1, FIRE_HOT, { grav: 3, spark: true });
       } else {
         // 3.32.0: a Frost mortar's shell glows icy and trails frost mist instead of smoke
         const P = this.get("shell"),
@@ -742,6 +733,22 @@ class AttackView {
         });
     }
     switch (look) {
+      case Z.glass: {
+        const P = this.get("glasshot");
+        for (let i = 0; i < 6; i++) {
+          const a = seed * TAU + (i * TAU) / 6,
+            d = rr * (0.28 + 0.07 * (i % 3)),
+            s = (0.08 + k * 0.14) * rr;
+          P.body.col(
+            P.body.yr(x + Math.cos(a) * d, 0.03 + k * 0.12, z + Math.sin(a) * d, a, s, s, s, 0.55 + k * 0.45, 0),
+            1,
+            1,
+            1,
+          );
+        }
+        if (chance(10 * k)) r.emit(x, 0.12, z, 0, 0.5, 0, 0.35, 0.08, SHOT.glass, { spark: true, drag: 2 });
+        break;
+      }
       case Z.lavaCrack:
       case Z.molten:
         if (chance(6 + 30 * k))
@@ -763,7 +770,7 @@ class AttackView {
         if (k > 0.5 && chance(20 * k)) {
           const a = Math.random() * TAU,
             d = Math.random() * rr * k;
-          r.emit(x + Math.cos(a) * d, 0.1, z + Math.sin(a) * d, 0, 0.8, 0, 0.5, 0.25, DUST[biome] || DUST.yard, {
+          r.emit(x + Math.cos(a) * d, 0.1, z + Math.sin(a) * d, 0, 0.8, 0, 0.5, 0.25, DUST[biome] || DUST.city, {
             drag: 2,
             grow: 1,
           });
@@ -898,14 +905,13 @@ class AttackView {
       z = ev.y,
       rr = ev.r,
       biome = world && world.arena ? world.arena.biome.id : this.biomeId(),
-      dust = DUST[biome] || DUST.yard,
+      dust = DUST[biome] || DUST.city,
       kind = ev.kind,
       look = kind === "bomber" ? Z.target : lookOf(kind, ev.src, biome, ev.chill);
     if (
       ![
         "stomp",
         "drill",
-        "slag",
         "rain",
         "mortar",
         "frost",
@@ -931,6 +937,15 @@ class AttackView {
       return true;
     }
     switch (look) {
+      case Z.glass:
+        r.burst(x, z, 0.2, Math.round(10 + rr * 4), 3 + rr, DUST.flats, 0.55, 0.2, { up: 2, drag: 3 });
+        r.burst(x, z, 0.4, Math.round(9 + rr * 3), 4 + rr, SHOT.glass, 0.4, 0.11, { up: 4, grav: 8, spark: true });
+        r.debrisBurst(x, z, 0.25, Math.round(5 + rr * 2), SHOT.glass, 0.1, 4 + rr);
+        r.ring(x, z, 0.2, rr * 1.1, SHOT.glass, 0.3);
+        r.flash(x, z, rr * 1.5, 0.7, SHOT.glass, 5);
+        this.mark(x, z, rr * 0.9, M.crack);
+        shake(0.18);
+        break;
       case Z.crack:
       case Z.lavaCrack: {
         // the ground breaks: a white shockwave, dust thrown along the floor, lumps of it in the air
@@ -971,13 +986,13 @@ class AttackView {
         break;
       }
       case Z.molten: {
-        // a pillar of fire, lava thrown up, a puddle of slag that cools
+        // a pillar of fire, lava thrown up, and molten rock that cools
         this.pillar(x, z, rr * 0.45, 2.5 + rr * 1.6, LAVA, 0.5);
         r.burst(x, z, 0.3, Math.round(10 + rr * 6), 3 + rr * 1.5, LAVA, 0.8, 0.45, { up: 7, grav: 9, drag: 1.5 });
         r.burst(x, z, 0.3, 8, 3, LAVA_HOT, 0.5, 0.3, { up: 9, spark: true });
         r.ring(x, z, rr * 0.3, rr * 1.2, LAVA, 0.35);
         r.flash(x, z, rr * 2.6, 1.2, LAVA, 3.5);
-        this.mark(x, z, rr * 0.95, M.slag);
+        this.mark(x, z, rr * 0.95, M.molten);
         shake(kind === "mortar" ? 0.2 : 0.12);
         break;
       }
@@ -1048,168 +1063,131 @@ class AttackView {
     return true;
   }
   /* the shots of enemies and bosses, each kind with a shape of its own */
-  shots(world) {
+  shots(world, dt = 1 / 60) {
     const r = this.r,
       time = r.time,
       basis = r.B;
     for (const shot of world.eb) {
+      if (shot.life <= 0) continue;
+      const launch = BOSS_EFFECTS[shot.src]?.height || ENEMY_EFFECTS[shot.src]?.height || 0.85,
+        h = 1.05 + (launch - 1.05) * Math.exp(-shot.age * 6);
       const kind = shot.kind,
         color = shot.frost ? FROST_SHOT : SHOT[kind] || SHOT.orb,
-        angle = Math.atan2(shot.vy, shot.vx);
-      // A dark footprint separates hostile shots from bright or similarly coloured terrain.
-      // Reuse the existing shadow pool; no extra material, draw call, or particle emitter.
-      r.shadows.y(shot.x, 0.035, shot.y, 0, Math.max(0.5, shot.r * 4.5));
+        angle = Math.atan2(shot.vy, shot.vx),
+        ca = Math.cos(angle),
+        sa = Math.sin(angle),
+        chance = (rate) => Math.random() < dt * rate;
+      r.shadows.y(shot.x, 0.035, shot.y, 0, Math.max(0.45, shot.r * 3.5));
+      let halo = 3.8,
+        light = 0.38;
       switch (kind) {
+        case "bolt":
         case "fast":
         case "turret": {
-          // a tracer; the turret's is heavier and throws sparks
           const heavy = kind === "turret",
-            core = r.ebCore.y(
-              shot.x,
-              0.75,
-              shot.y,
-              angle,
-              shot.r * (heavy ? 4 : 5),
-              shot.r * (heavy ? 1.1 : 0.8),
-              shot.r * (heavy ? 1.1 : 0.8),
-            );
-          r.ebCore.col(core, 1, 0.75, 0.75);
-          if (heavy && Math.random() < 0.3)
-            r.emit(shot.x, 0.75, shot.y, (Math.random() - 0.5) * 2, 0.5, (Math.random() - 0.5) * 2, 0.2, 0.2, color, {
+            len = shot.r * (kind === "fast" ? 6 : heavy ? 3.8 : 3);
+          r.ebCore.col(r.ebCore.y(shot.x, h, shot.y, angle, len, shot.r * 0.5, shot.r * 0.5), 1, 0.8, 0.72);
+          r.beams.colC(
+            r.beams.seg(shot.x - ca * len, shot.y - sa * len, shot.x, shot.y, h, heavy ? 0.08 : 0.035, 0.04),
+            color,
+            0.8,
+          );
+          if (heavy && chance(7)) r.emit(shot.x, h, shot.y, 0, 0.3, 0, 0.16, 0.09, color, { spark: true, drag: 5 });
+          break;
+        }
+        case "shard": {
+          const P = this.get("crystal"),
+            s = shot.r * 1.4,
+            roll = time * 5 + shot.x;
+          P.body.col(P.body.yr(shot.x, h, shot.y, angle, s, s, s, 0, roll), 1, 1, 1);
+          P.glow.colC(P.glow.yr(shot.x, h, shot.y, angle, s, s, s, 0, roll), ICE, 0.9);
+          break;
+        }
+        case "weaver": {
+          const P = this.get("weavershot"),
+            s = shot.r * 1.3;
+          P.glow.colC(P.glow.yr(shot.x, h, shot.y, angle, s, s, s, 0, time * 8), color, 1.1);
+          halo = 3;
+          break;
+        }
+        case "drone": {
+          const P = this.get("dart"),
+            s = shot.r * 1.2;
+          P.glow.colC(P.glow.y(shot.x, h, shot.y, angle, s, s, s), color, 0.85);
+          break;
+        }
+        case "carrier": {
+          const P = this.get("pod"),
+            s = shot.r * 1.3;
+          P.body.col(P.body.yr(shot.x, h, shot.y, angle, s, s, s, 0, Math.sin(time * 5 + shot.x) * 0.2), 1, 1, 1);
+          P.glow.colC(P.glow.y(shot.x, h, shot.y, angle, s), color, 1);
+          if (chance(6))
+            r.emit(shot.x - ca * 0.3, h - 0.08, shot.y - sa * 0.3, 0, -0.2, 0, 0.3, 0.12, color, { grav: 2 });
+          break;
+        }
+        case "cinder": {
+          const P = this.get("cinder"),
+            s = shot.r * 1.35,
+            roll = time * 3 + shot.x;
+          P.body.col(P.body.yr(shot.x, h, shot.y, angle, s, s, s, 0, roll), 1, 1, 1);
+          P.glow.colC(P.glow.yr(shot.x, h, shot.y, angle, s, s, s, 0, roll), FIRE, 1.15);
+          if (chance(8))
+            r.emit(shot.x - ca * 0.25, h - 0.04, shot.y - sa * 0.25, 0, 0.35, 0, 0.4, 0.08, FIRE_HOT, {
+              grav: 3,
               spark: true,
             });
-          break;
-        }
-        case "shard":
-        case "weaver": {
-          // a crystal that spins along its path (the Prism's ice, the weaver's rift shards)
-          const P = this.get("crystal"),
-            s = shot.r * (kind === "shard" ? 1.5 : 1.2),
-            idx = P.glow.yr(shot.x, 0.75, shot.y, angle, s, s, s, 0, time * 9 + shot.x);
-          P.glow.col(idx, 0.6 + color.r * 0.5, 0.6 + color.g * 0.5, 0.6 + color.b * 0.5);
-          break;
-        }
-        case "drone":
-        case "carrier": {
-          // a needle or a homing pod: a dart along its path with a short trail
-          const P = this.get("dart"),
-            s = shot.r * (kind === "carrier" ? 1.6 : 1.2),
-            idx = P.glow.y(shot.x, 0.75, shot.y, angle, s);
-          P.glow.col(idx, 0.6 + color.r * 0.5, 0.6 + color.g * 0.5, 0.6 + color.b * 0.5);
-          if (Math.random() < 0.5)
-            r.emit(shot.x - shot.vx * 0.02, 0.75, shot.y - shot.vy * 0.02, 0, 0, 0, 0.18, shot.r * 2.2, color, {
-              drag: 0,
-            });
-          break;
-        }
-        case "slag": {
-          // a lump of molten slag that flickers and drips embers
-          const flick = 1 + Math.sin(time * 26 + shot.x * 3) * 0.1,
-            core = r.ebCore.y(shot.x, 0.75, shot.y, angle, shot.r * 1.05 * flick, shot.r * 0.9, shot.r * 0.9);
-          r.ebCore.col(core, 1, 0.62, 0.3);
-          if (Math.random() < 0.4)
-            r.emit(
-              shot.x,
-              0.7,
-              shot.y,
-              (Math.random() - 0.5) * 1.2,
-              0.2,
-              (Math.random() - 0.5) * 1.2,
-              0.4,
-              0.18,
-              FIRE_HOT,
-              {
-                grav: 5,
-                spark: true,
-              },
-            );
+          halo = 3.3;
+          light = 0.25;
           break;
         }
         case "siren": {
-          // the Warden's slug: it flashes red and blue like the lights of a patrol car (each slug on its own beat)
           const P = this.get("slug"),
             blue = Math.sin(time * 18 + (shot.x + shot.y) * 0.7) > 0,
-            light = blue ? SIREN_BLUE : color,
+            col = blue ? SIREN_BLUE : color,
             s = shot.r * 0.9;
-          P.body.y(shot.x, 0.75, shot.y, angle, s);
-          P.glow.col(
-            P.glow.y(shot.x, 0.75, shot.y, angle, s),
-            0.55 + light.r * 0.6,
-            0.55 + light.g * 0.6,
-            0.55 + light.b * 0.6,
-          );
-          r.sprites.colC(r.sprites.bb(shot.x, 0.75, shot.y, shot.r * 7, basis), light, 0.95);
+          P.body.y(shot.x, h, shot.y, angle, s);
+          P.glow.colC(P.glow.y(shot.x, h, shot.y, angle, s), col, 0.95);
+          r.sprites.colC(r.sprites.bb(shot.x, h, shot.y, shot.r * 3.8, basis), col, 0.45);
           continue;
         }
         case "spore": {
-          // the Hive Queen's spore: a thorny ball that wobbles and drips glowing motes
           const P = this.get("spore"),
-            wob = 1 + Math.sin(time * 16 + shot.x * 2) * 0.12,
-            s = shot.r * 1.1;
-          P.glow.col(
-            P.glow.yr(shot.x, 0.75, shot.y, time * 3 + shot.y, s * wob, s / wob, s * wob, time * 2, 0),
-            0.55 + color.r * 0.5,
-            0.6 + color.g * 0.45,
-            0.4 + color.b * 0.4,
-          );
-          if (Math.random() < 0.25) r.emit(shot.x, 0.7, shot.y, 0, -0.4, 0, 0.5, 0.14, ACID_LITE, { grav: 3, drag: 1 });
+            s = shot.r * 1.2,
+            roll = time * 2 + shot.x;
+          P.body.col(P.body.yr(shot.x, h, shot.y, angle, s, s, s, 0, roll), 1, 1, 1);
+          P.glow.colC(P.glow.yr(shot.x, h, shot.y, angle, s, s, s, 0, roll), color, 0.85);
+          if (chance(5)) r.emit(shot.x, h - 0.08, shot.y, 0, -0.3, 0, 0.45, 0.1, ACID_LITE, { grav: 3, drag: 1 });
           break;
         }
         case "riftorb": {
-          // the Rift Core's ring: an upright violet ring that spins around a bright core, a cyan rim of light
           const P = this.get("ringshot"),
             s = shot.r * 0.95;
-          P.glow.col(
-            P.glow.yr(shot.x, 0.8, shot.y, angle + Math.PI / 2, s, s, s, 0, time * 7 + shot.x),
-            0.6 + color.r * 0.5,
-            0.55 + color.g * 0.5,
-            0.7 + color.b * 0.3,
-          );
-          r.sprites.colC(r.sprites.bb(shot.x, 0.8, shot.y, shot.r * 4, basis), RIFT_RIM_SHOT, 0.5);
+          P.glow.colC(P.glow.yr(shot.x, h, shot.y, angle + Math.PI / 2, s, s, s, 0, time * 7 + shot.x), color, 0.9);
+          r.sprites.colC(r.sprites.bb(shot.x, h, shot.y, shot.r * 2.5, basis), RIFT_RIM_SHOT, 0.3);
           break;
         }
         case "glass": {
-          // 3.56.0: the Glasswyrm's sliver: a hot glass shard that flies point-first and sheds a grain of light
-          const P = this.get("dart"),
-            s = shot.r * 1.5,
-            idx = P.glow.y(shot.x, 0.75, shot.y, angle, s);
-          P.glow.col(idx, 1.15, 0.98, 0.6);
-          if (Math.random() < 0.4)
-            r.emit(shot.x - shot.vx * 0.02, 0.75, shot.y - shot.vy * 0.02, 0, 0, 0, 0.2, shot.r * 2, color, {
-              drag: 0,
-            });
+          const P = this.get("glasshot"),
+            s = shot.r * 1.2,
+            roll = Math.sin(time * 4 + shot.x) * 0.15;
+          P.body.col(P.body.yr(shot.x, h, shot.y, angle, s, s, s, 0, roll), 1, 1, 1);
+          P.glow.colC(P.glow.yr(shot.x, h, shot.y, angle, s, s, s, 0, roll), color, 1.1);
+          if (chance(6))
+            r.emit(shot.x - ca * 0.3, h, shot.y - sa * 0.3, 0, 0, 0, 0.18, 0.07, color, { spark: true, drag: 0 });
+          halo = 3;
+          light = 0.3;
           break;
         }
-        default: {
-          const pulse = 1 + Math.sin(time * 14 + shot.x) * 0.08,
-            core = r.ebCore.y(shot.x, 0.75, shot.y, 0, shot.r * 0.85 * pulse);
-          r.ebCore.col(core, 1, 0.82 + color.g * 0.2, 0.9 + color.b * 0.1);
-        }
+        default:
+          r.ebCore.colC(r.ebCore.y(shot.x, h, shot.y, 0, shot.r * 0.8), color, 1);
       }
-      if (shot.frost) {
-        // 3.33.0: a Frost shot carries a spinning shell of ice and sheds frost mist, so the slow it brings is seen
-        // before it hits
+      if (shot.frost && kind !== "shard") {
         const P = this.get("crystal"),
-          s = shot.r * 1.25;
-        P.glow.col(P.glow.yr(shot.x, 0.75, shot.y, angle, s, s, s, 0, time * 11 + shot.y), 0.75, 0.95, 1.1);
-        if (Math.random() < 0.5)
-          r.emit(
-            shot.x,
-            0.75,
-            shot.y,
-            (Math.random() - 0.5) * 0.4,
-            -0.3,
-            (Math.random() - 0.5) * 0.4,
-            0.45,
-            0.16,
-            ICE,
-            {
-              drag: 2,
-            },
-          );
+          s = shot.r * 1.05;
+        P.glow.col(P.glow.yr(shot.x, h, shot.y, angle, s, s, s, 0, time * 9), 0.75, 0.95, 1.1);
+        if (chance(7)) r.emit(shot.x, h, shot.y, 0, -0.2, 0, 0.3, 0.1, ICE, { drag: 2 });
       }
-      const halo = r.sprites.bb(shot.x, 0.75, shot.y, shot.r * 7.5, basis);
-      r.sprites.colC(halo, color, 0.95);
+      r.sprites.colC(r.sprites.bb(shot.x, h, shot.y, shot.r * halo, basis), color, light);
     }
   }
 }

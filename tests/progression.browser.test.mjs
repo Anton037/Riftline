@@ -1,4 +1,4 @@
-// First-run onboarding/audio and isolated practice use the same touch-only paths as a player.
+// Onboarding, core progression and the simplified menu use real touch paths.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { openGame } from "./support/game.mjs";
@@ -67,66 +67,36 @@ test(
   },
 );
 
-test("training and the Codex archive preserve real progress and a resumable run", { timeout }, async (t) => {
+test("the focused menu keeps workshop upgrades and achievement rewards working", { timeout }, async (t) => {
   const { page, press, errors } = await openGame(t, false);
-  const before = await page.evaluate(() => {
-    const { store, ui, World } = window.__riftTest;
-    const w = new World({ seed: 731, weapon: "pulse", threat: 0, ws: {} });
-    w.startWave(2);
-    store.data.run = w.snapshot();
-    store.data.shards = 1234;
-    store.data.stats.runs = 4;
-    store.save("fixture");
-    ui.renderHome();
-    return { run: store.data.run, stats: store.data.stats, seen: store.data.seen, shards: store.data.shards };
-  });
-  assert.match(await page.locator("#continueNote").textContent(), /beginning/);
-  await press('[data-go="training"]');
-  assert.equal(await page.locator("[data-practice]").count(), 6);
-  await page.locator("#trainingPhase").selectOption("enraged");
-  await press('[data-practice="marsh"]');
-  await page.waitForFunction(() => window.__riftTest.game.world?.boss?.type === "queen");
-  await page.waitForFunction(() => document.getElementById("waveLabel").textContent === "TRAINING");
-  assert.equal(await page.locator("#waveLabel").textContent(), "TRAINING");
-  await press("#pauseBtn");
-  await press("#resumeBtn");
-  await page.evaluate(() => {
-    const w = window.__riftTest.game.world;
-    w.killEnemy(w.boss);
-    w.waveT = 2;
-  });
-  await page.waitForFunction(() => !document.getElementById("over").hidden);
-  assert.equal(await page.locator("#overTitle").textContent(), "TRAINING CLEAR");
-  assert.equal(await page.locator(".payout").isVisible(), false);
-  await press("#retryBtn");
-  await page.waitForFunction(() => window.__riftTest.game.world?.boss?.type === "queen");
-  await page.evaluate(() => {
-    const w = window.__riftTest.game.world;
-    w.player.shield = false;
-    w.player.iT = 0;
-    w.player.dashT = 0;
-    w.hurtPlayer(99999, null, null, "queen", true);
-  });
-  await page.waitForFunction(() => !document.getElementById("over").hidden);
-  await press("#homeBtn");
-  await press("#training [data-back]");
-  const after = await page.evaluate(() => {
-    const data = JSON.parse(localStorage.getItem("riftline.save.v1"));
-    return { run: data.run, stats: data.stats, seen: data.seen, shards: data.shards };
-  });
-  assert.deepEqual(after, before);
-  await press('[data-go="records"]');
-  await press('[data-rtab="codex"]');
-  assert.equal(await page.locator('[data-cx="boss_forge"]').count(), 0);
-  assert.match(await page.locator("#codexList").textContent(), /Bosses 0\/6/);
+  assert.deepEqual(await page.locator(".bottom-nav [data-go]").evaluateAll((nodes) => nodes.map((n) => n.dataset.go)), [
+    "workshop",
+    "records",
+    "news",
+    "settings",
+  ]);
+  assert.equal(await page.locator("#daily, #pacts, #training, #codexList, #recTabs").count(), 0);
   await page.evaluate(() => {
     const { store, ui } = window.__riftTest;
-    store.data.stats.bosses.forge = 1;
-    store.data.seen.od_forge = true;
-    ui.renderCodex();
+    store.data.shards = 100;
+    store.data.stats.kills = 100;
+    store.save("fixture");
+    ui.renderHome();
   });
-  assert.match(await page.locator('[data-cx="boss_forge"]').textContent(), /THE CRUCIBLE/);
-  assert.match(await page.locator("#codexList").textContent(), /Archive/);
-  assert.match(await page.locator("#codexList").textContent(), /Bosses 0\/6/);
+  await press('[data-go="workshop"]');
+  await press('[data-buy="hull"]');
+  assert.equal(await page.evaluate(() => window.__riftTest.store.data.workshop.hull), 1);
+  await press("#workshop [data-back]");
+  await press('[data-go="records"]');
+  await press('[data-claim="kills100"]');
+  assert.equal(await page.evaluate(() => window.__riftTest.store.data.milestones.kills100), true);
+  assert.equal(await page.evaluate(() => window.__riftTest.store.data.shards), 90);
+  assert.equal(await page.locator('[data-claim="kills100"]').count(), 0);
+  await page.reload();
+  await page.waitForFunction(() => window.__riftTest?.store?.data.workshop.hull === 1);
+  assert.equal(await page.evaluate(() => window.__riftTest.store.data.shards), 90);
+  await press("#playBtn");
+  await page.waitForFunction(() => window.__riftTest.game.mode === "game");
+  assert.equal(await page.evaluate(() => window.__riftTest.game.world.stats.maxHp), 110);
   assert.deepEqual(errors, []);
 });

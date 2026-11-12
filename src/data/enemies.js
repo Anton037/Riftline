@@ -246,24 +246,22 @@ const enemyOrder = [
   "leaper",
   "turret",
 ];
-// 3.34.0: every biome has its variant (Blackout City had none, so its Endless visits were the softest), and every
-// variant and elite affix says what it does (the Codex and the first-time tips read desc)
 const biomeVariants = {
-  yard: {
+  city: {
     id: "shorted",
     name: "Shorted",
     types: ["grunt", "gunner", "bomber"],
     color: 0x8fd0ff,
     desc: "Crackles with stolen current. Where one dies, the ground arcs a moment later: step away, or lure others in.",
   },
-  vault: {
+  shelf: {
     id: "frost",
     name: "Frost",
     types: ["gunner", "sniper", "mortar"],
     color: 11462911,
     desc: "Its icy shots and shells slow you for a moment.",
   },
-  void: {
+  core: {
     id: "phase",
     name: "Phase",
     types: ["swarmer", "grunt", "gunner"],
@@ -271,7 +269,7 @@ const biomeVariants = {
     desc: "Blinks a few steps towards you every couple of seconds.",
   },
   marsh: {
-    // 3.50.0: the Glowmarsh's Bloomed (was the Toxin Marsh's Toxic) - the same acid burst,
+    // 3.50.0: the Glowmarsh's Bloomed - the same acid burst,
     // in the glow family
     id: "bloomed",
     name: "Bloomed",
@@ -287,9 +285,9 @@ const biomeVariants = {
     color: 0xffd27a,
     desc: "It gleams and sprints - a short solar burst every few seconds.",
   },
-  // 3.49.0: the Caldera: they go out in a flare - the fumaroles jet where they fall (was the Club's Showy)
-  club: {
-    id: "showy",
+  // 3.49.0: the Caldera: they go out in a flare - the fumaroles jet where they fall (was the Caldera's Flareheart)
+  caldera: {
+    id: "flareheart",
     name: "Flareheart",
     types: ["gunner", "brute", "bomber"],
     color: 0xffb520,
@@ -352,30 +350,11 @@ const bossDefs = {
     color: 11758591,
   },
 };
-// 2.4.6: every biome has its own boss (the boss of a wave is the boss of its biome, see
-// World.bossFor). The Crucible is new; Prism became the Frost Prism of the Aurora Shelf. 3.49.0: the
-// Crucible sits out (the Ember Works retired) but stays defined and tested - it takes a new post
-// with a coming biome; remembered discoveries remain in the Codex archive.
-// 3.53.0: the Crucible served the Glass Flats for a season (the card's title followed).
-// 3.56.0: the stopgap ends - a foundry golem never belonged in a glass desert. The Crucible goes back
-// to the bench (the def, its patterns, sounds and the hammer card stay defined and tested; the Codex
-// archives remembered encounters; a save that owns the card keeps it), and the Flats' own boss takes the post.
-bossDefs.forge = {
-  id: "forge",
-  name: "THE CRUCIBLE",
-  title: "Heart of the Works",
-  hp: 3700,
-  r: 2.1,
-  speed: 1.8,
-  dmg: 24,
-  shards: 125,
-  color: 16741924,
-};
-// 3.49.0: the Ashfall Caldera's master (was the Onyx Club's owner). The mountain walks: it sprays the
+// 3.49.0: the Ashfall Caldera's master. The mountain walks: it sprays the
 // floor with a fan of molten slugs, charges like a thing that has never stopped, calls the burning dead
 // up from the cracks, and when it is hurt it calls FIRESTORM - the whole caldera pours in.
-bossDefs.kingpin = {
-  id: "kingpin",
+bossDefs.tyrant = {
+  id: "tyrant",
   name: "THE ASH TYRANT",
   title: "Master of the Ashfall Caldera",
   hp: 1500,
@@ -387,8 +366,7 @@ bossDefs.kingpin = {
 };
 // 3.56.0: THE GLASSWYRM, the Glass Flats' own boss. A wyrm of living fused glass that swims the sand
 // beneath the sheets: where it surfaces the glass re-fuses and bursts, it bends the noon through its
-// body into a burning lance, and the heat throws mirages of it. The hull takes the Crucible's slot
-// (the sixth place's boss), so the balance bench's numbers carry over.
+// body into a burning lance, and the heat throws mirages of it.
 bossDefs.wyrm = {
   id: "wyrm",
   name: "THE GLASSWYRM",
@@ -401,12 +379,11 @@ bossDefs.wyrm = {
   // the hot fused edge of the Flats' glass
   color: 0xffc24d,
 };
-// 3.53.0: the flats carried the Crucible for a season; 3.56.0: the Glasswyrm takes its own place
-const bossByBiome = { yard: "warden", vault: "prism", marsh: "queen", void: "core", club: "kingpin", flats: "wyrm" };
+// Every biome has one unique boss.
+const bossByBiome = { city: "warden", shelf: "prism", marsh: "queen", core: "core", caldera: "tyrant", flats: "wyrm" };
 // hull of a boss by its slot in the run (wave 5, 10, 15, 20): the same boss can come early or late
 const BOSS_SLOT_HP = [1500, 3000, 4400, 7600];
-const bossByWave = { 5: "warden", 10: "queen", 15: "prism", 20: "core" }; // before 2.4.6; kept for old tests
-const bossOrder = ["warden", "queen", "prism", "forge", "kingpin", "core", "wyrm"];
+const bossOrder = ["warden", "queen", "prism", "tyrant", "core", "wyrm"];
 /* RIFTLINE 2.0 content pack: data-only extensions live together so the core systems stay reusable. */
 Object.assign(enemyDefs, {
   charger: {
@@ -558,7 +535,6 @@ export {
   biomeVariants,
   bossDefs,
   enemyOrder,
-  bossByWave,
   bossByBiome,
   BOSS_SLOT_HP,
   spawnWeights,

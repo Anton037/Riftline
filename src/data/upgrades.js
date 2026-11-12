@@ -1,8 +1,6 @@
 // Run upgrades and evolutions, offer weights.
 
 const rarityNames = ["", "Common", "Rare", "Epic", "Legendary", "Evolution", "Boss"];
-// 2.5.0 A: 19 upgrades that were weaker copies of another one are gone (RL_RETIRED_UPGRADES at the
-// end says where each went); the upgrade that took them over has a higher max.
 const upgradeList = [
   { id: "dmg", name: "High-Yield Rounds", rarity: 1, max: 12, icon: "burst", desc: () => "+18% damage" },
   { id: "rate", name: "Rapid Cycler", rarity: 1, max: 10, icon: "rate", desc: () => "+15% fire rate" },
@@ -336,7 +334,6 @@ const upgradeList = [
     desc: () => "Flames reach 30% further and burn twice as hot.",
   },
 ];
-let upgradesById = Object.fromEntries(upgradeList.map((upgrade) => [upgrade.id, upgrade]));
 // 2.8.0: fewer commons, more rare, epic and legendary cards (was 60/28/10/2)
 const rarityWeights = [0, 42, 32, 20, 6],
   bossRarityWeights = [0, 0, 42, 44, 14];
@@ -358,7 +355,6 @@ upgradeList.push(
     desc: (level) => `Every 12 kills drop ${2 * (level + 1)} bonus shards; elite kills drop +${level + 1}`,
   },
 );
-upgradesById = Object.fromEntries(upgradeList.map((upgrade) => [upgrade.id, upgrade]));
 upgradeList.push(
   {
     id: "overload",
@@ -394,7 +390,6 @@ upgradeList.push(
     desc: (level, count = level + 1) => `${10 * count}% chance for a shot to repeat`,
   },
 );
-upgradesById = Object.fromEntries(upgradeList.map((upgrade) => [upgrade.id, upgrade]));
 upgradeList.push({
   id: "salvager",
   name: "Salvager Core",
@@ -403,7 +398,6 @@ upgradeList.push({
   icon: "shard",
   desc: () => "+1 supply cache per wave, and caches hold more shards",
 });
-upgradesById = Object.fromEntries(upgradeList.map((upgrade) => [upgrade.id, upgrade]));
 
 // 2.5.0 A: six upgrades with a mechanic of their own (World hooks at the end of core/world.js).
 // Cryo Skates and Acid Coating pay off most in their biome, Heat Sink wherever there is a hazard.
@@ -462,7 +456,6 @@ upgradeList.push(
       `Getting hit releases a repulse wave (${45 + 25 * level} damage) that clears nearby shots`,
   },
 );
-upgradesById = Object.fromEntries(upgradeList.map((upgrade) => [upgrade.id, upgrade]));
 
 // 3.15.0: the boss cards (rarity 6, "Boss"): one per boss, offered only after its kill and never in a normal offer
 // (core/boss-cards.js has the chance and the mechanics). Max 1 each: a card taken never comes again in the run.
@@ -475,15 +468,6 @@ upgradeList.push(
     boss: "warden",
     icon: "lockdown",
     desc: () => "Every 8 s a laser cage drops on the densest enemy group: they cannot leave for 3 s and take damage",
-  },
-  {
-    id: "hammer",
-    name: "Crucible Hammer",
-    rarity: 6,
-    max: 1,
-    boss: "forge",
-    icon: "hammer",
-    desc: () => "Every 6 s your next dash ends in a slam: 75 damage, sets enemies on fire and leaves molten ground",
   },
   {
     id: "shardfield",
@@ -518,7 +502,7 @@ upgradeList.push(
     name: "Tyrant's Tithe",
     rarity: 6,
     max: 1,
-    boss: "kingpin",
+    boss: "tyrant",
     icon: "tribute",
     desc: () => "Every 20 kills the caldera pays out: a burst of shards and a bandage",
   },
@@ -533,48 +517,6 @@ upgradeList.push(
     desc: () => "Every 14 kills the last kill bursts into a fan of hot glass lances that pierce",
   },
 );
-upgradesById = Object.fromEntries(upgradeList.map((upgrade) => [upgrade.id, upgrade]));
+const upgradesById = Object.fromEntries(upgradeList.map((upgrade) => [upgrade.id, upgrade]));
 
-// 2.5.0 A: where the retired upgrades went. A saved run converts its levels with `k` (their value
-// in levels of the new one, rounded up, capped at its max); an offer gets the new upgrade instead.
-const RL_RETIRED_UPGRADES = {
-  caliber: { to: "dmg", k: 0.67 },
-  kinetic: { to: "dmg", k: 0.54 },
-  overclock: { to: "rate", k: 0.67 },
-  fortify: { to: "hp", k: 0.75 },
-  thruster: { to: "speed", k: 0.63 },
-  stabilizer: { to: "crit", k: 0.42 },
-  focus: { to: "crit", k: 0.5 },
-  deadeye: { to: "crit", k: 0.38 },
-  nanorepair: { to: "regen", k: 0.69 },
-  leech: { to: "siphon", k: 0.5 },
-  aether: { to: "overcharge", k: 0.38 },
-  flux: { to: "overcharge", k: 0.2 },
-  afterburner: { to: "speed", k: 0.62 },
-  coolant: { to: "speed", k: 1.25 },
-  phasecoat: { to: "hazmat", k: 0.32 },
-  chainlink: { to: "resonance", k: 1 },
-  payloadMatrix: { to: "payload", k: 1 },
-  scavenger: { to: "supply", k: 1 },
-  scavengerNet: { to: "salvager", k: 1 },
-  // 2.6.0: Capacitor Bank is part of Overcharge (kills add Nova charge), Bounty Protocol part of Supply Loop
-  capacitor: { to: "overcharge", k: 1 },
-  bounty: { to: "supply", k: 1 },
-  // 2.8.0: five weak or overlapping upgrades went into the one they resembled
-  velocity: { to: "crit", k: 0.7 },
-  magnet: { to: "supply", k: 1 },
-  vector: { to: "speed", k: 0.83 },
-  glasscore: { to: "dmg", k: 0.67 },
-  momentum: { to: "rate", k: 0.67 },
-};
-const rlRetiredUpgrade = (id) => (Object.hasOwn(RL_RETIRED_UPGRADES, id) ? RL_RETIRED_UPGRADES[id] : null);
-
-export {
-  rarityWeights,
-  bossRarityWeights,
-  upgradeList,
-  rarityNames,
-  upgradesById,
-  RL_RETIRED_UPGRADES,
-  rlRetiredUpgrade,
-};
+export { rarityWeights, bossRarityWeights, upgradeList, rarityNames, upgradesById };

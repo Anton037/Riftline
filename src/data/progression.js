@@ -1,4 +1,4 @@
-// Workshop modules, milestones, threat levels and the retired-weapon table.
+// Workshop modules, milestones, threat levels.
 
 import { biomeList } from "./biomes.js";
 import { weaponOrder } from "./weapons.js";
@@ -53,7 +53,13 @@ const workshopModules = [
     costs: [100, 200, 320, 480, 700],
   },
   { id: "reroll", name: "Reroll Chip", icon: "reroll", desc: "+1 upgrade reroll per run", costs: [150, 300, 500] },
-  { id: "nova", name: "Nova Cell", icon: "star", desc: "Start each wave with +25% Nova charge", costs: [120, 260] },
+  {
+    id: "nova",
+    name: "Nova Cell",
+    icon: "star",
+    desc: "Every wave starts with at least 25% Nova charge per level",
+    costs: [120, 260, 2400, 5200],
+  },
   {
     id: "insight",
     name: "Insight Module",
@@ -71,7 +77,6 @@ const workshopModules = [
     costs: [700, 1400],
   },
 ];
-let modulesById = Object.fromEntries(workshopModules.map((mod) => [mod.id, mod]));
 const milestones = [
   {
     id: "kills100",
@@ -102,9 +107,6 @@ const milestones = [
     reward: 200,
     test: (save) => (save.stats.bosses.prism || 0) > 0,
   },
-  // 3.53.0: the Crucible was the Glass Flats' boss for a season, so the Quenched milestone returned
-  // to the list. 3.56.0: the stopgap ends - the Crucible sits out again per the 3.39.0 rule (a save
-  // that earned it keeps it; the test is unchanged) and the Flats' own boss takes the milestone.
   {
     id: "wyrm",
     name: "Vitrified",
@@ -114,11 +116,11 @@ const milestones = [
   },
   // 3.49.0: the Ash Tyrant, boss of the Ashfall Caldera
   {
-    id: "kingpin",
+    id: "tyrant",
     name: "Mountain Falls",
     desc: "Defeat the Ash Tyrant",
     reward: 175,
-    test: (save) => (save.stats.bosses.kingpin || 0) > 0,
+    test: (save) => (save.stats.bosses.tyrant || 0) > 0,
   },
   { id: "clear", name: "Rift Sealed", desc: "Clear all 20 waves", reward: 400, test: (save) => save.stats.clears > 0 },
   {
@@ -274,13 +276,6 @@ workshopModules.push(
     costs: [220, 420, 760, 1180],
   },
   {
-    id: "riftBattery",
-    name: "Rift Battery",
-    icon: "star",
-    desc: "Start each wave with +10% Nova charge",
-    costs: [260, 540, 980],
-  },
-  {
     id: "droneBay",
     name: "Drone Bay",
     icon: "drone",
@@ -288,7 +283,6 @@ workshopModules.push(
     costs: [950, 1800],
   },
 );
-modulesById = Object.fromEntries(workshopModules.map((mod) => [mod.id, mod]));
 milestones.push(
   {
     id: "wave100",
@@ -328,9 +322,9 @@ workshopModules.push(
   {
     id: "fieldSupply",
     name: "Field Supply",
-    icon: "shard",
-    desc: "+1 supply cache per wave per level (from wave 2, not in boss waves)",
-    costs: [1400, 3000, 5200],
+    icon: "map",
+    desc: "+1 supply cache per wave and +50% cache shards per level (not in boss waves)",
+    costs: [1800, 3800, 6800],
   },
   {
     id: "hazardSeal",
@@ -340,7 +334,6 @@ workshopModules.push(
     costs: [1200, 2500, 4500],
   },
 );
-modulesById = Object.fromEntries(workshopModules.map((mod) => [mod.id, mod]));
 // 3.39.0: the milestone ladders end where a goal is still seeable (the deep Endless rungs beyond these
 // were scroll-past filler; a save that earned a removed one keeps it, it only leaves the list)
 milestones.push(
@@ -359,125 +352,33 @@ milestones.push(
     test: (save) => save.stats.evolved >= 10,
   },
 );
+
 workshopModules.push(
+  // a head start instead of a stat: common upgrades on every new run (world.js)
   {
-    id: "routeScanner",
-    name: "Route Scanner",
-    icon: "map",
-    desc: "+50% shards from supply caches per level",
-    costs: [1800, 3800, 6800],
+    id: "starterKit",
+    name: "Starter Kit",
+    icon: "wrench",
+    desc: "Start every run with 1 random common upgrade per level",
+    costs: [700, 1600, 3200],
   },
+  // pays off only close to the biome's hazard (vents, ice, acid, portals; Blackout City's manholes are vents)
   {
-    id: "reactorCore",
-    name: "Reactor Core",
-    icon: "star",
-    desc: "Start each wave with +5% Nova charge",
-    costs: [1600, 3400, 6200],
+    id: "hazardAttune",
+    name: "Hazard Attunement",
+    icon: "flame",
+    desc: "Near a map hazard (2 m): +10% damage and +0.5 HP/s repair per level",
+    costs: [1100, 2400, 4600],
+  },
+  // once per wave (Second Life is once per run) and before the hull is gone
+  {
+    id: "emergencyShield",
+    name: "Emergency Shield",
+    icon: "shield",
+    desc: "Once per wave below 30% hull: 1 s damage barrier and 8% repair per level",
+    costs: [900, 2200],
   },
 );
-modulesById = Object.fromEntries(workshopModules.map((mod) => [mod.id, mod]));
+const modulesById = Object.fromEntries(workshopModules.map((mod) => [mod.id, mod]));
 
-/* ==========================================================================
-   RIFTLINE 2.4.0 — fewer biomes and weapons, each clearly different
-   ========================================================================== */
-/* 2.4.0: 21 weapons → the 7 originals. The 14 weapons of the 2.0–2.2 packs were parameter
- variants of those (Void Lance, Sunlance and Ember Rail were Railguns, Razor Loop and Cyclone
- Blades Disc Launchers …). A save that owned one gets the weapon it was a variant of, plus the
- price difference in shards — or the full price when it owns that weapon already. */
-const RL_RETIRED_WEAPONS = {
-  ion: { name: "Ion Repeater", cost: 1250, to: "tesla" },
-  gravity: { name: "Graviton Core", cost: 1550, to: "rocket" },
-  voidlance: { name: "Void Lance", cost: 1950, to: "rail" },
-  bloom: { name: "Nova Bloom", cost: 2400, to: "rocket" },
-  volley: { name: "Volley", cost: 1450, to: "scatter" },
-  prismcannon: { name: "Prism Cannon", cost: 1750, to: "tesla" },
-  sunlance: { name: "Sunlance", cost: 2200, to: "rail" },
-  vortex: { name: "Vortex", cost: 2450, to: "rocket" },
-  razorloop: { name: "Razor Loop", cost: 2050, to: "disc" },
-  needle: { name: "Needle Array", cost: 1200, to: "pulse" },
-  lattice: { name: "Lattice Array", cost: 2850, to: "tesla" },
-  quasar: { name: "Quasar Driver", cost: 3300, to: "rocket" },
-  cyclone: { name: "Cyclone Blades", cost: 3050, to: "disc" },
-  emberrail: { name: "Ember Rail", cost: 3900, to: "rail" },
-};
-const rlRetired = (id) =>
-  typeof id === "string" && Object.prototype.hasOwnProperty.call(RL_RETIRED_WEAPONS, id)
-    ? RL_RETIRED_WEAPONS[id]
-    : null;
-
-/* ==========================================================================
-   2.5.0 B: Workshop — duplicates merged, three modules that are real choices
-   ========================================================================== */
-/* Rift Battery and Reactor Core only added Nova start charge next to Nova Cell, Route Scanner only
- made the caches of Field Supply richer. They are folded into the module they copied. A save that
- bought levels of them gets the full price back in shards (rlMigrateModules in save.js); the kept
- module keeps its own levels. `costs` are the prices the removed module had. */
-const RL_RETIRED_MODULES = {
-  riftBattery: { name: "Rift Battery", costs: [260, 540, 980], to: "nova" },
-  reactorCore: { name: "Reactor Core", costs: [1600, 3400, 6200], to: "nova" },
-  routeScanner: { name: "Route Scanner", costs: [1800, 3800, 6800], to: "fieldSupply" },
-};
-const rlRetiredModule = (id) =>
-  typeof id === "string" && Object.prototype.hasOwnProperty.call(RL_RETIRED_MODULES, id)
-    ? RL_RETIRED_MODULES[id]
-    : null;
-(() => {
-  const mod = (id) => workshopModules.find((mod) => mod.id === id);
-  // 2.5.0 B: Nova Cell absorbs Rift Battery (+10%/level) and Reactor Core (+5%/level). Four levels
-  // of a 25% floor reach 100%; the three modules together gave at least 95%. The first two levels
-  // keep their effect and price.
-  Object.assign(mod("nova"), {
-    desc: "Every wave starts with at least 25% Nova charge per level",
-    costs: [120, 260, 2400, 5200],
-  });
-  // 2.5.0 B: Field Supply absorbs Route Scanner: more caches AND richer caches (priced like the
-  // more expensive of the two; it took Route Scanner's map icon).
-  Object.assign(mod("fieldSupply"), {
-    icon: "map",
-    desc: "+1 supply cache per wave and +50% cache shards per level (not in boss waves)",
-    costs: [1800, 3800, 6800],
-  });
-  for (let i = workshopModules.length - 1; i >= 0; i--) {
-    if (rlRetiredModule(workshopModules[i].id)) {
-      workshopModules.splice(i, 1);
-    }
-  }
-  workshopModules.push(
-    // a head start instead of a stat: common upgrades on every new run (world.js)
-    {
-      id: "starterKit",
-      name: "Starter Kit",
-      icon: "wrench",
-      desc: "Start every run with 1 random common upgrade per level",
-      costs: [700, 1600, 3200],
-    },
-    // pays off only close to the biome's hazard (vents, ice, acid, portals; Blackout City's manholes are vents)
-    {
-      id: "hazardAttune",
-      name: "Hazard Attunement",
-      icon: "flame",
-      desc: "Near a map hazard (2 m): +10% damage and +0.5 HP/s repair per level",
-      costs: [1100, 2400, 4600],
-    },
-    // once per wave (Second Life is once per run) and before the hull is gone
-    {
-      id: "emergencyShield",
-      name: "Emergency Shield",
-      icon: "shield",
-      desc: "Once per wave below 30% hull: 1 s damage barrier and 8% repair per level",
-      costs: [900, 2200],
-    },
-  );
-  modulesById = Object.fromEntries(workshopModules.map((mod) => [mod.id, mod]));
-})();
-
-export {
-  threatMods,
-  RL_RETIRED_WEAPONS,
-  RL_RETIRED_MODULES,
-  milestones,
-  workshopModules,
-  modulesById,
-  rlRetired,
-  threatLevels,
-};
+export { threatMods, milestones, workshopModules, modulesById, threatLevels };

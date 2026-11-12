@@ -410,7 +410,6 @@ const RL_EVENT_KINDS = new Set([
   // 3.15.0: the boss cards
   "lockdown",
   "lockOn",
-  "hammerReady",
   "shatter",
   "splinterHit",
   "broodHatch",
@@ -827,8 +826,7 @@ function rlMonPreEnd(world) {
     shards: world.shards,
     runKills: world.kills,
     threat: world.threat,
-    salvage: world.daily ? 0 : data.workshop.salvage || 0,
-    pactBonus: world.pactBonus ? world.pactBonus() : 0,
+    salvage: data.workshop.salvage || 0,
     endless: !!world.endless,
     wave: world.wave,
   };
@@ -944,9 +942,7 @@ function rlMonFinish(world, pre, win, abandoned, silent, crashed) {
     const data = store.data,
       runShards = pre.shards,
       bonus = win ? Math.round(runShards * 0.25) : 0,
-      expect = Math.round(
-        (runShards + bonus) * threatMods(pre.threat).shards * (1 + 0.1 * pre.salvage) * (1 + pre.pactBonus),
-      ),
+      expect = Math.round((runShards + bonus) * threatMods(pre.threat).shards * (1 + 0.1 * pre.salvage)),
       got = data.shards - pre.bank;
     addCheck(
       got === expect ? "OK" : "FAIL",
@@ -1394,8 +1390,7 @@ async function rlRunHealthNow({ context = "startup" } = {}) {
       Object.keys(weaponDefs).length === weaponOrder.length &&
         // 3.53.0: six biomes again (the Glass Flats)
         biomeList.length === 6 &&
-        // 3.56.0: seven defined bosses (the benched Crucible keeps its def beside the six that serve)
-        Object.keys(bossDefs).length === 7 &&
+        Object.keys(bossDefs).length === 6 &&
         Object.keys(enemyDefs).length >= 25,
       `${Object.keys(weaponDefs).length} weapons (${weaponOrder.length} selectable) · ${Object.keys(enemyDefs).length} enemies · ${biomeList.length} biomes · ${Object.keys(bossDefs).length} bosses · ${upgradeList.length} upgrades · ${workshopModules.length} modules`,
     );
@@ -1404,7 +1399,7 @@ async function rlRunHealthNow({ context = "startup" } = {}) {
   }
   try {
     const reqE = ["leaper", "turret", "charger", "minebot", "drone", "driller", "beacon", "weaver"],
-      reqB = ["vault", "void", "marsh", "club", "flats"],
+      reqB = ["shelf", "core", "marsh", "caldera", "flats"],
       // 2.5.0/2.6.0: Overclock Matrix, Overbore Caliber, Vector Stabilizer, Salvage Pulse, Capacitor Bank and Bounty Protocol were retired
       reqU = ["overcharge", "hunter", "supply", "laststand", "skates", "heatsink"],
       badE = Object.keys(enemyDefs).filter((id) => !enemyDefs[id] || (!(enemyDefs[id].from >= 1) && id !== "mite")),

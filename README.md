@@ -12,9 +12,8 @@
 - A 20-wave run crosses Blackout City, two of the other four places, and the Shattered Core; Endless walks all six
 - **62 run upgrades** including 13 evolutions, rarer cards offered more often, no duplicates in one offer
 - **19 persistent workshop modules**, milestones through wave 200, threat levels, medals
-- **Endless** mode with mutators, a **daily run** with a fixed seed and a **weekly run** that pins two mutators for the whole ISO week
+- **Endless** continuation with escalating mutators after the main run
 - A dynamic wave director that mixes 12+ encounter modes instead of a fixed spawn table
-- Boss training for every arena, with opening, mid-fight and enraged patterns; a fixed kit and no saved-run or record changes
 
 ## Controls
 
@@ -35,7 +34,7 @@ npm install          # node 22.13+ or 24+
 npm run build        # bundle src/ into dist/ (esbuild), substitute version + build id
 npm run dev          # rebuild after source, public asset or package metadata changes
 npm run serve        # serve dist/ for a quick look
-npm test             # focused unit contracts + touch/onboarding/training flows + worker update check
+npm test             # focused unit contracts + touch/onboarding/progression flows + worker update check
 npm run audit:visual # all six biomes + bosses, tablet and landscape phone, metrics and images
 npm run e2e          # the bounded touch and worker browser checks
 npm run test:render  # same flows with real pixel drawing
@@ -47,8 +46,7 @@ npm run format       # prettier
 ### Project docs
 
 - `docs/DEVELOPMENT.md` — the code history, the working rules and the release steps
-- `docs/ROADMAP.de.md` — the owner's wishes and decisions (read at the start of a session)
-- `docs/STRATEGY-AUDIT.md` — the strategy audit the roadmap's direction comes from
+- `docs/ROADMAP.md` — the owner's wishes and decisions (read at the start of a session)
 - `docs/TESTING.md` — current test groups, CI routing and reasons for removing redundant work
 - `docs/GITHUB.md` — the repository settings only the owner can change
 
@@ -155,3 +153,6 @@ Recording credits and pinned source links are in [audio sources](public/audio/SO
 
 The [4.1.1 checkup](docs/CHECKUP-4.1.1.md) covers the connected walker, biome cleanup, material-specific hits,
 repository maintenance and the checks actually performed.
+
+The [4.2 combat review](docs/COMBAT-REVIEW-4.2.md) covers distinct weapon flight, matching boss/enemy
+effects and sound, the volcanic Tyrant model, painted surface relief and complete retired-content removal.

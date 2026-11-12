@@ -1,16 +1,16 @@
 {
   "name": "riftline",
-  "version": "4.1.1",
+  "version": "4.2.0",
   "private": true,
   "type": "module",
-  "description": "Riftline – a touch-only 3D arena roguelite shooter for phones and tablets in landscape (three.js, WebAudio).",
+  "description": "Riftline \u2013 a touch-only 3D arena roguelite shooter for phones and tablets in landscape (three.js, WebAudio).",
   "homepage": "https://anton037.github.io/Riftline/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Anton037/Riftline.git"
   },
   "riftline": {
-    "build": "r411a1112a-r1"
+    "build": "r420a1112a-r1"
   },
   "scripts": {
     "build": "node build.js",
@@ -31,7 +31,8 @@
     "release-check": "node tools/check.js",
     "audit:visual": "node tools/verify.js visual current tablet && node tools/verify.js visual current land",
     "verify:audio": "node tools/verify.js audio",
-    "verify:audio-budget": "node tools/verify.js audio-budget"
+    "verify:audio-budget": "node tools/verify.js audio-budget",
+    "verify:combat": "node tools/verify.js combat current"
   },
   "devDependencies": {
     "esbuild": "^0.28.2",

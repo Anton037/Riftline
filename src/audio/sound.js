@@ -1,25 +1,21 @@
 // Physical sound voices, shared spatial mix and biome music scheduling.
 
 import { PhysicalVoices, preloadPhysicalAudio, setNaturalWave } from "./physical-voices.js";
-import { logError } from "../core/diagnostics.js";
-import { weaponDefs } from "../data/weapons.js";
+import { hookLog as logError } from "../core/run-hooks.js";
+import {
+  BOSS_EFFECTS,
+  ENEMY_EFFECTS,
+  WEAPON_EFFECTS,
+  BEAM_EFFECTS,
+  shotVoiceFor,
+  attackSurface,
+} from "../data/combat-effects.js";
 import { upgradesById } from "../data/upgrades.js";
 import { PLACE, PLACE_IDS, placeTick } from "./place.js";
 
-/* The sound engine has seven weapon voices; newer weapons borrow the closest one. */
-const RL_SFX_VOICES = ["pulse", "scatter", "tesla", "rail", "rocket", "disc", "flame"];
-function rlShotSfx(id) {
-  const def = weaponDefs[id];
-  if (!def) return "pulse";
-  if (RL_SFX_VOICES.includes(id)) return id;
-  if (def.rail) return "rail";
-  if (def.boomerang) return "disc";
-  if (def.burn || def.drag) return "flame";
-  if (def.explode) return "rocket";
-  if (def.chain) return "tesla";
-  if (def.count >= 5 || def.cone) return "scatter";
-  return "pulse";
-}
+// Every supported weapon has an explicit sound identity.
+const RL_SFX_VOICES = Object.keys(WEAPON_EFFECTS);
+const rlShotSfx = (id) => WEAPON_EFFECTS[id]?.shot || "pulse";
 /* 2.7.0: each of the 25 enemy types dies with a voice of its family. 2.9.0: nine families (was six), so that
  machines, flesh, armour and ghosts no longer share a sound: bip pop (tiny swarmers), wet squelch, flesh and
  bone crunch, heavy armour, electric short circuit, ghostly fade, metal clang, hollow rattle, glass shatter.
@@ -51,25 +47,11 @@ const RL_DEATH_FAMILY = {
   sniper: "dClang",
   beacon: "dClang",
 };
-/* 2.9.0: the shot of an enemy by type (default "eshot", the gunner); the sniper has its own lock-on sound */
-const RL_ESHOT_VOICE = {
-  sniper: "snipe",
-  turret: "eshotTurret",
-  drone: "eshotDrone",
-  boss: "eshotBoss",
-  // 3.16.0: the weaver's rift shards and the carrier's homing pods
-  weaver: "eshotWeaver",
-  carrier: "eshotCarrier",
-};
-/* 3.16.0: the shots of each boss sound like what they are (eshotBoss stays for a boss without a voice of its own) */
-const BOSS_ESHOT = {
-  warden: "eshotWarden",
-  queen: "eshotQueen",
-  core: "eshotCore",
-  prism: "eshotPrism",
-  forge: "eshotForge",
-  kingpin: "eshotKingpin",
-};
+const RL_ESHOT_VOICE = Object.fromEntries(
+  Object.entries(ENEMY_EFFECTS)
+    .filter(([, effect]) => effect.shot)
+    .map(([id, effect]) => [id, effect.shot]),
+);
 /* wind-up voices of the "charge" event (enemy types and the bosses that charge) */
 const RL_CHARGE_VOICE = {
   brute: "windHeavy",
@@ -79,8 +61,7 @@ const RL_CHARGE_VOICE = {
   leaper: "windLeap",
   warden: "bWind",
   prism: "bWind",
-  forge: "bWind",
-  kingpin: "bWind",
+  tyrant: "bWind",
 };
 /* the "edash" event: the lunge itself */
 const RL_DASH_VOICE = { charger: "ram", striker: "ram", driller: "ramDrill", phantom: "blink" };
@@ -102,15 +83,10 @@ const RL_BOSS_ATK = {
   iceshards: "bLance",
   cross: "bRing",
   rain: "bRain",
-  hammer: "bSlam",
-  slag: null,
-  eruption: null,
-  furnace: "bSummon",
-  stoke: "bStoke",
   // 3.49.0: the Ash Tyrant's attacks (the cinder fan's eshots sound themselves; the charge and the
-  // molotovs are covered by their own events)
+  // magma bombs are covered by their own events)
   barrage: null,
-  lastcall: "bSummon",
+  firestorm: "bSummon",
   // 3.56.0: the Glasswyrm's attacks (the rise's and mirage's blinkWarn/blink and thud sound
   // themselves, the lance's beamWarn does; the shard fans get the lance voice)
   rise: null,
@@ -125,59 +101,37 @@ const RL_BOSS_ATK = {
   noon: "bRain",
 };
 // 3.33.0: the warning voice of a beam by its skin (the rest keep "beam" / "beamSmall")
-const BEAM_VOICE = { cryo: "bwCryo", acid: "bwAcid", flame: "bwFlame", sun: "bwFlare" };
-const RL_OVERDRIVE = new Set(["lockdown", "meltdown", "whiteout", "plague", "collapse", "lastcall", "noon"]);
+const BEAM_VOICE = Object.fromEntries(Object.entries(BEAM_EFFECTS).map(([id, effect]) => [id, effect.warning]));
+const RL_OVERDRIVE = new Set(["lockdown", "whiteout", "plague", "collapse", "firestorm", "noon"]);
 const BOSS_WARNING_VOICES = new Set(Object.values(RL_BOSS_ATK).filter(Boolean));
 /* 3.10.0: the voice of the blast of an attack zone, by its kind and, where the kind is shared, its maker (the same
    choice as the look in render/attacks-view.js); null: the generic explosion ("boom"). 3.32.0: a blast that chills (a
    Frost mortar's shell) cracks like ice whatever its kind */
 function attackVoice(kind, src, biome, chill) {
-  if (chill) return "aIce";
-  switch (kind) {
-    case "stomp":
-    case "drill":
-      return "aQuake";
-    case "slag":
-      return "aLava";
-    case "frost":
-    case "glacier":
-      return "aIce";
-    case "fire":
-      return "aFire";
-    case "shorted":
-      return "aShort";
-    case "mortar":
-      return src === "forge" ? "aLava" : null;
-    case "rain": {
-      const who = src || { marsh: "queen", void: "core", club: "kingpin" }[biome];
-      return who === "forge"
-        ? "aLava"
-        : who === "queen"
-          ? "aAcid"
-          : who === "core"
-            ? "aRift"
-            : who === "kingpin"
-              ? "aFire"
-              : null;
-    }
-    default:
-      return null;
-  }
+  if (kind === "shorted" && !chill) return "aShort";
+  if (kind === "volatile" && !chill) return null;
+  return (
+    {
+      crack: "aQuake",
+      lavaCrack: "aLava",
+      molten: "aLava",
+      frost: "aIce",
+      acid: "aAcid",
+      rift: "aRift",
+      burn: "aFire",
+      glass: "aGlass",
+    }[attackSurface(kind, src, biome, chill)] || null
+  );
 }
-const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42, kingpin: 43, wyrm: 47 },
-  /* 2.9.0: every boss has a timbre (wave, filter) and a short motif (semitones above the root, two octaves up)
-   that its telegraphs, roar and death share, so that the ear knows who is attacking: the Warden stern and
-   square (a fifth), the Crucible a saw with an anvil ring, the Prism falling glass, the Queen a wet chromatic
-   wobble, the Core a void tritone. */
+const BOSS_ROOT = { warden: 45, prism: 52, queen: 41, core: 42, tyrant: 43, wyrm: 47 },
   BOSS_SOUND = {
     warden: { wave: "square", lp: 900, det: 0, motif: [0, 0, 7], gap: 0.1, chord: [0, 7, 12, 19] },
-    forge: { wave: "sawtooth", lp: 800, det: 0, motif: [0, 3, 5, 3], gap: 0.09, chord: [0, 4, 7, 12] },
     prism: { wave: "sine", lp: 9e3, det: 6, motif: [12, 7, 4, 0], gap: 0.08, chord: [0, 4, 7, 11] },
     queen: { wave: "triangle", lp: 1400, det: 35, motif: [0, -1, 0, -1], gap: 0.1, chord: [0, 3, 7, 10] },
     core: { wave: "sawtooth", lp: 1e3, det: 18, motif: [0, 6, 0, 6], gap: 0.11, chord: [0, 7, 14, 19] },
-    // 3.47.0: the Kingpin: a smooth saw with a slow growl, the motif walks root - fifth - flat
+    // 3.47.0: the Tyrant: a smooth saw with a slow growl, the motif walks root - fifth - flat
     // seventh - octave (a man who owns the room)
-    kingpin: { wave: "sawtooth", lp: 1100, det: 12, motif: [0, 7, 10, 12], gap: 0.09, chord: [0, 7, 10, 15] },
+    tyrant: { wave: "sawtooth", lp: 1100, det: 12, motif: [0, 7, 10, 12], gap: 0.09, chord: [0, 7, 10, 15] },
     // 3.56.0: the Glasswyrm: a glassy triangle with a wide detune (light through a flawed pane), the
     // motif rises root - fifth - octave - tenth (it comes up from below)
     wyrm: { wave: "triangle", lp: 5200, det: 22, motif: [0, 7, 12, 16], gap: 0.085, chord: [0, 4, 9, 14] },
@@ -205,9 +159,7 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42, kingp
     guardBreak: 0.08,
     thud: 0.08,
     singCollapse: 0.1,
-    bcHammer: 0.1,
     bcImplode: 0.1,
-    tsCrusher: 0.08,
     tsRift: 0.08,
     bSlam: 0.08,
     rail: 0.06,
@@ -222,7 +174,6 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42, kingp
     surge: 0.3,
     singCollapse: 0.35,
     singPull: 0.25,
-    bcHammer: 0.3,
     bcImplode: 0.3,
     bcCage: 0.15,
     nova: 0.3,
@@ -248,7 +199,7 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42, kingp
   },
   /* how much room each biome gives the sounds: the Aurora Shelf and the Shattered Core are vast, the Glowmarsh damp;
      3.49.0: the Ashfall Caldera is a crater bowl (rock all around) */
-  SFX_ROOM_BIOME = { yard: 0.28, vault: 0.5, marsh: 0.2, void: 0.55, club: 0.32, flats: 0.3 },
+  SFX_ROOM_BIOME = { city: 0.28, shelf: 0.5, marsh: 0.2, core: 0.55, caldera: 0.32, flats: 0.3 },
   /* the open "ah" of the choir: band-passes on its formants (frequency, Q, level) and a little of the voice */
   CHOIR_VOWEL = [
     [760, 5, 1],
@@ -256,16 +207,16 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42, kingp
     [2700, 9, 0.18],
     [0, 0.7, 0.12],
   ],
-  AMBIENCE_LEVEL = { blackout: 0.07, whiteout: 0.085, bloom: 0.06, riftstorm: 0.055, raid: 0.07 },
+  AMBIENCE_LEVEL = { blackout: 0.07, whiteout: 0.085, bloom: 0.06, riftstorm: 0.055, ashfall: 0.07 },
   /* 3.43.0: the room tone of each biome - the steady bed under everything, wherever the game is (home,
-     upgrade, pause, fight). The events pile onto it: the whiteout storm rises out of the vault's calm wind.
-     3.45.5: raised so the place stays audible while the music plays (the mix note above); the vault needs the
+     upgrade, pause, fight). The events pile onto it: the whiteout storm rises out of the shelf's calm wind.
+     3.45.5: raised so the place stays audible while the music plays (the mix note above); the shelf needs the
      most, its events are the sparsest. */
-  ROOM_TONE_LEVEL = { yard: 0.038, vault: 0.046, marsh: 0.036, void: 0.038, club: 0.04, flats: 0.034 },
+  ROOM_TONE_LEVEL = { city: 0.038, shelf: 0.046, marsh: 0.036, core: 0.038, caldera: 0.04, flats: 0.034 },
   /* 3.43.0: the event beds gather and pass instead of snapping on and off - a storm builds over about
      three seconds and dies away over about four, while the room tone stays underneath. */
-  BED_ATTACK = { blackout: 0.6, whiteout: 1.2, bloom: 0.8, riftstorm: 1.2, raid: 1.0 },
-  BED_RELEASE = { blackout: 0.5, whiteout: 1.4, bloom: 0.7, riftstorm: 1.1, raid: 0.9 },
+  BED_ATTACK = { blackout: 0.6, whiteout: 1.2, bloom: 0.8, riftstorm: 1.2, ashfall: 1.0 },
+  BED_RELEASE = { blackout: 0.5, whiteout: 1.4, bloom: 0.7, riftstorm: 1.1, ashfall: 0.9 },
   // 3.9.0: the default of the Ambience slider; at it the atmospheres of the music play at the level they had before
   AMB_REF = 0.8,
   /* 3.45.5: the mix balance (measured with scripts/rl-mix-probe.mjs, rms of 20 s offline renders at the default
@@ -309,18 +260,19 @@ const BOSS_ROOT = { warden: 45, forge: 38, prism: 52, queen: 41, core: 42, kingp
 /* 3.0.0: the sound of each trap skin: charge (floor), hum (beam), fuse (mine) when it warns, and the strike */
 const RL_TRAP_SOUND = {
   plate: { warn: "tcPlate", fire: "tsPlate" },
-  crusher: { warn: "tcCrusher", fire: "tsCrusher" },
   icespike: { warn: "tcIce", fire: "tsIce" },
   geyser: { warn: "tcGeyser", fire: "tsGeyser" },
   riftburst: { warn: "tcRift", fire: "tsRift" },
   laser: { warn: "tbLaser" },
-  flame: { warn: "tbFlame" },
   rift: { warn: "tbRift" },
   mine: { warn: "tmMine", fire: "tsMine" },
   frost: { warn: "tmFrost", fire: "tsFrost" },
   spore: { warn: "tmSpore", fire: "tsSpore" },
   riftmine: { warn: "tmRift", fire: "tsRiftMine" },
-  // 3.47.0: the stage pyro: gas hisses into the nozzle, then a golden burst
+  magma: { warn: "tbFlame" },
+  embermine: { warn: "tmEmber", fire: "tsEmber" },
+  glassmine: { warn: "tmGlass", fire: "tsGlass" },
+  // 3.47.0: the fumarole: pressure hisses through basalt before molten rock erupts
   pyro: { warn: "tcPyro", fire: "tsPyro" },
   // 3.53.0: the Flats' sunspike: glass creaks as the pressure builds, then the sheet bursts
   sunspike: { warn: "tcSun", fire: "tsSun" },
@@ -351,7 +303,6 @@ const RL_SOUND_EVENTS = {
   boom: [
     { kind: "boom" },
     { kind: "stomp", r: 4.8 },
-    { kind: "slag", r: 1.4 },
     { kind: "glacier", r: 2.3 },
     { kind: "rain", src: "queen", r: 1.5 },
     { kind: "rain", src: "core", r: 2.2 },
@@ -359,18 +310,10 @@ const RL_SOUND_EVENTS = {
     { kind: "mortar", src: "mortar", r: 2, chill: true },
     { kind: "shorted", src: "grunt", r: 1.6 },
   ],
-  boss: [
-    { id: "warden" },
-    { id: "forge" },
-    { id: "prism" },
-    { id: "queen" },
-    { id: "core" },
-    { id: "kingpin" },
-    { id: "wyrm" },
-  ],
+  boss: [{ id: "warden" }, { id: "prism" }, { id: "queen" }, { id: "core" }, { id: "tyrant" }, { id: "wyrm" }],
   bossAtk: [
     { id: "warden", atk: "ring" },
-    { id: "kingpin", atk: "summon" },
+    { id: "tyrant", atk: "summon" },
   ],
   bossDown: [{ id: "warden" }, { id: "wyrm" }],
   bounce: [{}],
@@ -409,7 +352,7 @@ const RL_SOUND_EVENTS = {
     { type: "boss", boss: "core" },
     { type: "weaver" },
     { type: "carrier" },
-    { type: "boss", boss: "kingpin" },
+    { type: "boss", boss: "tyrant" },
   ],
   freeze: [{}],
   fuse: [{}],
@@ -425,7 +368,6 @@ const RL_SOUND_EVENTS = {
   land: [{ ground: "grate" }],
   lockdown: [{ r: 3.2 }],
   lockOn: [{ r: 3.2, n: 3 }],
-  hammerReady: [{}],
   shatter: [{ r: 0.5 }],
   broodHatch: [{}],
   implode: [{ r: 9, t: 0.35 }],
@@ -436,7 +378,6 @@ const RL_SOUND_EVENTS = {
   ping: [{ resist: true }],
   trapWarn: [
     { fam: "floor", skin: "plate", delay: 1 },
-    { fam: "floor", skin: "crusher", delay: 1 },
     { fam: "floor", skin: "icespike", delay: 1 },
     { fam: "floor", skin: "geyser", delay: 1 },
     { fam: "floor", skin: "riftburst", delay: 1 },
@@ -450,7 +391,6 @@ const RL_SOUND_EVENTS = {
   ],
   trapFire: [
     { skin: "plate" },
-    { skin: "crusher" },
     { skin: "icespike" },
     { skin: "geyser" },
     { skin: "riftburst" },
@@ -592,8 +532,6 @@ function softClipCurve() {
 }
 
 const musicChords = {
-    // 3.53.0: the Glass Flats: D A Bm G - bright open noon chords (the Crucible's own root, D, was
-    // kept in BOSS_ROOT through the foundry's retirement)
     flats: [
       [50, "M"],
       [45, "M"],
@@ -601,19 +539,19 @@ const musicChords = {
       [43, "M"],
     ],
     // 3.4.0: Blackout City: Am F Dm E (the E major pulls back to A minor: film noir)
-    yard: [
+    city: [
       [57, "m"],
       [53, "M"],
       [50, "m"],
       [52, "M"],
     ],
-    vault: [
+    shelf: [
       [52, "m"],
       [48, "M"],
       [55, "M"],
       [50, "M"],
     ],
-    void: [
+    core: [
       [54, "m"],
       [50, "M"],
       [45, "M"],
@@ -626,8 +564,8 @@ const musicChords = {
       [48, "m"],
     ],
     // 3.49.0: the Ashfall Caldera: Gm Eb F D (the D major pulls back to G minor: the mountain's
-    // own fanfare, the same trick as the City and the old Club)
-    club: [
+    // own fanfare, the same trick as the City and the old Caldera)
+    caldera: [
       [43, "m"],
       [39, "M"],
       [41, "M"],
@@ -635,11 +573,11 @@ const musicChords = {
     ],
   },
   musicVoices = {
-    yard: { arp: "square", bass: "sawtooth", lp: 2200, lead: "triangle" },
-    vault: { arp: "sine", bass: "triangle", lp: 4200, lead: "sine" },
-    void: { arp: "square", bass: "sawtooth", lp: 3e3, lead: "square" },
+    city: { arp: "square", bass: "sawtooth", lp: 2200, lead: "triangle" },
+    shelf: { arp: "sine", bass: "triangle", lp: 4200, lead: "sine" },
+    core: { arp: "square", bass: "sawtooth", lp: 3e3, lead: "square" },
     marsh: { arp: "triangle", bass: "sawtooth", lp: 1200, lead: "triangle" },
-    club: { arp: "square", bass: "sawtooth", lp: 1500, lead: "sawtooth" },
+    caldera: { arp: "square", bass: "sawtooth", lp: 1500, lead: "sawtooth" },
     flats: { arp: "sine", bass: "triangle", lp: 3800, lead: "sine" },
   },
   midiToFreq = (midi) => 440 * Math.pow(2, (midi - 69) / 12),
@@ -666,7 +604,7 @@ const musicChords = {
       this.placeSt = null;
       this.last = Object.create(null);
       this.mode = "off";
-      this.biome = "yard";
+      this.biome = "city";
       this.step = 0;
       this.nextT = 0;
       this.timer = null;
@@ -710,7 +648,7 @@ const musicChords = {
       // 3.1.0: the music tracks (see MUSIC_TRACKS): what plays now, the boss heat (0 calm, 1 after a phase change,
       // 2 enraged), the stage buses and the counters of the voice budget
       this.playKind = "off";
-      this.playBiome = "yard";
+      this.playBiome = "city";
       this.heat = 0;
       this.jump = false;
       this.fade = null;
@@ -874,7 +812,7 @@ const musicChords = {
         let sfxVerb = ctx.createConvolver();
         sfxVerb.buffer = roomImpulse(ctx, 1.4);
         this.sfxVerbOut = ctx.createGain();
-        this.sfxVerbOut.gain.value = SFX_ROOM_BIOME.yard;
+        this.sfxVerbOut.gain.value = SFX_ROOM_BIOME.city;
         this.sfxVerbIn.connect(sfxVerb);
         sfxVerb.connect(this.sfxVerbOut);
         this.sfxVerbOut.connect(this.sfx);
@@ -1360,7 +1298,7 @@ const musicChords = {
             break;
           case "kill":
             if (ev.boss) {
-              this.play("bigkill");
+              this.play("bigkill", ev.type);
             } else {
               if (kills++ < 3) {
                 this.play(RL_DEATH_FAMILY[ev.type] || "kill", ev.elite ? 1.8 : Math.max(1, ev.r * 1.6));
@@ -1377,9 +1315,8 @@ const musicChords = {
               this.play(attackVoice(ev.kind, ev.src, this.biome, ev.chill), ev.r);
               break;
             }
-            // 3.15.0: the boss cards: the Crucible Hammer's slam, a larva of the Brood bursting
-            if (ev.kind === "hammer" || ev.kind === "brood") {
-              this.play(ev.kind === "hammer" ? "bcHammer" : "bcBurst");
+            if (ev.kind === "brood") {
+              this.play("bcBurst");
               break;
             }
             this.play(
@@ -1429,13 +1366,11 @@ const musicChords = {
             this.play("heal");
             break;
           case "eshot":
-            this.play((ev.type === "boss" && BOSS_ESHOT[ev.boss]) || RL_ESHOT_VOICE[ev.type] || "eshot");
+            this.play(shotVoiceFor(ev));
             // 3.33.0: a Frost enemy's shot rings with a glassy chime on top (its shot slows the drone it hits)
             if (ev.frost) this.play("eshotFrost");
             break;
           case "beamWarn":
-            // 3.33.0: the beams of the Cryo Vault, the Toxin Marsh and the Ember Works sound like what they are; the
-            // laser and the rift ribbon keep the whine of 2.x
             this.play(BEAM_VOICE[ev.skin] || (ev.small ? "beamSmall" : "beam"), ev.small ? 0.6 : 1, ev.boss === true);
             break;
           case "aim":
@@ -1463,7 +1398,7 @@ const musicChords = {
             this.play("victory");
             break;
           case "thud":
-            this.play("thud");
+            this.play("thud", ev.src);
             break;
           case "revive":
             this.play("nova");
@@ -1477,9 +1412,6 @@ const musicChords = {
             break;
           case "lockOn":
             this.play("bcLock");
-            break;
-          case "hammerReady":
-            this.play("bcReady");
             break;
           case "shatter":
             this.play("bcShatter");
@@ -1544,13 +1476,13 @@ const musicChords = {
             this.play("shieldPop");
             break;
           case "lob":
-            this.play("lob");
+            this.play("lob", { src: ev.src, frost: !!ev.frost });
             break;
           case "blinkWarn":
-            this.play("blinkWarn");
+            this.play("blinkWarn", ev.src);
             break;
           case "blink":
-            this.play("blink");
+            this.play(ev.leap ? "leap" : "blink", ev.src);
             break;
           case "erupt":
             this.play("erupt");
@@ -1565,7 +1497,7 @@ const musicChords = {
           case "mend":
           case "chill":
           case "champion":
-            this.play(ev.k);
+            this.play(ev.k, ev.src);
             break;
           case "tribute":
             this.play("tribute");
@@ -1577,7 +1509,7 @@ const musicChords = {
             this.play("shortFizz");
             break;
           case "championDown":
-            this.play("bigkill");
+            this.play("bigkill", ev.type);
             break;
           case "combo":
             this.play("combo", Math.round(Math.log2(ev.n / 10) * 3));
@@ -1596,7 +1528,7 @@ const musicChords = {
             this.play("supply");
             break;
           case "hatch":
-            this.play("hatch", ev.big ? 1 : 0);
+            this.play("hatch", { src: ev.src, big: !!ev.big });
             break;
           case "freeze":
             this.play("freeze");
@@ -1625,7 +1557,7 @@ const musicChords = {
             this.bossPush(2);
             break;
           case "phase":
-            this.play("phase");
+            this.play("phase", ev.src);
             this.bossPush(1);
             break;
           case "bossDown":
@@ -1672,7 +1604,7 @@ const musicChords = {
       return this.mode;
     }
     wantBiome() {
-      return musicChords[this.biome] ? this.biome : "yard";
+      return musicChords[this.biome] ? this.biome : "city";
     }
     /* Called when the wanted track changes: restarts the step counter on the spot, cuts the notes that were
      already scheduled for the old track and plays the transition: an impact when the boss track starts, a last
@@ -1978,7 +1910,7 @@ const musicChords = {
             crackleAmp.connect(gain);
             break;
           }
-          case "raid": {
+          case "ashfall": {
             // 3.49.0: ASHFALL: the fumaroles prime (a hiss that never quite lets go) over a deep
             // rock-rumble, and the hot wind rises and falls behind it
             let prime = filter("bandpass", 1900, 0.9, loop(1.1, "pink")),
@@ -2103,7 +2035,7 @@ const musicChords = {
           gain.connect(out);
           return gain;
         },
-        root = midiToFreq((musicChords[biome] || musicChords.yard)[0][0]),
+        root = midiToFreq((musicChords[biome] || musicChords.city)[0][0]),
         bpm = musicTrack(kind, biome).bpm;
       out.gain.setValueAtTime(1e-4, now);
       out.gain.linearRampToValueAtTime(
@@ -2193,7 +2125,7 @@ const musicChords = {
             depthGain.connect(param);
           };
         switch (name) {
-          case "yard": {
+          case "city": {
             // Blackout City: the wash of far traffic under a rain that never quite reaches, a transformer hum
             let wash = filter("lowpass", 240, 0.6, loop(0.5, "brown")),
               washAmp = amp(wash, 0.6);
@@ -2203,7 +2135,7 @@ const musicChords = {
             amp(hum, 0.11);
             break;
           }
-          case "vault": {
+          case "shelf": {
             // The Aurora Shelf: a thin high wind that wanders (the calm cousin of the whiteout storm) and the
             // faint glassy sheen of the ice
             let wind = filter("bandpass", 520, 0.7, loop(1, "pink"));
@@ -2234,7 +2166,7 @@ const musicChords = {
             drift(sheen.frequency, 0.04, 300);
             break;
           }
-          case "void": {
+          case "core": {
             // The Shattered Core: a slow sub throb and a shimmering sheen far above it
             let throb = amp(osc("sine", 44), 0.5),
               fifth = amp(osc("sine", 66), 0.18);
@@ -2249,7 +2181,7 @@ const musicChords = {
           case "flats": {
             // 3.53.0: the Glass Flats: the noon hiss - hot air over the glass, a low sand drone and
             // the far tick of the sheets settling (the amps stay well over the tone gate: the first
-            // CI round measured 0.0008 - the club's silent-tone lesson)
+            // CI round measured 0.0008 - the caldera's silent-tone lesson)
             const hiss = amp(filter("bandpass", 3400, 1.4, loop(1.3, "pink")), 0.05);
             drift(hiss.gain, 0.14, 0.012);
             const drone = amp(filter("lowpass", 130, 0.8, osc("sine", 48)), 0.075);
@@ -2258,7 +2190,7 @@ const musicChords = {
             drift(tick.gain, 0.06, 0.004);
             break;
           }
-          case "club": {
+          case "caldera": {
             // 3.49.0: the Ashfall Caldera: the crater breathes - the rumble under everything, the
             // crackle of the cooling crust, the far hiss of gas. The mountain's slow pulse swells
             // the rumble. (No music-bus bed: the march owns the music bus alone - a copy of the
@@ -2483,13 +2415,13 @@ const musicChords = {
     note(step, time) {
       let kind = this.playKind,
         biome = this.playBiome,
-        chords = musicChords[biome] || musicChords.yard,
+        chords = musicChords[biome] || musicChords.city,
         at = time - this.ctx.currentTime;
       if (kind === "fight" || kind === "boss") {
         let track = musicTrack(kind, biome),
           bar = Math.floor(step / 16),
           // 3.46.0: a biome can let its chords breathe over more than one bar (chordBars): the Works, the
-          // Vault and the Core change their chord every second bar (the drone of the place), the City and
+          // Shelf and the Core change their chord every second bar (the drone of the place), the City and
           // the Marsh keep one chord per bar. The boss tracks stay at one chord per bar: the drama.
           [root, quality] = chords[Math.floor(bar / (track.chordBars || 1)) % 4],
           level = kind === "boss" ? 1 : this.intensity,
@@ -2973,13 +2905,13 @@ const pumpDip = (k, at, depth, rel = 0.09) => {
 
 /* 3.7.0: the atmospheres hold no white noise any more. They were a one-second loop of white noise, filtered into rain,
    wind, insects and steam; on a phone speaker (nothing below about 200 Hz) that hiss was most of what one heard of a
-   calm theme (Cryo Vault about three quarters, the Glowmarsh half, Blackout City a third). Now an atmosphere is a soft
+   calm theme (Aurora Shelf about three quarters, the Glowmarsh half, Blackout City a third). Now an atmosphere is a soft
    bed of pink or brown noise well below the music (low rumbles, a gentle band of rain, a wind that sings on the notes
    of the chord) and the sounds of the place are notes of the theme: drops, crickets, embers, ice (see the calm themes).
    gain: the level of the calm atmosphere, boss: the factor under the boss track */
 const BED_LEVEL = { fight: 1, boss: 1 },
   MUSIC_BEDS = {
-    yard: {
+    city: {
       gain: 0.48,
       boss: 0.4,
       build({ osc, loop, filt, lfo, level }) {
@@ -2999,7 +2931,7 @@ const BED_LEVEL = { fight: 1, boss: 1 },
         lfo(0.07, 0.005, blades.gain);
       },
     },
-    vault: {
+    shelf: {
       gain: 0.95,
       boss: 0.6,
       build({ loop, filt, lfo, level, root }) {
@@ -3018,9 +2950,6 @@ const BED_LEVEL = { fight: 1, boss: 1 },
         }
       },
     },
-    // 3.53.0: the Glass Flats: the heat shimmer - a wide hot band that sings against the notes, and
-    // the low sand drone under it. Under the boss track the shimmer thins (boss 0.55): the hammer
-    // carries the fight, and the broadband bed would floor the track's flatness (the club lesson)
     flats: {
       gain: 0.34,
       boss: 0.55,
@@ -3044,7 +2973,7 @@ const BED_LEVEL = { fight: 1, boss: 1 },
         lfo(0.09, 0.005, damp.gain);
       },
     },
-    void: {
+    core: {
       gain: 0.6,
       boss: 0.48,
       build({ osc, loop, filt, lfo, level, root }) {
@@ -3068,12 +2997,12 @@ const BED_LEVEL = { fight: 1, boss: 1 },
 
 /* ---------- calm themes ---------- */
 
-/* 3.5.0: the calm themes all followed the Cryo Vault: no beat at all until the intensity is high (then a slow heartbeat),
+/* 3.5.0: the calm themes all followed the Aurora Shelf: no beat at all until the intensity is high (then a slow heartbeat),
    a motif of struck notes in the echo and the room whose pattern changes per section, a soft pad, a deep sub on every
    chord, flakes of texture and the sounds of the place; each biome has an instrument of its own for the motif and its
    own pad. The boss tracks carry the same motif, so that they sound like the same place at its darkest.
    3.46.0: the themes still share that skeleton, but each place now walks out of it with a gait of its own: the City
-   swings (noir), the Glowmarsh drags (bayou), the Works, the Vault and the Core let their chords breathe over two bars,
+   swings (noir), the Glowmarsh drags (bayou), the Works, the Shelf and the Core let their chords breathe over two bars,
    and every theme carries one signature voice of its own (a comping chord, a machine bass, a glass run, a dub answer,
    a chant). */
 const CALM_MOTIF = ["x..x..x...x..x..", "x.x...x.x...x.x.", "x..x.x...x..x...", "x.x..x.x..x.x..x"],
@@ -3088,8 +3017,6 @@ const CALM_MOTIF = ["x..x..x...x..x..", "x.x...x.x...x.x.", "x..x.x...x..x...", 
       // limit of the sampling rate and warned): no one hears it, so it is left out
       if (f * 7.1 < 16000) bus.t(f * 7.1, 0.07, "sine", v * 0.12, { attack: 0.001, ...o });
     },
-    // a struck pipe, warm and deep, a fifth and a minor tenth above it, a soft knock (the foundry's
-    // voice once; the Rift Core's choir still quotes it)
     pipes: (bus, f, v, o) => {
       bus.t(f, o.lite ? 0.9 : 2, "sine", v, { attack: 0.002, rev: 0.8, ...o });
       bus.t(f * 1.505, o.lite ? 0.5 : 1.2, "sine", v * 0.45, { attack: 0.002, ...o });
@@ -3117,7 +3044,7 @@ const CALM_MOTIF = ["x..x..x...x..x..", "x.x...x.x...x.x.", "x..x.x...x..x...", 
       bus.t(f * 1.004, 2.6, "sine", v * 0.8, { attack: 0.004, ...o });
       bus.t(f * 2.76, 0.9, "sine", v * 0.25, { attack: 0.002, ...o });
     },
-    // the old Club's vibraphone (kept for the record; the Caldera strikes obsidian instead)
+    // the old Caldera's vibraphone (kept for the record; the Caldera strikes obsidian instead)
     // (the 9.2 partial carries the piano's 16 kHz guard: on the G-major bar the motif runs high)
     vibes: (bus, f, v, o) => {
       bus.t(f, o.lite ? 1 : 2.2, "sine", v, { attack: 0.002, rev: 0.65, ...o });
@@ -3153,7 +3080,7 @@ const CALM_MOTIF = ["x..x..x...x..x..", "x.x...x.x...x.x.", "x..x.x...x..x...", 
   VOICE_GAIN = { piano: 1.4, pipes: 1.6, ice: 1, kalimba: 1.5, glass: 1.5, vibes: 1.35, cinder: 1.45, glassine: 1.4 },
   /* the pad of each biome: notes (from the step data), wave, low-pass, fade, detune, room, level, tremolo rate */
   CALM_PAD = {
-    yard: {
+    city: {
       notes: (c) => [c.chord[0] + 12, c.chord[1] + 12, c.root + 22],
       wave: "triangle",
       lp: 1500,
@@ -3172,7 +3099,7 @@ const CALM_MOTIF = ["x..x..x...x..x..", "x.x...x.x...x.x.", "x..x.x...x..x...", 
       rev: 0.7,
       vol: 0.018,
     },
-    vault: {
+    shelf: {
       notes: (c) => [c.chord[0] + 12, c.chord[2] + 12, c.chord[1] + 24],
       wave: "triangle",
       lp: 2200,
@@ -3191,7 +3118,7 @@ const CALM_MOTIF = ["x..x..x...x..x..", "x.x...x.x...x.x.", "x..x.x...x..x...", 
       vol: 0.016,
       trem: 1.1,
     },
-    void: {
+    core: {
       notes: (c) => [c.root - 24, c.root - 24, c.root - 17, c.root - 12],
       wave: "sawtooth",
       lp: 360,
@@ -3201,8 +3128,8 @@ const CALM_MOTIF = ["x..x..x...x..x..", "x.x...x.x...x.x.", "x..x.x...x..x...", 
       vol: 0.022,
     },
     // 3.49.0: the Caldera: a hot-metal pad - low on the root, the fifth hollow above it, bright
-    // enough that its own harmonics own the band the phone test measures (the Vault's lesson)
-    club: {
+    // enough that its own harmonics own the band the phone test measures (the Shelf's lesson)
+    caldera: {
       notes: (c) => [c.root - 12, c.chord[0] + 12, c.root + 7],
       wave: "triangle",
       lp: 2000,
@@ -3239,9 +3166,9 @@ function calmMotif(k, c, voice, v = 1, lite = false, heroic = false) {
    present when it is quiet and step back as the fight swells. */
 const BLOOM = {
   // Blackout City: a felt piano a little above the electric piano motif, the colour is the ninth and the sixth
-  yard: { voice: "felt", extra: [14, 9], low: 12, span: 1, rate: 0.62, vol: 0.05, len: 3.4, width: 0.85, echo: 0.6 },
+  city: { voice: "felt", extra: [14, 9], low: 12, span: 1, rate: 0.62, vol: 0.05, len: 3.4, width: 0.85, echo: 0.6 },
   // The Aurora Shelf: glass, high, the colour is the sharp eleventh (the Lydian fourth) and the ninth
-  vault: { voice: "glass", extra: [18, 14], low: 24, span: 1, rate: 0.7, vol: 0.036, len: 4.8, width: 0.95, echo: 0.8 },
+  shelf: { voice: "glass", extra: [18, 14], low: 24, span: 1, rate: 0.7, vol: 0.036, len: 4.8, width: 0.95, echo: 0.8 },
   // 3.53.0: the Glass Flats: the glassine, bright and close - the colour is the major seventh and
   // the ninth (the noon glare); the register sits under the Shelf's glass, above the marsh
   flats: { voice: "glassine", extra: [14, 11], low: 19, span: 1, rate: 0.66, vol: 0.04, len: 4, width: 0.9, echo: 0.7 },
@@ -3258,9 +3185,9 @@ const BLOOM = {
     echo: 0.55,
   },
   // The Shattered Core: sine bells that sing in a fifth and fall away, the colour is the tritone and the major seventh
-  void: { voice: "ether", extra: [6, 11], low: 12, span: 2, rate: 0.45, vol: 0.04, len: 6, width: 1, echo: 0.9 },
+  core: { voice: "ether", extra: [6, 11], low: 12, span: 2, rate: 0.45, vol: 0.04, len: 6, width: 1, echo: 0.9 },
   // Ashfall Caldera: a hot shard pings and cools, the colour is the fifth and the octave
-  club: { voice: "ember", extra: [7, 12], low: 12, span: 1, rate: 0.55, vol: 0.04, len: 2.6, width: 0.9, echo: 0.7 },
+  caldera: { voice: "ember", extra: [7, 12], low: 12, span: 1, rate: 0.55, vol: 0.04, len: 2.6, width: 0.9, echo: 0.7 },
 };
 const BLOOM_VOICE = {
   felt: (g, f, v, len, o) => {
@@ -3291,7 +3218,7 @@ const BLOOM_VOICE = {
     g.t(f * 1.5, len * 0.8, "sine", v * 0.42, { attack: 0.5, detune: 7, to: f * 1.5 * 0.99, ...o });
     g.t(f * 2.7, len * 0.4, "sine", v * 0.1, { attack: 0.3, ...o });
   },
-  // 3.47.0: the Club's bloom: a struck vibraphone bar, smooth, with the metallic partials dying fast
+  // 3.47.0: the Caldera's bloom: a struck vibraphone bar, smooth, with the metallic partials dying fast
   // (the 9.2 partial carries the same 16 kHz guard as the motif voice)
   vibe: (g, f, v, len, o) => {
     g.t(f, len, "sine", v, { attack: 0.004, ...o });
@@ -3437,8 +3364,6 @@ function glassBoss(e, c) {
       });
   }
 }
-// the shard pluck (the flats' boss percussion: a glassy ping and a short grain of sand - the anvil
-// slot of the hammer track, revoiced for the open noon)
 function shardPluck(k, c, vol, o = {}) {
   k.d.n(0.025, vol * 1.3, { type: "bandpass", f: 3400, q: 4.5, color: "pink", attack: 0.001, ...o });
   k.d.t(1976, 0.12, "sine", vol, { at: 0.003, ...o, lp: 7400 });
@@ -3448,13 +3373,13 @@ function shardPluck(k, c, vol, o = {}) {
 /* Blackout City, 78 BPM, A minor (Am F Dm E): rain on empty streets. An electric piano motif, a soft pad, the sub; a
    far siren, thunder rolling in, radio chatter, rain drops and drips from a gutter (a soft band of rain and the hum of
    dead transformers are the atmosphere) */
-function yardCalm(e, c) {
+function cityCalm(e, c) {
   const { b, bar, L, chord, root } = c,
     k = kit(e, c);
   calmMotif(k, c, "piano");
-  calmPad(k, c, "yard");
+  calmPad(k, c, "city");
   calmFloor(k, c, { f0: 100, f1: 40, dur: 0.25 });
-  // 3.46.0: the club under the rain: a piano comp on the "and" of the first and the third beat, a short
+  // 3.46.0: the city's rain theme: a piano comp on the "and" of the first and the third beat, a short
   // seventh chord in the echo that answers the walking bass (the swing of the track carries the rest)
   if (L > 0.35 && (b === 2 || b === 10) && R(c, 30) < 0.8) {
     const pan = b === 2 ? -0.35 : 0.35;
@@ -3511,12 +3436,12 @@ function yardCalm(e, c) {
    a glass pad, a deep sub on every chord, ticks of ice, cracks, wind chimes and a creak (a wind that sings on the chord
    is the atmosphere). The model of the other themes. Every eighth bar a run of glass slides down the chord and rings
    out in the echo (the harmonica of the cavern). */
-const VAULT_CHIME = [76, 79, 81, 83, 86, 88];
-function vaultCalm(e, c) {
+const SHELF_CHIME = [76, 79, 81, 83, 86, 88];
+function shelfCalm(e, c) {
   const { b, bar, L } = c,
     k = kit(e, c);
   calmMotif(k, c, "ice");
-  calmPad(k, c, "vault");
+  calmPad(k, c, "shelf");
   calmFloor(k, c, { f0: 100, f1: 40, dur: 0.25 });
   // 3.46.0: the harmonica of the cavern: on every eighth bar a slow run of glass slides down the chord
   // (five tones over the bar, wide in the room), the sound of a breath on the frozen walls
@@ -3530,12 +3455,12 @@ function vaultCalm(e, c) {
     k.m.t(3800, 0.08, "sine", 0.025, { to: 900, opt: true, pan: P(c, 6) });
   }
   if (b % 2 === 0 && b > 0 && R(c, 7) < 0.04 + 0.05 * L)
-    bell(k.d, midiToFreq(VAULT_CHIME[(R(c, 8) * 6) | 0]), 0.025, 1.7, { opt: true, rev: 0.5, pan: P(c, 9) });
+    bell(k.d, midiToFreq(SHELF_CHIME[(R(c, 8) * 6) | 0]), 0.025, 1.7, { opt: true, rev: 0.5, pan: P(c, 9) });
   if ((bar & 3) === 1 && b === 9 && R(c, 10) < 0.6) {
     k.m.n(0.9, 0.03, { type: "bandpass", f: 260, to: 210, q: 9, color: "pink", attack: 0.3, opt: true });
     k.m.t(78, 0.9, "sawtooth", 0.008, { to: 70, lp: 300, attack: 0.3, opt: true });
   }
-  // 3.17.0: the vault keeps time as it swells (like the other places since 3.14.0): icicles tick on the off-beats in
+  // 3.17.0: the shelf keeps time as it swells (like the other places since 3.14.0): icicles tick on the off-beats in
   // a falling figure on the chord, the ice creaks on 2 and 4, and a gust of wind breathes in over every fourth bar
   if (L > 0.35 && b % 4 === 2) {
     const f = midiToFreq(c.chord[[2, 1, 0, 1][b >> 2]] + 36);
@@ -3612,11 +3537,11 @@ const VOID_FORMANTS = [
   [300, 2300],
   [500, 1800],
 ];
-function voidCalm(e, c) {
+function coreCalm(e, c) {
   const { b, bar, L, chord } = c,
     k = kit(e, c);
   calmMotif(k, c, "glass");
-  calmPad(k, c, "void");
+  calmPad(k, c, "core");
   calmFloor(k, c, { f0: 90, f1: 32, dur: 0.35 });
   // 3.46.0: the chant of the core: a whisper on the head of every second bar, a vowel that walks the
   // formants and leans to the other side each time (something is in there, and it is breathing)
@@ -3679,7 +3604,7 @@ function calderaCalm(e, c) {
   const { b, bar, L, chord, root } = c,
     k = kit(e, c);
   calmMotif(k, c, "cinder");
-  calmPad(k, c, "club");
+  calmPad(k, c, "caldera");
   calmFloor(k, c, { f0: 92, f1: 36, dur: 0.3 });
   // the signature: the crust cracks on the off-beats, a little harder as the fight swells
   if (L > 0.2 && pat(CALDERA_CRACK)[b]) calderaKnock(k, c, 0.009 + 0.006 * L, { pan: (b & 2) * 0.2 - 0.1 });
@@ -3790,7 +3715,7 @@ function buildRiser(k, c) {
    choir and the piano, big taikos, a police siren far away; build: taiko roll, the bass climbs, riser */
 const CHASE_BASS = ["x.xxx.xxx.xxx.xx", "xxxxx.xxxxxx.xxx"],
   CHASE_OCT = [0, 12, 0, 0, 12, 0, 0, 12, 0, 0, 12, 0, 0, 12, 0, 12];
-function yardBoss(e, c) {
+function cityBoss(e, c) {
   const { b, bar, sec, root, chord } = c,
     k = kit(e, c);
   if (sec <= 2) calmMotif(k, c, "piano", sec === 2 ? 1.4 : 1.6, sec !== 2, sec !== 2);
@@ -3852,12 +3777,12 @@ function yardBoss(e, c) {
    a pumping pad; variation: the choir sings the chords, a lead doubles the bell melody, strings in eighths; breakdown:
    no beat, the choir, the bells and the arpeggio behind a closed filter, a gust of wind; build: the clap rolls, the
    kick doubles, riser */
-const VAULT_MEL = [76, 79, 83, 81, 79, 76, 74, 76, 72, 76, 79, 78, 74, 78, 81, 79],
+const SHELF_MEL = [76, 79, 83, 81, 79, 76, 74, 76, 72, 76, 79, 78, 74, 78, 81, 79],
   ICE_ARP = [0, 1, 2, 3, 2, 1, 2, 3];
-function vaultBoss(e, c) {
+function shelfBoss(e, c) {
   const { b, bar, sec, root, chord } = c,
     k = kit(e, c),
-    mel = VAULT_MEL[((bar & 3) * 4 + (b >> 2)) % 16];
+    mel = SHELF_MEL[((bar & 3) * 4 + (b >> 2)) % 16];
   if (sec <= 2) calmMotif(k, c, "ice", 1.3, sec !== 2);
   sectionHit(k, c);
   if (sec <= 1) {
@@ -3915,7 +3840,7 @@ function vaultBoss(e, c) {
       });
   } else {
     const n = (bar - 20) * 16 + b;
-    // 3.46.0: the bells of the vault run down the chord into the drop (the cascade before the wall)
+    // 3.46.0: the bells of the shelf run down the chord into the drop (the cascade before the wall)
     if (b % 4 === 0)
       bell(k.d, midiToFreq(chord[[3, 2, 1, 0, 0, 1, 2, 3][(bar - 20) * 4 + (b >> 2)]] + 24), 0.04, 0.8, { rev: 0.6 });
     if (bar === 20 ? b % 4 === 0 : b % 2 === 0) kick(k, 0.4, { f0: 130, f1: 44, dur: 0.16 });
@@ -4015,7 +3940,7 @@ function marshBoss(e, c) {
 const BREAK_K = ["x.........x.....", "x.........x..x.."],
   BREAK_GHOST = "......x..x....x.",
   QUOTES = ["piano", "pipes", "ice", "kalimba"];
-function voidBoss(e, c) {
+function coreBoss(e, c) {
   const { b, bar, sec, root, chord } = c,
     k = kit(e, c),
     q = bar & 3;
@@ -4179,20 +4104,27 @@ function bossHeatLayer(e, c) {
    below and a short choir (the crash of the metal tracks was a burst of hiss). The last hit when the boss is dead: a
    deep taiko, the brass on the root with a major third (the victory), a choir and the instrument of the biome once
    more. A phase change or the enrage jumps to the head of the drop, whose own hit (sectionHit) marks it. */
-const BIOME_VOICE = { yard: "piano", vault: "ice", marsh: "kalimba", void: "glass", club: "cinder", flats: "glassine" };
+const BIOME_VOICE = {
+  city: "piano",
+  shelf: "ice",
+  marsh: "kalimba",
+  core: "glass",
+  caldera: "cinder",
+  flats: "glassine",
+};
 /* 3.48.0: the ambience preview of the Settings slider — one far sound that says "this is the place":
-   the City sparks a broken lamp, icicles fall in the Vault, the Glowmarsh answers with frogs, the
+   the City sparks a broken lamp, icicles fall in the Shelf, the Glowmarsh answers with frogs, the
    Core shimmers and the Caldera grumbles far away (3.49.0). */
 const AMB_PREVIEW = {
-  yard: "sparks",
-  vault: "icicles",
+  city: "sparks",
+  shelf: "icicles",
   marsh: "frogs",
-  void: "shimmer",
-  club: "farBoom",
+  core: "shimmer",
+  caldera: "farBoom",
   flats: "devilMoan",
 };
 function musicImpact(e, biome, at) {
-  const root = (musicChords[biome] || musicChords.yard)[0][0],
+  const root = (musicChords[biome] || musicChords.city)[0][0],
     k = kit(e, { at });
   // 3.46.0: the arrival is a braam now: two detuned saws two octaves down open into the hall under the
   // brass, a second taiko answers the deep one and the choir takes the octave
@@ -4205,7 +4137,7 @@ function musicImpact(e, biome, at) {
   choir(k, [root, root + 7, root + 12, root + 24], 1.6, 0.03, { fade: 0.15 });
 }
 function musicResolve(e, biome, at) {
-  const root = (musicChords[biome] || musicChords.yard)[0][0],
+  const root = (musicChords[biome] || musicChords.city)[0][0],
     k = kit(e, { at });
   // short: the music fades out over 0.9 s and the calm theme (minor) comes back; a long major third would clash
   taiko(k, 0.6, { f: 60, deep: true, dur: 1.1, rev: 0.9 });
@@ -4217,47 +4149,43 @@ function musicResolve(e, biome, at) {
 
 const MUSIC_TRACKS = {
   // 3.46.0: each calm theme now moves like the place it is: the City swings (noir), the Marsh drags (bayou),
-  // the Works, the Vault and the Core let their chords breathe over two bars (chordBars). The boss tracks
+  // the Works, the Shelf and the Core let their chords breathe over two bars (chordBars). The boss tracks
   // stay straight and keep one chord per bar (the drama). The gains are the measured ones of 3.45.5 (see
   // the mix note at MUSIC_SCALE) - the epic and the identity come from the notes, not from the level.
-  yard: {
-    fight: { bpm: 78, bars: 16, swing: 0.26, gain: 1, play: yardCalm },
-    boss: { bpm: 128, bars: 22, swing: 0, gain: 1.1, play: yardBoss },
+  city: {
+    fight: { bpm: 78, bars: 16, swing: 0.26, gain: 1, play: cityCalm },
+    boss: { bpm: 128, bars: 22, swing: 0, gain: 1.1, play: cityBoss },
   },
-  vault: {
-    fight: { bpm: 72, bars: 16, swing: 0, chordBars: 2, gain: 1, play: vaultCalm },
-    boss: { bpm: 138, bars: 22, swing: 0, gain: 1, play: vaultBoss },
+  shelf: {
+    fight: { bpm: 72, bars: 16, swing: 0, chordBars: 2, gain: 1, play: shelfCalm },
+    boss: { bpm: 138, bars: 22, swing: 0, gain: 1, play: shelfBoss },
   },
   marsh: {
     fight: { bpm: 69, bars: 16, swing: 0.17, gain: 1, play: marshCalm },
     boss: { bpm: 116, bars: 22, swing: 0, gain: 1, play: marshBoss },
   },
-  void: {
-    fight: { bpm: 60, bars: 16, swing: 0, chordBars: 2, gain: 1, play: voidCalm },
+  core: {
+    fight: { bpm: 60, bars: 16, swing: 0, chordBars: 2, gain: 1, play: coreCalm },
     // 3.45.5: the mix note above trimmed the boss make-up; the Shattered Core's boss keeps a step of its own
     // (the deep-test wants every boss track clearly louder than its calm theme; the glue compressor
     // eats part of a track-gain raise, so this one goes to 1.25)
-    boss: { bpm: 172, bars: 22, swing: 0, gain: 1.25, play: voidBoss },
+    boss: { bpm: 172, bars: 22, swing: 0, gain: 1.25, play: coreBoss },
   },
   // 3.49.0: the Ashfall Caldera: the calm theme keeps the mountain's slow time (84, straight - the
   // only place that neither swings nor breathes its chords), the boss track is a heavier march (132).
   // The boss gain keeps the versus rule clear of the line (measured with the probe; the glue
   // compressor eats part of a raise, the same as the Core's).
-  club: {
+  caldera: {
     fight: { bpm: 84, bars: 16, swing: 0, gain: 1, play: calderaCalm },
     boss: { bpm: 132, bars: 22, swing: 0, gain: 1.2, play: calderaBoss },
   },
-  // 3.53.0: the Glass Flats: the calm theme keeps noon's even walk (92, straight). 3.56.0: the boss
-  // track is the wyrm's own (134 - it comes up from below, the glass shard plucks answer the snare);
-  // the Crucible's hammer went back to the bench with it. The boss gain keeps the versus rule clear
-  // (the glue compressor eats part of a raise - the same note as the Core's and the Caldera's).
   flats: {
     fight: { bpm: 92, bars: 16, swing: 0, gain: 1, play: glassCalm },
     boss: { bpm: 134, bars: 22, swing: 0, gain: 1.2, play: glassBoss },
   },
 };
 function musicTrack(kind, biome) {
-  return (MUSIC_TRACKS[biome] || MUSIC_TRACKS.yard)[kind];
+  return (MUSIC_TRACKS[biome] || MUSIC_TRACKS.city)[kind];
 }
 /* tempo (BPM) and length in sixteenth steps of what plays */
 function trackInfo(kind, biome) {
@@ -4327,8 +4255,13 @@ function rlSoundCatalog() {
     "eshotQueen",
     "eshotCore",
     "eshotPrism",
-    "eshotForge",
-    "eshotKingpin",
+    "eshotTyrant",
+    "eshotWyrm",
+    "eshotGunner",
+    "bwLaser",
+    "bwRift",
+    "aGlass",
+    "leap",
     "eshotWeaver",
     "eshotCarrier",
     "eshotFrost",
@@ -4406,11 +4339,11 @@ function rlSoundCatalog() {
   // 3.3.0: the Endless mutator
   ids(["mutator"], "volatile");
   // 3.53.0: the sunspike joins the trap families (warn and fire of its own)
-  ids(["tcPlate", "tcCrusher", "tcIce", "tcGeyser", "tcRift", "tcSun"], 1);
+  ids(["tcPlate", "tcIce", "tcGeyser", "tcRift", "tcSun"], 1);
   for (const id of ["tbLaser", "tbFlame", "tbRift"]) add(id, { id, arg: { delay: 0.7, dur: 1.2 } });
   ids(["tmMine", "tmFrost", "tmSpore", "tmRift"], 0.45);
   for (const skin of ["mine", "frost", "spore", "riftmine"]) ids(["tArm"], skin);
-  ids(["tsPlate", "tsCrusher", "tsIce", "tsGeyser", "tsRift", "tsMine", "tsFrost", "tsSpore", "tsRiftMine", "tsSun"]);
+  ids(["tsPlate", "tsIce", "tsGeyser", "tsRift", "tsMine", "tsFrost", "tsSpore", "tsRiftMine", "tsSun"]);
   // 3.10.0: the blasts of the attacks of enemies and bosses
   ids(["aQuake", "aLava", "aIce", "aAcid", "aRift"], 2);
   ids(["aFire"], 1);
@@ -4426,7 +4359,6 @@ function rlSoundCatalog() {
       "bSummon",
       "bNova",
       "bLance",
-      "bStoke",
       "bRain",
       "bOverdrive",
       "enrage",
@@ -4434,13 +4366,21 @@ function rlSoundCatalog() {
     ])
       ids([id], boss);
   }
+  for (const source of [...Object.keys(BOSS_EFFECTS), "striker", "phantom", "leaper", "weaver", "hive"])
+    for (const id of ["blink", "blinkWarn", "thud", "lob", "hatch"])
+      add(`${id}:${source}`, { id, arg: { src: source } });
+  for (const [skin, voices] of Object.entries(RL_TRAP_SOUND))
+    for (const [phase, id] of Object.entries(voices))
+      add(`${id}:${skin}`, { id, arg: phase === "warn" ? { delay: 0.8 } : 1 });
+  for (const skin of ["embermine", "glassmine"]) add(`tArm:${skin}`, { id: "tArm", arg: skin });
+  for (const source of ["beacon", "mender"]) add(`mend:${source}`, { id: "mend", arg: source });
   for (const rarity of [1, 2, 3, 4, 5, 6]) ids(["pick"], rarity);
   // 3.17.0: the walker: a footstep on every ground, the landing after a dash
   for (const ground of ["asphalt", "grate", "frost", "ice", "mud", "glass", "acid", "sandglass"])
     add("step:" + ground, { id: "step", arg: { ground } });
   add("land:grate", { id: "land", arg: { ground: "grate" } });
   // 3.15.0: the boss cards
-  ids(["bcCage", "bcLock", "bcHammer", "bcReady", "bcShatter", "bcHatch", "bcBurst", "bcImplode"]);
+  ids(["bcCage", "bcLock", "bcShatter", "bcHatch", "bcBurst", "bcImplode"]);
   for (const id of ["elite", "rain", "blackout", "whiteout", "bloom", "riftstorm", "devils"]) ids(["event"], id);
   for (const bed of ["hum", ...Object.keys(AMBIENCE_LEVEL)]) add("bed:" + bed, { bed, stopAt: 1.1, stopRel: 0.1 });
   // 3.43.0: the room tones render too (a short take of each, the real attack is slower than the test fade)

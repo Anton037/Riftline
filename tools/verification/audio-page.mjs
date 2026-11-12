@@ -5,6 +5,17 @@ import { launchArgs } from "../browser.js";
 export async function openAudioPage(browser, url) {
   const page = await browser.newPage({ viewport: { width: 640, height: 360 } });
   await page.addInitScript(() => {
+    // Audio probes keep real WebAudio but need no pixels, including during the initial menu frames.
+    for (const proto of [window.WebGLRenderingContext?.prototype, window.WebGL2RenderingContext?.prototype])
+      if (proto)
+        for (const name of [
+          "drawElements",
+          "drawArrays",
+          "drawElementsInstanced",
+          "drawArraysInstanced",
+          "drawRangeElements",
+        ])
+          if (proto[name]) proto[name] = function () {};
     const raf = window.requestAnimationFrame.bind(window);
     const cancel = window.cancelAnimationFrame.bind(window);
     const pending = new Set();

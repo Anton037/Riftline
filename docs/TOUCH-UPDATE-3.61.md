@@ -17,7 +17,7 @@ controller support and clarified that Riftline is a touch-only game.
 - Music probe stage summaries skip unrendered tracks instead of dereferencing missing measurements.
 - Visual review supports tablet/phone layouts and High/Auto/Saver. The manual workflow saves screenshots
   and metrics for download even when a check fails.
-- Current commands and policy are consolidated in README and TESTING. The old roadmap is explicitly archived.
+- Current commands and policy are consolidated in README and TESTING. Superseded roadmap proposals have since been removed.
   The shipped build-info source no longer contains obsolete feature claims and old release metadata.
 
 ## Evidence

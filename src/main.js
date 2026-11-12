@@ -4,9 +4,6 @@
 // imports.
 
 import { rumble } from "./ui/haptics.js";
-import { dailySpec, recordDaily } from "./core/daily.js";
-import { weeklySpec, recordWeekly } from "./core/weekly.js";
-import { pactsById } from "./data/pacts.js";
 import { bossMedal, bossPar, MEDAL_NAMES } from "./core/medals.js";
 import {
   RL_MON,
@@ -39,15 +36,13 @@ import {
 } from "./core/save.js";
 import { enemyDefs, RL_ENEMY_TIPS, biomeVariants, eliteAffixes, bossDefs } from "./data/enemies.js";
 import { BUILD_ID, GAME_VERSION, formatCount } from "./core/util.js";
-import { OVERDRIVE } from "./core/ai.js";
 import { biomeList } from "./data/biomes.js";
 import { weaponDefs } from "./data/weapons.js";
+import { MUTATORS } from "./core/mutators.js";
 import { waveEvents } from "./core/waves.js";
 import { World, rlStep } from "./core/world.js";
-import { createTrainingWorld } from "./core/training.js";
 import { interpCapture, interpApply, interpRestore, interpReset } from "./render/interp.js";
 import { makePacer, paceFrame } from "./render/pacing.js";
-import { MUTATORS } from "./core/mutators.js";
 import { threatMods, milestones, threatLevels } from "./data/progression.js";
 import { upgradesById } from "./data/upgrades.js";
 import { Renderer } from "./render/renderer.js";
@@ -56,32 +51,6 @@ import { Overlay } from "./render/overlay.js";
 
 const RL_INTRO = { queue: [], last: 0 };
 function rlIntroEvents(world) {
-  if (world.training) return;
-  // 3.28.0: the first Overdrive of a boss goes into the Codex
-  const boss = world.boss;
-  if (boss && OVERDRIVE[boss.type] && boss.st === OVERDRIVE[boss.type] && !store.data.seen["od_" + boss.type]) {
-    store.data.seen["od_" + boss.type] = true;
-    store.save("codex");
-  }
-  // ... and so does each Endless mutator that is in play
-  for (const id of Object.keys(world.mods || {}))
-    if (MUTATORS[id] && !store.data.seen["mut_" + id]) {
-      store.data.seen["mut_" + id] = true;
-      store.save("codex");
-    }
-  // 3.34.0: the wave events, the biome variants and the elite affixes go into the Codex when they are first met
-  const seenNow = store.data.seen,
-    found = [];
-  if (world.event && waveEvents[world.event] && !seenNow["ev_" + world.event]) found.push("ev_" + world.event);
-  for (const ev of world.fx)
-    if (ev.k === "spawn") {
-      if (ev.variant && !seenNow["var_" + ev.variant]) found.push("var_" + ev.variant);
-      if (ev.affix && !seenNow["aff_" + ev.affix]) found.push("aff_" + ev.affix);
-    }
-  if (found.length) {
-    for (const key of found) seenNow[key] = true;
-    store.save("codex");
-  }
   if (game.tut) return; // the tutorial coach owns the screen on the first run
   // ... and the first one of each says what it does, once
   for (const ev of world.fx)
@@ -95,7 +64,7 @@ function rlIntroEvents(world) {
     if (
       (ev.k === "spawn" || ev.k === "champion") &&
       RL_ENEMY_TIPS[ev.type] &&
-      !store.data.seen["enemy_" + ev.type] &&
+      !store.data.seen["tip_enemy_" + ev.type] &&
       !RL_INTRO.queue.includes(ev.type)
     )
       RL_INTRO.queue.push(ev.type);
@@ -104,7 +73,7 @@ function rlIntroEvents(world) {
   if (RL_INTRO.queue.length && now - RL_INTRO.last > 6500 && world.state === "fight") {
     const type = RL_INTRO.queue.shift(),
       seen = store.data.seen;
-    seen["enemy_" + type] = true;
+    seen["tip_enemy_" + type] = true;
     if (type === "mender") {
       seen.tip_mender = true;
     }
@@ -271,7 +240,7 @@ function _scheduleResize(why) {
       _resizeRaf = 0;
       try {
         if (renderer) {
-          renderer.resize(true);
+          renderer.resize();
         }
         // a turn of the phone switches to the button layout of the other orientation
         if (hudEditor.isOpen) hudEditor.onResize();
@@ -335,49 +304,23 @@ const overlay = new Overlay(elementById("ov")),
       lockLandscape();
       let save = store.data,
         snap = resume ? save.run : null;
-      if (!resume && !options.training) {
+      if (!resume) {
         save.stats.runs++;
       }
       let started = true;
       try {
-        // 3.26.0: the Daily Rift: seed, weapon and threat come from the date and the workshop does not count; a saved
-        // daily run is resumed the same way. 3.58.0: the Weekly Rift does the same for the week, and pins two mutators
-        const daily = !snap && options.daily ? dailySpec(options.dailyKey) : null,
-          weekly = !snap && options.weekly ? weeklySpec(options.weeklyKey) : null,
-          spec = daily || weekly;
-        this.world = options.training
-          ? createTrainingWorld({
-              biome: options.training,
-              phase: options.trainingPhase,
-              weapon: save.weapon,
-              threat: save.threat,
-            })
-          : new World({
-              seed: spec ? spec.seed : (Math.random() * 4294967296) >>> 0,
-              // 2.8.1: Restart / Run Again keep the weapon and threat of the run that just ended (a resumed run
-              // may differ from what the home carousel shows)
-              weapon: spec ? spec.weapon : options.weapon || save.weapon,
-              threat: spec ? spec.threat : (options.threat ?? save.threat),
-              ws: spec || (snap && (snap.daily || snap.weekly)) ? {} : save.workshop,
-              daily: daily ? daily.key : "",
-              weekly: weekly ? weekly.key : "",
-              startMods: weekly ? Object.fromEntries(weekly.mutators.map((id) => [id, 1])) : null,
-              // 3.27.0: the pacts signed on the home screen (not in the Rift of the day or week: the same drone for everyone)
-              pacts: spec ? [] : save.pacts,
-              snap: snap,
-            });
+        this.world = new World({
+          seed: (Math.random() * 4294967296) >>> 0,
+          weapon: options.weapon || save.weapon,
+          threat: options.threat ?? save.threat,
+          ws: save.workshop,
+          snap,
+        });
       } catch (err) {
         logError("start", err);
-        if (!options.training) {
-          save.run = null;
-          store.save("bad-run");
-        }
-        ui.alert(
-          "Could not start",
-          options.training
-            ? "Training could not be started. Your saved run is untouched."
-            : "The saved run could not be restored and was discarded.",
-        );
+        save.run = null;
+        store.save("bad-run");
+        ui.alert("Could not start", "The saved run could not be restored and was discarded.");
         started = false;
       }
       if (started) {
@@ -405,18 +348,12 @@ const overlay = new Overlay(elementById("ov")),
         ui.hidePause();
         ui.hideCrash();
         ui.showHud(true);
-        // 3.27.0: the pacts of a fresh run are named at the start
-        if (this.world.pacts.length && !resume)
-          ui.toast(
-            `Pacts: ${this.world.pacts.map((id) => pactsById[id].name).join(", ")} (+${Math.round(this.world.pactBonus() * 100)}% shards)`,
-            "gold",
-          );
         placeHud();
         input.reset();
         input.enabled = true;
         game.freeze = 0;
         game.tut =
-          !this.world.training && !store.data.seen.tutorial && !resume && this.world.wave === 1
+          !store.data.seen.tutorial && !resume && this.world.wave === 1
             ? { step: 0, t: 0, moved: 0, kills: 0, dashed: false }
             : null;
         if (game.tut) {
@@ -432,7 +369,7 @@ const overlay = new Overlay(elementById("ov")),
       // 2.2.3: run monitor (only the live run's world is observed; self-test and snapshot-check
       // worlds are ignored by identity). Also runs when the world could not be built.
       try {
-        if (this.world && !this.world.training && this.mode === "game") {
+        if (this.world && this.mode === "game") {
           rlMonStart(this.world, !!(options && options.resume));
         }
       } catch (err) {
@@ -506,17 +443,7 @@ const overlay = new Overlay(elementById("ov")),
     // a new run with the weapon and threat of the current (ended) run
     retry() {
       const world = this.world;
-      this.startRun(
-        world
-          ? world.training
-            ? { training: world.training.biome, trainingPhase: world.training.phase }
-            : world.weekly
-              ? { weekly: true }
-              : world.daily
-                ? { daily: true }
-                : { weapon: world.weapon, threat: world.threat }
-          : {},
-      );
+      this.startRun(world ? { weapon: world.weapon, threat: world.threat } : {});
     },
     abandon() {
       ui.hidePause();
@@ -547,7 +474,6 @@ const overlay = new Overlay(elementById("ov")),
       }
     },
     goHome() {
-      const training = !!this.world?.training;
       this.mode = "menu";
       this.world = null;
       this.paused = false;
@@ -556,7 +482,7 @@ const overlay = new Overlay(elementById("ov")),
       ui.hidePause();
       ui.showHud(false);
       ui.homeInit = false;
-      ui.show(training ? "training" : "home");
+      ui.show("home");
       sound.setMusic("menu");
       setWakeLock(false);
       rlApplyUpdateWhenIdle("home");
@@ -571,7 +497,7 @@ const overlay = new Overlay(elementById("ov")),
             seed: 1,
             weapon: snap.weapon,
             threat: snap.threat,
-            ws: snap.daily || snap.weekly ? {} : store.data.workshop,
+            ws: store.data.workshop,
             snap,
           });
           this.overShown = false;
@@ -592,38 +518,6 @@ const overlay = new Overlay(elementById("ov")),
       startLoop();
     },
     endRun(win, abandoned = false, silent = false) {
-      // Practice never settles currency, history, medals, or the real run's checkpoint.
-      if (this.world?.training) {
-        if (this.overShown) return;
-        this.overShown = true;
-        const world = this.world;
-        this._runExtra = null;
-        if (!silent) {
-          ui.showHud(false);
-          ui.hideChoose();
-          ui.showOver({
-            training: bossDefs[world.bossFor(world.wave)].name,
-            win,
-            abandoned,
-            threat: world.threat,
-            weapon: world.weapon,
-            wave: world.wave,
-            time: world.time,
-            kills: world.kills,
-            bosses: win ? 1 : 0,
-            rows: [],
-            total: 0,
-            milestones: [],
-            killer: world.lastHit,
-            lastHits: world.hitLog.map((h) => ({ ...h, ago: Math.max(0, world.time - h.t) })),
-            taken: world.takenBy,
-            dmgSrc: world.dmgSrc,
-          });
-        } else this.overShown = false;
-        sound.setMusic("menu");
-        setWakeLock(false);
-        return;
-      }
       // 2.8.1: take over what another tab saved before crediting this run
       store.syncForeign();
       // 2.2.3: run monitor, read before the run is settled
@@ -645,22 +539,16 @@ const overlay = new Overlay(elementById("ov")),
       this.overShown = true;
       rlRunAudit(world, win, abandoned);
       let mods = threatMods(world.threat),
-        // 3.28.1: the Daily Rift is the same for everyone: the Shard Refinery does not multiply it either
-        // 3.58.0: the Weekly Rift is the same kind of official run
-        salvage = world.daily || world.weekly ? 1 : 1 + 0.1 * (save.workshop.salvage || 0),
+        salvage = 1 + 0.1 * (save.workshop.salvage || 0),
         collected = world.shards,
         bonus = win ? Math.round(collected * 0.25) : 0,
-        pacts = world.pactBonus(),
-        total = Math.round((collected + bonus) * mods.shards * salvage * (1 + pacts)),
+        total = Math.round((collected + bonus) * mods.shards * salvage),
         rows = [["Collected", collected]];
       if (bonus) {
         rows.push(["Clear bonus +25%", "+" + bonus]);
       }
       if (world.threat > 0) {
         rows.push([`${threatLevels[world.threat].name} \xD7${mods.shards.toFixed(2)}`, "\xD7"]);
-      }
-      if (pacts > 0) {
-        rows.push([`Pacts +${Math.round(pacts * 100)}%`, "\xD7"]);
       }
       if (salvage > 1) {
         rows.push([`Shard Refinery \xD7${salvage.toFixed(1)}`, "\xD7"]);
@@ -675,13 +563,6 @@ const overlay = new Overlay(elementById("ov")),
         stats.bestTime = world.time;
       }
       stats.bestBy[world.weapon] = Math.max(stats.bestBy[world.weapon] || 0, wave);
-      // 3.26.0: the Daily Rift: the best of the day and the streak (an abandoned run before wave 2 does not count)
-      let dailyBest = false;
-      if (world.daily && !(abandoned && wave < 2)) dailyBest = recordDaily(stats.daily, world.daily, wave, world.kills);
-      // 3.58.0: the Weekly Rift: the best of the week (the same early-abandon rule)
-      let weeklyBest = false;
-      if (world.weekly && !(abandoned && wave < 2))
-        weeklyBest = recordWeekly(stats.weekly, world.weekly, wave, world.kills);
       stats.kills += world.kills;
       stats.playTime += world.time;
       stats.shardsEarned += total;
@@ -692,13 +573,9 @@ const overlay = new Overlay(elementById("ov")),
       for (let bossId of world.bossKills) stats.bosses[bossId] = (stats.bosses[bossId] || 0) + 1;
       if (win && !world.endless) {
         stats.clears++;
-        // 3.28.1: a Daily Rift sets the weapon and the threat: its clear counts as a clear, but unlocks no threat level and
-        // does not count as a clear with that weapon (it may not even be owned)
-        // 3.58.0: an official run (Daily or Weekly) is the same drone for everyone: it counts as a clear but
-        // unlocks no threat level and no per-weapon clear
-        if (!world.daily && !world.weekly) stats.clearsBy[world.weapon] = (stats.clearsBy[world.weapon] || 0) + 1;
+        stats.clearsBy[world.weapon] = (stats.clearsBy[world.weapon] || 0) + 1;
         stats.bestClearThreat = Math.max(stats.bestClearThreat, world.threat);
-        if (!world.daily && !world.weekly && world.threat >= save.threatMax && save.threatMax < 5) {
+        if (world.threat >= save.threatMax && save.threatMax < 5) {
           save.threatMax = world.threat + 1;
           unlocks.push(`${threatLevels[save.threatMax].name} unlocked`);
         }
@@ -745,14 +622,6 @@ const overlay = new Overlay(elementById("ov")),
           dmgSrc: world.dmgSrc,
           weaponName: weaponDefs[world.weapon].name,
           fastest: fastest,
-          daily: world.daily,
-          dailyBest: dailyBest,
-          // 3.28.1: the record only when this run was counted (an abandoned Daily before wave 2 is not)
-          dailyStats: world.daily && stats.daily.key === world.daily ? { ...stats.daily } : null,
-          // 3.58.0: the Weekly Rift result, shown on the end screen like the Daily one
-          weekly: world.weekly,
-          weeklyBest: weeklyBest,
-          weeklyStats: world.weekly && stats.weekly.key === world.weekly ? { ...stats.weekly } : null,
         });
         sound.setMusic("menu");
         setWakeLock(false);
@@ -805,7 +674,6 @@ const overlay = new Overlay(elementById("ov")),
   };
 /* 3.24.0: the medal of a boss kill (core/medals.js): the best one per boss is kept; a banner says what was earned */
 function awardBossMedal(ev, world) {
-  if (world.training) return;
   try {
     const def = bossDefs[ev.id];
     if (!def) return;
@@ -1061,11 +929,7 @@ function menuBiomeIndex() {
   let bestWave = store.data.stats.bestWave;
   return Math.min(biomeList.length - 1, Math.floor(Math.max(0, bestWave - 1) / 5));
 }
-/* 2.5.0 D: biome title card and boss intro card (the cards themselves are in the 2.5.0 D section
- of ui/ui.js). The first wave of a biome (wave 1 and every biome change) shows the biome card in
- place of its wave banner; an event on such a wave is announced right after the card. A new boss
- shows its name card during the camera pan (game.intro) in place of the plain name banner and
- counts as seen for the Codex (boss_<id>). */
+
 let cardWave = 0,
   cardEvent = null,
   // 3.3.0: an Endless mutator gained on a biome's first wave is announced after the card (and after its event)
@@ -1121,7 +985,7 @@ function handleWorldEvents(world) {
     switch (ev.k) {
       case "wave": {
         // 3.28.1: never for a run that has ended (see runFrame)
-        if (!game.overShown && !world.training) {
+        if (!game.overShown) {
           store.data.run = world.snapshot();
           store.save("wave");
         }
@@ -1146,13 +1010,13 @@ function handleWorldEvents(world) {
           );
         if (!ev.boss && world.arena.vents.length) {
           // 3.4.0: Blackout City's vents are live manholes
-          if (world.arena.biome.id === "yard")
+          if (world.arena.biome.id === "city")
             showTipOnce(
               "shock",
               "Live manholes crackle before they arc. Lure enemies onto them \u2014 the current stuns them.",
             );
           // 3.49.0: the Caldera's vents are the fumaroles
-          else if (world.arena.biome.id === "club")
+          else if (world.arena.biome.id === "caldera")
             showTipOnce(
               "pyro",
               "A fumarole glows before it jets. Lure enemies onto it \u2014 the rock burns them too.",
@@ -1272,7 +1136,7 @@ function handleWorldEvents(world) {
         overlay.callout(ev.atk);
         break;
       case "offer":
-        if (!game.overShown && !world.training) {
+        if (!game.overShown) {
           store.data.run = world.snapshot();
           store.save("offer");
         }
@@ -1335,7 +1199,6 @@ function handleWorldEvents(world) {
       cardEvent = (card.event && waveEvents[card.event]) || null;
     }
     if (boss) {
-      if (!world.training) ui.markSeen(["boss_" + boss.id]);
       ui.bossCard(boss.id, world.biomeFor(world.wave));
     }
     // the biome card stays for the first BIOME_CARD_TIME s of its wave (game time), the boss card for the
@@ -1473,7 +1336,6 @@ function updateTutorial(dt, world) {
   }
 }
 function showTipOnce(key, text) {
-  if (game.world?.training) return;
   let seen = store.data.seen;
   if (!seen["tip_" + key]) {
     seen["tip_" + key] = true;
@@ -1654,10 +1516,10 @@ document.addEventListener(
 // 2.4.0: say once that the retired weapons of an old save were converted.
 function rlRetireToast() {
   const note = RL_RETIRE_NOTE;
-  if (!note || !note.names.length) return;
+  if (!note || !note.count) return;
   set_RL_RETIRE_NOTE(null);
   ui.toast(
-    `The arsenal is down to 7 weapons: ${note.names.join(", ")} became the weapon ${note.names.length > 1 ? "they were variants" : "it was a variant"} of${note.refund ? `, +${formatCount(note.refund)} shards refunded` : ""}.`,
+    `Older weapon unlocks converted to the current arsenal${note.refund ? `, +${formatCount(note.refund)} shards refunded` : ""}.`,
     "good",
     9000,
   );
@@ -1821,10 +1683,10 @@ window.__riftTest = { game, ui, store, renderer, World, biomeList, health: rlRun
 // save). Saving right away stores the converted save, so the notice does not come back.
 function rlModuleToast() {
   const note = RL_MODULE_NOTE;
-  if (!note || !note.names.length) return;
+  if (!note || !note.count) return;
   set_RL_MODULE_NOTE(null);
   ui.toast(
-    `Workshop update: ${note.names.join(", ")} ${note.names.length > 1 ? "were" : "was"} merged into ${note.into.join(" and ")}. All ${note.names.length > 1 ? "their" : "its"} levels refunded: +${formatCount(note.refund)} shards.`,
+    `Older workshop purchases converted to ${note.into.join(" and ")}. Levels refunded: +${formatCount(note.refund)} shards.`,
     "good",
     9000,
   );

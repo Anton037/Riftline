@@ -1,25 +1,14 @@
 // DOM UI (GameUI): screens, HUD, dialogs, workshop, records and settings, plus DOM helpers and icons.
 
 import { RL_RT, logError } from "../core/diagnostics.js";
-import {
-  enemyDefs,
-  bossDefs,
-  enemyOrder,
-  bossByBiome,
-  RL_ENEMY_TIPS,
-  biomeVariants,
-  eliteAffixes,
-} from "../data/enemies.js";
+import { enemyDefs, bossDefs, bossByBiome } from "../data/enemies.js";
 import { biomeList, biomesById } from "../data/biomes.js";
 import { store } from "../main.js";
 import { clamp, GAME_VERSION, formatCount, rlAgo, formatTime } from "../core/util.js";
 import { weaponOrder, weaponDefs } from "../data/weapons.js";
 import { MEDAL_NAMES } from "../core/medals.js";
-import { dailyKey, dailySpec, liveStreak } from "../core/daily.js";
-import { weekKey, weeklySpec } from "../core/weekly.js";
-import { PACTS, PACT_MAX, pactBonus } from "../data/pacts.js";
 import { waveEvents } from "../core/waves.js";
-import { milestones, workshopModules, rlRetired, threatLevels } from "../data/progression.js";
+import { milestones, workshopModules, threatLevels } from "../data/progression.js";
 import { upgradeList, rarityNames, upgradesById } from "../data/upgrades.js";
 import { computeStats, weaponRange, buildStatRows } from "../core/stats.js";
 import { rumble, hapticMode } from "./haptics.js";
@@ -79,7 +68,7 @@ function rlRenderHistory() {
         .filter(Boolean)
         .join(" · ");
       const build = run.build.map((id) => upgradesById[id].name).join(" · ");
-      return `<div class="row panel hist ${run.outcome}"><div class="rico">${iconSvg(icon)}</div><div><b>${run.outcome === "win" ? "Rift sealed" : "Wave " + run.wave}${run.endless ? " · Endless" : ""} · ${escapeHtml((weaponDefs[run.weapon] || rlRetired(run.weapon)).name)}</b><small>${escapeHtml(meta)}</small>${build ? `<small class="hist-build">${escapeHtml(build)}</small>` : ""}</div><span class="chip">${rlAgo(run.t)}</span></div>`;
+      return `<div class="row panel hist ${run.outcome}"><div class="rico">${iconSvg(icon)}</div><div><b>${run.outcome === "win" ? "Rift sealed" : "Wave " + run.wave}${run.endless ? " · Endless" : ""} · ${escapeHtml(weaponDefs[run.weapon].name)}</b><small>${escapeHtml(meta)}</small>${build ? `<small class="hist-build">${escapeHtml(build)}</small>` : ""}</div><span class="chip">${rlAgo(run.t)}</span></div>`;
     })
     .join("");
 }
@@ -129,9 +118,7 @@ const iconPaths = {
   skull:
     '<path d="M12 3a8 8 0 00-5 14.2V21h10v-3.8A8 8 0 0012 3z"/><circle cx="9" cy="11" r="1.6"/><circle cx="15" cy="11" r="1.6"/>',
   target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
-  // 3.15.0: the boss cards (a laser cage, the hammer, a larva, an imploding ring)
   lockdown: '<path d="M5 4v16M19 4v16M5 8h14M5 16h14"/><path d="M12 8v8" stroke-dasharray="2 2"/>',
-  hammer: '<path d="M4 6h10v5H4z"/><path d="M9 11v10M14 8.5h5"/><path d="M17 6v5"/>',
   brood:
     '<ellipse cx="12" cy="14" rx="4" ry="6"/><path d="M8 11l-5-3M16 11l5-3M8 15l-4 2M16 15l4 2M10 8l-1-4M14 8l1-4"/>',
   collapse:
@@ -144,7 +131,7 @@ function iconSvg(name, cls = "") {
   return `<svg class="ico ${cls}" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
 }
 const getById = (id) => document.getElementById(id),
-  menuScreens = ["home", "workshop", "records", "daily", "training", "pacts", "news", "settings"],
+  menuScreens = ["home", "workshop", "records", "news", "settings"],
   formatTenths = (value) => (Math.round(value * 10 + 1e-6) / 10).toString(),
   formatPercent = (value) => Math.round(value * 100) + "%",
   formatCooldown = (value) => (value > 0 ? formatTenths(value) + " s" : "off"),
@@ -203,7 +190,6 @@ const getById = (id) => document.getElementById(id),
     trap: ["Arena traps", "#aeb9cf"], // 3.0.0: enemies caught by a trap
     // 3.15.0: the boss cards
     lockdown: ["Lockdown Grid", "#ff4a5a"],
-    hammer: ["Crucible Hammer", "#ff8a2a"],
     shard: ["Shard Field", "#9ae6ff"],
     brood: ["Brood", "#a8f03a"],
     other: ["Other", "#93a2bf"],
@@ -325,8 +311,6 @@ const getById = (id) => document.getElementById(id),
       this.click(getById("tNext"), () => this.stepThreat(1));
       this.click(getById("wBuy"), () => this.buyWeapon());
       this.click(getById("playBtn"), () => this.play());
-      this.click(getById("dailyStart"), () => this.playDaily());
-      this.click(getById("weeklyStart"), () => this.playWeekly());
       this.click(getById("continueBtn"), () => this.g.startRun({ resume: true }));
       let onPress = (el, action) =>
         el.addEventListener("pointerdown", (ev) => {
@@ -365,13 +349,7 @@ const getById = (id) => document.getElementById(id),
       this.click(getById("resumeBtn"), () => this.g.resume());
       this.click(getById("abandonBtn"), async () => {
         if (
-          await this.confirm(
-            this.g.world?.training ? "Leave training?" : "Abandon run?",
-            this.g.world?.training
-              ? "Your saved run and progress stay untouched."
-              : "You keep the shards collected so far, but the run ends here.",
-            this.g.world?.training ? "Leave" : "Abandon",
-          )
+          await this.confirm("Abandon run?", "You keep the shards collected so far, but the run ends here.", "Abandon")
         ) {
           this.g.abandon();
         }
@@ -380,10 +358,8 @@ const getById = (id) => document.getElementById(id),
       this.click(getById("restartBtn"), async () => {
         if (
           await this.confirm(
-            this.g.world?.training ? "Restart training?" : "Restart run?",
-            this.g.world?.training
-              ? "The same boss and starting phase return with a fresh training drone."
-              : "Shards collected so far are kept. A fresh run starts with the same weapon and threat.",
+            "Restart run?",
+            "Shards collected so far are kept. A fresh run starts with the same weapon and threat.",
             "Restart",
           )
         ) {
@@ -473,10 +449,6 @@ const getById = (id) => document.getElementById(id),
     _show(screen) {
       // 2.3.6: the renderer re-measures the free space of the home screen for the drone preview
       markHomeViewDirty();
-      // 2.5.0 D: Records opened from another screen start on the stats
-      if (screen === "records" && this.screen !== "records") {
-        this.recTab = "stats";
-      }
       for (let id of menuScreens) getById(id).hidden = id !== screen;
       this.screen = screen;
       if (screen === "home") {
@@ -488,14 +460,6 @@ const getById = (id) => document.getElementById(id),
       }
       if (screen === "records") {
         this.renderRecords();
-      }
-      if (screen === "daily") {
-        this.renderDaily();
-        this.renderWeekly();
-      }
-      if (screen === "training") this.renderTraining();
-      if (screen === "pacts") {
-        this.renderPacts();
       }
       if (screen === "news") {
         this.renderNews();
@@ -551,8 +515,6 @@ const getById = (id) => document.getElementById(id),
       getById("recBadge").hidden = !this.g.claimable().length;
       getById("newsBadge").hidden = !!save.seen["news_" + GAME_VERSION];
       // 3.26.0: a dot on the Rifts page until today's Rift has been played (3.58.0: and this week's)
-      getById("dailyBadge").hidden = save.stats.daily.key === dailyKey() && save.stats.weekly.key === weekKey();
-      getById("pactsLabel").textContent = save.pacts.length ? `Pacts \xB7 ${save.pacts.length}` : "Pacts";
       let stats = save.stats;
       getById("bestLine").hidden = !stats.runs;
       if (stats.runs) {
@@ -704,20 +666,7 @@ const getById = (id) => document.getElementById(id),
         .join("");
       for (let btn of list.querySelectorAll("[data-buy]")) this.click(btn, () => this.buyModule(btn.dataset.buy));
     }
-    renderTraining() {
-      getById("trainingWeapon").textContent =
-        `${weaponDefs[this.save.weapon].name} · ${threatLevels[this.save.threat].name}`;
-      getById("trainingList").innerHTML = biomeList
-        .map((biome) => {
-          const boss = bossDefs[bossByBiome[biome.id]];
-          return `<div class="panel training-card" style="--bc:${rlHex(biome.grid)}"><div class="eyebrow">${escapeHtml(biome.name)}</div><h3>${escapeHtml(boss.name)}</h3><p>${escapeHtml(boss.title)}</p><button class="btn" data-practice="${biome.id}">${iconSvg("target")}Practice</button></div>`;
-        })
-        .join("");
-      for (const button of getById("trainingList").querySelectorAll("[data-practice]"))
-        this.click(button, () =>
-          this.g.startRun({ training: button.dataset.practice, trainingPhase: getById("trainingPhase").value }),
-        );
-    }
+
     buyModule(id) {
       let save = this.save,
         mod = workshopModules.find((mod) => mod.id === id),
@@ -769,12 +718,6 @@ const getById = (id) => document.getElementById(id),
         })
         .join("");
       for (let btn of list.querySelectorAll("[data-claim]")) this.click(btn, () => this.claim(btn.dataset.claim));
-      // 2.5.0 D: Stats / Codex tabs
-      try {
-        this.recordsTab(this.recTab || "stats");
-      } catch (err) {
-        console.warn("codex", err);
-      }
       // recent runs list under the lifetime stats
       try {
         rlRenderHistory();
@@ -795,117 +738,18 @@ const getById = (id) => document.getElementById(id),
       }
     }
     // the What's new tab: opening it marks this version's notes as read (the badge on the home screen goes away)
-    /* 3.27.0: the pacts page: each pact is a toggle, at most PACT_MAX at once; the choice is saved for the next runs */
-    renderPacts() {
-      const save = this.save,
-        list = getById("pactList");
-      for (let el of document.querySelectorAll(".bankMirror")) el.textContent = formatCount(save.shards);
-      list.innerHTML = PACTS.map((pact) => {
-        const on = save.pacts.includes(pact.id);
-        return `<div class="row panel pact${on ? " on" : ""}"><div class="rico">${iconSvg(pact.icon)}</div><div><b>${escapeHtml(pact.name)}</b><small>${escapeHtml(pact.desc)} · shards +${Math.round(pact.shards * 100)}%</small></div><button class="btn${on ? " primary" : ""}" data-pact="${pact.id}" aria-pressed="${on}">${on ? "SIGNED" : "SIGN"}</button></div>`;
-      }).join("");
-      for (const btn of list.querySelectorAll("[data-pact]")) this.click(btn, () => this.togglePact(btn.dataset.pact));
-      const bonus = Math.round(pactBonus(save.pacts) * 100);
-      getById("pactSum").textContent = save.pacts.length
-        ? `${save.pacts.length} of ${PACT_MAX} signed · shards +${bonus}% on every run`
-        : `No pact signed (up to ${PACT_MAX}).`;
-      getById("pactsLabel").textContent = save.pacts.length ? `Pacts \xB7 ${save.pacts.length}` : "Pacts";
-    }
-    togglePact(id) {
-      const save = this.save;
-      if (save.pacts.includes(id)) save.pacts = save.pacts.filter((x) => x !== id);
-      else if (save.pacts.length >= PACT_MAX) {
-        this.g.sound.play("deny");
-        this.toast(`At most ${PACT_MAX} pacts: take one off first`, "hint");
-        return;
-      } else save.pacts = [...save.pacts, id];
-      this.g.store.save("pacts");
-      this.renderPacts();
-    }
-    /* 3.26.0: the Daily Rift page: today's weapon and threat, the best of the day, the streak */
-    renderDaily() {
-      const save = this.save,
-        d = save.stats.daily,
-        spec = dailySpec(),
-        today = d.key === spec.key,
-        weapon = weaponDefs[spec.weapon];
-      for (let el of document.querySelectorAll(".bankMirror")) el.textContent = formatCount(save.shards);
-      getById("dailyCard").innerHTML =
-        `<div class="dc-day">${escapeHtml(spec.key)} · UTC</div>` +
-        `<div class="dc-weapon">${escapeHtml(weapon.name)}</div>` +
-        `<div class="dc-sub">${escapeHtml(threatLevels[spec.threat].name)} threat · no workshop modules · ${escapeHtml(weapon.blurb)}</div>`;
-      getById("dailyStart").textContent = today ? "PLAY TODAY'S RIFT AGAIN" : "START TODAY'S RIFT";
-      getById("dailyStats").innerHTML = [
-        ["Today's best", today ? `Wave ${d.wave} · ${formatCount(d.kills)} kills` : "Not played yet"],
-        ["Streak", `${liveStreak(d, spec.key)} day${liveStreak(d, spec.key) === 1 ? "" : "s"}`],
-        ["Days played", d.days],
-        ["Best wave ever", d.bestWave || "-"],
-      ]
-        .map(([label, value]) => `<div class="cell"><div class="k">${label}</div><div class="v">${value}</div></div>`)
-        .join("");
-    }
-    async playDaily() {
-      const save = this.save;
-      if (
-        save.run &&
-        !(await this.confirm(
-          "Start the Daily Rift?",
-          `Your run at wave ${save.run.wave} ends here. You keep the shards collected in it.`,
-          "Start",
-        ))
-      )
-        return;
-      if (save.run) this.g.discardRun();
-      this.g.startRun({ daily: true });
-    }
-    /* 3.58.0: the Weekly Rift block: this week's weapon, threat and the two pinned mutators, the best of the week */
-    renderWeekly() {
-      const save = this.save,
-        w = save.stats.weekly,
-        spec = weeklySpec(),
-        played = w.key === spec.key,
-        weapon = weaponDefs[spec.weapon];
-      getById("weeklyGlow").hidden = played;
-      getById("weeklyCard").innerHTML =
-        `<div class="dc-day">${escapeHtml(spec.key)} \xB7 UTC</div>` +
-        `<div class="dc-weapon">${escapeHtml(weapon.name)}</div>` +
-        `<div class="dc-sub">${escapeHtml(threatLevels[spec.threat].name)} threat \xB7 no workshop modules \xB7 ${escapeHtml(weapon.blurb)}</div>` +
-        `<div class="dc-mods">${spec.mutators
-          .map((id) => {
-            const m = MUTATORS[id];
-            return `<span class="dc-mod" style="color:${m.color}" title="${escapeHtml(m.desc)}">${escapeHtml(m.name)} <i>${escapeHtml(m.desc)}</i></span>`;
-          })
-          .join("")}</div>`;
-      getById("weeklyStart").textContent = played ? "PLAY THIS WEEK'S RIFT AGAIN" : "START THIS WEEK'S RIFT";
-      getById("weeklyStats").innerHTML = [
-        ["This week's best", played ? `Wave ${w.wave} \xB7 ${formatCount(w.kills)} kills` : "Not played yet"],
-        ["Weeks played", w.weeks],
-        ["Best wave ever", w.bestWave || "-"],
-      ]
-        .map(([label, value]) => `<div class="cell"><div class="k">${label}</div><div class="v">${value}</div></div>`)
-        .join("");
-    }
-    async playWeekly() {
-      const save = this.save;
-      if (
-        save.run &&
-        !(await this.confirm(
-          "Start the Weekly Rift?",
-          `Your run at wave ${save.run.wave} ends here. You keep the shards collected in it.`,
-          "Start",
-        ))
-      )
-        return;
-      if (save.run) this.g.discardRun();
-      this.g.startRun({ weekly: true });
-    }
+
     renderNews() {
       getById("newsList").innerHTML = WHATS_NEW.map(
         (entry, i) =>
           `<h3 class="section-h">${escapeHtml(entry.version)} · ${escapeHtml(entry.title)}${i === 0 ? " · current" : ""}</h3>` +
           `<div class="set-group">${entry.items.map((t) => `<div class="set-row"><span>${escapeHtml(t)}</span></div>`).join("")}</div>`,
       ).join("");
-      this.markSeen(["news_" + GAME_VERSION]);
+      const key = "news_" + GAME_VERSION;
+      if (!this.save.seen[key]) {
+        this.save.seen[key] = true;
+        this.g.store.save("news");
+      }
     }
     renderSettings() {
       let settings = this.save.settings;
@@ -1130,7 +974,7 @@ const getById = (id) => document.getElementById(id),
       // 3.41.0: the Whiteout draws its white edge over the view (CSS fades it with the fog ramp)
       update(
         "whiteout",
-        !!(world.arena && world.event === "whiteout" && world.state === "fight" && world.arena.biome?.id === "vault"),
+        !!(world.arena && world.event === "whiteout" && world.state === "fight" && world.arena.biome?.id === "shelf"),
         (on) => {
           getById("vignette").classList.toggle("whiteout", on);
         },
@@ -1151,8 +995,8 @@ const getById = (id) => document.getElementById(id),
         cache.shardsSeen = true;
       });
       let waveMax = world.endless ? "" : "/" + 20;
-      update("wave", world.training ? "training" : world.wave + waveMax, () => {
-        getById("waveLabel").textContent = world.training ? "TRAINING" : `WAVE ${world.wave}${waveMax}`;
+      update("wave", world.wave + waveMax, () => {
+        getById("waveLabel").textContent = `WAVE ${world.wave}${waveMax}`;
       });
       // 3.45.0: the progress bar carries the wave's count ("N LEFT" churned text with every kill;
       // a boss fight is named by the boss bar, CLEARED stays for the moment between the waves)
@@ -1467,12 +1311,6 @@ const getById = (id) => document.getElementById(id),
       getById("rerollTxt").textContent = `Reroll (${world.rerolls})`;
       getById("rerollBtn").disabled = world.rerolls <= 0;
       getById("buildStrip").innerHTML = this.buildHtml(world);
-      // 2.5.0 D: every upgrade that is offered counts as seen (also after a reroll and in a resumed run)
-      try {
-        this.markSeen((world.offer || []).filter((id) => upgradesById[id]).map((id) => "up_" + id));
-      } catch (err) {
-        console.warn("codex", err);
-      }
     }
     statDelta(id, world) {
       let player = world.player,
@@ -1537,10 +1375,8 @@ const getById = (id) => document.getElementById(id),
         : '<span class="note">No upgrades yet.</span>';
     }
     showPause(world) {
-      getById("pauseTitle").textContent = world.training
-        ? "Boss training"
-        : `Wave ${world.wave}${world.endless ? " \xB7 Endless" : ""}`;
-      getById("abandonBtn").textContent = world.training ? "Leave training" : "Abandon run";
+      getById("pauseTitle").textContent = `Wave ${world.wave}${world.endless ? " \xB7 Endless" : ""}`;
+      getById("abandonBtn").textContent = "Abandon run";
       getById("pauseStats").innerHTML =
         `<span>${formatTime(world.time)}</span><span>${formatCount(world.kills)} KILLS</span><span>${formatCount(world.shards)} SHARDS</span>`;
       getById("pauseBuild").innerHTML = this.buildHtml(world);
@@ -1600,27 +1436,11 @@ const getById = (id) => document.getElementById(id),
       this._show("settings");
     }
     showOver(result) {
-      getById("overEyebrow").textContent = result.training
-        ? `TRAINING · ${result.training}`
-        : result.win
-          ? `${threatLevels[result.threat].name.toUpperCase()} \xB7 ALL ${20} WAVES`
-          : `${weaponDefs[result.weapon].name.toUpperCase()} \xB7 ${threatLevels[result.threat].name.toUpperCase()}`;
+      getById("overEyebrow").textContent = result.win
+        ? `${threatLevels[result.threat].name.toUpperCase()} \xB7 ALL ${20} WAVES`
+        : `${weaponDefs[result.weapon].name.toUpperCase()} \xB7 ${threatLevels[result.threat].name.toUpperCase()}`;
       let title = getById("overTitle");
-      title.textContent = result.training
-        ? result.win
-          ? "TRAINING CLEAR"
-          : result.abandoned
-            ? "PRACTICE ENDED"
-            : "TRY AGAIN"
-        : result.win
-          ? "RIFT SEALED"
-          : result.abandoned
-            ? "RUN ENDED"
-            : "SIGNAL LOST";
-      getById("trainingResultNote").hidden = !result.training;
-      getById("payRows").parentElement.hidden = !!result.training;
-      getById("retryBtn").textContent = result.training ? "PRACTICE AGAIN" : "RUN AGAIN";
-      getById("homeBtn").textContent = result.training ? "Choose boss" : "Home";
+      title.textContent = result.win ? "RIFT SEALED" : result.abandoned ? "RUN ENDED" : "SIGNAL LOST";
       title.className = "over-title " + (result.win ? "win" : "lose");
       getById("overBest").hidden = !(result.best || result.fastest);
       getById("overBest").textContent = result.fastest && !result.best ? "NEW FASTEST" : "NEW BEST";
@@ -1628,20 +1448,6 @@ const getById = (id) => document.getElementById(id),
         source = result.killer && hitSourceName(result.killer);
       cause.hidden = !source;
       cause.textContent = source ? `Final hit · ${source}` : "";
-      // 3.26.0: a Daily Rift run says so, and what the day's best is (3.58.0: the Weekly Rift the same for its week)
-      const over = getById("overDaily");
-      over.hidden = !result.daily && !result.weekly;
-      if (result.daily) {
-        const ds = result.dailyStats;
-        over.textContent = ds
-          ? `Daily Rift ${result.daily} \xB7 best today wave ${ds.wave}${result.dailyBest ? " (new)" : ""} \xB7 streak ${ds.streak}`
-          : `Daily Rift ${result.daily} \xB7 not counted (ended before wave 2)`;
-      } else if (result.weekly) {
-        const ws = result.weeklyStats;
-        over.textContent = ws
-          ? `Weekly Rift ${result.weekly} \xB7 best this week wave ${ws.wave}${result.weeklyBest ? " (new)" : ""}`
-          : `Weekly Rift ${result.weekly} \xB7 not counted (ended before wave 2)`;
-      }
       this.renderRecap(result);
       getById("overStats").innerHTML = [
         ["Wave", result.wave],
@@ -1857,67 +1663,6 @@ const getById = (id) => document.getElementById(id),
         Math.max(0, hold.min - (performance.now() - hold.at)),
       );
     }
-    // ---- 2.5.0 D: Codex "seen" keys; saves only when something is new
-    markSeen(keys) {
-      const seen = this.save && this.save.seen;
-      if (!seen) return 0;
-      let added = 0;
-      for (const key of keys) {
-        if (seen[key] !== true) {
-          seen[key] = true;
-          added++;
-        }
-      }
-      if (added) {
-        this.g.store.save("codex");
-      }
-      return added;
-    }
-    // ---- 2.5.0 D: Records: Stats / Codex tabs (built on first use, the page markup stays as it was)
-    recordsTab(tab) {
-      ensureRecordTabs(this);
-      this.recTab = tab === "codex" ? "codex" : "stats";
-      for (const btn of getById("recTabs").querySelectorAll("[data-rtab]")) {
-        const on = btn.dataset.rtab === this.recTab;
-        btn.classList.toggle("on", on);
-        btn.setAttribute("aria-selected", on ? "true" : "false");
-      }
-      getById("records").querySelector(".scroll").hidden = this.recTab !== "stats";
-      getById("codexList").hidden = this.recTab !== "codex";
-      if (this.recTab === "codex") {
-        this.renderCodex();
-      }
-    }
-    renderCodex() {
-      const codex = rlCodexEntries(this.save),
-        activeBosses = codex.bosses.filter((entry) => !entry.archived),
-        activeEvents = codex.events.filter((entry) => !entry.archived),
-        archive = [...codex.bosses, ...codex.events].filter((entry) => entry.archived && entry.seen),
-        all = [...codex.enemies, ...activeBosses, ...codex.variants, ...activeEvents],
-        found = all.filter((entry) => entry.seen).length,
-        rows = (list, hint) =>
-          list
-            .map((entry) => {
-              const cls = `row panel cx${entry.seen ? "" : " unseen"}${entry.rarity ? " r" + entry.rarity : ""}`;
-              if (!entry.seen)
-                return `<div class="${cls}" data-cx="${escapeHtml(entry.key)}"><div class="rico">${iconSvg("lock")}</div><div><b>???</b><small>${escapeHtml(hint)}</small></div></div>`;
-              return `<div class="${cls}" data-cx="${escapeHtml(entry.key)}"${entry.color ? ` style="--cc:${entry.color}"` : ""}><div class="rico">${iconSvg(entry.icon)}</div><div><b>${escapeHtml(entry.name)}</b><small>${escapeHtml(entry.desc)}</small>${entry.extra ? `<small class="cx-extra">${escapeHtml(entry.extra)}</small>` : ""}</div>${entry.tag ? `<span class="chip">${escapeHtml(entry.tag)}</span>` : ""}</div>`;
-            })
-            .join(""),
-        part = (title, list, hint) =>
-          `<h3 class="section-h">${title} <span class="cx-count">${list.filter((entry) => entry.seen).length}/${list.length}</span></h3><div class="codex-grid">${rows(list, hint)}</div>`;
-      getById("codexList").innerHTML =
-        `<p class="page-intro cx-intro"><b class="num">${found}/${all.length}</b> discovered. Enemies, bosses, variants and elites unlock when you meet them, events, mutators and Overdrive attacks when you see them.</p>` +
-        part("Enemies", codex.enemies, "Not encountered yet") +
-        part("Bosses", activeBosses, "Not encountered yet") +
-        part("Variants and elites", codex.variants, "Not encountered yet") +
-        part("Rift events", activeEvents, "Not seen yet") +
-        (archive.length
-          ? '<h3 class="section-h">Archive</h3><p class="note">Discoveries from earlier releases. Kept outside current completion totals.</p><div class="codex-grid">' +
-            rows(archive, "") +
-            "</div>"
-          : "");
-    }
   };
 // 2.5.0 A: HUD chips of the timed upgrades, managed next to the chips of GameUI.buffs
 const timedBuffChips = ["heat", "slip", "skate"];
@@ -1928,35 +1673,15 @@ function closePauseSettings(ui) {
   getById("settings").classList.remove("in-run");
 }
 
-/* ==========================================================================
- 2.5.0 D: design — biome title card, boss intro card, Codex in Records
- - a new biome (wave 1 and every biome change) gets a full-width title card instead of the plain
-   wave banner: biome name, its hazard in a few words and the boss that waits at its end
- - while the camera pans to a new boss (game.intro), a bigger name card shows the boss name and
-   title with a short accent in the boss colour
- - Records get a second tab, the Codex: enemies, bosses and upgrades. Seen entries show their name
-   and a short description, unseen ones "???". "Seen" lives in store.data.seen: enemy_<type> (set
-   by the first-encounter tips), boss_<id> (set when a boss spawns) and up_<id> (set when an
-   upgrade is offered). Old saves without these keys fall back to what the save already proves:
-   defeated bosses (stats.bosses) and upgrades in recent builds or the saved run.
- Both cards take no input (pointer-events: none). They hold while the game needs them (first 1.6 s
- of the wave, the boss camera pan; see main.js) and then fade out.
- ========================================================================== */
 // the hazard of each biome in a few words (the RL_BIOME_INFO tag is the fallback for new biomes)
 const RL_BIOME_CARD = {
-  yard: "Live manholes arc — lure enemies onto them",
-  vault: "Slick ice under the aurora — the blizzard breathes, so does your drift",
+  city: "Live manholes arc — lure enemies onto them",
+  shelf: "Slick ice under the aurora — the blizzard breathes, so does your drift",
   marsh: "The mud clings, the glowing tide eats your hull — and marks enemies",
-  void: "Portal pairs fold the arena — shots pass through",
-  club: "Magma vents jet molten rock — the ground itself burns",
+  core: "Portal pairs fold the arena — shots pass through",
+  caldera: "Magma vents jet molten rock — the ground itself burns",
   flats: "Dust devils wander the glass — they shove, and the wind bites",
 };
-// Codex texts for enemies without a first-encounter tip. Mites only come out of splitters (no
-// spawn event, no tip), so they are known together with the Splitter.
-const RL_CODEX_EXTRA = {
-  mite: "Mites burst out of destroyed Splitters. Small and fast, but one shot each.",
-};
-const RL_CODEX_WITH = { mite: "splitter" };
 const rlHex = (color) => "#" + ((Number(color) >>> 0) & 0xffffff).toString(16).padStart(6, "0");
 function rlBiomeCardInfo(biome) {
   biome = biome || biomeList[0];
@@ -1970,157 +1695,7 @@ function rlBiomeCardInfo(biome) {
     color: rlHex(biome.grid != null ? biome.grid : 0x49f2ff),
   };
 }
-// Codex entries of a save. Names and texts come from the data tables at run time, so added or
-// removed enemies, bosses and events show up without changes here. 3.39.0: no upgrade entries any
-// more (the gallery is gone); a save that proves offered cards (history, saved run) needs no fallback.
-function rlCodexEntries(save) {
-  const data = save || {},
-    seen = data.seen || {},
-    beaten = (data.stats && data.stats.bosses) || {},
-    medals = (data.stats && data.stats.medals) || {};
-  const enemyIds = [
-      ...enemyOrder.filter((id) => enemyDefs[id]),
-      ...Object.keys(enemyDefs).filter((id) => !enemyOrder.includes(id)),
-    ],
-    bossBiome = Object.fromEntries(Object.entries(bossByBiome).map(([biomeId, id]) => [id, biomesById[biomeId]])),
-    // the usual route: Blackout City first, the Shattered Core last
-    rank = (id) => (id === "warden" ? 0 : id === "core" ? 9 : 1),
-    bossIds = [
-      ...new Set([
-        ...biomeList.map((biome) => bossByBiome[biome.id]).filter((id) => bossDefs[id]),
-        ...Object.keys(bossDefs),
-      ]),
-    ].sort((idA, idB) => rank(idA) - rank(idB));
-  const enemies = enemyIds.map((id) => ({
-      key: "enemy_" + id,
-      id,
-      seen: seen["enemy_" + id] === true || (!!RL_CODEX_WITH[id] && seen["enemy_" + RL_CODEX_WITH[id]] === true),
-      name: enemyDefs[id].name,
-      desc: RL_ENEMY_TIPS[id] || RL_CODEX_EXTRA[id] || "A creature of the rift.",
-      color: rlHex(enemyDefs[id].color),
-      icon: "skull",
-    })),
-    bosses = bossIds.map((id) => {
-      const boss = bossDefs[id],
-        kills = +beaten[id] || 0,
-        bio = bossBiome[id];
-      return {
-        key: "boss_" + id,
-        id,
-        archived: !bio,
-        seen: seen["boss_" + id] === true || kills > 0,
-        name: boss.name,
-        desc: boss.title + (bio ? ` \xB7 ${bio.name}` : ""),
-        extra:
-          kills > 0
-            ? `Defeated \xD7${kills}` +
-              (medals[id] ? ` \xB7 ${MEDAL_NAMES[medals[id].medal]} \xB7 ${Math.round(medals[id].secs)} s` : "")
-            : "",
-        color: rlHex(boss.color),
-        icon: "target",
-      };
-    });
-  // 3.39.0: the Upgrades gallery is gone (the owner's clean-game pass): the cards' names, texts and rarity
-  // frames are in every upgrade offer already, and the gallery was a static catalog of them. The seen
-  // marking of offered cards ("up_<id>") stays, so saves keep working.
-  // 3.28.0: the Endless mutators and the boss Overdrive attacks: found when one joins a run / a boss uses it for the first time
-  const events = [
-    ...Object.entries(MUTATORS).map(([id, m]) => ({
-      key: "mut_" + id,
-      id,
-      seen: seen["mut_" + id] === true,
-      name: "Mutator \xB7 " + m.name,
-      desc: m.desc + ". From wave 21, one more every tenth wave; later they grow stronger.",
-      color: m.color.replace("#", ""),
-      icon: "burst",
-    })),
-    ...Object.entries(RL_OVERDRIVE_INFO).map(([boss, od]) => ({
-      key: "od_" + boss,
-      id: boss,
-      archived: !bossBiome[boss],
-      seen: seen["od_" + boss] === true,
-      name: "Overdrive \xB7 " + od.name,
-      desc: od.desc,
-      extra: (bossDefs[boss] ? bossDefs[boss].name : boss) + " when enraged",
-      color: bossDefs[boss] ? rlHex(bossDefs[boss].color) : "",
-      icon: "target",
-    })),
-  ];
-  // 3.34.0: the wave events (Elite Surge, Shard Rain and the five biome events) join them
-  for (const [id, ev] of Object.entries(waveEvents)) {
-    const biome = ev.biome && biomesById[ev.biome];
-    events.push({
-      key: "ev_" + id,
-      id,
-      seen: seen["ev_" + id] === true,
-      name: "Wave event \xB7 " + ev.name.charAt(0) + ev.name.slice(1).toLowerCase(),
-      desc: ev.desc,
-      extra: biome ? "Once a visit, in " + biome.name : "Any biome",
-      color: biome ? rlHex(biome.accent) : "",
-      icon: "bolt",
-    });
-  }
-  // 3.34.0: the biome variants and the elite affixes (only a tint and a ring until now, never explained)
-  const variants = [
-    ...biomeList
-      .filter((biome) => biomeVariants[biome.id])
-      .map((biome) => {
-        const v = biomeVariants[biome.id];
-        return {
-          key: "var_" + v.id,
-          id: v.id,
-          seen: seen["var_" + v.id] === true,
-          name: v.name,
-          desc: v.desc,
-          extra: biome.name + " \xB7 " + v.types.map((t) => (enemyDefs[t] ? enemyDefs[t].name : t)).join(", "),
-          color: rlHex(v.color),
-          icon: "skull",
-        };
-      }),
-    ...Object.entries(eliteAffixes).map(([id, a]) => ({
-      key: "aff_" + id,
-      id,
-      seen: seen["aff_" + id] === true,
-      name: a.name + " elite",
-      desc: a.desc,
-      color: rlHex(a.color),
-      icon: "shield",
-    })),
-  ];
-  return { enemies, bosses, variants, events };
-}
-// 3.28.0: the Overdrive attack of each boss (core/ai.js OVERDRIVE), as the Codex tells it
-const RL_OVERDRIVE_INFO = {
-  warden: {
-    name: "Lockdown",
-    desc: "A grid of lasers across the whole arena, then a second grid shifted by half a cell: step into a new cell before it closes.",
-  },
-  forge: {
-    name: "Meltdown",
-    desc: "Three rings of lava burst outwards from the Crucible, each with a gap of its own: find the gap.",
-  },
-  prism: {
-    name: "Whiteout",
-    desc: "Three frost beams turn around the Prism while ice shards hunt you in between.",
-  },
-  queen: {
-    name: "Plague",
-    desc: "The bloom wells up in a ring around you, two eggs hatch, then a dense spiral of spores.",
-  },
-  core: {
-    name: "Collapse",
-    desc: "Bombardments under and around you while a cross of six beams turns.",
-  },
-  kingpin: {
-    name: "Firestorm",
-    desc: "The burning dead pour in through ember portals, molotovs close a ring around you (one gap), and the Ash Tyrant sweeps the floor.",
-  },
-  wyrm: {
-    name: "Noon",
-    desc: "The sun stands still: a dial of five hot lances turns around the Glasswyrm while the glass bursts in two gapped rings.",
-  },
-};
-// ---- 2.5.0 D: title card helpers
+
 function titleCardLayer() {
   let el = getById("titleCard");
   if (!el) {
@@ -2161,23 +1736,5 @@ function holdTitleCard(ui, kind, html, min, ms) {
   clearTimeout(ui.bannerT);
   ui.cardHold = { token: showTitleCard(ui, html, ms), kind, at: performance.now(), min };
 }
-// ---- 2.5.0 D: the Stats / Codex tabs of Records, built on first use
-function ensureRecordTabs(ui) {
-  if (getById("recTabs")) return;
-  const rec = getById("records"),
-    main = rec.querySelector(".scroll");
-  if (!main.id) {
-    main.id = "recStats";
-  }
-  rec
-    .querySelector(".topbar")
-    .insertAdjacentHTML(
-      "afterend",
-      '<div id="recTabs" class="seg rec-tabs" role="tablist"><button type="button" role="tab" data-rtab="stats" class="on" aria-selected="true">Stats</button><button type="button" role="tab" data-rtab="codex" aria-selected="false">Codex</button></div>',
-    );
-  main.insertAdjacentHTML("afterend", '<div id="codexList" class="scroll codex" hidden></div>');
-  for (const btn of getById("recTabs").querySelectorAll("[data-rtab]"))
-    ui.click(btn, () => ui.recordsTab(btn.dataset.rtab));
-}
 
-export { GameUI, RL_TOUCH_CLICK_GUARD, getById, rlBiomeTitle, iconPaths, escapeHtml, rlBiomeCardInfo, rlCodexEntries };
+export { GameUI, RL_TOUCH_CLICK_GUARD, getById, rlBiomeTitle, iconPaths, escapeHtml, rlBiomeCardInfo };

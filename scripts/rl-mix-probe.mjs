@@ -5,7 +5,7 @@
 // Usage: node scripts/rl-mix-probe.mjs [base-url] [out.json]
 // Run through tools/verify.js for a server, timeout and process cleanup.
 // Sections: fight + boss music tracks, the six biome ambiences, a realistic combat
-// sfx stream, and the full yard mix (music + place + combat together).
+// sfx stream, and the full city mix (music + place + combat together).
 // Metrics per render: overall RMS, peak, and the p95 of 400 ms short-term windows
 // (the honest loudness for bursty material like shots).
 
@@ -71,14 +71,14 @@ const result = await page.evaluate(async (secs) => {
 
   // --- music: the renderOffline scheduling (seeded), at the real volumes ---
   for (const [label, spec] of [
-    ["music-fight-yard-09", { music: "fight", biome: "yard", intensity: 0.9 }],
-    ["music-fight-yard-05", { music: "fight", biome: "yard", intensity: 0.5 }],
-    ["music-fight-void-09", { music: "fight", biome: "void", intensity: 0.9 }],
+    ["music-fight-city-09", { music: "fight", biome: "city", intensity: 0.9 }],
+    ["music-fight-city-05", { music: "fight", biome: "city", intensity: 0.5 }],
+    ["music-fight-core-09", { music: "fight", biome: "core", intensity: 0.9 }],
 
-    ["music-fight-vault-09", { music: "fight", biome: "vault", intensity: 0.9 }],
+    ["music-fight-shelf-09", { music: "fight", biome: "shelf", intensity: 0.9 }],
     ["music-fight-marsh-09", { music: "fight", biome: "marsh", intensity: 0.9 }],
-    ["music-boss-yard", { music: "boss", biome: "yard", heat: 0.5 }],
-    ["music-boss-void", { music: "boss", biome: "void", heat: 0.5 }],
+    ["music-boss-city", { music: "boss", biome: "city", heat: 0.5 }],
+    ["music-boss-core", { music: "boss", biome: "core", heat: 0.5 }],
   ]) {
     const r = await E.renderOffline({ ...spec, wav: true, room: false, seed: 5, vol: VOL }, secs);
     out[label] = { rms: r.rms, peak: r.peak };
@@ -112,7 +112,7 @@ const result = await page.evaluate(async (secs) => {
 
   // --- the six biome ambiences (a real wave drives engine.place; the room tone of the
   // biome is on, like in the game; three takes averaged - the far sounds and hazards are random) ---
-  for (const biome of ["yard", "vault", "marsh", "void", "club", "flats"]) {
+  for (const biome of ["city", "shelf", "marsh", "core", "caldera", "flats"]) {
     const acc = { rms: 0, peak: 0, p95: 0 };
     let takes = 0;
     for (let take = 0; take < 3; take++) {
@@ -145,25 +145,25 @@ const result = await page.evaluate(async (secs) => {
     }
   }
 
-  // --- the full yard mix: fight music + its bed + the place + the combat stream ---
-  await render("mix-fight-yard", async (ctx, engine) => {
-    const info = E.trackInfo("fight", "yard"),
+  // --- the full city mix: fight music + its bed + the place + the combat stream ---
+  await render("mix-fight-city", async (ctx, engine) => {
+    const info = E.trackInfo("fight", "city"),
       len = 60 / info.bpm / 4;
     engine.mode = "fight";
-    engine.biome = "yard";
+    engine.biome = "city";
     engine.playKind = "fight";
-    engine.playBiome = "yard";
+    engine.playBiome = "city";
     engine.intensity = 0.9;
     engine.heat = 0;
-    // yard fight track gain = 1 (MUSIC_TRACKS.yard.fight.gain)
+    // city fight track gain = 1 (MUSIC_TRACKS.city.fight.gain)
     engine.fade.gain.value = 1;
     engine.mixFor("fight");
     engine.live = () => true;
-    engine.startTone("yard");
-    engine.stopTone("yard", secs);
+    engine.startTone("city");
+    engine.stopTone("city", secs);
     const world = new T.World({ seed: 0x3160, weapon: "pulse", threat: 0, ws: {} });
     world.startWave(2);
-    if (world.arena.biome.id !== "yard") throw new Error("Full mix must use the yard arena");
+    if (world.arena.biome.id !== "city") throw new Error("Full mix must use the city arena");
     world.state = "fight";
     let n = 0;
     for (let t = 0.1; t < secs; t += 0.1)
@@ -198,11 +198,11 @@ for (const k of Object.keys(result)) {
   );
 }
 console.log(rows.join("\n"));
-const m = g("music-fight-yard-09"),
-  mBoss = g("music-boss-yard"),
+const m = g("music-fight-city-09"),
+  mBoss = g("music-boss-city"),
   s = g("sfx-stream"),
-  a = g("amb-yard"),
-  mix = g("mix-fight-yard");
+  a = g("amb-city"),
+  mix = g("mix-fight-city");
 console.log("\n--- relations (dB, positive = the first is louder) ---");
 if (m.p95 && s.p95)
   console.log(`music p95 vs combat-sfx p95 : ${db(m.p95, s.p95)} dB   (want clearly negative: shots must cut through)`);

@@ -11,7 +11,7 @@ const mobile = ["land", "phone"].includes(process.argv[4]);
 const requestedBiome = process.argv[5] && process.argv[5] !== "all" ? process.argv[5] : null;
 const frameRate = +(process.argv[6] || 60);
 assert.ok([30, 60, 120].includes(frameRate), `Unknown frame rate: ${frameRate}`);
-if (process.argv[7]) assert.ok(["map", "overview"].includes(process.argv[7]), "Unknown visual review mode");
+if (process.argv[7]) assert.ok(["map", "overview", "boss"].includes(process.argv[7]), "Unknown visual review mode");
 const mapReview = ["map", "overview"].includes(process.argv[7]);
 const mapPositions = {
   centre: [0, 0],
@@ -28,7 +28,9 @@ const scenes = mapReview
   ? process.argv[7] === "overview"
     ? ["centre"]
     : Object.keys(mapPositions)
-  : ["encounter", "boss", "warnings", "telegraphs"];
+  : process.argv[7] === "boss"
+    ? ["boss"]
+    : ["encounter", "boss", "warnings", "telegraphs"];
 const out = `verification-output/${tag}-${mobile ? "land" : "tablet"}-${frameRate}fps`;
 fs.mkdirSync(out, { recursive: true });
 const browser = await chromium.launch({ args: launchArgs() });
@@ -111,23 +113,48 @@ try {
               if (e) e.spawnT = 0;
             });
           if (scene === "warnings") {
-            ["stomp", "mortar", "glacier", "plague", "rift", "fire"].forEach((kind, i) => {
+            const source = {
+                city: "warden",
+                shelf: "prism",
+                marsh: "queen",
+                core: "core",
+                caldera: "tyrant",
+                flats: "wyrm",
+              }[id],
+              kinds = {
+                city: ["stomp", "stomp", "mortar", "mine", "sapper", "shorted"],
+                shelf: ["frost", "glacier", "mortar", "frost", "glacier", "mortar"],
+                marsh: Array(6).fill("rain"),
+                core: Array(6).fill("rain"),
+                caldera: ["stomp", "rain", "fire", "stomp", "rain", "fire"],
+                flats: Array(6).fill("stomp"),
+              }[id];
+            kinds.forEach((kind, i) => {
               const h = w.hazard({
                 x: ((i % 3) - 1) * 4,
                 y: Math.floor(i / 3) * 4 - 2,
                 r: 1.6,
                 kind,
+                src: kind === "mortar" ? "mortar" : source,
+                chill: id === "shelf" && kind === "mortar",
                 delay: 2,
                 dmg: 10,
               });
               h.t = 0.7 + i * 0.17;
             });
-            const beam = w.beam({ x: -6, y: 5, a: 0, len: 12, w: 0.8, warn: 2 });
+            const beam = w.beam({
+              x: -6,
+              y: 5,
+              a: 0,
+              len: 12,
+              w: 0.8,
+              warn: 2,
+              src: source,
+              skin: { city: "laser", shelf: "cryo", marsh: "acid", core: "rift", caldera: "flame", flats: "sun" }[id],
+            });
             beam.t = 1;
             w.updateBeams(0);
-            ["orb", "fast", "shard", "spore", "riftorb", "glass"].forEach((kind, i) =>
-              w.shoot(-5 + i * 2, 1, 0, 4, 10, { kind }),
-            );
+            for (let i = 0; i < 6; i++) w.shoot(-5 + i * 2, 1, 0, 4, 10, { src: source });
           }
           if (scene === "telegraphs") {
             for (const e of w.enemies) {

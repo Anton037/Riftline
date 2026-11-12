@@ -77,15 +77,6 @@ function computeStats(weaponId, run, workshop) {
     hellfire: has("hellfire"),
     range: weaponRange(weapon) * (has("dragon") ? 1.3 : 1),
   };
-  // 3.27.0: the drone's side of the pacts (data/pacts.js; the World sets the ws keys pact_<id>)
-  if (moduleLevel("pact_glass")) {
-    stats.maxHp = Math.round(stats.maxHp * 0.6);
-    stats.dmgMul *= 1.3;
-  }
-  if (moduleLevel("pact_sluggish")) {
-    stats.speed *= 0.9;
-    stats.dashCd *= 1.4;
-  }
   stats.maxHp = Math.max(25, stats.maxHp);
   stats.eliteMul = 1 + 0.15 * level("hunter");
   stats.supply = level("supply");
@@ -121,7 +112,6 @@ function computeStats(weaponId, run, workshop) {
   stats.skates = level("skates");
   // 3.15.0: the boss cards (core/boss-cards.js)
   stats.lockdown = has("lockdown");
-  stats.hammer = has("hammer");
   stats.shardField = has("shardfield");
   stats.brood = has("brood");
   stats.collapse = has("collapse");

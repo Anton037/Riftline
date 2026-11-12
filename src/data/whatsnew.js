@@ -4,6 +4,17 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "4.2.0",
+    title: "Weapons with character, bosses with identity",
+    items: [
+      "Arc Caster lightning branches through the air, Ember Jet flames flow, and every weapon has its own shot treatment.",
+      "The Ash Tyrant becomes a basalt colossus with molten cinders, volcanic summons and magma bombs.",
+      "Boss attacks keep their own materials, sounds and colors, including when enraged.",
+      "Painted models gain surface relief; hit flashes preserve their finish and biome traps fit their surroundings.",
+      "A focused game: upgrades and achievements stay; Codex, challenges, pacts and training are removed.",
+    ],
+  },
+  {
     version: "4.1.1",
     title: "Grounded worlds, connected walker",
     items: [
@@ -41,16 +52,6 @@ export const WHATS_NEW = [
       "Charge lanes show steady edges and direction markers, while sniper lock stays bright without rapid flashing.",
       "Snipers carry a more readable scope hood and lens within the same silhouette.",
       "Charge and turret warning sounds keep their voices in busy fights, with clearer charger and leaper cues.",
-    ],
-  },
-  {
-    version: "3.63.1",
-    title: "A clear path through the Caldera",
-    items: [
-      "The old black lava-channel rectangle is gone, and decorative fire pillars and molten ponds sit outside the arena.",
-      "Pond rocks stay with their ponds instead of collecting near the start, and basalt obstacles have more readable faces.",
-      "Vertical lava ridges carry their seams and ember vents along the full ridge instead of bunching them at the centre.",
-      "Broken rune etchings distinguish the Core's floor decoration from active circular hazards.",
     ],
   },
 ];

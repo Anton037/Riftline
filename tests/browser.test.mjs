@@ -35,6 +35,14 @@ for (const tablet of [true, false])
             return original.apply(this, args);
           };
         });
+        await page.evaluate(
+          () =>
+            new Promise((resolve) => {
+              window.dispatchEvent(new Event("resize"));
+              window.dispatchEvent(new Event("resize"));
+              requestAnimationFrame(() => requestAnimationFrame(resolve));
+            }),
+        );
         await press('#setFrameRate [data-v="120"]');
         assert.equal(await page.evaluate(() => window.__riftTest.store.data.settings.frameRate), 120);
         assert.equal(await page.evaluate(() => window.__riftTest.renderer.renderer.shadowMap.enabled), true);
@@ -48,8 +56,18 @@ for (const tablet of [true, false])
             return watched.count;
           }),
           0,
-          "Settings changes must retain the canvas drawing buffer",
+          "Settings and repeated viewport notifications must retain the canvas drawing buffer",
         );
+        await page.setViewportSize({ width: 1000, height: 740 });
+        await page.waitForFunction(() => {
+          const r = window.__riftTest.renderer;
+          return r.w === 1000 && r.h === 740 && r.canvas.width === Math.floor(1000 * r.dpr);
+        });
+        await page.setViewportSize({ width: 1024, height: 768 });
+        await page.waitForFunction(() => {
+          const r = window.__riftTest.renderer;
+          return r.w === 1024 && r.h === 768 && r.canvas.height === Math.floor(768 * r.dpr);
+        });
         // A phone may background while the player fetches a backup from another app.
         await press("#restoreBtn");
         await page.locator("#saveImport").fill('{"game":"riftline","v":1,"shards":123}');

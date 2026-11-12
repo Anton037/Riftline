@@ -239,7 +239,7 @@ Object.assign(waveEvents, {
     name: "WHITEOUT",
     desc: "The storm's peak: low sight, more ice · shards +25%",
     shardMul: 1.25,
-    biome: "vault",
+    biome: "shelf",
     plan: {},
   },
   // 3.53.0: the Glass Flats: the devils multiply. Three more dust devils rise when it starts and
@@ -270,7 +270,7 @@ Object.assign(waveEvents, {
     name: "BLACKOUT",
     desc: "The lights die, the manholes arc in a chain · shards +25%",
     shardMul: 1.25,
-    biome: "yard",
+    biome: "city",
     plan: {},
   },
   riftstorm: {
@@ -278,30 +278,28 @@ Object.assign(waveEvents, {
     name: "RIFT STORM",
     desc: "Portals jump every few seconds · shards +25%",
     shardMul: 1.25,
-    biome: "void",
+    biome: "core",
     plan: {},
   },
-  // 3.49.0: the Ashfall Caldera: the mountain wakes. The lights die under the ash (the renderer dims
-  // like a Blackout) and every fumarole fires in step, all the way down (Meltdown's timing).
-  raid: {
-    id: "raid",
+  ashfall: {
+    id: "ashfall",
     name: "ASHFALL",
     desc: "The caldera wakes: lights out under the ash, every fumarole jets in step · shards +25%",
     shardMul: 1.25,
-    biome: "club",
+    biome: "caldera",
     plan: {},
   },
 });
 const RL_BIOME_EVENT = {
-  yard: "blackout",
-  vault: "whiteout",
+  city: "blackout",
+  shelf: "whiteout",
   marsh: "bloom",
-  void: "riftstorm",
-  club: "raid",
+  core: "riftstorm",
+  caldera: "ashfall",
   flats: "devils",
 };
 // Signature enemies: the enemies a biome's mix favours (weight >= 1) can spawn in that biome from
-// its first wave (before, Void Core's phantom came from wave 20 and weaver from 28 although Void
+// its first wave (before, Shattered Core's phantom came from wave 20 and weaver from 28 although Void
 // Core is waves 16–20). Enemies pulled forward this way spawn at half their weight until their
 // own wave, so they show up without flooding the wave. The first biome visit (waves 1-5) pulls nothing forward (3.4.0).
 const RL_EARLY_WEIGHT_250 = 0.5;

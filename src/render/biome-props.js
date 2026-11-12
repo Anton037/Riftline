@@ -124,11 +124,11 @@ function crack(into, color, x, z, rng, segs, step, w = 0.05) {
   }
 }
 
-/* ---- Blackout City (3.4.0, was the Neon Yard): a city street at night in a power cut. Outside: a skyline of dark
+/* ---- Blackout City: a city street at night in a power cut. Outside: a skyline of dark
    towers with only a few lit windows and red aircraft lights, water tanks and antennas on the roofs, street lamps
    (most still burning), traffic lights at the corners, parked and burned-out cars, a bus shelter; on the street:
    manhole covers, storm drains along the kerb, litter and cracks. ---- */
-function yardDetail(biome, W, H, obs, rng) {
+function cityDetail(biome, W, H, obs, rng) {
   const out = list(W, H),
     red = biome.accent,
     pale = biome.grid,
@@ -252,7 +252,7 @@ const pick3 = (rng, items) => items[Math.floor(rng.next() * items.length)];
 /* ---- The Aurora Shelf (3.54.0): blue ice ridges and great seracs beyond the wall, ice cliffs on
    the horizon, snow drifts and half-buried arks around the arena; frost, shards, cracks and snow
    on the floor. The crest of a tall ridge carries a faint aurora-green rim light. ---- */
-function vaultDetail(biome, W, H, obs, rng) {
+function shelfDetail(biome, W, H, obs, rng) {
   const out = list(W, H),
     cyan = biome.grid,
     ice = [0x8fc4ec, 0xaadcf4, 0x6ea6d4, 0xc8e8ff, 0x5a92c4],
@@ -727,7 +727,7 @@ function flatsDetail(biome, W, H, obs, rng) {
   return out;
 }
 
-function voidDetail(biome, W, H, obs, rng) {
+function coreDetail(biome, W, H, obs, rng) {
   const out = list(W, H),
     violet = biome.grid,
     red = biome.accent,
@@ -1053,11 +1053,11 @@ function calderaDetail(biome, W, H, obs, rng) {
 }
 
 const RL_DETAIL = {
-  yard: yardDetail,
-  vault: vaultDetail,
+  city: cityDetail,
+  shelf: shelfDetail,
   marsh: marshDetail,
-  void: voidDetail,
-  club: calderaDetail,
+  core: coreDetail,
+  caldera: calderaDetail,
   flats: flatsDetail,
 };
 
@@ -1068,7 +1068,7 @@ function addBiomeDetail(view, biome, W, H, obs, rng) {
   const parts = build(biome, W, H, obs, rng);
   if (parts.body.length) {
     const surface =
-      { yard: "metal", vault: "ice", marsh: "wood", club: "basalt", flats: "sandstone" }[biome.id] || "stone";
+      { city: "metal", shelf: "ice", marsh: "wood", caldera: "basalt", flats: "sandstone" }[biome.id] || "stone";
     const mesh = new Mesh(mergeParts(parts.body), worldMaterial({ surface, vertexColors: true, flatShading: true }));
     mesh.frustumCulled = false;
     view.group.add(mesh);

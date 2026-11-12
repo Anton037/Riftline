@@ -2,14 +2,12 @@
 // rendering.
 
 import { enemyDefs, bossOrder, biomeVariants, bossDefs, bossByBiome, BOSS_SLOT_HP } from "../data/enemies.js";
-// 3.57.0: the bosses that belong to a place. bossOrder also carries retired ones (the Crucible) so that
-// old saves and records keep validating; spawning must only ever see this set, which is what keeps
-// "one unique boss per biome" true even if a biome's mapping is ever removed.
-const BOSS_BIOME_IDS = new Set(Object.values(bossByBiome));
 import { clamp, TAU, turnToward, hashString, angleDiff, makeRng, dampFactor, own } from "./util.js";
 import { updateEnemy, updateBoss, initBoss } from "./ai.js";
 import { RL_BIOME_INFO, biomesById, planBiomeRoute, biomeList } from "../data/biomes.js";
 import { weaponDefs } from "../data/weapons.js";
+import { projectileFor } from "../data/combat-effects.js";
+import { eventSeedId } from "../data/content-ids.js";
 import {
   waveEvents,
   EVENT_CHANCE,
@@ -21,7 +19,6 @@ import {
   rlEnemyFrom,
 } from "./waves.js";
 import { threatMods } from "../data/progression.js";
-import { cleanPacts, applyPactsToThreat, pactBonus } from "../data/pacts.js";
 import { upgradesById, upgradeList } from "../data/upgrades.js";
 import { Arena, buildLayout, SpatialHash, rlAddHazard250, rlPortalPair250, rlHazardRoom250 } from "./arena.js";
 import { computeStats, DASH_CD_MIN } from "./stats.js";
@@ -37,7 +34,7 @@ import {
   updateBossCards,
   BOSS_CARD_CHANCE,
 } from "./boss-cards.js";
-import { rlMutatorsFor, MUTATOR_MAX_LEVEL } from "./mutators.js";
+import { rlMutatorsFor } from "./mutators.js";
 // 2.2.3: the run monitor observes the live run's world (3.30.0: through runHooks, so World needs no DOM)
 import { runHooks } from "./run-hooks.js";
 
@@ -161,20 +158,7 @@ function rlNearHazard(world) {
   return false;
 }
 
-// ---- 2.5.0 C: biome events. Every visit of a hazard biome brings its event in one of waves 2–4
-// of the visit (never a boss wave, never right next to an Elite Surge or Shard Rain):
-//   Blackout City  Blackout      three extra manholes; they arc in a chain, the lights die
-//   Ashfall Caldera  ASHFALL     three extra fumaroles, every jet fires in step, the lights die
-//   The Aurora Shelf Whiteout     three extra ice sheets; the renderer thickens the fog (the storm's peak);
-//                            the blizzard itself breathes: grip freezes in and thaws out (~20 s, 3.51.0)
-//   The Glowmarsh Spore Tide   the pools grow by up to 40% over the wave, a new one sprouts every 7 s;
-//                            once the tide is in it breathes - a slow pull-back and return (3.50.0)
-//   The Glass Flats Dust Devils three more devils rise and wander the glass (3.53.0)
-//   The Shattered Core Rift Storm   the portals jump to new spots every 6 s; the new spots glow 1.6 s ahead
-// (3.49.0: the Ember Works' Meltdown retired with the foundry - the ASHFALL event kept its step.)
-// Extra and moved hazards follow the fairness rules of the wave hazards (arena.js) and keep off
-// the player. The signature enemies of a biome can spawn from its first wave (waves.js).
-const RL_RAID_PERIOD = 3.4,
+const RL_ASHFALL_PERIOD = 3.4,
   RL_BLOOM_GROW = 1.4,
   RL_BLOOM_GROW_T = 35,
   RL_BLOOM_EVERY = 7,
@@ -197,17 +181,6 @@ function rlTidePhase(x, y) {
   return (((Math.sin(x * 12.9898 + y * 78.233) * 43758.5453) % 1) + 1) % 1;
 }
 
-// 3.16.0: the shots of each boss (the Warden's siren slugs, the Hive Queen's spores, the Rift Core's rift rings; the
-// Frost Prism and the Crucible name theirs, shard and slag, in their attacks). 3.56.0: the Glasswyrm's hot glass slivers.
-const BOSS_SHOT = {
-  warden: "siren",
-  queen: "spore",
-  core: "riftorb",
-  prism: "shard",
-  forge: "slag",
-  kingpin: "siren",
-  wyrm: "glass",
-};
 const comboRewards = [
   [10, 3],
   [25, 8],
@@ -232,7 +205,6 @@ const rlStep = 1 / 60,
     // 3.12.0: the Singularity's collapse is credited to the gadget's old source id, so saved run records stay readable
     singularity: "grenade",
     // 3.15.0: the boss cards
-    hammer: "hammer",
     brood: "brood",
   },
   // 3.12.0: the Singularity (it replaced the grenade): damage of its collapse (times the damage multiplier and Event
@@ -247,12 +219,8 @@ const rlStep = 1 / 60,
       this.seed = (snap ? snap.seed : opts.seed) >>> 0;
       this.weapon = own(weaponDefs, snap ? snap.weapon : opts.weapon) ? (snap ? snap.weapon : opts.weapon) : "pulse";
       this.threat = clamp((snap ? snap.threat : opts.threat) | 0, 0, 5);
-      // 3.27.0: the pacts of the run (kept in the snapshot): the enemies' side changes the threat numbers, the drone's side
-      // is read by computeStats from the ws keys pact_<id>
-      this.pacts = cleanPacts(snap ? snap.pacts : opts.pacts);
-      this.tm = applyPactsToThreat(threatMods(this.threat), this.pacts);
+      this.tm = threatMods(this.threat);
       this.ws = { ...(opts.ws || {}) };
-      for (const id of this.pacts) this.ws["pact_" + id] = 1;
       this.up = snap ? { ...snap.up } : {};
       this.wave = snap ? snap.wave : 1;
       this.endless = snap ? !!snap.endless : false;
@@ -265,17 +233,6 @@ const rlStep = 1 / 60,
       this.banished =
         snap && Array.isArray(snap.banished) ? snap.banished.filter((id) => typeof id === "string").slice(0, 6) : [];
       this.banishes = snap && snap.banishes != null ? snap.banishes | 0 : this.ws.banish || 0;
-      // 3.26.0: the day of a Daily Rift run, or ""
-      this.daily = (snap ? snap.daily : opts.daily) || "";
-      // 3.58.0: the week of a Weekly Rift run, or "" (kept in the snapshot so a resumed run is the same Rift)
-      this.weekly = (snap ? snap.weekly : opts.weekly) || "";
-      // 3.58.0: the mutators a Weekly Rift pins from wave 1 ({ id: level }), or null for the normal Endless schedule
-      this.startMods =
-        snap && snap.startMods
-          ? { ...snap.startMods }
-          : opts.startMods && typeof opts.startMods === "object"
-            ? { ...opts.startMods }
-            : null;
       this.revived = snap ? !!snap.revived : false;
       this.bossKills = snap ? [...(snap.bossKills || [])] : [];
       this.flawless = (snap && snap.flawless) || 0;
@@ -409,6 +366,7 @@ const rlStep = 1 / 60,
     emit(kind, data) {
       data = data || {};
       data.k = kind;
+      if (data.src == null && this._src) data.src = this._src;
       this.fx.push(data);
       return data;
     }
@@ -483,12 +441,7 @@ const rlStep = 1 / 60,
         this.waveDmg = 0;
         // 3.3.0: the Endless mutators of this wave (see mutators.js): Armored adds hull, Barrage damage and shot speed
         const mutators = rlMutatorsFor(this.seed, wave);
-        // 3.58.0: a Weekly Rift's pinned mutators belong to the run, not the wave, so they are in play from wave 1;
-        // the Endless schedule still stacks its own on top (levels add, up to MUTATOR_MAX_LEVEL)
         this.mods = mutators.mods;
-        if (this.startMods)
-          for (const id in this.startMods)
-            this.mods[id] = Math.min(MUTATOR_MAX_LEVEL, (this.mods[id] || 0) + this.startMods[id]);
         this.hpMul =
           (1 + 0.085 * (wave - 1) + 0.0058 * (wave - 1) * (wave - 1)) *
           this.tm.hp *
@@ -518,12 +471,6 @@ const rlStep = 1 / 60,
         this.emit("wave", { n: wave, boss: boss, biome: biome.id, event: this.event });
         if (mutators.gained && !resumed)
           this.emit("mutator", { id: mutators.gained, level: this.mods[mutators.gained], x: player.x, y: player.y });
-        // 3.58.0: a Weekly Rift's pinned mutators are announced at wave 1, so the twist is seen and heard
-        if (wave === 1 && !resumed && this.startMods)
-          for (const id of Object.keys(this.startMods))
-            this.emit("mutator", { id, level: this.mods[id] || 1, x: player.x, y: player.y });
-        // Nova start charge, the arena director's wave mode, supply caches and the director's bonus
-        // group (kept additive to the wave set up above)
         if (nova == null && this.stats.novaStart > 0) player.nova = Math.min(100, player.nova + this.stats.novaStart);
         const director = this.arena?.director,
           mode = director?.mode || "standard";
@@ -620,14 +567,13 @@ const rlStep = 1 / 60,
       // 3.34.0: Blackout City has a pool of its own (its armed gangs; it only had grunts and gunners, the softest champions
       // of any biome when Endless comes back to it)
       const special = {
-        yard: ["gunner", "bomber", "brute", "sniper", "sentinel"],
+        city: ["gunner", "bomber", "brute", "sniper", "sentinel"],
         works: ["brute", "grunt", "charger", "minebot", "driller"],
-        vault: ["bulwark", "gunner", "sentinel", "turret"],
-        void: ["striker", "brute", "phantom", "weaver"],
+        shelf: ["bulwark", "gunner", "sentinel", "turret"],
+        core: ["striker", "brute", "phantom", "weaver"],
         marsh: ["splitter", "brute", "sapper", "carrier"],
         // 3.49.0: the Caldera's champions: the burning dead the Tyrant calls up
-        club: ["gunner", "brute", "bomber", "sapper", "charger"],
-        // 3.53.0: the Flats' champions: the noon-baked crews the Crucible calls up
+        caldera: ["gunner", "brute", "bomber", "sapper", "charger"],
         flats: ["gunner", "charger", "driller", "mortar", "sniper", "brute"],
       }[biome];
       if (special) {
@@ -636,12 +582,12 @@ const rlStep = 1 / 60,
       }
       let pool = (
         {
-          yard: ["grunt", "gunner"],
+          city: ["grunt", "gunner"],
           works: ["brute", "grunt"],
-          vault: ["bulwark", "gunner"],
-          void: ["striker", "brute"],
+          shelf: ["bulwark", "gunner"],
+          core: ["striker", "brute"],
           marsh: ["splitter", "brute"],
-          club: ["grunt", "gunner"],
+          caldera: ["grunt", "gunner"],
           flats: ["gunner", "charger"],
         }[biome] || ["grunt"]
       ).filter((type) => enemyDefs[type].from <= wave);
@@ -686,21 +632,11 @@ const rlStep = 1 / 60,
       const cycle = Math.floor((Math.max(1, wave) - 1) / 5);
       return biomesById[this.route[cycle % this.route.length]] || biomeList[0];
     }
-    // 2.4.6: the boss of a boss wave is the boss of its biome (Blackout City: Warden, the Glass
-    // Flats: Crucible, the Aurora Shelf: Frost Prism, the Glowmarsh: Hive Queen, the Shattered Core: Rift Core). In waves 5–20
-    // its hull follows the slot (wave 5, 10, 15, 20, see spawnBoss), because Queen, Prism and Crucible
-    // can each come at wave 10 or 15; Endless keeps each boss's own hull as before.
     bossFor(wave) {
       if (wave % 5 !== 0) return null;
-      // 3.57.0: one unique boss per biome, and nothing else. Every biome is mapped (covered by core.test.mjs), so the lookup used to be enough on its own - but its fallback indexed bossOrder, which
-      // still carries the retired Crucible for old saves and records. A biome that ever lost its
-      // mapping would have started spawning a boss that belongs to no place. The fallback now draws
-      // only from bosses that are actually assigned to a biome; the Crucible stays in bossOrder, where
-      // save validation needs it, and can no longer be reached by a new run.
       const byBiome = bossByBiome[this.biomeFor(wave).id];
       if (byBiome) return byBiome;
-      const assigned = bossOrder.filter((id) => BOSS_BIOME_IDS.has(id));
-      return assigned[(wave / 5 - 1) % assigned.length];
+      return bossOrder[(wave / 5 - 1) % bossOrder.length];
     }
     // 2.5.0 C: the wave of the current biome visit that gets its biome event (0: none)
     biomeEventWave(wave) {
@@ -716,10 +652,6 @@ const rlStep = 1 / 60,
     }
     isFinalWave() {
       return !this.endless && this.wave >= 20;
-    }
-    /* 3.27.0: the extra share of the payout the pacts of this run bring (0.2 = +20%) */
-    pactBonus() {
-      return pactBonus(this.pacts);
     }
     snapshot() {
       let snap = {
@@ -739,10 +671,6 @@ const rlStep = 1 / 60,
         rerolls: this.rerolls,
         banished: [...this.banished],
         banishes: this.banishes,
-        daily: this.daily,
-        weekly: this.weekly,
-        startMods: this.startMods ? { ...this.startMods } : null,
-        pacts: [...this.pacts],
         revived: this.revived,
         nova: Math.round(this.player.nova),
         bossKills: [...this.bossKills],
@@ -952,7 +880,7 @@ const rlStep = 1 / 60,
         const tuned = !!(stats.skates || stats.heatSink || stats.slip),
           fight = this.state === "fight" && player.alive,
           // Cryo Skates: on ice or anywhere on the Aurora Shelf (onIce is from the last frame)
-          skating = stats.skates > 0 && fight && (player.onIce || this.arena.biome.id === "vault"),
+          skating = stats.skates > 0 && fight && (player.onIce || this.arena.biome.id === "shelf"),
           speed = stats.speed,
           rate = stats.rateMul,
           dashId = player.dashId;
@@ -1255,7 +1183,7 @@ const rlStep = 1 / 60,
         } else player.inDevil = false;
         // 3.4.0: in Blackout City the vents are live manholes: they arc (shock) instead of erupting lava, and the
         // current stuns the enemies it catches (slowed) besides burning them
-        const shock = arena.biome.id === "yard";
+        const shock = arena.biome.id === "city";
         if (arena.vents.length && this.state === "fight")
           for (let vent of arena.vents) {
             let state = arena.ventState(vent, this.waveT);
@@ -1440,7 +1368,7 @@ const rlStep = 1 / 60,
         // the Glowmarsh's mud clings (grip 24) and drags a little speed (biome.mud); 3.51.0: the Shelf's
         // blizzard breathes - the thin ice freezes and thaws on a ~20 s cycle and the grip swings with it
         let baseGrip = onIce ? 2.4 : this.arena.biome.grip || 16;
-        if (!onIce && this.arena.biome.id === "vault") {
+        if (!onIce && this.arena.biome.id === "shelf") {
           const storm = this.bioEv && this.bioEv.id === "whiteout" ? RL_THAW_STORM : 1;
           baseGrip *= 1 + RL_THAW_K * storm * (0.5 - 0.5 * Math.cos((this.time / RL_THAW_PERIOD) * Math.PI * 2));
         }
@@ -1776,16 +1704,13 @@ const rlStep = 1 / 60,
           kind: "singularity",
           burn: stats.gadgetFire ? dmg * 0.15 : 0,
         });
-        // 3.16.0: Searing Collapse leaves burning ground for 3 s that keeps the enemies in it alight (boss-cards.js
-        // updates it with the slag of the Crucible Hammer, the view draws it as fire)
         if (stats.gadgetFire)
-          this.slag.push({
+          this.burnPools.push({
             id: this.nextId++,
             x: sing.tx,
             y: sing.ty,
             r: radius * 0.7,
             life: 3,
-            fire: true,
             dps: dmg * 0.1,
           });
         // the collapse rattles what it does not kill: enemies in it are slowed for a moment
@@ -1916,7 +1841,7 @@ const rlStep = 1 / 60,
           for (const bullet of this.eb)
             if (bullet.life > 0 && Math.hypot(bullet.x - player.x, bullet.y - player.y) < radius * 1.2) {
               bullet.life = 0;
-              this.emit("pop", { x: bullet.x, y: bullet.y });
+              this.emit("pop", { x: bullet.x, y: bullet.y, src: bullet.src, kind: bullet.kind, frost: bullet.frost });
             }
         }
       }
@@ -2457,7 +2382,7 @@ const rlStep = 1 / 60,
       }
       // 3.49.0: a Flareheart enemy goes out in a flare: a fumarole jets where it falls (a short
       // molten geyser that burns what stands in it - the same fire the scorch trail uses)
-      if (enemy.variant === "showy") {
+      if (enemy.variant === "flareheart") {
         const src = this._src;
         this._src = enemy.type;
         this.hazard({ x: enemy.x, y: enemy.y, r: 1.7, delay: 0.5, dmg: enemy.dmg * 0.7, kind: "fire" });
@@ -2635,7 +2560,7 @@ const rlStep = 1 / 60,
         y: y,
         r: radius,
         kind: opts.kind || "boom",
-        src: opts.src || null,
+        src: opts.src ?? this._src ?? null,
         chill: !!opts.chill,
       });
     }
@@ -3067,7 +2992,7 @@ const rlStep = 1 / 60,
         life: opts.life || 5,
         age: 0,
         // 3.16.0: a boss's shots have the shape of their boss unless the attack names its own kind
-        kind: opts.kind || BOSS_SHOT[opts.src || this._src] || "orb",
+        kind: opts.kind || projectileFor(opts.src || this._src),
         homing: opts.homing || 0,
         accel: opts.accel || 0,
         solid: opts.solid,
@@ -3252,7 +3177,7 @@ const rlStep = 1 / 60,
         live: false,
         color: opts.color || 0,
         skin: opts.skin || null, // 3.0.0: trap beams name their skin (laser, flame, rift)
-        src: this._src,
+        src: opts.src ?? this._src,
       };
       this.beams.push(beam);
       return beam;
@@ -3267,7 +3192,7 @@ const rlStep = 1 / 60,
         dmg: opts.dmg || 20,
         kind: opts.kind || "stomp",
         done: false,
-        src: this._src,
+        src: opts.src ?? this._src,
         sx: opts.sx,
         sy: opts.sy,
         // 3.32.0: a Frost mortar's shell chills where it lands (look, sound and the slow of a Glacier zone)
@@ -3407,7 +3332,6 @@ const rlStep = 1 / 60,
             this.champion = enemy;
             this.emit("champion", { type: marker.type, x: marker.x, y: marker.y });
           }
-          // 3.34.0: the variant and the affix go with it (the first-time tips and the Codex)
           this.emit("spawn", {
             x: marker.x,
             y: marker.y,
@@ -3515,12 +3439,6 @@ const rlStep = 1 / 60,
           this.markers.length === 0 &&
           this.waveT > 1.8
         ) {
-          if (this.training) {
-            this.state = "victory";
-            this.stateT = 0;
-            this.emit("victory");
-            return;
-          }
           this.state = "cleared";
           this.stateT = 0;
           if (this.waveDmg === 0 && this.wave >= 8) {
@@ -3544,7 +3462,7 @@ const rlStep = 1 / 60,
         // 3.12.0: a Singularity still pulling when the wave ends (it lasts up to 2 s, the cleared phase can be 1.6 s)
         // would hang over the upgrade choice, which does not step it; its enemies are gone, so it simply ends
         this.singularities = [];
-        // 3.15.0: the same for the cages, slag, splinters and a Nova still pulling (the larvae stay with the drone)
+        // 3.15.0: the same for the cages, burning ground, splinters and a Nova still pulling (the larvae stay with the drone)
         resetBossCards(this);
         if (this.isFinalWave()) {
           this.state = "victory";
@@ -3555,11 +3473,10 @@ const rlStep = 1 / 60,
         }
       }
     }
-    // 2.5.0 C: set up the biome event of this wave (extra hazards, Meltdown timing, Bloom and Storm state)
     startBiomeEvent(id, wave) {
       const arena = this.arena,
         player = this.player,
-        rng = makeRng(hashString(this.seed + ":biome-event:" + id + ":" + wave)),
+        rng = makeRng(hashString(this.seed + ":biome-event:" + eventSeedId(id) + ":" + wave)),
         avoid = [{ x: player.x, y: player.y, r: 3.5 }],
         // the extra sheets of a Whiteout are smaller, so they still fit between the wave's big ones
         add = (kind, count, size) => {
@@ -3584,11 +3501,11 @@ const rlStep = 1 / 60,
           vent.phase = ((vents.length - 1 - i) / vents.length) * 1.9;
           vent.st = "idle";
         });
-      } else if (id === "raid") {
+      } else if (id === "ashfall") {
         // 3.49.0: ASHFALL: three more fumaroles, the lights die under the ash (the renderer dims), and
         // every jet fires in step - the caldera fights back all at once
         add("vents", 3);
-        const period = RL_RAID_PERIOD;
+        const period = RL_ASHFALL_PERIOD;
         for (const vent of arena.vents) {
           vent.period = period;
           vent.phase = 0;

@@ -12,14 +12,13 @@
 // (seed + wave), so it never disturbs the world's.
 
 import { makeRng, hashString, TAU, clamp } from "./util.js";
+import { BIOME_TRAP_EFFECTS as BIOME_TRAPS } from "../data/combat-effects.js";
 
 // skins: family, base damage (times the enemies' damage multiplier), radius, warning, pause, side effect
 const TRAP_SKINS = {
   laser: { fam: "beam", dmg: 16, w: 0.8, len: 26, warn: 1.1, dur: 2.0, rot: 0.5, cd: 3.6 },
-  flame: { fam: "beam", dmg: 20, w: 1.5, len: 12, warn: 1.0, dur: 1.6, rot: 0.7, cd: 3.2 },
   rift: { fam: "beam", dmg: 18, w: 1.1, len: 22, warn: 1.2, dur: 2.4, rot: -0.4, cd: 3.8 },
   plate: { fam: "floor", dmg: 22, r: 2.2, warn: 1.0, cd: 4.2, special: "shock", frac: 0.1 },
-  crusher: { fam: "floor", dmg: 30, r: 2.6, warn: 1.0, cd: 4.6, special: "quake", frac: 0.14 },
   icespike: { fam: "floor", dmg: 24, r: 2.2, warn: 1.0, cd: 4.2, special: "chill", frac: 0.1 },
   geyser: { fam: "floor", dmg: 20, r: 2.0, warn: 1.0, cd: 4.0, special: "acid", frac: 0.1 },
   riftburst: { fam: "floor", dmg: 24, r: 2.4, warn: 1.0, cd: 4.2, special: "shock", frac: 0.1 },
@@ -34,15 +33,10 @@ const TRAP_SKINS = {
   // are the hit; the noon light does the rest)
   sunspike: { fam: "floor", dmg: 22, r: 2.1, warn: 1.0, cd: 4.1, frac: 0.12 },
 };
-// which skin each biome uses for each family (a biome can lack a family)
-const BIOME_TRAPS = {
-  yard: { floor: "plate", beam: "laser", mine: "mine" },
-  vault: { floor: "icespike", mine: "frost" },
-  marsh: { floor: "geyser", mine: "spore" },
-  void: { floor: "riftburst", beam: "rift", mine: "riftmine" },
-  club: { floor: "pyro", beam: "laser", mine: "mine" },
-  flats: { floor: "sunspike", mine: "mine" },
-};
+// Distinct natural appearances keep the existing trap balance and collision dimensions.
+TRAP_SKINS.magma = { ...TRAP_SKINS.laser };
+TRAP_SKINS.embermine = { ...TRAP_SKINS.mine };
+TRAP_SKINS.glassmine = { ...TRAP_SKINS.mine };
 // first wave of each family, and the number of traps per family on a wave
 const TRAP_FROM = { floor: 6, beam: 9, mine: 12 };
 function trapCount(fam, wave) {
