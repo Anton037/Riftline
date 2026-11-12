@@ -10,7 +10,7 @@ export const WHATS_NEW = [
       "Nova sends out one rising pressure wave with a single, weighty discharge.",
       "Singularity suspends a dark core inside swirling matter, with distinct flight, pull and collapse effects.",
       "Aegis reacts to absorbed hits; Event Collapse and portals gain clearer, deeper effects.",
-      "The Shelf gains fractured ice cliffs, distant northern lights and a subtle sheen on exposed ice.",
+      "Natural glaciers, distant northern lights, sculpted Marsh fungi and clearer City edges bring the scenery together.",
       "Arena changes throw up brief material dust instead of glowing obstacle rings.",
     ],
   },

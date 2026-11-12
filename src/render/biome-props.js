@@ -22,6 +22,7 @@ import {
 } from "three";
 import { worldMaterial } from "./world-material.js";
 import { strataGeometry, shardGeometry } from "./strata-geometry.js";
+import { mushroomCapGeometry, topCoatGeometry } from "./natural-geometry.js";
 import { keepExteriorPartsOutside } from "./map-geometry.js";
 import { meshPart, mergeParts, box, ball, bar, pipe, spike } from "./models.js";
 
@@ -162,7 +163,9 @@ function cityDetail(biome, W, H, obs, rng) {
     }
     if (rng.chance(0.4))
       t.body.push(spike(0x4a4f5a, 0.03, 3, [-w * 0.25, h + 0.25, 0], [-w * 0.25, h + rng.range(1.2, 2.6), 0]));
-    put(out, t, p.x, 0, p.z, faceIn(p.nx, p.nz) + rng.range(-0.15, 0.15));
+    // Height-dependent setback keeps foreground towers clear of the steep play camera.
+    const setback = Math.max(0, h * 0.7 + Math.max(w, dp) * 0.6 + 2 - p.d);
+    put(out, t, p.x + p.nx * setback, 0, p.z + p.nz * setback, faceIn(p.nx, p.nz) + rng.range(-0.15, 0.15));
   }
   // parked and burned-out cars along the street outside
   for (const p of outsideSpots(rng, W, H, 12, 1.6, 4.2, 3.6)) {
@@ -253,27 +256,25 @@ const pick3 = (rng, items) => items[Math.floor(rng.next() * items.length)];
    Low frost detail leaves the painted ice and combat space readable. ---- */
 function shelfDetail(biome, W, H, obs, rng) {
   const out = list(W, H),
-    cyan = biome.grid,
     ice = [0x8fc4ec, 0xaadcf4, 0x6ea6d4, 0xc8e8ff, 0x5a92c4],
     snow = 0xe8f4ff;
-  // Three grounded seracs break up the northern skyline.
+  // Broad weathered seracs with pressure fractures; snow follows their actual upper faces.
   const great = [
     { x: -11, z: -H - 7.5, h: 6.8, r: 2.1 },
     { x: 3.5, z: -H - 10.5, h: 8.4, r: 2.5 },
     { x: 14.5, z: -H - 5.5, h: 6.5, r: 1.9 },
   ];
   for (const g of great) {
-    const t = list();
-    t.body.push(meshPart(shardGeometry(g.r * 1.7, g.h, g.r * 1.25), rng.pick(ice), { ry: rng.range(0, 3) }));
+    const t = list(),
+      body = strataGeometry(g.r * 2.6, g.h, g.r * 1.7, g.x + g.z);
+    t.body.push(meshPart(body, rng.pick(ice)), meshPart(topCoatGeometry(body, 0.05), snow));
     for (let i = 0; i < 3; i++) {
       const a = rng.range(0, TAU),
         h = g.h * rng.range(0.25, 0.5);
       t.body.push(
         meshPart(shardGeometry(g.r * 0.7, h, g.r * 0.6), rng.pick(ice), {
-          x: Math.cos(a) * g.r * 0.55,
-          z: Math.sin(a) * g.r * 0.55,
-          rx: Math.sin(a) * 0.15,
-          rz: -Math.cos(a) * 0.15,
+          x: Math.cos(a) * g.r * 0.65,
+          z: Math.sin(a) * g.r * 0.65,
         }),
       );
     }
@@ -289,11 +290,9 @@ function shelfDetail(biome, W, H, obs, rng) {
     const t = list(),
       h = rng.range(2.8, 4.2),
       w = rng.range(3.2, 4.5),
-      seed = rng.range(1, 1000);
-    t.body.push(
-      meshPart(strataGeometry(w, h, 2.4, seed), rng.pick(ice)),
-      meshPart(strataGeometry(w * 0.86, 0.25, 1.95, seed), snow, { y: h * 0.92 }),
-    );
+      seed = rng.range(1, 1000),
+      body = strataGeometry(w, h, 2.4, seed);
+    t.body.push(meshPart(body, rng.pick(ice)), meshPart(topCoatGeometry(body), snow));
     for (let i = 0; i < 2; i++)
       t.body.push(
         meshPart(shardGeometry(w * 0.3, h * 0.5, 1.0), rng.pick(ice), {
@@ -305,11 +304,11 @@ function shelfDetail(biome, W, H, obs, rng) {
     put(out, t, p.x, 0, p.z, rng.range(0, TAU));
   }
   // Smaller fractured fins support the skyline without hiding the distant aurora.
-  for (const p of outsideSpots(rng, W, H, 16, 2.2, 13, 3.6)) {
+  for (const p of outsideSpots(rng, W, H, 12, 2.2, 13, 3.6)) {
     const t = list(),
-      h = rng.range(2.5, 5.5),
+      h = rng.range(1.8, 4.2),
       r = rng.range(0.6, 1.4);
-    t.body.push(meshPart(shardGeometry(r * 1.65, h, r * 1.2), rng.pick(ice), { ry: rng.range(0, 3) }));
+    t.body.push(meshPart(strataGeometry(r * 2.1, h, r * 1.6, p.x + p.z), rng.pick(ice), { ry: rng.range(0, 3) }));
     for (let i = 0; i < 2; i++) {
       const a = rng.range(0, TAU);
       t.body.push(
@@ -334,28 +333,19 @@ function shelfDetail(biome, W, H, obs, rng) {
     }
     put(out, t, p.x, 0, p.z, rng.range(0, TAU));
   }
-  // the arks: expedition hulls half-sunk in the shelf, ribs along the keel, snow over the decks,
-  // icicles off the stern, one dead lamp still lit by the aurora
-  for (const p of outsideSpots(rng, W, H, 6, 1.6, 6, 5)) {
+  // Pressure ridges and calved blocks replace the unrelated expedition hulls and lamps.
+  for (const p of outsideSpots(rng, W, H, 7, 1.8, 6, 4.6)) {
     const t = list(),
-      L = rng.range(2.6, 4),
-      hullC = rng.pick([0x22345c, 0x1d2c4c, 0x28406a]);
-    t.body.push(meshPart(new SphereGeometry(1, 9, 6), hullC, { x: 0, y: 0.1, sx: L * 0.5, sy: 0.85, sz: 0.62 }));
-    t.body.push(box(hullC, L * 0.8, 0.5, 0.16, { y: 0.72, rz: 0.05 }));
-    for (let i = 0; i < 4; i++)
-      t.body.push(box(0x33475a, 0.1, rng.range(0.5, 0.8), 0.9, { x: -L * 0.3 + i * L * 0.2, y: 0.85 }));
-    t.body.push(meshPart(new SphereGeometry(1.1, 8, 4), snow, { x: 0.2, y: 0.78, sy: 0.3, sx: L * 0.42, sz: 0.5 }));
-    for (let i = 0; i < 5; i++)
+      w = rng.range(2.5, 4),
+      h = rng.range(0.8, 1.7),
+      body = strataGeometry(w, h, 1.8, rng.range(1, 1000));
+    t.body.push(meshPart(body, rng.pick(ice)), meshPart(topCoatGeometry(body, 0.035), snow));
+    for (let j = 0; j < 3; j++) {
+      const h = rng.range(0.5, 1.15);
       t.body.push(
-        spike(
-          rng.pick(ice),
-          0.07,
-          4,
-          [L * 0.36, 0.55, -0.4 + i * 0.2],
-          [L * 0.36, rng.range(0.1, 0.35), -0.4 + i * 0.2],
-        ),
+        meshPart(shardGeometry(0.35, h, 0.55), rng.pick(ice), { x: (j - 1) * w * 0.28, z: 0.4, rz: (j - 1) * 0.12 }),
       );
-    t.glow.push(box(dim(cyan, 0.5), 0.3, 0.06, 0.05, { x: L * 0.3, y: 0.95, z: 0.34 }));
+    }
     put(out, t, p.x, 0, p.z, rng.range(0, TAU));
   }
   // Low calved shelves sit on the snow rather than floating in a stack of boxes.
@@ -363,9 +353,9 @@ function shelfDetail(biome, W, H, obs, rng) {
     const t = list(),
       w = rng.range(1.4, 2.6),
       h = rng.range(0.45, 0.8),
-      seed = rng.range(1, 1000);
-    t.body.push(meshPart(strataGeometry(w, h, 1.3, seed), rng.pick(ice)));
-    t.body.push(meshPart(strataGeometry(w * 0.88, 0.13, 1.1, seed), snow, { y: h * 0.9 }));
+      seed = rng.range(1, 1000),
+      body = strataGeometry(w, h, 1.3, seed);
+    t.body.push(meshPart(body, rng.pick(ice)), meshPart(topCoatGeometry(body), snow));
     put(out, t, p.x, 0, p.z, rng.range(0, TAU));
   }
   // Small rooted frost shards and snow; the painted floor supplies its own frost patterns.
@@ -383,15 +373,10 @@ function shelfDetail(biome, W, H, obs, rng) {
     }
     put(out, t, p.x, 0, p.z, rng.range(0, TAU));
   }
-  for (const p of scatter(rng, W, H, obs, 6, { gap: 3.4 }))
-    crack(out, dim(cyan, 0.5), p.x, p.z, rng, rng.int(4, 7), 0.7);
+  // The floor already carries painted cracks; rooted frost replaces luminous decorative gems.
   for (const p of scatter(rng, W, H, obs, 10, { gap: 1.4 })) {
-    const r = rng.range(0.07, 0.17);
-    out.body.push(meshPart(new SphereGeometry(r, 6, 4), snow, { x: p.x, y: r * 0.3, z: p.z, sy: 0.6 }));
-  }
-  for (const p of scatter(rng, W, H, obs, 7, { gap: 2.6 })) {
-    const h = rng.range(0.15, 0.32);
-    out.glow.push(gem(dim(cyan, rng.range(0.35, 0.6)), 0.06, p.x, h * 0.5 + 0.02, p.z, { sy: h / 0.06 / 1.7 }));
+    const r = rng.range(0.08, 0.18);
+    out.body.push(meshPart(shardGeometry(r * 1.8, r * 0.9, r * 1.2), rng.pick(ice), { x: p.x, z: p.z }));
   }
   return out;
 }
@@ -406,7 +391,7 @@ function marshDetail(biome, W, H, obs, rng) {
     bark = [0x2a2519, 0x221e15, 0x302a1b],
     moss = [0x1e4a3a, 0x245844, 0x19402f],
     bone = 0xcfc8a8,
-    caps = [0x2a8a68, 0x1e7a5c, 0x359a74, 0x2a6a80];
+    caps = [0x3d705b, 0x3b6150, 0x477264, 0x365d61];
   // dead trees with forked branches and hanging glow-moss
   for (const p of outsideSpots(rng, W, H, 10, 2, 12, 3.6)) {
     const t = list(),
@@ -463,26 +448,25 @@ function marshDetail(biome, W, H, obs, rng) {
       );
     put(out, t, p.x, 0, p.z, rng.range(0, TAU));
   }
-  // giant glowcaps with glowing spots
+  // Irregular layered glowcaps with quiet gill light beneath their rolled edge.
   for (const p of outsideSpots(rng, W, H, 6, 2, 8, 4.4)) {
     const t = list(),
       h = rng.range(1.4, 3.2),
       r = h * rng.range(0.5, 0.8),
       cap = rng.pick(caps);
     t.body.push(
-      cyl(0xcfc8a8, r * 0.16, r * 0.11, h, 8, 0, 0, 0),
-      meshPart(new SphereGeometry(r, 10, 5, 0, TAU, 0, PI / 2), cap, { y: h, sy: 0.6 }),
-      disc(0x1c1024, r * 0.95, 0, h + 0.01, 0, 10),
+      cyl(0xa4b7a3, r * 0.17, r * 0.11, h + 0.1, 8, 0, 0, 0),
+      meshPart(mushroomCapGeometry(r, r * 0.6, p.x + p.z), cap, { y: h }),
     );
-    for (let i = 0; i < 6; i++) {
-      const a = rng.range(0, TAU),
-        el = rng.range(0.3, 1.2);
+    for (let j = 0; j < 12; j++) {
+      const a = (j / 12) * TAU;
       t.glow.push(
-        ball(dim(rng.pick([lime, yellow]), 0.85), rng.range(0.05, 0.11), 5, 3, {
-          x: Math.cos(a) * Math.sin(el) * r * 0.95,
-          y: h + Math.cos(el) * r * 0.58,
-          z: Math.sin(a) * Math.sin(el) * r * 0.95,
-        }),
+        bar(
+          dim(lime, 0.17),
+          0.025,
+          [Math.cos(a) * r * 0.3, h + r * 0.07, Math.sin(a) * r * 0.3],
+          [Math.cos(a) * r * 0.85, h + r * 0.08, Math.sin(a) * r * 0.85],
+        ),
       );
     }
     put(out, t, p.x, 0, p.z, rng.range(0, TAU));
@@ -583,7 +567,7 @@ function marshDetail(biome, W, H, obs, rng) {
         h = rng.range(0.08, 0.22);
       t.body.push(
         cyl(0xcfc8a8, 0.02, 0.017, h, 5, x, 0, z),
-        meshPart(new SphereGeometry(h * 0.6 + 0.03, 6, 3, 0, TAU, 0, PI / 2), cap, { x, y: h, z, sy: 0.7 }),
+        meshPart(mushroomCapGeometry(h * 0.6 + 0.03, h * 0.35, p.x + p.z + i), cap, { x, y: h, z }),
       );
       if (rng.chance(0.6)) t.glow.push(ball(dim(lime, 0.85), 0.018, 4, 3, { x: x + 0.02, y: h + h * 0.4, z }));
     }
