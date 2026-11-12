@@ -45,7 +45,8 @@ export function paintMaterial(material, surface = "armor") {
         ? "vec2(2,1)"
         : "vec2(0,1)";
   const average = finish ? finish[2] : surface === "basalt" ? 0.07 : surface === "sandstone" ? 0.3 : 0.16;
-  const scale = ["armor", "organic", "metal", "rubber"].includes(surface) ? 0.8 : 0.22;
+  const scale = surface === "basalt" ? 0.65 : ["armor", "organic", "metal", "rubber"].includes(surface) ? 0.8 : 0.22;
+  const relief = surface === "basalt" || surface === "stone" ? 0.055 : surface === "organic" ? 0.012 : 0.018;
   material.onBeforeCompile = (shader, ...args) => {
     previousCompile.call(material, shader, ...args);
     shader.uniforms.uArtMap = finish ? WORLD_SURFACES.finishMap : WORLD_SURFACES.map;
@@ -78,6 +79,7 @@ vec3 ap = vArtSurface;
 float grain = artGrain(ap * 46.0);
 float strata = 0.5 + 0.5 * sin(ap.y * ${ice ? "12.0" : "23.0"} + sin(ap.x * 4.1 + ap.z * 3.7) * 1.7);
 float dust = smoothstep(0.35,0.95,vArtUp * 0.5 + 0.5);
+float artHeight = 0.0;
 diffuseColor.rgb *= ${ice ? "0.93 + grain * 0.12" : "0.93 + grain * 0.05"};
 diffuseColor.rgb *= 0.92 + strata * ${metal ? "0.07" : "0.12"};
 diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.12,1.08,1.01), dust * 0.2);
@@ -89,11 +91,25 @@ if(uArtReady>.5) {
  vec3 tz=texture2D(uArtMap,(tile+mix(vec2(.003),vec2(.997),fract(ap.xy*${scale.toFixed(2)})))/vec2(3,2)).rgb;
  vec3 pigment=tx*weights.x+ty*weights.y+tz*weights.z;
  float ink=dot(pigment,vec3(.2126,.7152,.0722));
+ artHeight=ink;
  diffuseColor.rgb*=mix(1.0,clamp(ink/${average.toFixed(3)},.5,1.6),.72);
  diffuseColor.rgb*=mix(vec3(1.0),clamp(pigment/max(ink,.025),vec3(.75),vec3(1.25)),.18);
 }
 
 ${surface === "dust" ? "diffuseColor.a *= smoothstep(0.0,0.3,ap.y) * (1.0-smoothstep(2.1,2.7,ap.y));" : ""}
+`,
+      )
+      .replace(
+        "#include <normal_fragment_maps>",
+        `#include <normal_fragment_maps>
+// Reuse the painted material's luminance for shallow surface relief; no extra texture or render pass.
+vec3 artDx=dFdx(-vViewPosition), artDy=dFdy(-vViewPosition);
+vec3 artR1=cross(artDy,normal), artR2=cross(normal,artDx);
+float artDet=dot(artDx,artR1);
+if(abs(artDet)>1e-10) {
+  vec3 artGrad=dFdx(artHeight)*artR1+dFdy(artHeight)*artR2;
+  normal=normalize(abs(artDet)*normal-sign(artDet)*artGrad*${relief.toFixed(3)});
+}
 `,
       );
   };

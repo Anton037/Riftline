@@ -84,7 +84,7 @@ test("painted material and biome layers compose once when a material is shared",
     assert.equal(repeated.fragmentShader, once.fragmentShader);
     assert.equal(material.customProgramCacheKey(), key);
     assert.equal(repeated.uniforms.uArtMap, WORLD_SURFACES.finishMap);
-    assert.ok(repeated.uniforms.uSkin && repeated.uniforms.uSkinT, "biome layer must retain its uniforms");
+    assert.ok(repeated.uniforms.uSkin, "biome layer must retain its uniforms");
     material.dispose();
   }
 });

@@ -12,7 +12,6 @@ const { bossByBiome, bossDefs } = await import("../src/data/enemies.js");
 const { upgradeList } = await import("../src/data/upgrades.js");
 const { WHATS_NEW, NEWS_KEEP } = await import("../src/data/whatsnew.js");
 const { cleanRun } = await import("../src/core/save.js");
-const { createTrainingWorld } = await import("../src/core/training.js");
 const step = (world, ticks = 240) => {
   for (let i = 0; i < ticks; i++) {
     world.step(1 / 60, { mx: Math.cos(i / 50), my: Math.sin(i / 50), auto: true, dash: i === 30 });
@@ -108,30 +107,6 @@ test("Armor Core reduces enemy hits but never stacks on map hazard resistance", 
   };
   assert.equal(loss("grunt"), 24);
   for (const source of ["lava", "shock", "acid", "trap", "devil"]) assert.equal(loss(source), 30, source);
-});
-
-test("every training boss uses its own arena and starting phase, and ends without an upgrade choice", () => {
-  for (const biome of biomeList)
-    for (const phase of ["full", "phase", "enraged"]) {
-      const w = createTrainingWorld({ biome: biome.id, phase });
-      assert.equal(w.arena.biome.id, biome.id);
-      assert.equal(w.boss.type, bossByBiome[biome.id]);
-      assert.equal(w.player.hp, 175);
-      assert.equal(w.player.nova, 100);
-      assert.equal(w.boss.hp, w.boss.maxHp);
-      assert.ok(w.boss.hp >= 4500);
-      w.boss.spawnT = 0;
-      w.step(1 / 60, { auto: false });
-      if (phase === "enraged") assert.equal(w.boss.enraged, true);
-      if (phase === "phase" && w.boss.type === "core") assert.equal(w.boss.phaseN, 2);
-      w.killEnemy(w.boss);
-      w.sweep();
-      w.waveT = 2;
-      w.checkWaveEnd();
-      assert.equal(w.state, "victory");
-    }
-  assert.throws(() => createTrainingWorld({ biome: "constructor" }));
-  assert.ok(createTrainingWorld({ biome: "yard", threat: 5 }).boss.hp > createTrainingWorld({ biome: "yard" }).boss.hp);
 });
 
 test("damage events retain the target type for material-specific hit feedback", () => {

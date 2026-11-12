@@ -275,22 +275,6 @@ body:not(.device-touch) .act-btn.gadget .key { display: block; }
 }
 .logo::after { content: ''; position: absolute; left: -6%; right: -6%; top: 48%; height: 2px; background: linear-gradient(90deg, transparent, var(--pink), #fff, var(--cyan), transparent); box-shadow: 0 0 12px var(--pink); }
 @keyframes rift { 0%, 100% { transform: translateX(-0.05em); } 48% { transform: translateX(0.05em); } 50% { transform: translateX(-0.12em); } 52% { transform: translateX(0.03em); } }
-.daily-link { position: relative; gap: 6px; }
-.daily-link .ico { width: 16px; height: 16px; }
-.daily-link .badge { top: -4px; right: -4px; }
-.daily-body { display: grid; gap: 12px; align-content: start; }
-.daily-body .btn.primary { justify-self: stretch; }
-.pact.on { background: var(--panel3); }
-.pact.on b { color: var(--cyan); }
-.daily-card { padding: 14px 16px; display: grid; gap: 6px; }
-.daily-card .dc-day { font: 600 11px/1 var(--display); letter-spacing: 0.2em; color: var(--mute); text-transform: uppercase; }
-.daily-card .dc-weapon { font: 700 22px/1.1 var(--display); }
-.daily-card .dc-sub { color: var(--dim); font-size: 13px; }
-.rift-sub { display: flex; align-items: center; gap: 8px; margin: 10px 2px -2px; font: 700 13px/1 var(--display); letter-spacing: 0.16em; text-transform: uppercase; color: var(--dim); }
-.rift-sub .glow { width: 8px; height: 8px; border-radius: 50%; background: var(--pink); box-shadow: 0 0 8px var(--pink); }
-.daily-card .dc-mods { display: flex; flex-wrap: wrap; gap: 6px; }
-.daily-card .dc-mod { display: inline-flex; align-items: baseline; gap: 6px; padding: 4px 9px; border-radius: 999px; border: 1px solid currentColor; font-size: 12px; }
-.daily-card .dc-mod i { font-style: normal; opacity: 0.72; }
 .best-line { margin: 8px 0 0; font: 600 13px/1 var(--display); letter-spacing: 0.14em; color: var(--amber); text-transform: uppercase; }
 .tagline { margin: 12px 0 0; color: var(--dim); font: 600 13px/1.3 var(--display); letter-spacing: 0.18em; text-transform: uppercase; }
 .home-panel { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 460px; justify-self: center; }
@@ -313,7 +297,7 @@ body:not(.device-touch) .act-btn.gadget .key { display: block; }
 .threat-name { font: 700 15px/1.1 var(--display); letter-spacing: 0.16em; text-transform: uppercase; }
 .threat-name.hot { color: var(--pink); }
 .threat-desc { font-size: 13px; color: var(--dim); margin-top: 2px; }
-.bottom-nav { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; max-width: 540px; width: 100%; align-self: center; }
+.bottom-nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; max-width: 540px; width: 100%; align-self: center; }
 .bottom-nav button { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px; font: 600 12px/1 var(--display); letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); background: var(--panel); border: 1px solid var(--line); clip-path: var(--notch); --n: 8px; }
 .bottom-nav button .ico { width: 22px; height: 22px; color: var(--text); }
 .badge { position: absolute; top: 6px; right: calc(50% - 20px); width: 9px; height: 9px; border-radius: 50%; background: var(--pink); box-shadow: 0 0 8px var(--pink); }
@@ -334,17 +318,6 @@ body:not(.device-touch) .act-btn.gadget .key { display: block; }
 /* ---------------------------------------------------------------- lists */
 .page-intro { margin: 0; color: var(--dim); font-size: 15px; }
 .checkpoint-note { margin: 0; text-align: center; font-size: 12px; line-height: 1.2; }
-.training-options { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 14px; margin: 14px 0; }
-.training-options > span { flex: 1 1 280px; }
-.training-options small { display: block; color: var(--dim); margin-top: 6px; }
-.training-options label { display: grid; gap: 6px; font-weight: 600; }
-.training-options select { color: var(--text); background: var(--bg); border: 1px solid var(--line2); min-height: 44px; padding: 8px; font: inherit; }
-.training-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); gap: 12px; }
-.training-card { padding: 16px; border-top: 2px solid var(--bc); }
-.training-card h3 { font: 700 22px/1.2 var(--display); margin: 10px 0 4px; }
-.training-card p { color: var(--dim); margin: 0 0 12px; }
-.training-card .btn { width: 100%; }
-#trainingResultNote { grid-column: 1 / -1; }
 .list { display: flex; flex-direction: column; gap: 8px; }
 .row { display: grid; grid-template-columns: 40px 1fr auto; gap: 12px; align-items: center; padding: 10px 12px; }
 .row .rico { width: 40px; height: 40px; display: grid; place-items: center; color: var(--cyan); background: rgba(73, 242, 255, 0.08); clip-path: var(--notch); --n: 6px; }
@@ -1476,8 +1449,7 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
   .screen button,.screen .btn{touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;}
 </style>
 <style>
-/* 2.5.0 D: biome title card, boss intro card (#titleCard, filled by ui.js) and the Codex tab in
-   Records. The cards take no input and fade out on their own. */
+/* 2.5.0 D: biome title card, boss intro card (#titleCard, filled by ui.js). The cards take no input and fade out on their own. */
 #titleCard { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .tcard { position: absolute; left: 0; right: 0; }
 .tcard .tc-eye { font: 600 12px/1 var(--display); letter-spacing: 0.3em; text-transform: uppercase; color: var(--bc); }
@@ -1516,22 +1488,6 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
 @media (prefers-reduced-motion: reduce) {
   .tcard .tc-name, .tc-band::before, .tc-band::after, .tc-accent, .tc-line { animation: none; }
 }
-/* Codex */
-.rec-tabs { width: min(360px, 100%); align-self: center; }
-.rec-tabs button { flex: 1 1 0; }
-.codex > .section-h:first-of-type { margin-top: 6px; }
-.cx-intro { margin: 2px 0 0; font-size: 14px; }
-.cx-intro b { color: var(--cyan); font-weight: 700; }
-.cx-count { margin-left: 6px; letter-spacing: 0.08em; color: var(--cyan); }
-.codex-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 8px; }
-.row.cx .rico { color: var(--cc, var(--cyan)); background: color-mix(in srgb, var(--cc, var(--cyan)) 12%, transparent); }
-.row.cx.r1 { --cc: var(--r1); } .row.cx.r2 { --cc: var(--r2); } .row.cx.r3 { --cc: var(--r3); } .row.cx.r4 { --cc: var(--r4); } .row.cx.r5 { --cc: #ffffff; } .row.cx.r6 { --cc: #ff4a5a; }
-.row.cx .chip { padding: 2px 6px; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--cc, var(--text)); }
-.row.cx small { font-size: 13.5px; }
-.row.cx small.cx-extra { font-size: 12px; color: var(--mute); }
-.row.cx.unseen { opacity: 0.55; }
-.row.cx.unseen .rico { color: var(--mute); background: rgba(255, 255, 255, 0.04); }
-.row.cx.unseen b { letter-spacing: 0.24em; color: var(--dim); }
 </style>
 <style id="RIFTLINE-PWA-FIX">html,body{margin:0!important;padding:0!important;height:100%!important;background:#05070d!important;overflow:hidden!important}*{-webkit-text-size-adjust:100%!important;text-size-adjust:100%!important}#gl{position:fixed!important;left:0!important;top:0!important;width:100vw!important;height:100vh!important;height:100dvh!important;max-width:none!important;max-height:none!important;aspect-ratio:auto!important;margin:0!important;transform:none!important;border:0!important;outline:none!important}</style><script id="RIFTLINE-RESIZE-FIX">(function(){function f(){try{window.dispatchEvent(new Event("resize"))}catch(e){}}var vv=window.visualViewport;if(vv){vv.addEventListener("resize",f)}window.addEventListener("orientationchange",function(){setTimeout(f,150);setTimeout(f,700)});[50,250,700,1500].forEach(function(t){setTimeout(f,t)})})();</script>
 </head>
@@ -1598,8 +1554,6 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
     <header class="topbar">
       <div class="shard-chip big"><span class="shard-ico"></span><span id="bank" class="num">0</span></div>
       <div class="spacer"></div>
-      <button id="pactsBtn" class="btn small ghost daily-link" data-go="pacts"><span data-icon="skull"></span><span id="pactsLabel">Pacts</span></button>
-      <button id="dailyBtn" class="btn small ghost daily-link" data-go="daily"><span data-icon="calendar"></span>Rifts<i id="dailyBadge" class="badge" hidden></i></button>
     </header>
     <div class="home-grid">
       <div class="brand">
@@ -1630,8 +1584,7 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
     </div>
     <nav class="bottom-nav">
       <button data-go="workshop"><span data-icon="wrench"></span>Workshop</button>
-      <button data-go="records"><span data-icon="trophy"></span>Records<i id="recBadge" class="badge" hidden></i></button>
-      <button data-go="training"><span data-icon="target"></span>Training</button>
+      <button data-go="records"><span data-icon="trophy"></span>Achievements<i id="recBadge" class="badge" hidden></i></button>
       <button data-go="news"><span data-icon="info"></span>News<i id="newsBadge" class="badge" hidden></i></button>
       <button data-go="settings"><span data-icon="gear"></span>Settings</button>
     </nav>
@@ -1653,53 +1606,20 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
   <section id="records" class="screen page" hidden>
     <header class="topbar">
       <button class="icon-btn" data-back aria-label="Back" data-icon="back"></button>
-      <h2>Records</h2>
+      <h2>Achievements</h2>
       <div class="spacer"></div>
       <div class="shard-chip big"><span class="shard-ico"></span><span class="num bankMirror">0</span></div>
     </header>
     <div class="scroll">
-      <div id="statGrid" class="stat-grid"></div>
-      <h3 class="section-h">Recent runs</h3>
-      <div id="runHist" class="list"></div>
-      <h3 class="section-h">Milestones</h3>
+      <p class="page-intro">Claim rewards for your progress through the rift.</p>
       <div id="msList" class="list"></div>
+      <h3 class="section-h">Run records</h3>
+      <div id="statGrid" class="stat-grid"></div>
+      <div id="runHist" class="list"></div>
     </div>
   </section>
 
-  <!-- ====================================================== PACTS (3.27.0) -->
-  <section id="pacts" class="screen page" hidden>
-    <header class="topbar">
-      <button class="icon-btn" data-back aria-label="Back" data-icon="back"></button>
-      <h2>Pacts</h2>
-      <div class="spacer"></div>
-      <div class="shard-chip big"><span class="shard-ico"></span><span class="num bankMirror">0</span></div>
-    </header>
-    <div class="scroll settings-body">
-      <p class="page-intro">Sign up to two pacts before a run. Each makes the run harder in one way and adds to the shards you earn. They apply to your next runs until you take them off, and not to the Daily Rift.</p>
-      <div id="pactList" class="list"></div>
-      <p id="pactSum" class="page-intro"></p>
-    </div>
-  </section>
 
-  <!-- ====================================================== DAILY + WEEKLY RIFT (3.26.0, 3.58.0) -->
-  <section id="daily" class="screen page" hidden>
-    <header class="topbar">
-      <button class="icon-btn" data-back aria-label="Back" data-icon="back"></button>
-      <h2>Rifts</h2>
-      <div class="spacer"></div>
-      <div class="shard-chip big"><span class="shard-ico"></span><span class="num bankMirror">0</span></div>
-    </header>
-    <div class="scroll settings-body daily-body">
-      <p class="page-intro">A Daily Rift is the same for every pilot every day; a Weekly Rift is the same every week and adds a fixed twist. In both, your workshop modules and pacts do not count, so everyone flies the same drone and earns the same shards. A new Daily Rift opens at midnight UTC, a new Weekly Rift on Monday.</p>
-      <div id="dailyCard" class="panel daily-card"></div>
-      <button id="dailyStart" class="btn primary">START TODAY'S RIFT</button>
-      <div id="dailyStats" class="stat-grid"></div>
-      <h3 class="rift-sub">Weekly Rift<i id="weeklyGlow" class="glow" hidden></i></h3>
-      <div id="weeklyCard" class="panel daily-card"></div>
-      <button id="weeklyStart" class="btn primary">START THIS WEEK'S RIFT</button>
-      <div id="weeklyStats" class="stat-grid"></div>
-    </div>
-  </section>
 
   <!-- ====================================================== NEWS -->
   <section id="news" class="screen page" hidden>
@@ -1710,15 +1630,6 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
     <div id="newsList" class="scroll settings-body"></div>
   </section>
 
-  <!-- ====================================================== TRAINING -->
-  <section id="training" class="screen page" hidden>
-    <header class="topbar"><button class="icon-btn" data-back aria-label="Back" data-icon="back"></button><h2>Boss training</h2></header>
-    <div class="scroll">
-      <p class="page-intro">Learn each boss in its own arena. Training uses a fixed kit and gives no shards, records or discoveries. Your saved run stays untouched.</p>
-      <div class="panel training-options"><span><b id="trainingWeapon"></b><small>Choose your weapon and threat on Home. Fixed kit: 175 hull, damage, fire rate, thrusters, Aegis and an extra Singularity cell. Start with full Nova. Bosses keep a full training health bar while using your chosen starting patterns.</small></span><label>Boss start<select id="trainingPhase"><option value="full">Opening patterns</option><option value="phase">Mid-fight · Core phase 2</option><option value="enraged">Enraged patterns</option></select></label></div>
-      <div id="trainingList" class="training-grid"></div>
-    </div>
-  </section>
 
   <!-- ====================================================== SETTINGS -->
   <section id="settings" class="screen page" hidden>
@@ -1810,9 +1721,7 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
       <h2 id="overTitle" class="over-title">SIGNAL LOST</h2>
       <div id="overCause" class="over-cause" hidden></div>
       <div id="overBest" class="chip best" hidden>NEW BEST</div>
-      <div id="overDaily" class="chip" hidden></div>
       <div id="overStats" class="stat-grid compact"></div>
-      <p id="trainingResultNote" class="note" hidden>Practice only. Your saved run, shards and records are unchanged.</p>
       <div class="payout panel">
         <div id="payRows"></div>
         <div class="pay-total"><span>Shards earned</span><span class="shard-chip"><span class="shard-ico"></span><span id="payTotal" class="num">0</span></span></div>

@@ -1,6 +1,7 @@
 // Enemy and boss behaviour (mu, vu) and enemy variants.
 
 import { clamp, TAU, turnToward } from "./util.js";
+import { SENTINEL_BEAMS as SENTINEL_SKIN } from "../data/combat-effects.js";
 
 /* ---- stragglers: when only a few enemies are left for 9 s the game sets
  enemy.hunt so they come to the player. The 2.1/2.2 ranged enemies ignored
@@ -501,7 +502,7 @@ function updateEnemyCore(game, enemy, dt) {
             chill: enemy.variant === "frost",
           });
         }
-        game.emit("lob", { x: enemy.x, y: enemy.y });
+        game.emit("lob", { x: enemy.x, y: enemy.y, frost: enemy.variant === "frost" });
         enemy.st = 1;
         enemy.t2 = 0.35;
         enemy.t = (3.8 + game.rng.next() * 1.2) * (enemy.los ? 1 : 1.6);
@@ -521,12 +522,9 @@ const bossPatterns = {
   prism: ["frostbeam", "teleport", "frostnova", "icelances", "glacier", "teleport", "iceshards"],
   core: ["spiral", "summon", "ring", "cross", "burst", "rain"],
 };
-// 2.4.6: THE CRUCIBLE (the Ember Works' boss until 3.49.0, the Glass Flats' for a season; benched
-// again in 3.56.0 - its attacks stay in updateCrucible at the end of this file)
-bossPatterns.forge = ["hammer", "slag", "eruption", "furnace", "hammer", "slag", "stoke"];
 // 3.49.0: THE ASH TYRANT of the Ashfall Caldera: the cinder fan (a sweeping spray of molten
-// slugs), the shoulder charge, the burning dead in the cracks, the quake slam, and the molotovs (a lob where you are heading)
-bossPatterns.kingpin = ["barrage", "charge", "summon", "ring", "barrage", "rain"];
+// slugs), the shoulder charge, the burning dead in the cracks, the quake slam, and the magma bombs (a lob where you are heading)
+bossPatterns.tyrant = ["barrage", "charge", "summon", "ring", "barrage", "rain"];
 // 3.56.0: THE GLASSWYRM of the Glass Flats: RISE (it swims under the glass and bursts up along a
 // chain of bulges), SHARDS (fans of hot glass), SUNLANCE (the noon bent through its body into a
 // sweeping beam) and MIRAGE (it dives and surfaces where you are not); its attacks are in
@@ -536,22 +534,18 @@ bossPatterns.wyrm = ["rise", "shards", "sunlance", "mirage"];
 const PRISM_ICE = 12578815;
 // 3.56.0: the Glasswyrm's lance (the noon bent through glass) wears the sun skin
 const WYRM_SUN = 0xffd98a;
-/* 3.3.0: the Overdrive of every boss. Once it is enraged a boss adds one signature attack to its pattern (right after
-   the enrage, then once per pattern cycle). Each is built from telegraphed attacks of the game: the Warden's laser
-   lockdown grid, the Crucible's expanding lava rings, the Prism's three-beam whiteout, the Queen's acid plague, the
-   Core's collapse (a bombardment grid under a beam cross). */
+
 const OVERDRIVE = {
     warden: "lockdown",
-    forge: "meltdown",
     prism: "whiteout",
     queen: "plague",
     core: "collapse",
-    kingpin: "lastcall",
+    tyrant: "firestorm",
     // the Glasswyrm's NOON: the sun stands still - a dial of lances turns around it while the glass bursts in rings
     wyrm: "noon",
   },
   /* the bosses that call reinforcements of their biome when enraged (the Queen and the Core summon anyway) */
-  REINFORCE = { warden: true, forge: true, prism: true, kingpin: true };
+  REINFORCE = { warden: true, prism: true, tyrant: true };
 function initBoss(game, boss) {
   boss.st = "walk";
   boss.t = 2.2;
@@ -595,7 +589,7 @@ function updateBoss(game, boss, dt) {
     dy = player.y - boss.y,
     dist = Math.hypot(dx, dy) || 0.001,
     aim = Math.atan2(dy, dx),
-    hpFrac = Math.min(boss.hp / boss.maxHp, game.training?.hpFraction ?? 1),
+    hpFrac = boss.hp / boss.maxHp,
     shotDmg = boss.dmg * 0.7;
   if (!boss.enraged && hpFrac < (boss.type === "queen" ? 0.4 : 0.5)) {
     boss.enraged = true;
@@ -1070,7 +1064,7 @@ function updateBoss(game, boss, dt) {
               // 3.16.0: the Rift Core's beams are ribbons of the rift (the warning stays red)
               skin: "rift",
             });
-          game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y });
+          game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, skin: boss.type === "core" ? "rift" : "laser" });
         }
         if (phase === 3) boss.t2 += dt;
         if (phase === 3 && boss.t2 > 0.7) {
@@ -1112,15 +1106,12 @@ function updateBoss(game, boss, dt) {
       }
       break;
     }
-    case "forge":
-      if (updateCrucible(game, boss, dt, aim, dist, shotDmg, rage)) return;
-      break;
     // 3.56.0: THE GLASSWYRM of the Glass Flats
     case "wyrm":
       if (updateGlasswyrm(game, boss, dt, aim, dist, shotDmg, rage)) return;
       break;
     // 3.49.0: THE ASH TYRANT of the Ashfall Caldera
-    case "kingpin": {
+    case "tyrant": {
       if (boss.st === "barrage") {
         // the cinder fan: it plants its feet and walks a spray of molten slugs through the room; the fan swings
         // with the drone, side to side with every burst
@@ -1144,7 +1135,7 @@ function updateBoss(game, boss, dt) {
           boss.ta = aim;
           boss.sub = 0;
           boss.subT = 0;
-          game.emit("charge", { x: boss.x, y: boss.y, type: "kingpin" });
+          game.emit("charge", { x: boss.x, y: boss.y, type: "tyrant" });
         }
         boss.subT += dt;
         if (boss.sub === 0) {
@@ -1165,7 +1156,7 @@ function updateBoss(game, boss, dt) {
             boss.charging = false;
             if (boss.hitWall) {
               game.emit("thud", { x: boss.x, y: boss.y, big: true });
-              game.explode(boss.x, boss.y, 2.2, 0, { kind: "stomp", src: "kingpin" });
+              game.explode(boss.x, boss.y, 2.2, 0, { kind: "stomp", src: "tyrant" });
               if (rage) shootRing(game, boss, 10, 7.5, shotDmg, boss.spin);
             }
             boss.sub = 2;
@@ -1181,7 +1172,7 @@ function updateBoss(game, boss, dt) {
               boss.sub = 0;
               boss.subT = 0;
               boss.ta = aim;
-              game.emit("charge", { x: boss.x, y: boss.y, type: "kingpin" });
+              game.emit("charge", { x: boss.x, y: boss.y, type: "tyrant" });
             }
           }
         }
@@ -1210,12 +1201,12 @@ function updateBoss(game, boss, dt) {
         return;
       }
       if (boss.st === "ring") {
-        // the dance-floor slam: he stamps the beat, the floor jumps, then the slugs answer
+        // the caldera quake: a basalt slam splits the ground before a cinder ring
         boss.vx *= 0.85;
         boss.vy *= 0.85;
         if (boss.n === 0) {
           boss.n = 1;
-          game.hazard({ x: boss.x, y: boss.y, r: 4.2, delay: 0.9, dmg: boss.dmg * 0.9, kind: "stomp", src: "kingpin" });
+          game.hazard({ x: boss.x, y: boss.y, r: 4.2, delay: 0.9, dmg: boss.dmg * 0.9, kind: "stomp", src: "tyrant" });
         }
         let rings = 2 + rage,
           gap = 0.6;
@@ -1227,13 +1218,23 @@ function updateBoss(game, boss, dt) {
         return;
       }
       if (boss.st === "rain") {
-        // the molotovs: bottles lobbed where you are heading, they burst into fire on landing
+        // magma bombs lobbed where you are heading, they burst into fire on landing
         moveBoss(game, boss, dt, aim, dist, 0.4);
         if (boss.t >= 0.5 + boss.n * 0.55 && boss.n < 4 + rage) {
           const lead = 1.5,
             tx = clamp(player.x + player.vx * lead, -game.arena.W + 1, game.arena.W - 1),
             ty = clamp(player.y + player.vy * lead, -game.arena.H + 1, game.arena.H - 1);
-          game.hazard({ x: tx, y: ty, r: 1.9, delay: 1.15, dmg: boss.dmg * 0.75, kind: "rain", src: "kingpin" });
+          game.hazard({
+            x: tx,
+            y: ty,
+            r: 1.9,
+            delay: 1.15,
+            dmg: boss.dmg * 0.75,
+            kind: "rain",
+            src: "tyrant",
+            sx: boss.x,
+            sy: boss.y,
+          });
           boss.n++;
         }
         if (boss.t > 3) endBossAttack(boss, 1.5);
@@ -1244,11 +1245,7 @@ function updateBoss(game, boss, dt) {
   }
   endBossAttack(boss, 1);
 }
-// 3.33.0: every place has its beam: the security laser, the flame jet of the Ember Works, a lance of ice, a jet of bile, the
-// rift ribbon (the sentinel fired the plain beam of 2.x in the Ember Works, the Aurora Shelf and the Glowmarsh)
-const SENTINEL_SKIN = { yard: "laser", vault: "cryo", marsh: "acid", void: "rift", club: "flame", flats: "laser" };
-/* 3.3.0: an enraged Warden, Crucible or Prism calls a squad of its biome (the champion pool of the biome) through
-   telegraphed portals around the player: 2 at the first boss, up to 5 later */
+
 function bossReinforce(game, boss) {
   if (game.enemies.length > 60) return;
   const count = 2 + Math.min(3, Math.floor((boss.tier || 0) / 2)),
@@ -1279,7 +1276,7 @@ function updateOverdrive(game, boss, dt, aim, dist, shotDmg) {
           game.beam({ x, y: -H, a: Math.PI / 2, len: H * 2, warn, dur: 1.1, w: 0.7, dmg: boss.dmg, skin: "laser" });
         for (let y = -H + 3 + shift; y < H - 1; y += 6)
           game.beam({ x: -W, y, a: 0, len: W * 2, warn, dur: 1.1, w: 0.7, dmg: boss.dmg, skin: "laser" });
-        game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y });
+        game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, skin: boss.type === "core" ? "rift" : "laser" });
       };
       if (boss.n === 0) {
         boss.n = 1;
@@ -1296,31 +1293,6 @@ function updateOverdrive(game, boss, dt, aim, dist, shotDmg) {
         game.emit("thud", { x: boss.x, y: boss.y, big: true });
       }
       if (boss.t > 4.8) endBossAttack(boss, 1.8);
-      return;
-    }
-    case "meltdown": {
-      // three rings of lava burst outwards from the Crucible, each with a gap of its own
-      boss.vx *= 0.8;
-      boss.vy *= 0.8;
-      if (boss.n === 0) {
-        boss.n = 1;
-        game.emit("charge", { x: boss.x, y: boss.y, type: "forge" });
-        for (let ring = 0; ring < 3; ring++) {
-          const radius = 3.5 * (ring + 1),
-            count = Math.ceil((TAU * radius) / 2.4),
-            gap = game.rng.next() * TAU;
-          for (let k = 0; k < count; k++) {
-            const angle = (k / count) * TAU,
-              off = Math.abs(((angle - gap + Math.PI * 3) % TAU) - Math.PI);
-            if (off < 0.55) continue;
-            const x = boss.x + Math.cos(angle) * radius,
-              y = boss.y + Math.sin(angle) * radius;
-            if (arena.outside(x, y, 0.5)) continue;
-            game.hazard({ x, y, r: 1.4, delay: 1 + ring * 0.45, dmg: boss.dmg * 0.8, kind: "slag" });
-          }
-        }
-      }
-      if (boss.t > 2.8) endBossAttack(boss, 1.6);
       return;
     }
     case "whiteout": {
@@ -1428,7 +1400,7 @@ function updateOverdrive(game, boss, dt, aim, dist, shotDmg) {
             len: 34,
             skin: "rift",
           });
-        game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y });
+        game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, skin: boss.type === "core" ? "rift" : "laser" });
       }
       if (boss.t > 4.4) endBossAttack(boss, 1.4);
       return;
@@ -1480,10 +1452,10 @@ function updateOverdrive(game, boss, dt, aim, dist, shotDmg) {
       if (boss.t > 4.6) endBossAttack(boss, 1.5);
       return;
     }
-    case "lastcall": {
+    case "firestorm": {
       // 3.49.0: FIRESTORM: the Tyrant calls the burning dead in (a squad of the Caldera's champions
       // through the portals and a crew of cinders around it), torches the ground around the drone
-      // (a ring of molotovs) and sweeps the floor while they pour out
+      // (a ring of magma bombs) and sweeps the floor while they pour out
       moveBoss(game, boss, dt, aim, dist, 0.3);
       if (boss.n === 0) {
         boss.n = 1;
@@ -1498,7 +1470,7 @@ function updateOverdrive(game, boss, dt, aim, dist, shotDmg) {
           kid.kx = Math.cos(angle) * 6;
           kid.ky = Math.sin(angle) * 6;
         }
-        // the molotovs close the ring around the drone: six fires, one gap left to find
+        // the magma bombs close the ring around the drone: six fires, one gap left to find
         const start = game.rng.next() * TAU,
           gap = game.rng.int(0, 6);
         for (let k = 0; k < 7; k++) {
@@ -1511,7 +1483,7 @@ function updateOverdrive(game, boss, dt, aim, dist, shotDmg) {
             delay: 1.3,
             dmg: boss.dmg * 0.7,
             kind: "rain",
-            src: "kingpin",
+            src: "tyrant",
           });
         }
         game.emit("hatch", { x: boss.x, y: boss.y, big: true });
@@ -2070,222 +2042,7 @@ function updateEnemyRole(game, enemy, dt) {
   return updateEnemyCore(game, enemy, dt);
 }
 
-/* ---- 2.4.6: THE CRUCIBLE (the Ember Works' boss until 3.49.0, the Glass Flats' for a season;
- benched again in 3.56.0 - the def, these attacks and the hammer card stay defined and tested) ----
- A slow furnace golem that walks at the player like the Warden. Every hit is telegraphed on the
- ground (hazard rings) or comes as slow slag orbs. Enraged (below half hull) its attacks get more
- shots, more blasts and shorter pauses.
-   hammer    FORGE HAMMER   winds up and slams: a blast around itself, a fissure of blasts towards
-                            the player (three when enraged) and a shockwave ring of slag orbs
-   slag      SLAG RAIN      lobs molten globs at the player and where the player is heading
-   eruption  ERUPTION       three rings of lava bursts roll outward from it one after the other,
-                            and the lava vents near the player erupt early
-   furnace   FURNACE BLAST  fans of slow slag orbs from its mouth, aimed where the player was
-   stoke     STOKE          portals for bombers and a brute; the vents near the player flare up
- The vents only erupt through extra hazards on top of them; their own cycle is not changed. */
-function crucibleVents(game, boss, delay, dmg) {
-  const player = game.player;
-  for (const vent of game.arena.vents) {
-    if (Math.hypot(vent.x - player.x, vent.y - player.y) < 15) {
-      boss.fx.push(game.hazard({ x: vent.x, y: vent.y, r: vent.r + 0.5, delay, dmg, kind: "rain" }));
-    }
-  }
-}
-function updateCrucible(game, boss, dt, aim, dist, shotDmg, rage) {
-  const player = game.player,
-    arena = game.arena,
-    inside = (x, y) => !arena.outside(x, y, 0.8);
-  // lava fountains where tracked blasts go off (vents and some of the eruption bursts)
-  if (boss.fx)
-    for (const hazard of boss.fx) {
-      if (hazard.done && !hazard.fx) {
-        hazard.fx = 1;
-        game.emit("erupt", { x: hazard.x, y: hazard.y, r: hazard.r });
-      }
-    }
-  const end = (walk) => {
-    boss.fx = null;
-    boss.charging = false;
-    endBossAttack(boss, walk);
-  };
-  switch (boss.st) {
-    case "hammer": {
-      const wind = rage ? 0.8 : 1;
-      boss.vx *= 0.8;
-      boss.vy *= 0.8;
-      if (boss.n === 0) {
-        boss.n = 1;
-        boss.charging = true;
-        boss.ta = aim;
-        game.hazard({ x: boss.x, y: boss.y, r: 4.4, delay: wind, dmg: boss.dmg, kind: "stomp" });
-        for (const off of rage ? [-0.5, 0, 0.5] : [0])
-          for (let k = 0; k < 5; k++) {
-            const reach = 5.2 + k * 2.4,
-              x = boss.x + Math.cos(aim + off) * reach,
-              y = boss.y + Math.sin(aim + off) * reach;
-            if (inside(x, y)) {
-              game.hazard({ x, y, r: 1.45, delay: wind + 0.12 + k * 0.12, dmg: boss.dmg * 0.8, kind: "stomp" });
-            }
-          }
-        game.emit("charge", { x: boss.x, y: boss.y, type: "forge" });
-      }
-      boss.face = turnToward(boss.face, boss.ta, 6 * dt);
-      if (boss.n === 1 && boss.t >= wind) {
-        boss.n = 2;
-        boss.charging = false;
-        shootRing(game, boss, 12 + rage * 4, 6.5, shotDmg, boss.spin, "slag");
-        game.emit("thud", { x: boss.x, y: boss.y, big: true });
-      }
-      if (boss.n === 2 && rage && boss.t >= wind + 0.45) {
-        boss.n = 3;
-        shootRing(game, boss, 16, 5, shotDmg, boss.spin + Math.PI / 16, "slag");
-      }
-      if (boss.t > wind + 1.1) {
-        end(2 - rage * 0.5);
-      }
-      return true;
-    }
-    case "slag": {
-      moveBoss(game, boss, dt, aim, dist, 0.35);
-      const salvos = 3 + rage;
-      if (boss.t >= 0.35 + boss.n * 0.6 && boss.n < salvos) {
-        boss.n++;
-        const spots = [
-          [player.x, player.y],
-          [player.x + player.vx * 1.1, player.y + player.vy * 1.1],
-        ];
-        if (rage) {
-          const angle = game.rng.next() * TAU,
-            reach = game.rng.range(2.5, 5);
-          spots.push([player.x + Math.cos(angle) * reach, player.y + Math.sin(angle) * reach]);
-        }
-        spots.forEach(([x, y], k) => {
-          x = clamp(x, -arena.W + 1, arena.W - 1);
-          y = clamp(y, -arena.H + 1, arena.H - 1);
-          game.hazard({
-            x,
-            y,
-            r: 1.9,
-            delay: 1.25 + k * 0.1,
-            dmg: boss.dmg * 0.75,
-            kind: "mortar",
-            sx: boss.x,
-            sy: boss.y,
-          });
-        });
-        game.emit("lob", { x: boss.x, y: boss.y });
-      }
-      if (boss.t > 0.35 + salvos * 0.6 + 1.1) {
-        end(1.6 - rage * 0.3);
-      }
-      return true;
-    }
-    case "eruption": {
-      boss.vx *= 0.8;
-      boss.vy *= 0.8;
-      const first = 1,
-        step = rage ? 0.35 : 0.45;
-      if (boss.n === 0) {
-        boss.n = 1;
-        boss.fx = [];
-        const turn = game.rng.next() * TAU;
-        for (let ring = 0; ring < 3; ring++) {
-          const radius = 4.5 + ring * 4.5,
-            count = 5 * (ring + 1);
-          for (let k = 0; k < count; k++) {
-            const angle = turn + ((k + (ring % 2) * 0.5) / count) * TAU,
-              x = boss.x + Math.cos(angle) * radius,
-              y = boss.y + Math.sin(angle) * radius;
-            if (!inside(x, y)) continue;
-            const hazard = game.hazard({
-              x,
-              y,
-              r: 1.4,
-              delay: first + ring * step,
-              dmg: boss.dmg * 0.85,
-              kind: "rain",
-            });
-            if (k % 3 === 0) {
-              boss.fx.push(hazard);
-            }
-          }
-        }
-        crucibleVents(game, boss, first + 0.3, boss.dmg * 0.9);
-        if (rage) {
-          game.hazard({ x: player.x, y: player.y, r: 2, delay: first + 0.5, dmg: boss.dmg * 0.8, kind: "rain" });
-        }
-        boss.charging = true;
-        game.emit("charge", { x: boss.x, y: boss.y, type: "forge" });
-      }
-      if (boss.t >= first) {
-        boss.charging = false;
-      }
-      if (boss.t > first + 2 * step + 0.6) {
-        end(1.8 - rage * 0.4);
-      }
-      return true;
-    }
-    case "furnace": {
-      boss.vx *= 0.85;
-      boss.vy *= 0.85;
-      const waves = 3 + rage,
-        count = 7,
-        spread = 1.1;
-      if (boss.n === 0 && boss.t2 === 0) {
-        boss.t2 = 1;
-        boss.ta = aim;
-        boss.charging = true;
-      }
-      // the mouth only turns slowly, so running around the fan gets out of it
-      boss.ta = turnToward(boss.ta, aim, 0.45 * dt);
-      boss.face = turnToward(boss.face, boss.ta, 6 * dt);
-      if (boss.t >= 0.6 + boss.n * 0.5 && boss.n < waves) {
-        boss.charging = false;
-        const half = boss.n % 2 ? 0.5 : 0,
-          mx = boss.x + Math.cos(boss.face) * 1.6,
-          my = boss.y + Math.sin(boss.face) * 1.6;
-        for (let k = 0; k < count - (half ? 1 : 0); k++) {
-          const angle = boss.face + (k + half - (count - 1) / 2) * (spread / (count - 1));
-          game.shoot(mx, my, angle, 5.2 + rage * 0.6, shotDmg, { kind: "slag", r: 0.34, life: 6 });
-        }
-        boss.n++;
-        game.emit("eshot", { x: boss.x, y: boss.y, type: "boss", boss: boss.type });
-      }
-      if (boss.t > 0.6 + waves * 0.5 + 0.4) {
-        end(1.6 - rage * 0.3);
-      }
-      return true;
-    }
-    case "stoke": {
-      boss.vx *= 0.8;
-      boss.vy *= 0.8;
-      if (boss.n === 0) {
-        boss.n = 1;
-        boss.fx = [];
-        boss.charging = true;
-        const kinds = rage ? ["bomber", "bomber", "bomber", "brute"] : ["bomber", "bomber", "brute"],
-          alive = game.enemies.filter((enemy) => !enemy.dead && !enemy.boss).length,
-          room = Math.max(0, 10 - alive - game.markers.length);
-        for (const type of kinds.slice(0, room)) {
-          const spot = arena.freePoint(game.rng, player.x, player.y, 7, 1);
-          game.markers.push({ x: spot.x, y: spot.y, t: 0, dur: 1.1, type, elite: false, done: false, boss: boss.type });
-        }
-        crucibleVents(game, boss, 1.1, boss.dmg * 0.9);
-        game.emit("portal", { x: boss.x, y: boss.y, n: Math.min(room, kinds.length) });
-      }
-      if (boss.t > 0.6) {
-        boss.charging = false;
-      }
-      if (boss.t > 1.5) {
-        end(1.8 - rage * 0.4);
-      }
-      return true;
-    }
-  }
-  return false;
-}
-
-export { RL_KITERS, updateEnemy, updateBoss, findOpenSpot, initBoss, OVERDRIVE };
+export { RL_KITERS, updateEnemy, updateBoss, findOpenSpot, initBoss, OVERDRIVE, bossPatterns };
 
 /* ---- 3.56.0: THE GLASSWYRM, the boss of the Glass Flats ----
  A wyrm of living fused glass that swims the sand beneath the sheets. Everything it does is

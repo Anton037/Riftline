@@ -135,7 +135,7 @@ test("Caldera decoration keeps the spawn and playable edges clear", async () => 
   globalThis.__RL_BUILD__ ??= "test";
   const { makeRng } = await import("../src/core/util.js");
   const { addBiomeDetail } = await import("../src/render/biome-props.js");
-  const biome = biomeList.find((b) => b.id === "club");
+  const biome = biomeList.find((b) => b.id === "caldera");
   for (const seed of [11, 42, 731]) {
     const group = new Group();
     addBiomeDetail({ group }, biome, 18, 18, [], makeRng(seed));

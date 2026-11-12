@@ -1,18 +1,3 @@
-// 3.8.0: how the map hazards look: the lava vents of Ember Works, the live manholes of Blackout City, the ice sheets of
-// the Aurora Shelf, the bloom pools of The Glowmarsh and the portals of the Shattered Core. Until 3.7.1 they were discs and rings of the
-// effect pools (a lava eruption was a glowing tube); now each has a model of its place and a surface that moves:
-//   lava vent     a crater of basalt rocks around a pool of lava under a moving crust, cracks that glow with the heat; it
-//                 swells and melts while it warns and erupts as a pillar of fire
-//   live manhole  an iron cover with a raised grid in a concrete collar; it hums faintly, rattles and leaks a cold light
-//                 while it charges and jumps on its own arcs, which are jagged bolts
-//   ice sheet     a frozen sheet with frost, cracks, facets and glints, ice shards standing on its rim
-//   acid pool     glowing bloom water with slow ripples, rising bubbles and foam at the edge, a bank of peat lumps and dead reeds (the
-//                 short-lived pools of traps and bosses, and the player's own cyan Acid Coating, have no bank)
-//   portal        a swirl that turns into a dark core with a bright rim, rune stones floating around it
-// The simulation decides everything (arena.vents/ice/acid/portals, arena.ventState); this only shows it. Each part is
-// one instance pool (a few draw calls for all hazards), created the first time it is needed. The warnings keep the
-// language of the game: a ring at the edge of the danger that lights up.
-
 import {
   CircleGeometry,
   Color,
@@ -39,8 +24,6 @@ import { clamp, TAU, makeRng } from "../core/util.js";
 const WHITE = new Color(0xffffff),
   SAND = new Color(0xd8c8a8), // 3.53.0: the Flats' dust
   SAND_DEEP = new Color(0x9a8a5e),
-  LAVA = new Color(0xff6a1f),
-  LAVA_HOT = new Color(0xffd27a),
   // 3.49.0: the Ashfall Caldera's fumaroles spray molten rock; their idle breath is ash smoke
   PYRO = new Color(0xffa843),
   PYRO_HOT = new Color(0xffe9b0),
@@ -114,31 +97,6 @@ vec3 voro(vec2 p) {
 }
 `;
 const SURF_FRAG = {
-  // lava: plates of dark crust drift over molten rock; the heat (instance r) melts the crust and brightens the seams
-  lava: `
-void main() {
-  float r = length(vP), a = atan(vP.y, vP.x), seed = vI.g * 41.0, heat = vI.r;
-  float edge = 0.84 + 0.1 * vnoise(vec2(a * 1.6 + seed, seed));
-  if (r > edge) discard;
-  vec2 q = vP * 3.2 + seed;
-  vec2 flow = vec2(fbm(q * 0.7 + uTime * 0.12), fbm(q * 0.7 - uTime * 0.1 + 7.0));
-  vec3 v = voro(q + flow * 1.3);
-  float melt = clamp(heat * 0.55, 0.0, 0.85);
-  // the heat widens the seams; the middle of the pool stays molten
-  float crust = smoothstep(0.03 + melt * 0.12, 0.1 + melt * 0.3, v.y) * smoothstep(0.1, 0.55, r / edge + 0.1);
-  // colours are linear (the output is converted to sRGB): a near-black crust, orange to yellow melt
-  vec3 hot = mix(vec3(0.85, 0.12, 0.01), vec3(1.0, 0.5, 0.08), fbm(q * 1.6 + vec2(0.0, uTime * 0.6)));
-  hot *= 0.7 + heat * 0.45 + 0.08 * sin(uTime * 2.0 + seed);
-  vec3 rock = vec3(0.016, 0.011, 0.009) * (0.6 + 0.8 * fbm(q * 4.0));
-  // the crust glows dull red where it is thin
-  rock += vec3(0.12, 0.02, 0.0) * smoothstep(0.12, 0.03, v.y) * (0.4 + heat * 0.4);
-  vec3 col = mix(hot, rock, crust);
-  float cool = smoothstep(edge - 0.2, edge, r);
-  col = mix(col, rock * 0.8 + hot * 0.05, cool * 0.8);
-  gl_FragColor = vec4(col, 1.0);
-  #include <fog_fragment>
-  #include <colorspace_fragment>
-}`,
   // 3.49.0: the fumarole's molten heart: the pool where the jet stands (the Caldera's nozzles)
   // 3.54.0: the melt burns orange under a darker crust - the pool read as a pale cookie before
   molten: `
@@ -229,18 +187,6 @@ void main() {
   #include <colorspace_fragment>
 }`,
   // fire: a pillar of flame on an open tube (x around, y up 0..1) that licks upward; instance r is its strength
-  fire: `
-void main() {
-  float h = vP.y;
-  vec2 q = vec2(vP.x * 7.0, h * 2.4 - uTime * 3.4);
-  float n = fbm(q) * 0.75 + fbm(q * 2.1 + 5.0) * 0.45;
-  float body = n - h * 0.95 + 0.25;
-  float flame = smoothstep(0.0, 0.32, body) * smoothstep(0.0, 0.08, h);
-  vec3 col = mix(vec3(0.9, 0.16, 0.01), vec3(1.0, 0.6, 0.18), smoothstep(0.3, 0.8, body));
-  gl_FragColor = vec4(col * flame * vI.r, 1.0);
-}`,
-  // 3.53.0: the dust devil's skirt: pale sand in a spiral that turns with the devil, thin enough
-  // for the glass to show through; the level (instance r) carries the swirl, the seed (g) varies each
   dust: `
 void main() {
   float r = length(vP), a = atan(vP.y, vP.x), seed = vI.g * 41.0, level = vI.r;
@@ -271,14 +217,14 @@ void main() {
 }`,
 };
 function surfaceMaterial(kind) {
-  const fire = kind === "fire" || kind === "pyro";
+  const fire = kind === "pyro";
   return new ShaderMaterial({
     uniforms: UniformsUtils.merge([UniformsLib.fog, { uTime: { value: 0 } }]),
     vertexShader: (fire ? "#define FIRE\n" : "") + SURF_VERT,
     fragmentShader: SURF_LIB + SURF_FRAG[kind],
     fog: !fire,
-    transparent: kind !== "lava",
-    depthWrite: kind === "lava",
+    transparent: true,
+    depthWrite: false,
     side: fire ? DoubleSide : FrontSide,
     blending: fire ? AdditiveBlending : NormalBlending,
   });
@@ -298,41 +244,6 @@ const tube = () => {
   return geo;
 };
 const MODELS = {
-  // lava vent: a low bank of basalt around the pool, rocks of different size on it, hot cracks running out of it
-  crater: () => {
-    const rng = makeRng(0x1a7a),
-      body = [],
-      glow = [];
-    for (let i = 0; i < 11; i++) {
-      const a = (i / 11) * TAU + rng.range(-0.15, 0.15),
-        d = rng.range(0.98, 1.12),
-        s = rng.range(0.13, 0.24);
-      body.push(
-        meshPart(new DodecahedronGeometry(s, 0), [0x2b221e, 0x3a2c24, 0x1d1714][i % 3], {
-          x: Math.cos(a) * d,
-          z: Math.sin(a) * d,
-          y: s * 0.25,
-          sy: 0.6,
-          ry: rng.range(0, TAU),
-        }),
-      );
-    }
-    for (let i = 0; i < 7; i++) {
-      const a = (i / 7) * TAU + 0.3 + rng.range(-0.2, 0.2),
-        r0 = 0.88,
-        r1 = rng.range(1.18, 1.36);
-      glow.push(
-        box(i % 2 ? 0xff6a1f : 0xff8a3a, r1 - r0, 0.012, rng.range(0.025, 0.045), {
-          x: Math.cos(a) * (r0 + r1) * 0.5,
-          z: Math.sin(a) * (r0 + r1) * 0.5,
-          y: 0.012,
-          ry: -a,
-        }),
-      );
-    }
-    return { body, glow };
-  },
-  // Broken cooled basalt banks surround the actual molten pool, without a manufactured circular collar.
   nozzle: () => {
     const rng = makeRng(0x1a7b),
       body = [],
@@ -572,7 +483,7 @@ class HazardView {
     for (const mat of this.mats) mat.uniforms.uTime.value = r.time;
     const quality = Math.min(1, r.maxParticles / 1400);
     if (arena.vents.length) {
-      if (arena.biome.id === "yard") this.manholes(dt, world, quality);
+      if (arena.biome.id === "city") this.manholes(dt, world, quality);
       else this.vents(dt, world, quality);
     }
     if (arena.ice.length) this.ice(dt, world, quality);
@@ -626,12 +537,11 @@ class HazardView {
     const r = this.r,
       time = r.time,
       // 3.49.0: the Caldera's nozzles sit on basalt, their molten heart burns white, the jet is magma
-      club = world.arena.biome.id === "club",
-      spray = club ? PYRO : LAVA,
-      sprayHot = club ? PYRO_HOT : LAVA_HOT,
-      crater = this.get(club ? "nozzle" : "crater"),
-      lava = this.surf(club ? "molten" : "lava"),
-      fire = this.surf(club ? "pyro" : "fire", 32);
+      spray = PYRO,
+      sprayHot = PYRO_HOT,
+      crater = this.get("nozzle"),
+      lava = this.surf("molten"),
+      fire = this.surf("pyro", 32);
     for (const vent of world.arena.vents) {
       const { state, k } = this.ventState(world, vent),
         x = vent.x,
@@ -660,7 +570,7 @@ class HazardView {
             0,
             0.45,
             0.22,
-            club ? (Math.random() < 0.5 ? ASH_PUFF : ASH_HOT) : Math.random() < 0.5 ? spray : sprayHot,
+            Math.random() < 0.5 ? ASH_PUFF : ASH_HOT,
             { drag: 1, grav: 3 },
           );
       } else if (erupt) {
@@ -686,18 +596,9 @@ class HazardView {
           );
       } else {
         if (Math.random() < dt * 1.2 * rr * quality)
-          r.emit(
-            x + (Math.random() - 0.5) * rr,
-            0.1,
-            z + (Math.random() - 0.5) * rr,
-            0,
-            0.8,
-            0,
-            0.6,
-            0.16,
-            club ? ASH_PUFF : spray,
-            { drag: 1 },
-          );
+          r.emit(x + (Math.random() - 0.5) * rr, 0.1, z + (Math.random() - 0.5) * rr, 0, 0.8, 0, 0.6, 0.16, ASH_PUFF, {
+            drag: 1,
+          });
       }
     }
   }
@@ -892,7 +793,7 @@ class HazardView {
           );
         }
       }
-    // 2.5.0 C: Rift Storm (Void Core): the spots the portals jump to glow ahead of the jump (a shrinking ring in the
+    // 2.5.0 C: Rift Storm (Shattered Core): the spots the portals jump to glow ahead of the jump (a shrinking ring in the
     // portal colour and a faint line from the old spot)
     for (const portal of world.arena.portals) {
       const next = portal.next;

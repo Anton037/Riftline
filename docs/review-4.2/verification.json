@@ -1,0 +1,52 @@
+{
+  "version": "4.2.0",
+  "base": "18b2c36",
+  "bundle": "game-v4.2.0-f9413bc56412eb46.js",
+  "standardTests": 63,
+  "standardSeconds": 57.4,
+  "aiAttackCases": 75,
+  "sourceCheckedProjectiles": 2318,
+  "geometryLayouts": 252,
+  "mapCompatibilityFixtures": 45,
+  "playerPoseCases": 1344,
+  "combatFrames": {
+    "tablet": 63,
+    "phone": 28
+  },
+  "biomeFrames": {
+    "tablet": 24,
+    "phone": 24
+  },
+  "finalBossPortraits": 12,
+  "equipmentFrames": 20,
+  "menuFrames": 6,
+  "audio": {
+    "sounds": 439,
+    "musicRenders": 18,
+    "voiceBudgets": 36,
+    "seconds": 340.9,
+    "faultRecovery": "passed"
+  },
+  "dependencies": {
+    "outdated": 0,
+    "vulnerabilities": 0
+  },
+  "assets": "Existing paint atlases and 19-recording PCM bank reused; no new runtime asset downloads.",
+  "limits": "Browser emulation/software rendering and staged scenes, not physical-device FPS, heat, or subjective speaker/listening acceptance.",
+  "bundleBytes": {
+    "before": 1255543,
+    "after": 1236964,
+    "difference": -18579
+  },
+  "combatDrawing": {
+    "maxCalls": 165,
+    "maxTriangles": 61856,
+    "maxArcSegments": 18
+  },
+  "captureBundles": {
+    "combat": "game-v4.2.0-ee4ca60dcba2e804.js",
+    "biomeBaseAndEquipment": "game-v4.2.0-1910a419225da920.js",
+    "finalBossPortraitsAndMenus": "game-v4.2.0-d6741f66d6a562a3.js"
+  },
+  "captureNote": "Final source cleanup after captures removed an empty UI conditional and stale comments. CI checks the final commit. Boss portraits were recaptured after model polish; the full biome matrices also cover encounters and warnings."
+}

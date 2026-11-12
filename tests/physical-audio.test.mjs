@@ -97,7 +97,7 @@ test("hits and critical hits use the target material; only crystal targets use g
     mender: "hitOrganic",
     carrier: "hitOrganic",
     core: "hitStone",
-    kingpin: "hitStone",
+    tyrant: "hitStone",
     prism: "hitCrystal",
     wyrm: "hitCrystal",
     phantom: "hitEnergy",
@@ -111,4 +111,19 @@ test("hits and critical hits use the target material; only crystal targets use g
     assert.ok(crit.gain > hit.gain && hit.dur <= 0.17, type);
   }
   assert.equal(physicalProfile("hit", { type: "grunt", shield: true }).family, "hitEnergy");
+});
+
+test("physical voice cache distinguishes filters and excitation without changing procedural weather", () => {
+  const voices = new PhysicalVoices(ctx, { decode: false }),
+    base = physicalProfile("pulse"),
+    filtered = { ...base, lowpass: 900 },
+    crackle = { ...base, recordGain: 0, arc: 0.6 };
+  const a = voices.buffer(base, 1),
+    b = voices.buffer(filtered, 1),
+    c = voices.buffer(crackle, 1);
+  assert.notEqual(a, b);
+  assert.notEqual(a, c);
+  assert.notEqual(b, c);
+  assert.equal(voices.buffer(filtered, 1), b);
+  assert.ok(c.getChannelData(0).every(Number.isFinite));
 });

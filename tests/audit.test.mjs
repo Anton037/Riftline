@@ -6,11 +6,9 @@ const pkg = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.ur
 globalThis.__RL_VERSION__ = pkg.version;
 globalThis.__RL_BUILD__ = pkg.riftline.build;
 const { World } = await import("../src/core/world.js");
-const { cleanRun, newSave } = await import("../src/core/save.js");
+const { cleanRun } = await import("../src/core/save.js");
 const { updateEnemy, updateBoss } = await import("../src/core/ai.js");
 const { computeStats, buildStatRows } = await import("../src/core/stats.js");
-const { dailySpec, recordDaily, dayBefore } = await import("../src/core/daily.js");
-const { weeklySpec, weekKey } = await import("../src/core/weekly.js");
 const { rlUpdateTraps, TRAP_SKINS } = await import("../src/core/traps.js");
 const world = () => new World({ seed: 42, weapon: "pulse", threat: 0, ws: {} });
 
@@ -51,24 +49,6 @@ test("Sunstruck boosts and expires for every eligible enemy role", () => {
     assert.equal(e.speed, base.speed, "temporary boost must not compound");
     for (let i = 0; i < 40; i++) updateEnemy(w, e, 1 / 60);
     assert.equal(e.sunT, 0, type);
-  }
-});
-
-test("calendar keys reject impossible dates and weeks while retaining UTC/ISO boundaries", () => {
-  assert.equal(dayBefore("2024-03-01"), "2024-02-29");
-  assert.equal(weekKey(Date.parse("2021-01-01T23:59:59Z")), "2020-W53");
-  assert.equal(weekKey(Date.parse("2021-01-04T00:00:00Z")), "2021-W01");
-  for (const key of ["2026-99-99", "2026-02-30", "2025-02-29"]) {
-    assert.notEqual(dailySpec(key).key, key);
-    assert.equal(cleanRun({ ...world().snapshot(), daily: key }).daily, "");
-    const record = { ...newSave().stats.daily, key: "2026-11-04", days: 1 };
-    const before = { ...record };
-    assert.equal(recordDaily(record, key, 2, 4), false);
-    assert.deepEqual(record, before);
-  }
-  for (const key of ["2026-W00", "2026-W54", "2021-W53"]) {
-    assert.notEqual(weeklySpec(key).key, key);
-    assert.equal(cleanRun({ ...world().snapshot(), weekly: key }).weekly, undefined);
   }
 });
 

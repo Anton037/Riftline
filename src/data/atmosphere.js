@@ -2,7 +2,7 @@
 // Ranges are [minimum, maximum]; biome colours resolve at emission, never in the simulation RNG.
 // Short-lived rain needs more emissions than long-lived snow: compare rate * life, not rate alone.
 export const biomeAtmosphere = {
-  yard: [
+  city: [
     {
       name: "rain",
       rate: 50,
@@ -51,7 +51,7 @@ export const biomeAtmosphere = {
       grow: 0.5,
     },
   ],
-  vault: [
+  shelf: [
     {
       name: "aurora snow",
       rate: 34,
@@ -116,7 +116,7 @@ export const biomeAtmosphere = {
       drag: 0.9,
     },
   ],
-  void: [
+  core: [
     {
       name: "rift motes",
       rate: 16,
@@ -165,7 +165,7 @@ export const biomeAtmosphere = {
       drag: 0.9,
     },
   ],
-  club: [
+  caldera: [
     {
       name: "ash",
       rate: 22,

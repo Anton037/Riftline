@@ -3,6 +3,7 @@
 
 import { clamp, TAU, hashString, angleDiff, makeRng } from "./util.js";
 import { RL_BIOME_HAZARD } from "../data/biomes.js";
+import { biomeSeedId } from "../data/content-ids.js";
 
 const Arena = class {
   constructor(biome, layout) {
@@ -411,7 +412,7 @@ const SpatialHash = class {
 const OBSTACLE_GAP = 2.7,
   spawnZone = { x: 0, y: 2, r: 4.6 },
   obstacleShapes = {
-    yard: [
+    city: [
       [5, (rng) => ({ t: "c", r: rng.range(1, 1.5) })],
       [
         3,
@@ -421,7 +422,7 @@ const OBSTACLE_GAP = 2.7,
         },
       ],
     ],
-    vault: [
+    shelf: [
       [4, (rng) => ({ t: "c", r: rng.range(0.7, 1.1) })],
       [
         3,
@@ -441,7 +442,7 @@ const OBSTACLE_GAP = 2.7,
             : { t: "b", w: rng.range(0.7, 1), h: rng.range(1.4, 2.4) },
       ],
     ],
-    void: [
+    core: [
       [
         4,
         (rng) =>
@@ -452,7 +453,7 @@ const OBSTACLE_GAP = 2.7,
       [3, (rng) => ({ t: "c", r: rng.range(0.9, 1.3) })],
     ],
     // 3.49.0: the Ashfall Caldera: obsidian spires and the charred slabs / lava dykes
-    club: [
+    caldera: [
       [4, (rng) => ({ t: "c", r: rng.range(0.9, 1.3) })],
       [
         3,
@@ -475,11 +476,11 @@ const OBSTACLE_GAP = 2.7,
     ],
   },
   mapTemplates = {
-    yard: ["scatter", "ring", "rot4", "mirror2"],
-    vault: ["scatter", "rot2", "ring", "rot4"],
-    void: ["scatter", "ring", "rot2", "mirror4"],
+    city: ["scatter", "ring", "rot4", "mirror2"],
+    shelf: ["scatter", "rot2", "ring", "rot4"],
+    core: ["scatter", "ring", "rot2", "mirror4"],
     marsh: ["scatter", "mirror2", "ring", "rot2"],
-    club: ["scatter", "mirror2", "rot2", "ring"],
+    caldera: ["scatter", "mirror2", "rot2", "ring"],
     flats: ["scatter", "ring", "mirror2", "rot4"],
   };
 function classicLayout(biome) {
@@ -563,11 +564,6 @@ function buildLayout(biome, seed, wave, boss) {
   const layout = rlAddWaveObstacles(mapLayout(biome, seed, wave, boss), biome, seed, wave, boss);
   return layout;
 }
-// 2.4.6: `size` sets the radius range; hazards are bigger than portals
-// 2.4.6: bigger hazards so they shape the fight (they were 0.7–1.0 wide per extra wave hazard):
-// radius ranges of the hazards a wave adds; the fixed layout hazards grew by the same share.
-// Since 2.5.0 the waves use RL_HAZARD_SIZE_250 (the one fixed table retired with the Crucible's
-// arena vents, which the Ember Works kept; 3.49.0).
 function rlFeaturePoint(rng, obs, W, H, features, extraR = 0.75, size = [0.72, 1]) {
   const taken = [];
   for (const kind of ["vents", "ice", "acid"])
@@ -661,7 +657,7 @@ function rlAddWaveObstacles(layout, biome, seed, wave, boss) {
     };
     return layout;
   }
-  const mode = modePool[(wave + hashString(seed + ":" + biome.id + ":director-mode")) % modePool.length];
+  const mode = modePool[(wave + hashString(seed + ":" + biomeSeedId(biome.id) + ":director-mode")) % modePool.length];
   const rng = makeRng(hashString(seed + ":director-obstacles-v21:" + wave + ":" + mode)),
     obs = layout.obstacles.map((ob) => ({ ...ob })),
     baseCount = obs.length;
@@ -1021,7 +1017,7 @@ function placeFeatures(rng, biomeId, obs, W, H) {
       }
       return best;
     };
-  if (biomeId === "club") {
+  if (biomeId === "caldera") {
     // 3.49.0: the fumaroles: nozzles out on the crater floor (the Works' jets were a touch wider)
     let count = rng.int(3, 5),
       period = rng.range(6.5, 8);
@@ -1032,7 +1028,7 @@ function placeFeatures(rng, biomeId, obs, W, H) {
         features.vents.push({ x: spot.x, y: spot.y, r: rad, period, phase: (k / count) * period + rng.range(0, 0.8) });
       }
     }
-  } else if (biomeId === "vault") {
+  } else if (biomeId === "shelf") {
     let count = rng.int(3, 5);
     for (let k = 0; k < count; k++) {
       let rad = rng.range(3, 4.4), // 2.4.6: was 2.2–3.4
@@ -1050,7 +1046,7 @@ function placeFeatures(rng, biomeId, obs, W, H) {
         features.acid.push({ x: spot.x, y: spot.y, r: rad });
       }
     }
-  } else if (biomeId === "void") {
+  } else if (biomeId === "core") {
     let pairs = rng.chance(0.4) ? 2 : 1,
       used = [];
     const portalGap = 4.2,

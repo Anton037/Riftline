@@ -4,14 +4,12 @@
 import { hookLog as logError } from "./run-hooks.js";
 import { own, GAME_VERSION } from "./util.js";
 import { bossOrder } from "../data/enemies.js";
+import { runContentIds, saveContentIds } from "../data/content-ids.js";
 import { weaponDefs } from "../data/weapons.js";
-import { RL_RETIRED_WEAPONS, RL_RETIRED_MODULES, milestones, workshopModules, rlRetired } from "../data/progression.js";
-import { upgradeList, upgradesById, rlRetiredUpgrade } from "../data/upgrades.js";
+import { milestones, workshopModules } from "../data/progression.js";
+import { LEGACY_WEAPONS, LEGACY_MODULES, legacyWeapon, legacyUpgrade } from "./save-compat.js";
+import { upgradeList, upgradesById } from "../data/upgrades.js";
 import { BOSS_CARD_CHANCE } from "./boss-cards.js";
-import { isDailyKey } from "./daily.js";
-import { isWeeklyKey } from "./weekly.js";
-import { MUTATOR_IDS, MUTATOR_MAX_LEVEL } from "./mutators.js";
-import { cleanPacts } from "../data/pacts.js";
 import { HUD_CONTROL_IDS, HUD_LIMITS } from "../data/hud.js";
 
 /* Save loading must never brick the game (2.2.2 crashed on every start once a
@@ -75,19 +73,19 @@ function rlSanitizeHistory(history) {
   if (!Array.isArray(history)) return [];
   // 2.5.0 A: a retired upgrade in a build is shown as the upgrade that took it over.
   history = history.map((entry) =>
-    entry && typeof entry === "object" && Array.isArray(entry.build) && entry.build.some((id) => rlRetiredUpgrade(id))
-      ? { ...entry, build: [...new Set(entry.build.map((id) => rlRetiredUpgrade(id)?.to || id))] }
+    entry && typeof entry === "object" && Array.isArray(entry.build) && entry.build.some((id) => legacyUpgrade(id))
+      ? { ...entry, build: [...new Set(entry.build.map((id) => legacyUpgrade(id)?.to || id))] }
       : entry,
   );
   const out = [],
     ni2 = (value, lo, hi, def = 0) =>
       typeof value === "number" && Number.isFinite(value) ? Math.min(hi, Math.max(lo, value)) : def;
   for (const entry of history.slice(0, 12)) {
-    // 2.4.0: runs with a retired weapon stay in the list (shown with the weapon's old name)
-    if (!entry || typeof entry !== "object" || !(own(weaponDefs, entry.weapon) || rlRetired(entry.weapon))) continue;
+    // Convert historical equipment to its current successor.
+    if (!entry || typeof entry !== "object" || !(own(weaponDefs, entry.weapon) || legacyWeapon(entry.weapon))) continue;
     out.push({
       t: ni2(entry.t, 0, 9e15),
-      weapon: entry.weapon,
+      weapon: legacyWeapon(entry.weapon)?.to || entry.weapon,
       threat: Math.floor(ni2(entry.threat, 0, 5)),
       wave: Math.floor(ni2(entry.wave, 1, 999, 1)),
       outcome: ["win", "dead", "quit"].includes(entry.outcome) ? entry.outcome : "dead",
@@ -136,15 +134,15 @@ function rlMigrateRetired(raw) {
   const obj = (value) => (value && typeof value === "object" && !Array.isArray(value) ? value : null),
     own = obj(raw.weapons),
     run = obj(raw.run),
-    owned = own ? Object.keys(RL_RETIRED_WEAPONS).filter((id) => own[id] === true) : [],
-    sel = rlRetired(raw.weapon),
-    runW = run && rlRetired(run.weapon);
+    owned = own ? Object.keys(LEGACY_WEAPONS).filter((id) => own[id] === true) : [],
+    sel = legacyWeapon(raw.weapon),
+    runW = run && legacyWeapon(run.weapon);
   if (!owned.length && !sel && !runW) return raw;
   const out = { ...raw },
     weapons = { ...(own || {}) };
   let refund = 0;
   for (const id of owned) {
-    const retired = RL_RETIRED_WEAPONS[id];
+    const retired = LEGACY_WEAPONS[id];
     delete weapons[id];
     if (weapons[retired.to] === true) refund += retired.cost;
     else {
@@ -156,7 +154,7 @@ function rlMigrateRetired(raw) {
   if (sel) out.weapon = sel.to;
   if (runW) out.run = { ...run, weapon: runW.to };
   if (refund > 0) out.shards = (Number.isFinite(raw.shards) ? Math.max(0, raw.shards) : 0) + refund;
-  RL_RETIRE_NOTE = { refund, names: owned.map((id) => RL_RETIRED_WEAPONS[id].name) };
+  RL_RETIRE_NOTE = { refund, count: owned.length };
   return out;
 }
 const SAVE_KEY = "riftline.save.v1",
@@ -231,10 +229,6 @@ function newSave() {
       bosses: {},
       // 3.24.0: the best medal per boss: { medal: 1-3, secs: its time, damage: what it cost }
       medals: {},
-      // 3.26.0: the Daily Rift: the last day played, its best wave and kills, the streak of days, the days played, the best wave ever
-      daily: { key: "", wave: 0, kills: 0, streak: 0, days: 0, bestWave: 0 },
-      // 3.58.0: the Weekly Rift: the last week played, its best wave and kills, the weeks played, the best wave ever
-      weekly: { key: "", wave: 0, kills: 0, weeks: 0, bestWave: 0 },
       clearsBy: {},
       bestBy: {},
       legendaries: 0,
@@ -246,8 +240,6 @@ function newSave() {
       evolved: 0,
       bestCombo: 0,
     },
-    // 3.27.0: the pacts signed for the next run (ids, at most two)
-    pacts: [],
     settings: { ...defaultSettings },
     run: null,
     history: [],
@@ -259,15 +251,8 @@ const cleanNumber = (value, fallback, min = -1 / 0, max = 1 / 0) =>
   cleanBool = (value, fallback) => (typeof value == "boolean" ? value : fallback),
   asObject = (value) => (value && typeof value == "object" && !Array.isArray(value) ? value : {});
 
-/* 3.58.0: the mutators a Weekly Rift pins for the run ({ id: level }), kept to the known ids and the legal levels, or null */
-const cleanStartMods = (raw) => {
-  const src = asObject(raw),
-    out = {};
-  for (const id of MUTATOR_IDS)
-    if (src[id] != null) out[id] = Math.floor(cleanNumber(src[id], 1, 1, MUTATOR_MAX_LEVEL));
-  return Object.keys(out).length ? out : null;
-};
 function cleanRun(raw) {
+  raw = runContentIds(raw);
   raw = rlMigrateUpgrades(raw); // 2.5.0 A: retired upgrades of a saved run
   if (
     !raw ||
@@ -299,10 +284,6 @@ function cleanRun(raw) {
     // 3.25.0: Banish Protocol: the upgrades banished in this run and the banishes left
     banished: [],
     banishes: Math.floor(cleanNumber(raw.banishes, 0, 0, 9)),
-    // 3.26.0: the day of a Daily Rift run (empty for a normal run)
-    daily: typeof raw.daily === "string" && isDailyKey(raw.daily) ? raw.daily : "",
-    // 3.27.0: the pacts of the run
-    pacts: cleanPacts(raw.pacts),
     revived: !!raw.revived,
     nova: Math.floor(cleanNumber(raw.nova, 0, 0, 100)),
     bossKills: [],
@@ -365,14 +346,10 @@ function cleanRun(raw) {
         run.offerRng = raw.offerRng;
     }
   }
-  // 3.58.0: a Weekly Rift carries its week and the mutators it pins. A normal or Daily run carries neither, and
-  // the keys stay absent rather than empty so the stored shape of every older run is byte-for-byte unchanged.
-  if (typeof raw.weekly === "string" && isWeeklyKey(raw.weekly)) run.weekly = raw.weekly;
-  const startMods = cleanStartMods(raw.startMods);
-  if (startMods) run.startMods = startMods;
   return run;
 }
 function cleanSave(input) {
+  input = saveContentIds(input);
   // 2.5.0 B: refund merged workshop modules, then 2.4.0: convert retired weapons (both on the raw save)
   input = rlMigrateRetired(rlMigrateModules(input));
   let fresh = newSave(),
@@ -438,35 +415,10 @@ function cleanSave(input) {
         stats.medals[id] = { medal, secs: cleanNumber(m.secs, 0, 0, 1e5), damage: cleanNumber(m.damage, 0, 0, 1e9) };
     }
   }
-  // 3.26.0: the Daily Rift record
-  {
-    const d = asObject(rawStats.daily);
-    stats.daily = {
-      key: typeof d.key === "string" && isDailyKey(d.key) ? d.key : "",
-      wave: Math.floor(cleanNumber(d.wave, 0, 0, 999)),
-      kills: Math.floor(cleanNumber(d.kills, 0, 0, 1e9)),
-      streak: Math.floor(cleanNumber(d.streak, 0, 0, 9999)),
-      days: Math.floor(cleanNumber(d.days, 0, 0, 9999)),
-      bestWave: Math.floor(cleanNumber(d.bestWave, 0, 0, 999)),
-    };
-    if (!stats.daily.key) Object.assign(stats.daily, { wave: 0, kills: 0, streak: 0 });
-  }
-  // 3.58.0: the Weekly Rift record
-  {
-    const wk = asObject(rawStats.weekly);
-    stats.weekly = {
-      key: typeof wk.key === "string" && isWeeklyKey(wk.key) ? wk.key : "",
-      wave: Math.floor(cleanNumber(wk.wave, 0, 0, 999)),
-      kills: Math.floor(cleanNumber(wk.kills, 0, 0, 1e9)),
-      weeks: Math.floor(cleanNumber(wk.weeks, 0, 0, 9999)),
-      bestWave: Math.floor(cleanNumber(wk.bestWave, 0, 0, 999)),
-    };
-    if (!stats.weekly.key) Object.assign(stats.weekly, { wave: 0, kills: 0 });
-  }
   // 2.8.1: per-weapon records of retired weapons count for the weapon that took them over (clears are
   // added, the best wave is the higher one), so "clear with every weapon" sees an old Ion Repeater clear
-  for (const id in RL_RETIRED_WEAPONS) {
-    const to = RL_RETIRED_WEAPONS[id].to;
+  for (const id in LEGACY_WEAPONS) {
+    const to = LEGACY_WEAPONS[id].to;
     if (id in stats.clearsBy) {
       stats.clearsBy[to] = (stats.clearsBy[to] || 0) + stats.clearsBy[id];
       delete stats.clearsBy[id];
@@ -491,14 +443,11 @@ function cleanSave(input) {
       }
     }
   }
-  save.pacts = cleanPacts(raw.pacts);
   save.run = cleanRun(raw.run);
   save.history = rlSanitizeHistory(raw.history);
-  let rawSeen = asObject(raw.seen);
-  for (let id in rawSeen) {
-    if (rawSeen[id] === true) {
-      save.seen[id] = true;
-    }
+  for (const [id, value] of Object.entries(asObject(raw.seen))) {
+    const key = id.startsWith("enemy_") ? "tip_" + id : id;
+    if (value === true && (key === "tutorial" || /^(tip_|news_)[A-Za-z0-9_.-]{1,40}$/.test(key))) save.seen[key] = true;
   }
   return save;
 }
@@ -531,13 +480,13 @@ function keptOf(raw) {
       return Object.keys(out).length ? out : null;
     },
     knownIn = {
-      weapons: (id) => own(weaponDefs, id) || own(RL_RETIRED_WEAPONS, id),
-      workshop: (id) => workshopModules.some((mod) => mod.id === id) || own(RL_RETIRED_MODULES, id),
+      weapons: (id) => own(weaponDefs, id) || own(LEGACY_WEAPONS, id),
+      workshop: (id) => workshopModules.some((mod) => mod.id === id) || own(LEGACY_MODULES, id),
       milestones: (id) => milestones.some((m) => m.id === id),
-      stats: (key) => own(known.stats, key),
+      stats: (key) => own(known.stats, key) || key === "daily" || key === "weekly",
       settings: (key) => own(defaultSettings, key),
     };
-  kept.top = extra(raw, (key) => own(known, key));
+  kept.top = extra(raw, (key) => own(known, key) || key === "pacts");
   for (const part of KEPT_PARTS) kept[part] = extra(raw[part], knownIn[part]);
   let playable = null;
   try {
@@ -609,7 +558,7 @@ const safeStorage = {
     }
     /* the save as it is written (with what a newer build stored, see keptOf); `indent` for the export */
     text(indent) {
-      return JSON.stringify(withKept(this.data, this.kept), null, indent);
+      return JSON.stringify(saveContentIds(withKept(this.data, this.kept)), null, indent);
     }
     onChange(listener) {
       this.listeners.add(listener);
@@ -697,7 +646,7 @@ const safeStorage = {
     }
   };
 
-// 2.5.0 A: a run saved with retired upgrades (RL_RETIRED_UPGRADES in data/upgrades.js) keeps their
+// A run saved with legacy upgrades (save-compat.js) keeps their
 // value: the levels become levels of the upgrade that took them over (rounded up, capped at its
 // max), and a retired id in a pending offer becomes that upgrade, or another one of its rarity
 // when it is already offered or maxed. Returns the input untouched when there is nothing to
@@ -706,14 +655,16 @@ function rlMigrateUpgrades(run) {
   if (!run || typeof run !== "object" || Array.isArray(run)) return run;
   const up = run.up && typeof run.up === "object" && !Array.isArray(run.up) ? run.up : {},
     offer = Array.isArray(run.offer) ? run.offer : [],
-    oldUp = Object.keys(up).filter((id) => rlRetiredUpgrade(id)),
-    oldOffer = offer.filter((id) => typeof id === "string" && rlRetiredUpgrade(id));
-  if (!oldUp.length && !oldOffer.length) return run;
+    oldUp = Object.keys(up).filter((id) => legacyUpgrade(id)),
+    oldOffer = offer.filter((id) => typeof id === "string" && legacyUpgrade(id)),
+    oldBanished = Array.isArray(run.banished) && run.banished.some((id) => legacyUpgrade(id));
+  if (!oldUp.length && !oldOffer.length && !oldBanished) return run;
   const out = { ...run },
     next = { ...up },
     add = {};
+  if (Array.isArray(run.banished)) out.banished = [...new Set(run.banished.map((id) => legacyUpgrade(id)?.to || id))];
   for (const id of oldUp) {
-    const retired = rlRetiredUpgrade(id),
+    const retired = legacyUpgrade(id),
       lv = Number.isFinite(up[id]) ? Math.max(0, Math.floor(up[id])) : 0;
     delete next[id];
     if (lv) add[retired.to] = (add[retired.to] || 0) + lv * retired.k;
@@ -734,13 +685,13 @@ function rlMigrateUpgrades(run) {
         !kept.includes(upgrade.id) &&
         !picked.includes(upgrade.id);
     for (const id of offer) {
-      if (!rlRetiredUpgrade(id)) {
+      if (!legacyUpgrade(id)) {
         if (own(upgradesById, id)) {
           picked.push(id);
         }
         continue;
       }
-      const to = upgradesById[rlRetiredUpgrade(id).to],
+      const to = upgradesById[legacyUpgrade(id).to],
         rarity = run.offerBoss ? Math.max(2, to.rarity) : to.rarity,
         upgrade =
           to.rarity === rarity && free(to) ? to : upgradeList.find((other) => other.rarity === rarity && free(other));
@@ -783,19 +734,19 @@ function rlMigrateModules(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
   const ws = raw.workshop && typeof raw.workshop === "object" && !Array.isArray(raw.workshop) ? raw.workshop : null;
   if (!ws) return raw;
-  const found = Object.keys(RL_RETIRED_MODULES).filter((id) => Object.prototype.hasOwnProperty.call(ws, id));
+  const found = Object.keys(LEGACY_MODULES).filter((id) => Object.prototype.hasOwnProperty.call(ws, id));
   if (!found.length) return raw;
   const workshop = { ...ws },
-    names = [],
     into = [];
+  let count = 0;
   let refund = 0;
   for (const id of found) {
-    const retired = RL_RETIRED_MODULES[id],
+    const retired = LEGACY_MODULES[id],
       lv = Math.floor(cleanNumber(ws[id], 0, 0, retired.costs.length)),
       to = workshopModules.find((mod) => mod.id === retired.to)?.name || retired.to;
     delete workshop[id];
     if (lv > 0) {
-      names.push(retired.name);
+      count++;
       if (!into.includes(to)) {
         into.push(to);
       }
@@ -805,7 +756,7 @@ function rlMigrateModules(raw) {
   const out = { ...raw, workshop };
   if (refund > 0) {
     out.shards = (Number.isFinite(raw.shards) ? Math.max(0, raw.shards) : 0) + refund;
-    RL_MODULE_NOTE = { refund, names, into };
+    RL_MODULE_NOTE = { refund, count, into };
   }
   return out;
 }

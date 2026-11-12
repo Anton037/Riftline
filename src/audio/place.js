@@ -50,7 +50,7 @@ const PLACE = Object.fromEntries(
     "farBoom",
     "steamBlast",
     "cinderGust",
-    "raidWhistle",
+    "fumaroleRush",
     "lampBuzz",
     "gravityHum",
     "rainDrop",
@@ -81,7 +81,7 @@ const SCAPE = {
   // 3.45.5: the steady beds got a level up (the g in each row): with the fight theme sitting lower in the mix
   // (see MUSIC_SCALE in audio/sound.js) the rain, the wind and the crickets stay audible under
   // it. Each bed keeps its margin under the deep-test cap (under 60 % of a Pulse shot at full level).
-  yard: {
+  city: {
     bed: [
       ["rainDrop", 0.12, 0.3, 1, 0],
       ["gutter", 1.6, 4, 0.9],
@@ -99,7 +99,7 @@ const SCAPE = {
       { id: "sparks", every: [25, 55] },
     ],
   },
-  vault: {
+  shelf: {
     bed: [["wind", 1.5, 2.6, 1]],
     far: [
       { id: "howl", every: [25, 50] },
@@ -138,7 +138,7 @@ const SCAPE = {
       { id: "howl", every: [45, 90], big: true },
     ],
   },
-  void: {
+  core: {
     bed: [["heartbeat", 1.1, 1.3, 0.8, 0.5]],
     far: [
       { id: "reversed", every: [25, 50] },
@@ -153,7 +153,7 @@ const SCAPE = {
   // 3.49.0: the Ashfall Caldera: the rumble and the pressure pulse are the steady bed (the mountain
   // breathes through the fight); the far sounds live on the slope around the arena (none of them is a
   // bed id: the scape rules count a far sound against its own rate, and a bed would break it)
-  club: {
+  caldera: {
     bed: [
       ["calderaRumble", 1.4, 2.6, 0.9],
       ["ventPulse", 0.9, 1.5, 0.7, 0],
@@ -165,7 +165,7 @@ const SCAPE = {
       { id: "farBoom", every: [22, 48] },
       { id: "steamBlast", every: [24, 50] },
       { id: "cinderGust", every: [30, 60] },
-      { id: "raidWhistle", every: [45, 90], big: true },
+      { id: "fumaroleRush", every: [45, 90], big: true },
     ],
   },
 };
@@ -188,7 +188,7 @@ function nearestProp(arena, player) {
       best = { x, y, id, lo, hi };
     }
   };
-  if (biome === "yard") {
+  if (biome === "city") {
     const W = arena.W,
       H = arena.H;
     for (const [len, along, fixed, alongX] of [
@@ -204,7 +204,7 @@ function nearestProp(arena, player) {
       if (alongX) take(s, fixed, "lampBuzz", 0.55, 0.62);
       else take(fixed, s, "lampBuzz", 0.55, 0.62);
     }
-  } else if (biome === "void") {
+  } else if (biome === "core") {
     for (const ob of arena.obs) if (ob.t === "c") take(ob.x, ob.y, "gravityHum", 1.05, 1.2);
   }
   return best;
@@ -238,7 +238,7 @@ function placeTick(e, world, dt) {
       return out;
     };
   // vents: lava bubbles or the hum of a live manhole; the warning of each vent once when it starts
-  const city = arena.biome.id === "yard";
+  const city = arena.biome.id === "city";
   for (const vent of arena.vents) {
     const state = fight ? arena.ventState(vent, world.waveT) : "idle",
       last = st.vents.get(vent);

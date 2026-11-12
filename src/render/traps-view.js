@@ -30,13 +30,12 @@ const WHITE = new Color(16777215),
 const LOOK = {
   // 3.4.0: Blackout City: an electrified plate (cold blue-white, amber) and a red security laser
   plate: { main: hex(0x8fd0ff), alt: hex(0xffb347), dust: hex(0x9fb4c8) },
-  crusher: { main: hex(0xff6a1f), alt: hex(0xffb347), dust: hex(0x9a8f80) },
   icespike: { main: hex(0x9ae6ff), alt: hex(0xffffff), dust: hex(0xdff6ff) },
-  // 3.50.0: the Glowmarsh's bloom jet: mint over dark peat (was the Toxin Marsh's bile green)
+  // 3.50.0: the Glowmarsh's bloom jet: mint over dark peat
   geyser: { main: hex(0x46ffc0), alt: hex(0xd9fff0), dust: hex(0x1c4a3c) },
   riftburst: { main: hex(0xa56bff), alt: hex(0xff4de0), dust: hex(0x2a1650) },
   laser: { main: hex(0xff3346), alt: hex(0xffd0a0), dust: hex(0x9fb4c8) },
-  flame: { main: hex(0xff7a1f), alt: hex(0xffd27a), dust: hex(0x9a8f80) },
+  magma: { main: hex(0xff7a1f), alt: hex(0xffd27a), dust: hex(0x746957) },
   rift: { main: hex(0x9a5bff), alt: hex(0xff4de0), dust: hex(0x2a1650) },
   // 3.33.0: the beams of the Aurora Shelf (the Frost Prism, the sentinel) and of the Glowmarsh (the sentinel)
   cryo: { main: hex(0x8fe0ff), alt: hex(0xe8fbff), dust: hex(0xdff6ff) },
@@ -45,6 +44,8 @@ const LOOK = {
   frost: { main: hex(0x9ae6ff), alt: hex(0xffffff), dust: hex(0xdff6ff), led: hex(0xc8f6ff) },
   spore: { main: hex(0x46ffc0), alt: hex(0xd9fff0), dust: hex(0x1c4a3c), led: hex(0x8fffd9) },
   riftmine: { main: hex(0xa56bff), alt: hex(0xff4de0), dust: hex(0x2a1650), led: hex(0xff4de0) },
+  embermine: { main: hex(0xff8c2e), alt: hex(0xffd27a), dust: hex(0x63584d), led: hex(0xff9e39) },
+  glassmine: { main: hex(0xffd98a), alt: hex(0xfff0c4), dust: hex(0xc8b38b), led: hex(0xffd98a) },
   // 3.49.0: the Caldera's fumarole: molten
   pyro: { main: hex(0xffb45a), alt: hex(0xffe9b0), dust: hex(0x3a2418) },
   // 3.53.0: the Glass Flats' sunspike: fused glass erupts, hot white-gold, sand in the dust
@@ -135,7 +136,7 @@ function naturalVent(bloom) {
   };
 }
 const MODELS = {
-  // Blackout City (was the Neon Yard): an electrified steel plate with live conduits
+  // Blackout City: an electrified steel plate with live conduits
   plate: () => ({
     body: [
       cyl(0x1a2230, 0.98, 1, 0.07, 8),
@@ -158,68 +159,6 @@ const MODELS = {
       ...ring(4, (a) => box(0xffb347, 0.05, 0.016, 0.05, { x: Math.cos(a) * 0.78, y: 0.12, z: Math.sin(a) * 0.78 })),
     ],
   }),
-  // the Ember Works' stamping press (the Works retired in 3.49.0; the skin stays defined)
-  crusher: () => {
-    const stripes = [];
-    for (let e = 0; e < 4; e++)
-      for (let i = 0; i < 7; i++) {
-        const u = (i - 3) * 0.2,
-          vx = e % 2 ? (e === 1 ? 0.68 : -0.68) : u,
-          vz = e % 2 ? u : e === 0 ? -0.68 : 0.68;
-        stripes.push(
-          box(i % 2 ? 0x1b1812 : 0x7a5d16, e % 2 ? 0.12 : 0.2, 0.08, e % 2 ? 0.2 : 0.12, { x: vx, y: 0.12, z: vz }),
-        );
-      }
-    return {
-      body: [
-        box(0x2a2622, 1.55, 0.08, 1.55, { y: 0.04 }),
-        box(0x120f0d, 1.1, 0.02, 1.1, { y: 0.09 }),
-        ...stripes,
-        ...ring(4, (a) =>
-          cyl(0x3a3631, 0.09, 0.11, 1.15, 6, {
-            x: Math.cos(a + Math.PI / 4) * 1.1,
-            z: Math.sin(a + Math.PI / 4) * 1.1,
-          }),
-        ),
-        ...ring(4, (a) =>
-          cyl(0x55504a, 0.14, 0.14, 0.1, 6, {
-            x: Math.cos(a + Math.PI / 4) * 1.1,
-            z: Math.sin(a + Math.PI / 4) * 1.1,
-            y: 1.15,
-          }),
-        ),
-      ],
-      glow: [
-        ...ring(6, (a, i) =>
-          rbar(0xff6a1f, a + i * 0.3, 0.1 + (i % 2) * 0.1, 0.5 + (i % 3) * 0.04, 0.04, 0.012, 0.105),
-        ),
-        ...ring(6, (a, i) => rbar(0xffb347, a + 0.5 + i * 0.2, 0.45, 0.6, 0.025, 0.012, 0.108)),
-        box(0xffb347, 0.1, 0.014, 0.1, { y: 0.108, ry: 0.4 }),
-      ],
-      // the stamp: block with striped flanks and a piston rod; its underside is y = 0
-      mover: [
-        box(0x4a4540, 1, 0.32, 1, { y: 0.16 }),
-        box(0x35312c, 0.72, 0.12, 0.72, { y: 0.38 }),
-        cyl(0x6a655c, 0.12, 0.12, 0.9, 8, { y: 0.44 }),
-        ...ring(4, (a) =>
-          box(0x7a5d16, 0.06, 0.1, 0.5, {
-            x: Math.cos(a) * 0.505,
-            y: 0.22,
-            z: Math.sin(a) * 0.505,
-            ry: -a + Math.PI / 2,
-          }),
-        ),
-        ...ring(4, (a) =>
-          box(0x1b1812, 0.06, 0.1, 0.2, {
-            x: Math.cos(a) * 0.505,
-            y: 0.22,
-            z: Math.sin(a) * 0.505,
-            ry: -a + Math.PI / 2,
-          }),
-        ),
-      ],
-    };
-  },
   // The Aurora Shelf: a frozen patch with cracks; crystals erupt from its middle
   icespike: () => {
     seed = 11;
@@ -351,7 +290,19 @@ const MODELS = {
       ],
     };
   },
-  // Blackout City (was the Neon Yard): a security laser turret
+  // Blackout City: a security laser turret
+  magma: () => ({
+    body: [
+      meshPart(strataGeometry(1.6, 0.35, 1.35, 23, true), 0x3d4141),
+      meshPart(strataGeometry(0.65, 0.5, 0.65, 31, true), 0x4c4b43, { x: -0.25, y: 0.1, rz: 0.2 }),
+    ],
+    glow: [bar(0xff8c2e, 0.025, [-0.5, 0.3, -0.15], [0.6, 0.23, 0.35], 0.02)],
+    mover: [
+      meshPart(strataGeometry(0.8, 0.4, 0.6, 37), 0x3c4142, { x: 0.15 }),
+      meshPart(strataGeometry(0.4, 0.25, 0.48, 18), 0x61584b, { x: 0.62, y: 0.08 }),
+    ],
+    moverGlow: [meshPart(new CylinderGeometry(0.12, 0.14, 0.025, 10), 0xffa245, { x: 0.82, y: 0.13, rz: Math.PI / 2 })],
+  }),
   laser: () => ({
     body: [
       cyl(0x20293a, 0.65, 0.7, 0.2, 6),
@@ -374,37 +325,6 @@ const MODELS = {
       box(0xffd0a0, 0.6, 0.03, 0.05, { x: 0.1, y: 0.15 }),
       box(0xff3346, 0.12, 0.05, 0.05, { x: 0.3, y: 0, z: 0.2 }),
       box(0xff3346, 0.12, 0.05, 0.05, { x: 0.3, y: 0, z: -0.2 }),
-    ],
-  }),
-  // Ashfall Caldera: flame thrower on a striped base
-  flame: () => ({
-    body: [
-      box(0x2a2522, 0.95, 0.2, 0.95, { y: 0.1 }),
-      ...ring(4, (a) =>
-        box(0x7a5d16, 0.2, 0.06, 0.1, {
-          x: Math.cos(a + Math.PI / 4) * 0.42,
-          y: 0.23,
-          z: Math.sin(a + Math.PI / 4) * 0.42,
-          ry: -a,
-        }),
-      ),
-      cyl(0x3a342f, 0.28, 0.34, 0.5, 8, { y: 0.2 }),
-    ],
-    glow: [
-      ...ring(4, (a) =>
-        box(0xff7a1f, 0.1, 0.02, 0.06, { x: Math.cos(a) * 0.4, y: 0.21, z: Math.sin(a) * 0.4, ry: -a }),
-      ),
-    ],
-    mover: [
-      box(0x4a4038, 0.7, 0.32, 0.4, { x: 0 }),
-      meshPart(new CylinderGeometry(0.36, 0.17, 0.62, 10), 0x2a2522, { x: 0.62, rz: Math.PI / 2 }),
-      meshPart(new CylinderGeometry(0.21, 0.21, 0.6, 8), 0x5a2a1a, { x: -0.05, y: 0.34, rz: Math.PI / 2 }),
-      bar(0x6a655c, 0.05, [0.25, 0.34, 0.12], [0.45, 0.12, 0.1]),
-    ],
-    moverGlow: [
-      ball(0xff7a1f, 0.12, 8, 6, { x: 0.92 }),
-      ball(0xffd27a, 0.06, 6, 4, { x: 0.96 }),
-      box(0xff7a1f, 0.1, 0.03, 0.4, { x: 0.3, y: 0.17 }),
     ],
   }),
   // The Shattered Core: two prongs around a hovering violet core
@@ -437,6 +357,33 @@ const MODELS = {
     };
   },
   // mines: glow vertices are white, the hue comes from the instance
+  embermine: () => ({
+    body: [
+      meshPart(strataGeometry(1.25, 0.15, 1.1, 47, true), 0x363b3d),
+      meshPart(new DodecahedronGeometry(0.4), 0x4d453e, { x: 0.08, y: 0.13, sx: 1.2, sy: 0.5 }),
+    ],
+    glow: [
+      bar(0xffffff, 0.025, [-0.4, 0.15, -0.18], [0.35, 0.17, 0.24], 0.02),
+      bar(0xffffff, 0.025, [0.2, 0.16, -0.3], [-0.08, 0.2, 0.25], 0.02),
+    ],
+  }),
+  glassmine: () => ({
+    body: [
+      meshPart(strataGeometry(1.25, 0.09, 1.05, 51, true), 0x9e8c66),
+      ...[-1, 0, 1].map((i) =>
+        meshPart(new OctahedronGeometry(0.27), 0xa0b7a5, {
+          x: i * 0.23,
+          y: 0.19,
+          z: i * 0.06,
+          sx: 0.5,
+          sy: 1.3,
+          sz: 0.6,
+          rz: i * 0.35,
+        }),
+      ),
+    ],
+    glow: [bar(0xffffff, 0.018, [-0.32, 0.14, -0.2], [0.3, 0.13, 0.23], 0.018)],
+  }),
   mine: () => ({
     body: [
       cyl(0x232a38, 0.5, 0.58, 0.14, 10),
@@ -527,7 +474,6 @@ const MODELS = {
     glow: [meshPart(new TorusGeometry(0.34, 0.03, 4, 20), 0x7ae8ff, { rx: Math.PI / 2 }), ball(0xd9c4ff, 0.09, 6, 4)],
   }),
 };
-const FLAME_PARTS = [0, 0.2, 0.42, 0.66, 0.85, 1];
 const MAX = { floor: 12, beam: 8, mine: 16 };
 
 class TrapView {
@@ -552,16 +498,15 @@ class TrapView {
             : worldMaterial({
                 color: 0xffffff,
                 vertexColors: true,
-                surface:
-                  name === "sunspike"
-                    ? "sandstone"
-                    : name === "geyser" || name === "spore"
-                      ? "wood"
-                      : name === "pyro"
-                        ? "basalt"
-                        : name === "icespike" || name === "frost" || name === "cryo"
-                          ? "ice"
-                          : "stone",
+                surface: ["sunspike", "glassmine"].includes(name)
+                  ? "sandstone"
+                  : name === "geyser" || name === "spore"
+                    ? "wood"
+                    : ["pyro", "magma", "embermine"].includes(name)
+                      ? "basalt"
+                      : name === "icespike" || name === "frost" || name === "cryo"
+                        ? "ice"
+                        : "stone",
               }),
           max,
         );
@@ -662,25 +607,6 @@ class TrapView {
             drag: 1,
           });
         }
-        break;
-      }
-      case "crusher": {
-        P.glow.colC(
-          P.glow.y(x, 0, z, 0, rr, 1, rr),
-          WHITE,
-          0.45 + Math.sin(time * 3 + trap.id) * 0.15 + k * 0.5 + hit * 1.5,
-        );
-        // the stamp winds up, hangs, and drops on the strike
-        let h = 0.8;
-        if (warn) h = k < 0.7 ? 0.8 + 0.5 * easeOut(k / 0.7) : 1.3 - 1.18 * Math.pow((k - 0.7) / 0.3, 2.2);
-        else if (s.fire < 0.3) h = 0.12;
-        else if (s.fire < 0.9) h = 0.12 + 0.68 * easeOut((s.fire - 0.3) / 0.6);
-        const shake = warn && k > 0.4 && k < 0.7 ? Math.sin(time * 70) * 0.03 : 0;
-        P.mover.y(x + shake, h, z, 0, rr * 1.05, 1, rr * 1.05);
-        if (emit)
-          r.emit(x + (Math.random() - 0.5) * rr, 0.2, z + (Math.random() - 0.5) * rr, 0, 1.5, 0, 0.5, 0.2, look.main, {
-            spark: true,
-          });
         break;
       }
       case "icespike": {
@@ -812,7 +738,7 @@ class TrapView {
     s.yaw += angleDiff(s.yaw, target) * (a1 === null ? Math.min(1, dt * 4) : 1);
     const charge = a1 !== null && bt < 1 ? bt : 0,
       live = bt >= 1 ? 1 : 0,
-      hover = trap.skin === "rift" ? 1.3 + Math.sin(time * 2.4 + trap.id) * 0.1 : trap.skin === "flame" ? 1.05 : 1.3;
+      hover = trap.skin === "magma" ? 0.55 : trap.skin === "rift" ? 1.3 + Math.sin(time * 2.4 + trap.id) * 0.1 : 1.3;
     P.body.y(x, 0, z, 0, 1.35, 1.35, 1.35);
     P.glow.colC(
       P.glow.y(x, 0, z, 0, 1.35, 1.35, 1.35),
@@ -822,7 +748,7 @@ class TrapView {
     const heads = a2 === null ? 1 : 2;
     for (let i = 0; i < heads; i++) {
       const yaw = i ? a2 : s.yaw,
-        recoil = live && trap.skin !== "flame" ? Math.sin(time * 60) * 0.015 : 0;
+        recoil = live ? Math.sin(time * 60) * 0.015 : 0;
       P.mover.y(x, hover, z, yaw, 1.35 + recoil, 1.35, 1.35);
       P.moverGlow.colC(
         P.moverGlow.y(x, hover, z, yaw, 1.35 + recoil, 1.35, 1.35),
@@ -859,8 +785,6 @@ class TrapView {
       const tx = x + cy * 1.3,
         tz = z + sy * 1.3;
       r.sprites.colC(r.sprites.bb(tx, hover, tz, 2.2 + Math.random() * 0.5, r.B), look.main, 0.8);
-      if (trap.skin === "flame" && Math.random() < dt * 40 * quality)
-        r.emit(tx, hover, tz, cy * 5, 1, sy * 5, 0.4, 0.3, look.alt, { drag: 2, grow: 1 });
     }
     // a faint line shows where the head points between bursts, so the next beam is not a surprise
     if (!charge && !live) {
@@ -871,39 +795,19 @@ class TrapView {
   // the beam of a trap, in the colours of its skin (the warning phase stays the red line of every beam)
   drawBeam(beam, ex, ez, len, time, dt) {
     const r = this.r,
-      look = LOOK[beam.skin],
+      look = LOOK[beam.skin === "flame" ? "magma" : beam.skin],
       ca = Math.cos(beam.a),
       sa = Math.sin(beam.a),
       b = r.beams;
     if (!beam.live) return false;
     const flick = 0.85 + Math.random() * 0.3;
-    if (beam.skin === "flame") {
-      // a cone that flares towards the end, with a hot white-yellow core
-      const parts = FLAME_PARTS;
-      for (let i = 0; i < 5; i++) {
-        const w = beam.w * (0.5 + i * 0.28) * flick * (0.9 + Math.random() * 0.2),
-          x0 = beam.x + ca * len * parts[i],
-          z0 = beam.y + sa * len * parts[i],
-          x1 = beam.x + ca * len * parts[i + 1],
-          z1 = beam.y + sa * len * parts[i + 1];
-        b.colC(b.seg(x0, z0, x1, z1, 1, w, w * 0.6), look.main, 0.5 - i * 0.04);
-        b.colC(b.seg(x0, z0, x1, z1, 1, w * 0.5, w * 0.4), look.alt, 0.7 - i * 0.1);
-      }
-      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.2, beam.w * 0.2), WHITE, 1);
-      if (Math.random() < 0.6) {
+    if (beam.skin === "flame" || beam.skin === "magma") {
+      // Continuous turbulent ribbons keep the jet fluid, rather than drawing five rectangular blocks.
+      r.weaponView.flameBeam(beam, len);
+      r.warningEdges.colC(r.warningEdges.seg(beam.x, beam.y, ex, ez, 0.04, beam.w, 0.025), hex(0x160e09), 0.6);
+      if (Math.random() < dt * 14) {
         const d = Math.random() * len;
-        r.emit(
-          beam.x + ca * d,
-          1 + Math.random() * 0.4,
-          beam.y + sa * d,
-          (Math.random() - 0.5) * 3,
-          2 + Math.random() * 2,
-          (Math.random() - 0.5) * 3,
-          0.5,
-          0.35,
-          Math.random() < 0.5 ? look.main : look.alt,
-          { drag: 1, grow: 1, grav: -2 },
-        );
+        r.emit(beam.x + ca * d, 0.8, beam.y + sa * d, ca, 1.5, sa, 0.4, 0.13, look.main, { drag: 2, grav: -1 });
       }
     } else if (beam.skin === "rift") {
       // a writhing ribbon of violet with a thin bright core
@@ -919,7 +823,7 @@ class TrapView {
         pz = qz;
       }
       b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.3, beam.w * 0.3), WHITE, 1);
-      if (Math.random() < 0.6) {
+      if (Math.random() < dt * 14) {
         const d = Math.random() * len;
         r.emit(
           beam.x + ca * d - sa * beam.w,
@@ -956,7 +860,7 @@ class TrapView {
           b.colC(b.seg(x0, z0, x1, z1, 1, thin, thin * 0.5), look.alt, 0.8);
         }
       }
-      if (Math.random() < 0.7) {
+      if (Math.random() < dt * 16) {
         const d = Math.random() * len,
           o = (Math.random() - 0.5) * beam.w * 2;
         r.emit(
@@ -987,7 +891,7 @@ class TrapView {
         pz = qz;
       }
       b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.3, beam.w * 0.3), look.alt, 1);
-      if (Math.random() < 0.7) {
+      if (Math.random() < dt * 16) {
         const d = Math.random() * len;
         r.emit(
           beam.x + ca * d,
@@ -1023,7 +927,7 @@ class TrapView {
       }
       b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.34, beam.w * 0.34), look.alt, 0.95);
       b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.14, beam.w * 0.14), WHITE, 1);
-      if (Math.random() < 0.75) {
+      if (Math.random() < dt * 18) {
         const d = Math.random() * len,
           o = (Math.random() - 0.5) * beam.w * 2.2;
         r.emit(
@@ -1047,7 +951,7 @@ class TrapView {
         const o = side * beam.w * 0.62;
         b.colC(b.seg(beam.x - sa * o, beam.y + ca * o, ex - sa * o, ez + ca * o, 1, 0.07, 0.07), look.alt, 0.85);
       }
-      if (Math.random() < 0.5) {
+      if (Math.random() < dt * 12) {
         const d = Math.random() * len;
         r.emit(
           beam.x + ca * d,
@@ -1169,17 +1073,6 @@ class TrapView {
         r.addScorch(x, z, rad * 0.45);
         r.addShake(0.12 * shakeK);
         break;
-      case "crusher":
-        r.ring(x, z, rad * 0.3, rad * 1.15, look.dust, 0.5);
-        r.ring(x, z, rad * 0.1, rad * 0.8, look.main, 0.3);
-        r.burst(x, z, 0.2, 18, rad * 3, look.dust, 0.7, 0.55, { drag: 4, grow: 1.5 });
-        r.burst(x, z, 0.3, 14, 8, look.main, 0.5, 0.2, { spark: true, drag: 2, grav: 10 });
-        r.debrisBurst(x, z, 0.3, 9, hex(0x4a4038), 0.2, 7);
-        r.debrisBurst(x, z, 0.3, 4, look.main, 0.12, 6);
-        r.flash(x, z, rad * 1.8, 1.2, look.main, 5);
-        r.addScorch(x, z, rad * 0.6);
-        r.addShake(0.4 * shakeK);
-        break;
       case "icespike":
         r.ring(x, z, rad * 0.2, rad * 1.1, look.main, 0.4);
         r.burst(x, z, 0.3, 14, rad * 3, WHITE, 0.5, 0.2, { spark: true, drag: 3 });
@@ -1206,12 +1099,14 @@ class TrapView {
         r.flash(x, z, rad * 2, 1.4, look.main, 4);
         r.addShake(0.28 * shakeK);
         break;
+      case "embermine":
+      case "glassmine":
       case "mine":
         r.ring(x, z, rad * 0.3, rad * 1.1, look.main, 0.4);
         r.ring(x, z, rad * 0.1, rad * 0.7, WHITE, 0.2);
         r.burst(x, z, 0.4, 24, rad * 3, look.main, 0.55, 0.45);
         r.burst(x, z, 0.4, 14, 10, look.alt, 0.4, 0.2, { spark: true, drag: 3 });
-        r.debrisBurst(x, z, 0.3, 8, hex(0x4a566e), 0.15, 7);
+        r.debrisBurst(x, z, 0.3, 8, ev.skin === "mine" ? hex(0x4a566e) : look.dust, 0.15, 7);
         r.flash(x, z, rad * 2.2, 1.6, look.main, 4);
         r.addScorch(x, z, rad * 0.55);
         r.addShake(0.32 * shakeK);

@@ -143,7 +143,7 @@ const weaponDefs = {
     shake: 0,
   },
 };
-// the carousel and the Daily pick follow the unlock price (sorted here, so Node and the browser agree)
+// The carousel follows unlock price; Node and the browser share the same order.
 const weaponOrder = ["pulse", "scatter", "tesla", "rail", "rocket", "disc", "flame"].sort(
   (a, b) => weaponDefs[a].cost - weaponDefs[b].cost,
 );

@@ -4,6 +4,6 @@ export function actorMaterial(type) {
   if (ORGANIC.has(type)) return "organic";
   if (type === "prism" || type === "wyrm") return "crystal";
   if (type === "phantom" || type === "weaver") return "energy";
-  if (type === "core" || type === "kingpin") return "stone";
+  if (type === "core" || type === "tyrant") return "stone";
   return "armor";
 }

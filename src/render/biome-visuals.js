@@ -114,7 +114,7 @@ void main() {
         }
       });
       this.group.clear();
-      const look = RL_BIOME_LOOK[biome.id] || RL_BIOME_LOOK.yard,
+      const look = RL_BIOME_LOOK[biome.id] || RL_BIOME_LOOK.city,
         uniforms = this.uniforms;
       uniforms.uGrid.value.setHex(biome.grid);
       uniforms.uHalf.value.set(layout.W, layout.H);
@@ -134,7 +134,7 @@ void main() {
       this.rlAnim = [];
       this.rlEmit = [];
       this.rlSway = null;
-      (RL_BIOME_BUILD[biome.id] || RL_BIOME_BUILD.yard)(
+      (RL_BIOME_BUILD[biome.id] || RL_BIOME_BUILD.city)(
         this,
         biome,
         layout.W,
@@ -192,7 +192,7 @@ const RL_BIOME_LOOK = {
   // 3.4.0: Blackout City: a cold moon, little ambient light, some fog over the street
   // 3.29.0: key light and fill light from opposite sides in complementary colours (a strong sun and a weaker, flat sky light give
   // the faceted models their form), a richer floor (vivid: saturation, gain: brightness)
-  yard: {
+  city: {
     style: 5,
     skyFill: 0x7d8fa4,
     groundFill: 0x303744,
@@ -206,7 +206,7 @@ const RL_BIOME_LOOK = {
     // to a hard horizon (the old windows sat far outside the arena, so the fog never showed)
     fog: [1.15, 2.7],
   },
-  vault: {
+  shelf: {
     style: 2,
     skyFill: 0x9ebcd5,
     groundFill: 0x34495d,
@@ -250,7 +250,7 @@ const RL_BIOME_LOOK = {
     gain: 0.85,
     fog: [0.95, 2.25],
   },
-  void: {
+  core: {
     style: 4,
     skyFill: 0x9d99b4,
     groundFill: 0x272237,
@@ -264,7 +264,7 @@ const RL_BIOME_LOOK = {
   },
   // 3.54.0: the Ashfall Caldera: a low ember key, a molten bounce from below, ash in the air -
   // the fog sits a shade clearer so the volcano reads past the wall
-  club: {
+  caldera: {
     style: 6,
     skyFill: 0x8a94a3,
     groundFill: 0x302725,
@@ -281,12 +281,12 @@ const RL_BIOME_LOOK = {
 // Isle, Creaks: quiet, drawn colours) - a kill used to spray the enemy's pure card colour, which read as
 // confetti against the muted floors. The pieces keep a hint of their own colour for telling things apart.
 const RL_BIOME_TINT = {
-  yard: new Color(0x8a93a6),
-  vault: new Color(0xcfdde8),
+  city: new Color(0x8a93a6),
+  shelf: new Color(0xcfdde8),
   marsh: new Color(0x7ea89a),
-  void: new Color(0x9a92b8),
+  core: new Color(0x9a92b8),
   // 3.49.0: the Caldera calms its debris into settled ash
-  club: new Color(0x98897e),
+  caldera: new Color(0x98897e),
   // 3.53.0: the Flats calms its debris into sand
   flats: new Color(0xd8c8a8),
 };
@@ -389,9 +389,9 @@ function rlMerger() {
   };
 }
 const RL_BIOME_BUILD = {
-  // Blackout City (3.4.0, was the Neon Yard): jersey barriers with red and white reflectors around the street,
+  // Blackout City: jersey barriers with red and white reflectors around the street,
   // advertising columns (round obstacles) and wrecked cars or dumpsters (box obstacles), steam from some manholes
-  yard(view, biome, W, H, obs, rng) {
+  city(view, biome, W, H, obs, rng) {
     const group = view.group,
       props = view.obsGroup,
       concrete = worldMaterial({ color: 0x69727a, flatShading: true }),
@@ -549,7 +549,7 @@ const RL_BIOME_BUILD = {
   // wall with blue ice ridges, crystal clusters and ice blocks stand on it, and the aurora's
   // curtains hang past the border, folding slowly (additive, no light of their own on the floor -
   // the sheen on the ice is the floor shader's)
-  vault(view, biome, W, H, obs, rng) {
+  shelf(view, biome, W, H, obs, rng) {
     const group = view.group,
       props = view.obsGroup,
       ice = worldMaterial({
@@ -951,7 +951,7 @@ void main() {
       }
   },
   // The Shattered Core: an energy barrier over the abyss, floating obelisks and hovering monoliths
-  void(view, biome, W, H, obs, rng) {
+  core(view, biome, W, H, obs, rng) {
     const group = view.group,
       props = view.obsGroup,
       obsid = worldMaterial({ color: 0x52416c, emissive: 0x12072a, flatShading: true }),
@@ -1133,7 +1133,7 @@ void main() {
       }
   },
   // Ashfall Caldera: fractured basalt around the crater, grounded obsidian spires and cooled rock shelves.
-  club(view, biome, W, H, obs, rng) {
+  caldera(view, biome, W, H, obs, rng) {
     const group = view.group,
       props = view.obsGroup,
       rock = worldMaterial({ surface: "basalt", color: 0x6c7378, flatShading: true }),
@@ -1448,12 +1448,10 @@ function rlAmbient(renderer, dt, world, opt) {
                  violet rim glow and star specks, motes rising
   Ashfall Caldera a charred cinder shell, white-hot fissures that breathe, an ember rim (3.49.0)
  The skin is only visual; how an enemy fights does not change. ---- */
-const RL_SKIN = { uSkin: { value: 0 }, uSkinT: { value: 0 } };
+const RL_SKIN = { uSkin: { value: 0 } };
 const RL_SKIN_VERT_HEAD = `
-varying vec3 vRlP;
 varying vec3 vRlN;`;
 const RL_SKIN_VERT_BODY = `
-vRlP = position;
 #ifdef USE_INSTANCING
 vRlN = normalize(mat3(modelMatrix) * mat3(instanceMatrix) * objectNormal);
 #else
@@ -1461,84 +1459,31 @@ vRlN = normalize(mat3(modelMatrix) * objectNormal);
 #endif`;
 const RL_SKIN_FRAG_HEAD = `
 uniform float uSkin;
-uniform float uSkinT;
-varying vec3 vRlP;
-varying vec3 vRlN;
-float rlH3(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
-float rlN3(vec3 x) {
-vec3 i = floor(x), f = fract(x);
-f = f * f * (3.0 - 2.0 * f);
-return mix(mix(mix(rlH3(i), rlH3(i + vec3(1.0, 0.0, 0.0)), f.x), mix(rlH3(i + vec3(0.0, 1.0, 0.0)), rlH3(i + vec3(1.0, 1.0, 0.0)), f.x), f.y),
-  mix(mix(rlH3(i + vec3(0.0, 0.0, 1.0)), rlH3(i + vec3(1.0, 0.0, 1.0)), f.x), mix(rlH3(i + vec3(0.0, 1.0, 1.0)), rlH3(i + vec3(1.0, 1.0, 1.0)), f.x), f.y), f.z);
-}`;
+varying vec3 vRlN;`;
 const RL_SKIN_FRAG_BODY = `
 {
-// All six skins share one coverage limit: type colours remain the primary combat signal.
-vec3 rlOriginalLight = outgoingLight;
+// Weather coats the painted physical material. Actor-specific cracks, lights and veins belong to its model.
 int rlS = int(uSkin + 0.5);
-if (rlS == 2) {
-  // frost on everything facing up, glints, a cold tint, and a rim that drifts aurora green to pink (3.51.0)
-  float fr = smoothstep(-0.05, 0.6, vRlN.y + (rlN3(vRlP * 6.0) - 0.5) * 0.9);
-  outgoingLight = outgoingLight * vec3(0.72, 0.9, 1.15);
-  outgoingLight = mix(outgoingLight, vec3(0.72, 0.9, 1.0) * (0.6 + 0.35 * max(vRlN.y, 0.0)), fr * 0.35);
-  float rim = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.0);
-  outgoingLight +=
-    mix(vec3(0.55, 0.85, 1.0), vec3(0.75, 0.5, 0.95), 0.5 + 0.5 * sin(uSkinT * 0.6 + vRlP.x * 1.7)) * rim * 0.32;
-  float gl = step(0.86, rlN3(vRlP * 16.0)) * (0.5 + 0.5 * sin(uSkinT * 5.0 + vRlP.x * 30.0));
-  outgoingLight += vec3(0.9, 0.97, 1.0) * gl * (0.25 + fr) * 0.7;
-} else if (rlS == 3) {
-  // the Glowmarsh (3.50.0): a wet dark hide, veins of cold light that breathe, a shine of drips
-  float vein = smoothstep(0.1, 0.0, abs(rlN3(vec3(vRlP.x * 4.0, vRlP.y * 1.6 + uSkinT * 0.22, vRlP.z * 4.0)) - 0.5));
-  outgoingLight = outgoingLight * vec3(0.62, 0.8, 0.74);
-  outgoingLight += vec3(0.2, 0.95, 0.66) * vein * (0.4 + 0.3 * sin(uSkinT * 1.8 + vRlP.y * 6.0));
-  float rim = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.4);
-  outgoingLight += vec3(0.32, 0.9, 0.7) * rim * 0.3;
-  float drip = smoothstep(0.8, 0.95, rlN3(vec3(vRlP.x * 9.0, vRlP.y * 2.2 + uSkinT * 1.2, vRlP.z * 9.0)));
-  outgoingLight += vec3(0.75, 1.0, 0.9) * drip * 0.28;
-} else if (rlS == 5) {
-  // 3.4.0: Blackout City: rain-wet, a cold sheen on the upper faces, drops running down, and the red and blue of
-  // emergency lights sweeping over the rims
-  float fres = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.4);
-  float wet = smoothstep(0.1, 0.9, vRlN.y);
-  outgoingLight = outgoingLight * vec3(0.72, 0.75, 0.85) + vec3(0.55, 0.62, 0.75) * wet * 0.18;
-  float drop = smoothstep(0.8, 0.95, rlN3(vec3(vRlP.x * 9.0, vRlP.y * 2.5 + uSkinT * 1.6, vRlP.z * 9.0)));
-  outgoingLight += vec3(0.7, 0.8, 0.95) * drop * 0.35;
-  float sweep = 0.5 + 0.5 * sin(uSkinT * 5.0 + vRlP.x * 1.5);
-  outgoingLight += mix(vec3(1.0, 0.12, 0.18), vec3(0.15, 0.35, 1.0), step(0.5, sweep)) * fres * 0.55;
-} else if (rlS == 4) {
-  // void: violet rim and drifting star specks
-  float fres = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.2);
-  float crack = smoothstep(0.07, 0.0, abs(rlN3(vRlP * 3.5 + vec3(0.0, uSkinT * 0.25, 0.0)) - 0.5));
-  outgoingLight = outgoingLight * vec3(0.62, 0.5, 0.85) + vec3(0.72, 0.28, 1.0) * (fres * 1.5 + crack * (0.6 + 0.4 * sin(uSkinT * 3.0 + vRlP.y * 5.0)));
-  vec3 sc = vRlP * 10.0 + vec3(0.0, uSkinT * 0.6, 0.0);
-  float st = step(0.94, rlH3(floor(sc))) * smoothstep(0.32, 0.12, length(fract(sc) - 0.5));
-  outgoingLight += vec3(0.9, 0.8, 1.0) * st * 0.6;
-} else if (rlS == 6) {
-  // 3.49.0: the Ashfall Caldera: ash settles on the upper faces while the shell beneath smoulders -
-  // thin white-hot fissures that breathe and an ember rim (the Works' skin burns orange, this one whitens)
-  float fres = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.2);
-  float ashTop = smoothstep(0.15, 0.75, vRlN.y);
-  outgoingLight = mix(outgoingLight * vec3(0.45, 0.42, 0.4), vec3(0.5, 0.47, 0.44), ashTop * 0.55);
-  float n = rlN3(vRlP * 5.5);
-  float crack = smoothstep(0.035, 0.0, abs(n - 0.5)) * smoothstep(0.3, 0.75, 0.5 + 0.5 * sin(uSkinT * 2.2 + vRlP.y * 3.0));
-  outgoingLight += vec3(1.0, 0.78, 0.42) * crack * (1.0 - ashTop * 0.6);
-  outgoingLight += vec3(1.0, 0.55, 0.18) * fres * 0.45;
-  float glint = step(0.93, rlN3(vRlP * 12.0 + vec3(0.0, uSkinT * 0.4, 0.0)));
-  outgoingLight += vec3(1.0, 0.88, 0.6) * glint * 0.22;
-} else if (rlS == 7) {
-  // 3.53.0: the Glass Flats: sun-bleached shells - pale hot tops, a glare that slides over them,
-  // sand in the seams, and the Sunstruck's gleam rides the rim
-  float top = smoothstep(0.1, 0.7, vRlN.y);
-  outgoingLight = mix(outgoingLight * vec3(0.9, 0.82, 0.7), vec3(1.0, 0.94, 0.82) * (0.55 + 0.3 * top), top * 0.5);
-  float fres = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.4);
-  float slide = 0.5 + 0.5 * sin(uSkinT * 1.1 + vRlP.x * 4.0 + vRlP.z * 3.0);
-  outgoingLight += vec3(1.0, 0.92, 0.7) * fres * (0.2 + 0.25 * slide);
-  float sand = step(0.88, rlN3(vRlP * 9.0)) * smoothstep(0.2, 0.0, vRlN.y);
-  outgoingLight += vec3(0.55, 0.45, 0.3) * sand * 0.3;
-  float gl = step(0.94, rlN3(vRlP * 14.0 + vec3(uSkinT * 0.3, 0.0, 0.0)));
-  outgoingLight += vec3(1.0, 0.97, 0.88) * gl * 0.3;
+float top = smoothstep(.15,.85,vRlN.y);
+float rim = pow(1.0-abs(dot(normalize(normal),normalize(vViewPosition))),2.4);
+if(rlS == 2) {
+  outgoingLight *= vec3(.97,1.0,1.035);
+  outgoingLight += vec3(.012,.019,.025)*top;
+} else if(rlS == 3) {
+  outgoingLight *= vec3(.97,1.0,.99);
+  outgoingLight += vec3(.008,.022,.016)*rim;
+} else if(rlS == 4) {
+  outgoingLight += vec3(.019,.009,.031)*rim;
+} else if(rlS == 5) {
+  outgoingLight *= vec3(.98,1.0,1.025);
+  outgoingLight += vec3(.011,.014,.018)*top;
+} else if(rlS == 6) {
+  outgoingLight += vec3(.027,.024,.021)*top;
+  outgoingLight += vec3(.014,.007,.002)*rim;
+} else if(rlS == 7) {
+  outgoingLight *= vec3(1.035,1.0,.97);
+  outgoingLight += vec3(.025,.022,.017)*top;
 }
-outgoingLight = mix(rlOriginalLight, outgoingLight, 0.18);
 }`;
 // Layer biome weathering and enemy hit flashes over the painted physical material.
 function rlSkinMaterial(mat, flash) {
@@ -1549,7 +1494,6 @@ function rlSkinMaterial(mat, flash) {
   mat.onBeforeCompile = (shader, ...args) => {
     paintedCompile.call(mat, shader, ...args);
     shader.uniforms.uSkin = RL_SKIN.uSkin;
-    shader.uniforms.uSkinT = RL_SKIN.uSkinT;
     shader.vertexShader = shader.vertexShader
       .replace(
         "#include <common>",
@@ -1563,7 +1507,7 @@ function rlSkinMaterial(mat, flash) {
       .replace("#include <common>", `#include <common>${RL_SKIN_FRAG_HEAD}${flash ? "\nvarying float vFlash;" : ""}`)
       .replace(
         "#include <opaque_fragment>",
-        `${RL_SKIN_FRAG_BODY}${flash ? "\noutgoingLight += vec3(.38,.31,.22) * clamp(vFlash,0.0,1.0);" : ""}\n#include <opaque_fragment>`,
+        `${RL_SKIN_FRAG_BODY}${flash ? "\noutgoingLight *= 1.0 + clamp(vFlash,0.0,1.0) * .9; outgoingLight += vec3(.025,.022,.018) * clamp(vFlash,0.0,1.0);" : ""}\n#include <opaque_fragment>`,
       );
   };
   mat.customProgramCacheKey = () => (flash ? "flashPaintedSkin:" : "paintedSkin:") + paintedKey;
@@ -1572,12 +1516,12 @@ function rlSkinMaterial(mat, flash) {
 }
 const RL_SKIN_FX = {
   2: { c: new Color(0xdcf0ff), vy: -0.35, grav: 0, life: 0.9, size: 0.18, spark: true },
-  3: { c: new Color(0x8cff3a), vy: -0.2, grav: 7, life: 0.6, size: 0.13, spark: false },
+  3: { c: new Color(0x54ffc8), vy: -0.2, grav: 7, life: 0.6, size: 0.13, spark: false },
   4: { c: new Color(0xc070ff), vy: 0.9, grav: 0, life: 0.9, size: 0.12, spark: false },
   // 3.4.0: Blackout City: water dripping off
   5: { c: new Color(0xa8c4e0), vy: -0.4, grav: 9, life: 0.5, size: 0.08, spark: true },
-  // 3.49.0: the Ashfall Caldera: embers lift off the cinder shell
-  6: { c: new Color(0xffc87a), vy: 1.1, grav: 2.5, life: 0.55, size: 0.08, spark: true },
+  // Ash settles on ordinary hulls; the Tyrant and Flareheart variants own their molten emissions.
+  6: { c: new Color(0x8a8175), vy: -0.3, grav: 0.2, life: 0.8, size: 0.09, spark: false },
   // 3.53.0: the Glass Flats: the heat lifts pale motes off the shells
   7: { c: new Color(0xffe9c4), vy: 1.4, grav: 0.6, life: 0.7, size: 0.07, spark: false },
 };

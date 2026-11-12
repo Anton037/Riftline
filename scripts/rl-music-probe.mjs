@@ -34,7 +34,7 @@ const chunk = async (name, fn, arg) => {
 };
 
 if (process.env.STAGE && !["budget", "tracks", "bloom"].includes(process.env.STAGE)) throw new Error("Unknown STAGE");
-const BIOMES = ["yard", "vault", "marsh", "void", "club", "flats"];
+const BIOMES = ["city", "shelf", "marsh", "core", "caldera", "flats"];
 const fail = [];
 const budgetRows = [],
   trackRows = {},

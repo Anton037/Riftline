@@ -20,7 +20,6 @@ const healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, b
     rain: "BOMBARDMENT",
     // 3.3.0: the Overdrive attacks of the enraged bosses
     lockdown: "OVERDRIVE · LOCKDOWN",
-    meltdown: "OVERDRIVE · MELTDOWN",
     whiteout: "OVERDRIVE · WHITEOUT",
     plague: "OVERDRIVE · PLAGUE",
     collapse: "OVERDRIVE · COLLAPSE",
@@ -30,15 +29,8 @@ const healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, b
     iceshards: "ICE SHARDS",
     frostnova: "FROST NOVA",
     glacier: "GLACIER",
-    // 2.4.6: The Crucible
-    hammer: "FORGE HAMMER",
-    slag: "SLAG RAIN",
-    eruption: "ERUPTION",
-    furnace: "FURNACE BLAST",
-    stoke: "STOKE",
-    // 3.49.0: The Ash Tyrant
     barrage: "MOLTEN FAN",
-    lastcall: "OVERDRIVE · FIRESTORM",
+    firestorm: "OVERDRIVE · FIRESTORM",
   },
   Overlay = class {
     constructor(canvas) {

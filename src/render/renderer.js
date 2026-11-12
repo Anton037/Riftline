@@ -1,5 +1,8 @@
 // three.js renderer (Renderer): scene, camera, lights, instanced pools, particles, per-frame drawing.
 import { SmokeView } from "./smoke-view.js";
+import { WeaponEffectsView } from "./weapon-effects-view.js";
+import { BOSS_EFFECTS, WEAPON_EFFECTS } from "../data/combat-effects.js";
+import { ActorEffectsView } from "./actor-effects-view.js";
 import { actorMaterial } from "../data/materials.js";
 import { setWorldShadows, WORLD_SURFACES, worldMaterial, enemySurface } from "./world-material.js";
 import { hexColor, additiveMaterial } from "./materials.js";
@@ -370,20 +373,9 @@ const MAX_PARTICLES = 1400,
     acid: { color: hexColor(0x46ffc0), size: 0.16, life: 0.4, up: 1.8, grav: 7 },
   },
   // 3.16.0: the colours of the portals a boss calls open (render loop, world.markers with `boss`)
-  BOSS_PORTAL = {
-    warden: [hexColor(0xff3346), hexColor(0x3d7bff)],
-    forge: [hexColor(0xff8a2a), hexColor(0xffd27a)],
-    prism: [hexColor(0x9ae6ff), hexColor(0xffffff)],
-    // 3.50.0: the Hive Queen's brood comes through bloom and glow (was acid green)
-    queen: [hexColor(0x46ffc0), hexColor(0xd9fff0)],
-    core: [hexColor(0xa56bff), hexColor(0xff4de0)],
-    // 3.49.0: the Ash Tyrant's burning dead come through ember and ash
-    kingpin: [hexColor(0xff9c3a), hexColor(0xffe19a)],
-    // 3.58.0: the Glasswyrm hunts alone, so it opens no gates today - the entry is here so the table covers
-    // every place's boss, in the wyrm's
-    // hot fused edge and the Flats' pale glass
-    wyrm: [hexColor(0xffc24d), hexColor(0xfff3d6)],
-  },
+  BOSS_PORTAL = Object.fromEntries(
+    Object.entries(BOSS_EFFECTS).map(([id, effect]) => [id, [hexColor(effect.color), hexColor(effect.accent)]]),
+  ),
   healColor = hexColor(7208842),
   whiteColor = hexColor(16777215),
   hurtColor = hexColor(16724048),
@@ -392,7 +384,7 @@ const MAX_PARTICLES = 1400,
     scorch: hexColor(16738858),
     frost: hexColor(11462911),
     phase: hexColor(16732120),
-    // 3.50.0: the Glowmarsh's Bloomed (was the Toxin Marsh's Toxic)
+    // 3.50.0: the Glowmarsh's Bloomed
     bloomed: hexColor(0x46ffc0),
     shorted: hexColor(0x8fd0ff),
     // 3.53.0: the Glass Flats' Sunstruck: a hot gleam
@@ -499,7 +491,9 @@ const MAX_PARTICLES = 1400,
       this.hazardView = new HazardView(this, InstancePool);
       // 3.10.0: the attacks of enemies and bosses (zones, mines, shells, shots) and the marks they leave
       this.attackView = new AttackView(this, InstancePool);
-      // 3.15.0: the boss cards (cages, slag, splinters, larvae, the implosion of Event Collapse)
+      this.weaponView = new WeaponEffectsView(this, InstancePool);
+      this.actorView = new ActorEffectsView(this);
+      // 3.15.0: the boss cards (cages, burning ground, splinters, larvae, the implosion of Event Collapse)
       this.bossCardView = new BossCardView(this, InstancePool);
       // the colour of the warnings
       this.warnColor = warnColor;
@@ -538,8 +532,7 @@ const MAX_PARTICLES = 1400,
         { color: false },
       );
       let sphere = new SphereGeometry(1, 10, 6);
-      this.pbCore = new InstancePool(sphere, new MeshBasicMaterial({ toneMapped: false }), 460);
-      this.ebCore = new InstancePool(sphere.clone(), new MeshBasicMaterial({ toneMapped: false }), 380);
+      this.ebCore = new InstancePool(sphere, new MeshBasicMaterial({ toneMapped: false }), 380);
       this.shardPool = new InstancePool(shardGeometry(), new MeshBasicMaterial({ toneMapped: false }), 300);
       this.healPool = new InstancePool(
         healCrossGeometry(),
@@ -554,9 +547,9 @@ const MAX_PARTICLES = 1400,
       this.rocketBodies = new InstancePool(
         rocketProjectileGeometry(),
         worldMaterial({ surface: "metal", vertexColors: true }),
-        180,
+        420,
       );
-      this.discPool = new InstancePool(discGeometry(), worldMaterial({ surface: "metal", vertexColors: true }), 60);
+      this.discPool = new InstancePool(discGeometry(), worldMaterial({ surface: "metal", vertexColors: true }), 420);
       this.debris = new InstancePool(debrisGeometry(), new MeshLambertMaterial({ flatShading: true }), 320);
       let columnGeo = new CylinderGeometry(1, 1, 1, 16, 1, true);
       columnGeo.translate(0, 0.5, 0);
@@ -610,7 +603,6 @@ const MAX_PARTICLES = 1400,
           this.beams,
           this.warningEdges,
           this.shieldPool,
-          this.pbCore,
           this.rocketBodies,
           this.ebCore,
           this.discPool,
@@ -700,7 +692,7 @@ const MAX_PARTICLES = 1400,
       this.hemi.groundColor.setHex(biome.ground);
       this.biome = biome;
       // 2.4.0: sun colour and fog density of the biome look
-      const look = RL_BIOME_LOOK[biome.id] || RL_BIOME_LOOK.yard,
+      const look = RL_BIOME_LOOK[biome.id] || RL_BIOME_LOOK.city,
         fog = this.scene.fog;
       this.hemi.color.setHex(look.skyFill || biome.sky);
       this.hemi.groundColor.setHex(look.groundFill || biome.ground);
@@ -717,7 +709,7 @@ const MAX_PARTICLES = 1400,
       }
       // 2.5.0 C: in a Whiteout the fog closes in and turns pale
       const whiteK = this.rlWhiteK || 0;
-      if (biome.id === "vault") {
+      if (biome.id === "shelf") {
         // 3.51.0: the Shelf's blizzard breathes: the fog thickens and thins on the storm's ~20 s
         // cycle (the run's clock - the grip's freeze/thaw follows it in world.step; RL_THAW_PERIOD
         // there). A Whiteout is the storm's peak: it locks the breath dense and closes in on top.
@@ -725,7 +717,7 @@ const MAX_PARTICLES = 1400,
         fog.near *= 1 - 0.16 * breath;
         fog.far *= 1 - 0.16 * breath;
       }
-      if (!(whiteK > 0) || biome.id !== "vault") return;
+      if (!(whiteK > 0) || biome.id !== "shelf") return;
       const camDist = this.camDistance();
       fog.near += (camDist * RL_WHITEOUT_FOG[0] - fog.near) * whiteK;
       fog.far += (camDist * RL_WHITEOUT_FOG[1] - fog.far) * whiteK;
@@ -995,8 +987,8 @@ const MAX_PARTICLES = 1400,
       let showNumbers = opts.numbers !== false && this.numbers !== false,
         shakeK = (opts.shake === false ? 0 : 1) * this.motion;
       for (let ev of events) {
-        // 3.15.0: the events of the boss cards (and the blasts of the hammer and the larvae) are drawn by their view
         if (this.bossCardView.event(ev, world, shakeK)) continue;
+        if (this.actorView.consume(ev, shakeK, world)) continue;
         switch (ev.k) {
           case "shot": {
             let def = weaponDefs[ev.w],
@@ -1012,7 +1004,21 @@ const MAX_PARTICLES = 1400,
               0.07,
               this.player.recoil + (def.id === "rail" || def.id === "scatter" ? 0.06 : 0.035) * this.motion,
             );
-            if (def.id !== "flame") {
+            if (WEAPON_EFFECTS[ev.w].muzzle === "arc") {
+              this.line(
+                muzzle.x,
+                muzzle.z,
+                muzzle.x + dirX * 0.7,
+                muzzle.z + dirZ * 0.7,
+                color,
+                0.09,
+                0.035,
+                muzzle.y,
+                0.12,
+              );
+            } else if (WEAPON_EFFECTS[ev.w].muzzle === "mechanical") {
+              this.burst(muzzle.x, muzzle.z, muzzle.y, 3, 1.5, color, 0.12, 0.07, { spark: true, drag: 6 });
+            } else if (WEAPON_EFFECTS[ev.w].muzzle !== "fire") {
               // Warm combustion flashes and compact energy jets leave a little material smoke.
               this.line(
                 muzzle.x,
@@ -1060,8 +1066,11 @@ const MAX_PARTICLES = 1400,
             }
             if (def.rail) {
               let len = world.stats.lance ? world.stats.range : world.arena.rayLen(ev.x, ev.y, ev.a, world.stats.range);
-              this.line(ev.x, ev.y, ev.x + dirX * len, ev.y + dirZ * len, color, 0.2, 0.16, 0.8);
-              this.line(ev.x, ev.y, ev.x + dirX * len, ev.y + dirZ * len, whiteColor, 0.08, 0.05, 0.8);
+              const offset = (muzzle.x - ev.x) * dirX + (muzzle.z - ev.y) * dirZ;
+              if (len > offset) {
+                this.line(muzzle.x, muzzle.z, ev.x + dirX * len, ev.y + dirZ * len, color, 0.2, 0.1, muzzle.y);
+                this.line(muzzle.x, muzzle.z, ev.x + dirX * len, ev.y + dirZ * len, whiteColor, 0.08, 0.025, muzzle.y);
+              }
             }
             this.addShake(def.shake * 0.3 * shakeK);
             break;
@@ -1153,7 +1162,10 @@ const MAX_PARTICLES = 1400,
                 : ev.elite
                   ? goldColor
                   : hexColor(enemyDefs[ev.type].color),
-              scale = ev.boss ? 4 : ev.elite ? 1.8 : Math.max(0.8, ev.r * 1.4);
+              scale = ev.boss ? 4 : ev.elite ? 1.8 : Math.max(0.8, ev.r * 1.4),
+              material = actorMaterial(ev.type),
+              hard = material === "armor" || material === "crystal";
+
             this.burst(
               ev.x,
               ev.y,
@@ -1164,14 +1176,24 @@ const MAX_PARTICLES = 1400,
               ev.boss ? 0.55 : 0.28,
               (ev.boss ? 0.45 : 0.16) * Math.sqrt(scale),
             );
-            this.burst(ev.x, ev.y, 0.6, Math.round(6 * scale), 10 * Math.sqrt(scale), whiteColor, 0.3, 0.22, {
-              spark: true,
-              drag: 5,
-            });
+            this.burst(
+              ev.x,
+              ev.y,
+              0.6,
+              Math.round((hard ? 6 : 3) * scale),
+              (hard ? 10 : 4) * Math.sqrt(scale),
+              hard ? whiteColor : color,
+              0.3,
+              hard ? 0.18 : 0.12,
+              {
+                spark: hard,
+                drag: 5,
+              },
+            );
             if (ev.boss) {
               this.ring(ev.x, ev.y, 0.2, 1.6 * scale, color, 0.35);
               this.emit(ev.x, 0.8, ev.y, 0, 0, 0, 0.12, 2.2 * scale, color, { drag: 0 });
-            } else
+            } else if (material !== "energy")
               this.smokeView.emit(
                 ev.x,
                 0.6,
@@ -1229,7 +1251,18 @@ const MAX_PARTICLES = 1400,
               this.debrisBurst(ev.x, ev.y, 0.7, ev.elite ? 4 : 2, base, 0.1 + 0.08 * Math.sqrt(scale), 4 + scale * 2);
             }
             if (ev.r >= 0.5 || ev.elite || ev.boss) {
-              this.addScorch(ev.x, ev.y, ev.r * 1.3 + 0.3);
+              this.attackView.mark(
+                ev.x,
+                ev.y,
+                ev.r * 1.3 + 0.3,
+                material === "organic"
+                  ? MARK_LOOK.slime
+                  : material === "energy"
+                    ? MARK_LOOK.rift
+                    : material === "crystal"
+                      ? MARK_LOOK.crack
+                      : MARK_LOOK.burn,
+              );
             }
             if (ev.boss) this.flash(ev.x, ev.y, 2 + scale * 1.6, 0.7 + scale * 0.2, color, 5);
             else this.flash(ev.x, ev.y, 0.8 + scale * 0.6, 0.22, hexColor(0xffd4a0), 12);
@@ -1344,9 +1377,6 @@ const MAX_PARTICLES = 1400,
                 spark: true,
               },
             );
-            break;
-          case "pop":
-            this.burst(ev.x, ev.y, 0.7, 3, 3, hexColor(16740250), 0.2, 0.25);
             break;
           case "bounce":
             this.burst(ev.x, ev.y, 0.7, 3, 5, whiteColor, 0.2, 0.2, { spark: true });
@@ -1486,28 +1516,6 @@ const MAX_PARTICLES = 1400,
             }
             break;
           }
-          case "thud":
-            this.addShake((ev.big ? 0.4 : 0.15) * shakeK);
-            this.ring(ev.x, ev.y, 0.5, ev.big ? 3.5 : 1.8, hexColor(16756896), 0.3);
-            break;
-          case "hatch": {
-            // 3.17.0: an egg of the Hive Queen's brood opens: the bloom burst, a ring, and pale bits of shell
-            const acid = hexColor(0x46ffc0);
-            this.burst(ev.x, ev.y, 1.2, ev.big ? 16 : 6, 4, acid, 0.4, 0.3);
-            this.ring(ev.x, ev.y, 0.2, ev.big ? 2.2 : 1, acid, 0.3);
-            this.debrisBurst(ev.x, ev.y, 0.6, ev.big ? 6 : 2, hexColor(0xe6e2c8), 0.12, 4); // 3.44.0: was 8 : 3
-            break;
-          }
-          case "blink":
-            if (ev.small) {
-              let color = hexColor(ev.phase ? 16732120 : enemyDefs.striker.color);
-              this.burst(ev.x, ev.y, 0.8, 12, 6, color, 0.35, 0.3);
-              this.ring(ev.x, ev.y, 0.3, 1.6, color, 0.25);
-            } else {
-              this.burst(ev.x, ev.y, 2.2, 24, 8, hexColor(9431295), 0.45, 0.4);
-              this.ring(ev.x, ev.y, 0.4, 3, hexColor(9431295), 0.35);
-            }
-            break;
           case "block":
             this.burst(ev.x, ev.y, 0.9, 3, 5, hexColor(10475775), 0.2, 0.25, { spark: true, drag: 6 });
             break;
@@ -1523,19 +1531,10 @@ const MAX_PARTICLES = 1400,
             this.burst(ev.x, ev.y, 0.8, 16, 6, hexColor(eliteAffixes.shielded.color), 0.4, 0.3, { spark: true });
             this.ring(ev.x, ev.y, 0.3, ev.r * 2.6, hexColor(eliteAffixes.shielded.color), 0.3);
             break;
-          case "lob":
-            this.burst(ev.x, ev.y, 1.4, 8, 3, hexColor(12099712), 0.5, 0.45, { up: 4, drag: 3 });
-            this.flash(ev.x, ev.y, 2, 0.6, hexColor(16752957), 8);
-            break;
           case "mutator":
             // 3.3.0: the rift mutates: a wide ring and a shake
             this.ring(ev.x, ev.y, 1, 14, hexColor(16734778), 0.9);
             this.addShake(0.5 * shakeK);
-            break;
-          case "phase":
-          case "enrage":
-            this.ring(ev.x, ev.y, 1, 7, hexColor(16732120), 0.5);
-            this.addShake(0.4 * shakeK);
             break;
           case "bossDown":
             this.flashT = 0.35;
@@ -1545,15 +1544,17 @@ const MAX_PARTICLES = 1400,
           case "wave":
             this.pulse = 1;
             break;
-          case "mend":
+          case "mend": {
+            const mend = hexColor(enemyDefs[ev.src]?.color || enemyDefs.mender.color);
             if (ev.tx == null) {
-              this.ring(ev.x, ev.y, 0.5, ev.r || 6, hexColor(7208904), 0.5);
-              this.burst(ev.x, ev.y, 1, 14, 3, hexColor(7208904), 0.5, 0.3, { up: 3 });
+              this.ring(ev.x, ev.y, 0.5, ev.r || 6, mend, 0.5);
+              this.burst(ev.x, ev.y, 1, 10, 2, mend, 0.5, 0.15, { up: 2 });
             } else {
-              this.line(ev.x, ev.y, ev.tx, ev.ty, hexColor(7208904), 0.35, 0.12, 0.9, 0.3);
-              this.burst(ev.tx, ev.ty, 0.8, 10, 2, hexColor(7208904), 0.5, 0.3, { up: 3 });
+              this.line(ev.x, ev.y, ev.tx, ev.ty, mend, 0.35, 0.07, 0.9, 0.14);
+              this.burst(ev.tx, ev.ty, 0.8, 6, 2, mend, 0.4, 0.14, { up: 2 });
             }
             break;
+          }
           case "chill":
             this.burst(ev.x, ev.y, 0.6, 12, 3, hexColor(11462911), 0.5, 0.3, { spark: true });
             break;
@@ -1584,7 +1585,7 @@ const MAX_PARTICLES = 1400,
           }
           case "erupt": {
             // 3.4.0: a live manhole of Blackout City arcs: a white-blue burst of sparks and a cold flash
-            if (world && world.arena && world.arena.biome.id === "yard") {
+            if (world && world.arena && world.arena.biome.id === "city") {
               const arc = hexColor(0x8fd0ff);
               this.burst(ev.x, ev.y, 0.3, 30, 7, whiteColor, 0.35, 0.3, { up: 8, spark: true, drag: 1 });
               this.burst(ev.x, ev.y, 0.3, 16, 4, arc, 0.5, 0.35, { up: 4, spark: true });
@@ -1594,7 +1595,7 @@ const MAX_PARTICLES = 1400,
               break;
             }
             // 3.49.0: the fumaroles of the Ashfall Caldera: a molten geyser with a shower of embers
-            if (world && world.arena && world.arena.biome.id === "club") {
+            if (world && world.arena && world.arena.biome.id === "caldera") {
               const magma = hexColor(0xffb45a);
               this.burst(ev.x, ev.y, 0.3, 24, 6, magma, 0.8, 0.55, { up: 8, grav: 9, drag: 1.4 });
               this.burst(ev.x, ev.y, 0.3, 12, 4, hexColor(0xfff0b8), 0.5, 0.35, { up: 10, spark: true });
@@ -1710,7 +1711,7 @@ const MAX_PARTICLES = 1400,
         world &&
         world.event === "whiteout" &&
         world.state === "fight" &&
-        world.arena?.biome?.id === "vault"
+        world.arena?.biome?.id === "shelf"
           ? 1
           : 0;
       this.rlWhiteK = clamp((this.rlWhiteK || 0) + (want ? 0.7 : -0.55) * (dt || 0), 0, 1); // 3.44.0: the storm gathers slower (0.7) and passes slower still (was ±0.9)
@@ -1720,8 +1721,8 @@ const MAX_PARTICLES = 1400,
         !opts.menu &&
         world &&
         world.state === "fight" &&
-        ((world.event === "blackout" && world.arena?.biome?.id === "yard") ||
-          (world.event === "raid" && world.arena?.biome?.id === "club"));
+        ((world.event === "blackout" && world.arena?.biome?.id === "city") ||
+          (world.event === "ashfall" && world.arena?.biome?.id === "caldera"));
       this.rlBlackK = clamp((this.rlBlackK || 0) + (black ? 0.42 : -0.8) * (dt || 0), 0, 1); // 3.44.0: the dark settles slower (was 0.5), the lift keeps its pace
       if (this.arena?.uniforms?.uDark) this.arena.uniforms.uDark.value = this.rlBlackK * 0.85;
       // 2.8.1: the snow keeps fading after Home, when there may be no world any more
@@ -1752,7 +1753,6 @@ const MAX_PARTICLES = 1400,
       }
       const look = this.biome && RL_BIOME_LOOK[this.biome.id];
       RL_SKIN.uSkin.value = look ? look.style : 0;
-      RL_SKIN.uSkinT.value += dt || 0;
       if (this.bossView && !this.bossView.rlSkin) {
         for (const mat of this.bossView.mats) rlSkinMaterial(mat, false);
         this.bossView.rlSkin = true;
@@ -1801,6 +1801,7 @@ const MAX_PARTICLES = 1400,
       for (let pool of this.trapView.list) pool.begin();
       for (let pool of this.hazardView.list) pool.begin();
       for (let pool of this.attackView.list) pool.begin();
+      for (let pool of this.weaponView.list) pool.begin();
       for (let pool of this.bossCardView.list) pool.begin();
       for (let type in this.enemyPools) {
         this.enemyPools[type].body.begin();
@@ -1817,6 +1818,7 @@ const MAX_PARTICLES = 1400,
       this.drawTransient(dt);
       for (let pool of this.bossCardView.list) pool.end();
       for (let pool of this.attackView.list) pool.end();
+      for (let pool of this.weaponView.list) pool.end();
       for (let pool of this.hazardView.list) pool.end();
       for (let pool of this.trapView.list) pool.end();
       for (let pool of pools) pool.end();
@@ -2005,7 +2007,7 @@ const MAX_PARTICLES = 1400,
           }
         }
         if (enemy.flash > 0) {
-          // hit squash: flattened and wider for a moment, the white flash is in the shader
+          // hit squash: flattened and wider for a moment, the material-preserving flash is in the shader
           scale *= 1 + enemy.flash * 0.16;
           scaleY *= 1 - enemy.flash * 0.2;
         }
@@ -2224,86 +2226,13 @@ const MAX_PARTICLES = 1400,
         list.length = keep;
       }
       this.drawBoss(dt, world, boss);
-      let flameHot = hexColor(16765562),
-        flameCool = hexColor(16734746);
-      for (let shot of world.pb) {
-        let def = weaponDefs[shot.w],
-          color = hexColor(def.color),
-          angle = Math.atan2(shot.vy, shot.vx);
-        if (shot.drag) {
-          let age = clamp(shot.age / 0.5, 0, 1),
-            fade = 1 - age * 0.55,
-            puff = this.sprites.bb(shot.x, 0.7 + age * 0.4, shot.y, shot.r * 4.6, basis, shot.id);
-          this.sprites.col(
-            puff,
-            (flameHot.r + (flameCool.r - flameHot.r) * age) * fade,
-            (flameHot.g + (flameCool.g - flameHot.g) * age) * fade * 0.8,
-            (flameHot.b + (flameCool.b - flameHot.b) * age) * fade * 0.6,
-          );
-          if (age < 0.6) {
-            let core = this.sprites.bb(shot.x, 0.72, shot.y, shot.r * 2.2, basis);
-            this.sprites.col(core, 1, 0.92, 0.6 * (1 - age));
-          }
-          if (age > 0.6 && Math.random() < 0.08) {
-            this.emit(shot.x, 1.1, shot.y, shot.vx * 0.2, 1.4, shot.vy * 0.2, 0.5, shot.r * 2.2, hexColor(3811876), {
-              drag: 2,
-              grow: 1,
-            });
-          }
-          continue;
-        }
-        if (shot.boom) {
-          shot.spin = (shot.spin || 0) + dt * 22;
-          let disc = this.discPool.y(shot.x, 0.7, shot.y, shot.spin, shot.r, 1, shot.r);
-          this.discPool.colC(disc, color, 1);
-          let halo = this.sprites.bb(shot.x, 0.7, shot.y, shot.r * 5, basis);
-          this.sprites.colC(halo, color, 0.55);
-          continue;
-        }
-        let len = shot.r * (def.rail ? 9 : def.id === "rocket" ? 2.4 : 3.2),
-          thick = shot.r * 0.9;
-        if (shot.heavy && Math.random() < 0.5) {
-          this.emit(shot.x, 0.75, shot.y, 0, 0, 0, 0.18, shot.r * 3, color, { drag: 0 });
-        }
-        if (shot.wing) {
-          len = 0.5;
-          thick = 0.1;
-        }
-        if (def.id === "rocket") {
-          const body = this.rocketBodies.y(shot.x, 0.85, shot.y, angle, shot.bomblet ? 0.7 : 1);
-          this.rocketBodies.col(body, 1, 1, 1);
-        } else {
-          const core = this.pbCore.y(shot.x, 0.75, shot.y, angle, len, thick, thick);
-          this.pbCore.col(core, 0.55 + color.r * 0.6, 0.55 + color.g * 0.6, 0.55 + color.b * 0.6);
-        }
-        let halo = this.sprites.bb(shot.x, 0.75, shot.y, shot.r * (def.rail ? 4.5 : 3.8), basis);
-        this.sprites.colC(halo, color, 0.35);
-        if (def.id === "rocket" && Math.random() < (shot.bomblet ? 0.3 : 0.6)) {
-          this.emit(
-            shot.x - shot.vx * 0.02,
-            0.75,
-            shot.y - shot.vy * 0.02,
-            -shot.vx * 0.05 + (Math.random() - 0.5),
-            0.3,
-            -shot.vy * 0.05 + (Math.random() - 0.5),
-            0.35,
-            shot.bomblet ? 0.25 : 0.4,
-            hexColor(16752736),
-            { drag: 3, grow: 1.5 },
-          );
-        }
-        if (def.id === "tesla" && Math.random() < 0.3) {
-          this.emit(shot.x, 0.75, shot.y, (Math.random() - 0.5) * 3, 0, (Math.random() - 0.5) * 3, 0.12, 0.3, color, {
-            spark: true,
-          });
-        }
-      }
+      this.weaponView.draw(dt, world);
       for (let trail of world.trails) {
         let puff = this.sprites.bb(trail.x, 0.3, trail.y, 1.3 * Math.min(1, trail.life), basis);
         this.sprites.colHex(puff, 8386303, 0.35 * Math.min(1, trail.life));
       }
       // 3.10.0: every kind of enemy shot has a shape of its own
-      this.attackView.shots(world);
+      this.attackView.shots(world, dt);
       for (let pickup of world.pickups) {
         let lift = 0.45 + Math.sin(time * 4 + pickup.id) * 0.12;
         if (pickup.rain && pickup.t < 0.6) {
@@ -2565,6 +2494,7 @@ const MAX_PARTICLES = 1400,
       if (this.focus) {
         grow = Math.max(grow, clamp((this.focusK - 0.15) / 0.45, 0, 1));
       }
+      if (group.userData.energyTime) group.userData.energyTime.value = time;
       let scale = easeOutBack(grow);
       group.position.set(
         boss.x,
@@ -2579,9 +2509,10 @@ const MAX_PARTICLES = 1400,
       group.rotation.y = -boss.face;
       for (let part of view.spin) part.m.rotation[part.ax] += part.v * dt * (boss.enraged ? 1.8 : 1);
       let flash = boss.flash;
+      const identity = BOSS_EFFECTS[boss.type];
       for (let mat of view.mats)
-        mat.emissive.setRGB(flash * 0.8 + (boss.charging ? 0.25 : 0), flash * 0.8, flash * 0.8);
-      view.glowMat.color.setHex(boss.enraged ? 16732120 : bossDefs[boss.type].color);
+        mat.emissive.copy(hexColor(identity.accent)).multiplyScalar(flash * 0.16 + (boss.charging ? 0.045 : 0));
+      view.glowMat.color.setHex(boss.enraged ? identity.accent : identity.color);
       if (boss.shielded) {
         view.glowMat.color.setHex(16777215);
       }
@@ -2596,7 +2527,7 @@ const MAX_PARTICLES = 1400,
       view.glowMat.opacity = boss.ghost ? 0.15 : 1 - dive * 0.74;
       this.shadows.y(boss.x, 0.02, boss.y, 0, boss.r * 3.4 * scale);
       let glow = this.sprites.bb(boss.x, 1.2, boss.y, boss.r * 5, this.B);
-      this.sprites.colHex(glow, boss.enraged ? 16732120 : bossDefs[boss.type].color, 0.25);
+      this.sprites.colHex(glow, boss.enraged ? identity.accent : identity.color, 0.09);
       if (boss.shielded) {
         let ring = this.ringPool.y(boss.x, 0.1, boss.y, time, boss.r * 1.6);
         this.ringPool.colC(ring, whiteColor, 0.8);
@@ -2635,31 +2566,8 @@ const MAX_PARTICLES = 1400,
         this.chargeLine(boss.x, boss.y, boss.ta, 12, 3.4, clamp(boss.subT / 0.85, 0, 1));
       }
       // 3.49.0: the Ash Tyrant lines up its shoulder charge the same way
-      if (boss.type === "kingpin" && boss.st === "charge" && boss.sub === 0) {
+      if (boss.type === "tyrant" && boss.st === "charge" && boss.sub === 0) {
         this.chargeLine(boss.x, boss.y, boss.ta, 11, 3.2, clamp(boss.subT / 0.7, 0, 1));
-      }
-      // 2.4.6: the Crucible's chimneys throw embers, more while it winds up or is enraged
-      if (group.userData.chimneys && boss.spawnT <= 0) {
-        const rate = (boss.enraged ? 20 : 11) * (boss.charging ? 2.2 : 1),
-          cf = Math.cos(boss.face),
-          sf = Math.sin(boss.face),
-          ember = this._emberColor || (this._emberColor = hexColor(16752957));
-        for (const [lx, ly, lz] of group.userData.chimneys) {
-          if (Math.random() < dt * rate) {
-            this.emit(
-              boss.x + (lx * cf - lz * sf) * scale,
-              ly * scale,
-              boss.y + (lx * sf + lz * cf) * scale,
-              (Math.random() - 0.5) * 1.4,
-              2.6 + Math.random() * 2.2,
-              (Math.random() - 0.5) * 1.4,
-              0.8,
-              0.28,
-              ember,
-              { drag: 1, grow: 1.3 },
-            );
-          }
-        }
       }
     }
     drawParticles(dt) {
@@ -2832,7 +2740,7 @@ if (document.fonts) {
 
 // 2.5.0 C: biome events in the renderer (Whiteout fog and snow, see frame() and setBiome()).
 const RL_WHITEOUT_FOG = [0.7, 1.12],
-  // 3.41.0: a whiteout goes bright and white (the old slate-grey tint sat darker than the pale vault
+  // 3.41.0: a whiteout goes bright and white (the old slate-grey tint sat darker than the pale shelf
   // scene and read as nothing). The window starts inside the play field and closes before the arena
   // edge, so the edge dissolves into the storm while the fight keeps a sight pocket; the flakes are
   // finally big enough to see from the phone camera

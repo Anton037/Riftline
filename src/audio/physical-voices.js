@@ -1,6 +1,7 @@
 // Recorded material transients and damped physical bodies, shared by combat and place sounds.
 import { SOURCE_CLIPS } from "./source-bank.js";
 import { actorMaterial } from "../data/materials.js";
+import { BOSS_EFFECTS } from "../data/combat-effects.js";
 
 let bytesPromise, decodedPromise;
 export function preloadPhysicalAudio() {
@@ -38,11 +39,184 @@ const sample = {
 const P = {
   pulse: { dur: 0.19, sample: "report", body: 155, air: 0.09, grain: 0.12, gain: 0.3, gate: 0.045 },
   scatter: { dur: 0.38, sample: "shotgun", body: 78, air: 0.3, grain: 0.22, gain: 0.46, gate: 0.08 },
-  tesla: { dur: 0.19, sample: "metal", body: 360, air: 0.18, grain: 0.35, gain: 0.3, gate: 0.045 },
+  tesla: {
+    dur: 0.19,
+    sample: "metal",
+    recordGain: 0.08,
+    body: 640,
+    air: 0.42,
+    grain: 0.2,
+    arc: 0.65,
+    lowpass: 2200,
+    gain: 0.3,
+    gate: 0.045,
+  },
+  chain: {
+    dur: 0.14,
+    sample: "soft",
+    recordGain: 0,
+    body: 760,
+    air: 0.35,
+    grain: 0.16,
+    arc: 0.5,
+    gain: 0.18,
+    gate: 0.05,
+  },
   rail: { dur: 0.53, sample: "rifle", body: 63, air: 0.26, grain: 0.13, gain: 0.48, gate: 0.09 },
   rocket: { dur: 0.45, sample: "heavy", body: 84, air: 0.4, grain: 0.1, gain: 0.38, gate: 0.08 },
   disc: { dur: 0.27, sample: "blade", body: 470, air: 0.09, grain: 0.1, gain: 0.25, gate: 0.06 },
   flame: { dur: 0.23, sample: "soft", body: 125, air: 0.5, grain: 0.12, gain: 0.26, gate: 0.07, hold: true },
+  eshotGunner: { dur: 0.16, sample: "report", body: 180, air: 0.08, grain: 0.06, gain: 0.2, gate: 0.07, lowpass: 3200 },
+  snipe: { dur: 0.29, sample: "rifle", body: 120, air: 0.18, grain: 0.04, gain: 0.27, gate: 0.12 },
+  eshotTurret: { dur: 0.28, sample: "heavy", body: 96, air: 0.12, grain: 0.08, gain: 0.25, gate: 0.1, lowpass: 2400 },
+  eshotDrone: { dur: 0.12, sample: "metal", body: 520, air: 0.12, grain: 0.04, gain: 0.18, gate: 0.07, lowpass: 3600 },
+  eshotWeaver: { dur: 0.25, sample: "soft", body: 260, air: 0.22, grain: 0.09, arc: 0.2, gain: 0.2, gate: 0.1 },
+  eshotCarrier: {
+    dur: 0.24,
+    sample: "flesh",
+    body: 140,
+    air: 0.26,
+    grain: 0.04,
+    gain: 0.23,
+    gate: 0.11,
+    lowpass: 1800,
+  },
+  eshotWarden: { dur: 0.22, sample: "plate", body: 190, air: 0.11, grain: 0.04, gain: 0.24, gate: 0.1, lowpass: 3200 },
+  eshotQueen: { dur: 0.26, sample: "flesh", body: 92, air: 0.28, grain: 0.025, gain: 0.24, gate: 0.1, lowpass: 1600 },
+  eshotPrism: { dur: 0.25, sample: "glass", body: 620, air: 0.08, grain: 0.08, gain: 0.21, gate: 0.1, lowpass: 6500 },
+  eshotCore: {
+    dur: 0.28,
+    sample: "soft",
+    body: 175,
+    air: 0.28,
+    grain: 0.08,
+    arc: 0.18,
+    gain: 0.23,
+    gate: 0.1,
+    lowpass: 1600,
+  },
+  eshotTyrant: { dur: 0.3, sample: "wood", body: 85, air: 0.4, grain: 0.18, gain: 0.25, gate: 0.1, lowpass: 2000 },
+  eshotWyrm: { dur: 0.22, sample: "glass", body: 880, air: 0.16, grain: 0.24, gain: 0.22, gate: 0.1, lowpass: 4800 },
+  aGlass: { dur: 0.5, sample: "glass", body: 420, air: 0.26, grain: 0.22, gain: 0.31, gate: 0.12, lowpass: 5000 },
+  phase: {
+    dur: 0.6,
+    sample: "soft",
+    recordGain: 0.15,
+    body: 88,
+    air: 0.3,
+    grain: 0.06,
+    arc: 0.12,
+    gain: 0.32,
+    gate: 0.18,
+    lowpass: 1600,
+  },
+  aQuake: { dur: 0.6, sample: "wood", body: 48, air: 0.4, grain: 0.14, gain: 0.38, gate: 0.1, lowpass: 1000 },
+  aLava: { dur: 0.7, sample: "wood", body: 62, air: 0.45, grain: 0.17, gain: 0.4, gate: 0.1, lowpass: 1600 },
+  aFire: { dur: 0.35, sample: "soft", body: 90, air: 0.45, grain: 0.14, gain: 0.27, gate: 0.08, lowpass: 2000 },
+  aAcid: { dur: 0.4, sample: "flesh", body: 100, air: 0.33, grain: 0.05, gain: 0.28, gate: 0.08, lowpass: 1400 },
+  aRift: { dur: 0.5, sample: "soft", recordGain: 0.2, body: 88, air: 0.3, grain: 0.07, arc: 0.1, gain: 0.3, gate: 0.1 },
+  aIce: { dur: 0.45, sample: "glass", body: 550, air: 0.1, grain: 0.13, gain: 0.3, gate: 0.1, lowpass: 6000 },
+  aShort: {
+    dur: 0.23,
+    sample: "metal",
+    recordGain: 0.1,
+    body: 550,
+    air: 0.24,
+    grain: 0.35,
+    arc: 0.5,
+    gain: 0.29,
+    gate: 0.08,
+  },
+  bwLaser: {
+    dur: 0.8,
+    sample: "metal",
+    body: 720,
+    air: 0.08,
+    grain: 0.03,
+    gain: 0.25,
+    gate: 0.14,
+    warn: true,
+    lowpass: 3800,
+  },
+  bwCryo: {
+    dur: 0.8,
+    sample: "glass",
+    body: 960,
+    air: 0.12,
+    grain: 0.05,
+    gain: 0.24,
+    gate: 0.14,
+    warn: true,
+    lowpass: 6000,
+  },
+  bwAcid: {
+    dur: 0.8,
+    sample: "flesh",
+    body: 260,
+    air: 0.25,
+    grain: 0.04,
+    gain: 0.24,
+    gate: 0.14,
+    warn: true,
+    lowpass: 1600,
+  },
+  bwFlame: {
+    dur: 0.8,
+    sample: "soft",
+    body: 180,
+    air: 0.42,
+    grain: 0.12,
+    gain: 0.25,
+    gate: 0.14,
+    warn: true,
+    lowpass: 1800,
+  },
+  bwRift: {
+    dur: 0.8,
+    sample: "soft",
+    body: 380,
+    air: 0.18,
+    grain: 0.08,
+    arc: 0.12,
+    gain: 0.25,
+    gate: 0.14,
+    warn: true,
+  },
+  bwFlare: {
+    dur: 0.8,
+    sample: "glass",
+    body: 580,
+    air: 0.2,
+    grain: 0.09,
+    gain: 0.25,
+    gate: 0.14,
+    warn: true,
+    lowpass: 4200,
+  },
+  tmEmber: {
+    dur: 0.65,
+    sample: "wood",
+    body: 140,
+    air: 0.24,
+    grain: 0.08,
+    gain: 0.24,
+    gate: 0.14,
+    warn: true,
+    lowpass: 1800,
+  },
+  tmGlass: {
+    dur: 0.65,
+    sample: "glass",
+    body: 640,
+    air: 0.1,
+    grain: 0.08,
+    gain: 0.24,
+    gate: 0.14,
+    warn: true,
+    lowpass: 4500,
+  },
+  tsEmber: { dur: 0.65, sample: "wood", body: 70, air: 0.4, grain: 0.17, gain: 0.38, gate: 0.1, lowpass: 2000 },
+  tsGlass: { dur: 0.5, sample: "glass", body: 490, air: 0.24, grain: 0.2, gain: 0.33, gate: 0.1, lowpass: 5000 },
   event: { dur: 1.25, sample: "heavy", body: 58, air: 0.32, grain: 0.1, gain: 0.33, gate: 0.4 },
   impact: { dur: 0.16, sample: "metal", body: 230, air: 0.1, grain: 0.05, gain: 0.19, gate: 0.025 },
   hitArmor: { dur: 0.13, sample: "heavy", body: 135, air: 0.035, grain: 0.015, gain: 0.2, gate: 0.035, lowpass: 2200 },
@@ -83,6 +257,14 @@ const P = {
   siren: { dur: 1.2, model: "siren", body: 640, gain: 0.2, gate: 0 },
   radio: { dur: 0.55, model: "radio", body: 560, gain: 0.24, gate: 0 },
   buzz: { dur: 0.7, model: "buzz", body: 60, gain: 0.22, gate: 0 },
+};
+const BOSS_TIMBRE = {
+  warden: ["plate", 245, 3000],
+  queen: ["flesh", 105, 1800],
+  prism: ["glass", 710, 6500],
+  core: ["soft", 165, 1800],
+  tyrant: ["wood", 88, 2000],
+  wyrm: ["glass", 440, 4800],
 };
 export function physicalProfile(id, arg, place = false) {
   let family = P[id] ? id : "impact";
@@ -127,14 +309,14 @@ export function physicalProfile(id, arg, place = false) {
                               ? "air"
                               : /thunder|boom|avalanche|fall|quake|rubble/i.test(id)
                                 ? "boom"
-                                : /ice|icicle|glass|crack|shimmer|creak/i.test(id)
+                                : /ice|icicle|glass|crystal|crack|shimmer|creak/i.test(id)
                                   ? "glass"
                                   : /spark|cl[au]nk|anvil|metal|vent/i.test(id)
                                     ? "armor"
                                     : "room";
   } else if (!P[id]) {
     if (/^(tc|tm|tb|bw)|warn|wind|lock|servo|fuse|bWind|tArm|^beam(?:Small)?$/i.test(id)) family = "warning";
-    else if (/boom|nova$|slam|thud|erupt|quake|collapse|bigkill|die|hammer/i.test(id)) family = "boom";
+    else if (/boom|nova$|slam|thud|erupt|quake|collapse|bigkill|die/i.test(id)) family = "boom";
     else if (/^dSquelch|dCrunch|dPop|hatch|brood/i.test(id)) family = "organic";
     else if (/^dArmor|dClang|block|guard|shield|plant|ram|resist/i.test(id)) family = "armor";
     else if (/dShatter|frost|freeze|cryo|^tsIce|^tsFrost|aIce/i.test(id)) family = "glass";
@@ -154,8 +336,82 @@ export function physicalProfile(id, arg, place = false) {
   if (id === "dPop") Object.assign(p, { sample: "soft", body: 175, dur: 0.17, gain: 0.16 });
   if (id === "dGhost") Object.assign(p, P.wind, { family: "wind", body: 96, dur: 0.5, gain: 0.18 });
   if (id === "dZap") Object.assign(p, P.tesla, { family: "tesla", dur: 0.27, gain: 0.23 });
-  if (id === "eshotQueen") Object.assign(p, P.organic, { family: "organic", dur: 0.18, body: 190, gain: 0.23 });
-  if (/eshotPrism|eshotFrost/.test(id)) Object.assign(p, P.glass, { family: "glass", dur: 0.23, gain: 0.22 });
+  if (id === "eshotFrost") Object.assign(p, P.glass, { family: "glass", dur: 0.23, gain: 0.22 });
+  const source = typeof arg === "string" ? arg : arg?.src,
+    identity = BOSS_EFFECTS[source];
+  if (!place && identity && /^(b[A-Z]|boss|enrage|bigkill|blink|thud|lob|hatch)/.test(id)) {
+    const timbre = BOSS_TIMBRE[source];
+    p.family += ":" + source;
+    [p.sample, p.body, p.lowpass] = timbre;
+    if (id === "hatch") {
+      p.dur = 0.4;
+      p.air = 0.24;
+      p.grain = 0.08;
+    }
+    if (id.startsWith("blink") && source === "wyrm") {
+      p.air = 0.32;
+      p.grain = 0.2;
+    }
+  }
+  if (!place && id === "leap")
+    Object.assign(p, P.wind, { family: "leap", sample: "grass", body: 115, dur: 0.2, gain: 0.2 });
+  if (!place && id === "hatch" && !identity) Object.assign(p, P.organic, { family: "organic", body: 110 });
+  if (!place && id === "lob" && arg?.frost)
+    Object.assign(p, P.glass, { family: "frostLob", dur: 0.23, body: 510, gain: 0.22 });
+  if (!place && id === "tbFlame") Object.assign(p, P.bwFlame, { family: "magmaWarning" });
+  if (!place && id === "mend")
+    Object.assign(
+      p,
+      source === "beacon"
+        ? { ...P.chain, family: "repairField", body: 280, arc: 0.025, air: 0.08, grain: 0.01, dur: 0.3, gain: 0.18 }
+        : {
+            ...P.organic,
+            family: "menderPulse",
+            body: 185,
+            recordGain: 0.1,
+            air: 0.12,
+            grain: 0.015,
+            dur: 0.3,
+            gain: 0.18,
+          },
+    );
+  if (!place && id === "tArm") {
+    const arm = {
+      frost: ["glass", 510],
+      spore: ["flesh", 120],
+      riftmine: ["soft", 210],
+      embermine: ["wood", 110],
+      glassmine: ["glass", 580],
+    }[arg];
+    if (arm)
+      Object.assign(p, {
+        family: "arm:" + arg,
+        sample: arm[0],
+        body: arm[1],
+        warn: false,
+        dur: 0.18,
+        air: 0.08,
+        grain: 0.03,
+      });
+  }
+  if (place && /calderaRumble|ventPulse|fumarole|cinderGust/.test(id))
+    Object.assign(p, P.air, {
+      family: "volcanicAir",
+      model: "air",
+      dur: id === "calderaRumble" ? 1.2 : 0.95,
+      gain: 0.25,
+    });
+  if (place && /rockFall|farBoom/.test(id))
+    Object.assign(p, P.boom, {
+      family: "rockFall",
+      sample: "wood",
+      lowpass: 1000,
+      body: 55,
+      recordGain: 0.18,
+      gain: 0.22,
+    });
+  if (place && id === "emberPop")
+    Object.assign(p, P.impact, { family: "emberPop", sample: "wood", body: 170, lowpass: 1800, dur: 0.17, gain: 0.15 });
   if (place && /owl/i.test(id)) p.body = 470;
   if (place && /heron/i.test(id)) p.body = 780;
 
@@ -207,7 +463,15 @@ export class PhysicalVoices {
       p.body.toFixed(1),
       p.dur.toFixed(3),
       variant,
-      p.model ? "model" : !!this.bank,
+      p.model,
+      p.air,
+      p.grain,
+      p.lowpass,
+      p.recordGain,
+      p.arc,
+      p.warn,
+      p.hold,
+      p.model ? "procedural" : !!this.bank,
     ].join(":");
     if (this.buffers.has(key)) {
       const b = this.buffers.get(key);
@@ -290,10 +554,16 @@ export class PhysicalVoices {
         const at = Math.floor(position),
           f = position - at;
         if (t * (1 + (variant - 1) * 0.035) < region.duration && at + 1 < raw.length)
-          recorded = (raw[at] * (1 - f) + raw[at + 1] * f) * (p.warn || p.hold ? 0.11 : 0.66);
+          recorded = (raw[at] * (1 - f) + raw[at + 1] * f) * (p.recordGain ?? (p.warn || p.hold ? 0.11 : 0.66));
       }
       recordedLow += recordedAlpha * (recorded - recordedLow);
-      data[i] = (recordedLow + modes * envelope + air + grains) * attack * tail;
+      const arc = p.arc
+        ? (noise - band) *
+          p.arc *
+          (0.2 + 0.8 * Math.max(0, Math.sin(t * 335 + 2 * Math.sin(t * 71))) ** 12) *
+          Math.exp(-t / (p.dur * 0.32))
+        : 0;
+      data[i] = (recordedLow + modes * envelope + air + grains + arc) * attack * tail;
     }
     this.buffers.set(key, b);
     if (this.buffers.size > 48) this.buffers.delete(this.buffers.keys().next().value);

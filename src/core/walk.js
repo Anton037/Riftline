@@ -10,12 +10,12 @@ const STEP_LEN = 1,
 
 // the ground under the drone: the sheets of ice and the pools of acid of the arena, else the floor of the biome
 const FLOOR = {
-  yard: "asphalt",
+  city: "asphalt",
   works: "grate",
-  vault: "frost",
+  shelf: "frost",
   marsh: "mud",
-  void: "glass",
-  club: "crust",
+  core: "glass",
+  caldera: "crust",
   flats: "sandglass",
 };
 function groundOf(world) {

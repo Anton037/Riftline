@@ -1,16 +1,3 @@
-// 3.15.0: the boss rewards. Every boss has one exclusive card (data/upgrades.js, `boss`), offered only after its kill:
-// the chance starts at 30 % and grows by 15 % after each boss offer without one, it resets when one comes. A card
-// is offered at most once per run until it is taken (owned cards never come again, also in Endless). Their mechanics
-// live here; World calls updateBossCards every fight step, bossCardKill from killEnemy, bossCardNova from nova() and
-// bossCardOffer when a boss choice opens. Views: render/boss-cards-view.js; sounds: audio/sound.js.
-//   Lockdown Grid (Warden)    every 8 s a laser cage drops on the densest group: enemies inside cannot leave for 3 s
-//                             and take damage while they are held
-//   Crucible Hammer (Crucible) every 6 s the next dash ends in a slam: a ring of slag, burning enemies, molten ground
-//   Shard Field (Frost Prism) kills shatter into ice splinters that hit and chill the enemies around
-//   Brood (Hive Queen)        every 10 kills a larva hatches (up to 4); it hunts an enemy and bursts into poison
-//   Event Collapse (Rift Core) the Nova first pulls everything in for a moment, then blasts 40 % harder
-//   Tyrant's Tithe (Ash Tyrant)  every 20 kills the caldera pays out: a burst of shards and a bandage
-
 import { upgradeList } from "../data/upgrades.js";
 import { makeRng, hashString, TAU } from "./util.js";
 
@@ -24,13 +11,6 @@ const LOCK_EVERY = 8,
   LOCK_TIME = 3,
   LOCK_DPS = 26,
   LOCK_RANGE = 13,
-  HAMMER_EVERY = 6,
-  HAMMER_R = 3.4,
-  HAMMER_DMG = 75,
-  HAMMER_BURN = 12,
-  SLAG_R = 2.2,
-  SLAG_TIME = 3,
-  SLAG_DPS = 14,
   SPLINTERS = 5,
   SPLINTER_DMG = 16,
   SPLINTER_SPEED = 16,
@@ -74,7 +54,7 @@ function bossCardOffer(world) {
 
 function resetBossCards(world) {
   world.cages = [];
-  world.slag = [];
+  world.burnPools = [];
   world.splinters = [];
   world.implode = null;
   world.lances = [];
@@ -155,35 +135,11 @@ function updateLockdown(world, dt) {
     world.cages = world.cages.filter((cage) => cage.t < LOCK_WARN + LOCK_TIME);
 }
 
-function updateHammer(world, dt) {
-  const player = world.player,
-    stats = world.stats;
-  if (player.hammerT == null) player.hammerT = 0;
-  if (player.hammerT > 0) {
-    player.hammerT -= dt;
-    if (player.hammerT <= 0) world.emit("hammerReady", { x: player.x, y: player.y });
-  }
-  if (player.dashT > 0 && player.hammerT <= 0 && !player.hammerDash) player.hammerDash = true;
-  if (player.hammerDash && player.dashT <= 0) {
-    player.hammerDash = false;
-    if (!player.alive || world.state !== "fight") return;
-    player.hammerT = HAMMER_EVERY;
-    world.explode(player.x, player.y, HAMMER_R, HAMMER_DMG * stats.dmgMul, {
-      enemies: true,
-      knock: 6,
-      kind: "hammer",
-      burn: HAMMER_BURN * stats.dmgMul,
-    });
-    world.slag.push({ id: world.nextId++, x: player.x, y: player.y, r: SLAG_R, life: SLAG_TIME });
-  }
-}
-
-function updateSlag(world, dt) {
-  if (!world.slag.length) return;
-  const burn = SLAG_DPS * world.stats.dmgMul;
-  for (const pool of world.slag) {
+function updateBurnPools(world, dt) {
+  if (!world.burnPools.length) return;
+  for (const pool of world.burnPools) {
     pool.life -= dt;
-    const dps = pool.dps || burn;
+    const dps = pool.dps;
     world.hash.query(pool.x, pool.y, pool.r, (enemy) => {
       if (
         enemy.dead ||
@@ -195,14 +151,15 @@ function updateSlag(world, dt) {
       const was = enemy.burnT > 0 ? enemy.burnDps : 0;
       enemy.burnT = Math.max(enemy.burnT, 1);
       enemy.burnDps = Math.max(was, dps);
-      // the burning ground of Searing Collapse counts as burning, the molten ground of the hammer as the hammer
-      enemy.burnSrc = pool.fire ? "burn" : "hammer";
+      // Credit Searing Collapse to burning damage.
+      enemy.burnSrc = "burn";
     });
   }
   // 3.46.0: compacted in place (a filter per step while the pools burn)
   let w = 0;
-  for (let i = 0; i < world.slag.length; i++) if (world.slag[i].life > 0) world.slag[w++] = world.slag[i];
-  world.slag.length = w;
+  for (let i = 0; i < world.burnPools.length; i++)
+    if (world.burnPools[i].life > 0) world.burnPools[w++] = world.burnPools[i];
+  world.burnPools.length = w;
 }
 
 function shatter(world, enemy) {
@@ -493,8 +450,7 @@ function updateBossCards(world, dt) {
   if (!world.player.brood) world.player.brood = [];
   if (stats.lockdown) updateLockdown(world, dt);
   else if (world.cages.length) world.cages = [];
-  if (stats.hammer) updateHammer(world, dt);
-  updateSlag(world, dt);
+  updateBurnPools(world, dt);
   updateSplinters(world, dt);
   updateBrood(world, dt);
   updateImplode(world, dt);
@@ -508,7 +464,6 @@ export {
   LOCK_EVERY,
   LOCK_WARN,
   LOCK_TIME,
-  HAMMER_EVERY,
   BROOD_EVERY,
   BROOD_MAX,
   COLLAPSE_TIME,

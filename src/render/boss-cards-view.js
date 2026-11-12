@@ -1,12 +1,3 @@
-// 3.15.0: how the boss cards look (core/boss-cards.js decides everything, this only shows it). They are the player's
-// own, so none of them uses the red of a warning: the Lockdown Grid is gold, the Crucible Hammer orange and molten,
-// the Shard Field ice white and blue, the Brood acid green, Event Collapse the violet of the rift.
-//   cages      six pylons drop around the spot and hit the floor, then gold beams run between them while they hold
-//   hammer     an ember glow on the drone while the next dash slams; the slam: an orange ring, sparks, molten ground
-//   splinters  thin ice shards that fly out of a kill
-//   brood      small larvae with wings and a green glow that circle the drone, then dive at an enemy
-//   implode    rings and sparks drawn into the drone before the Nova
-
 import { Color, MeshBasicMaterial, OctahedronGeometry } from "three";
 import { worldMaterial } from "./world-material.js";
 import { meshPart, mergeParts, box, ball, bar } from "./models.js";
@@ -18,11 +9,10 @@ const hex = (value) => new Color(value),
   GOLD = hex(0xffc84a),
   GOLD_WHITE = hex(0xfff0c0),
   EMBER = hex(0xff8a2a),
-  MOLTEN = hex(0xff5a1a),
   HOT = hex(0xffd27a),
   ICE = hex(0x9ae6ff),
   ICE_WHITE = hex(0xe8fbff),
-  // 3.50.0: the Glowmarsh's bloom (was the Toxin Marsh's bile green)
+  // 3.50.0: the Glowmarsh's bloom
   ACID = hex(0x46ffc0),
   ACID_PALE = hex(0xd9fff0),
   RIFT = hex(0xa56bff),
@@ -111,12 +101,11 @@ class BossCardView {
     const r = this.r,
       quality = Math.min(1, r.maxParticles / 1400);
     if (world.cages && world.cages.length) this.cages(dt, world, quality);
-    if (world.slag && world.slag.length) this.slag(dt, world, quality);
+    if (world.burnPools && world.burnPools.length) this.burnPools(dt, world, quality);
     if (world.splinters && world.splinters.length) this.splinters(world);
     if (world.lances && world.lances.length) this.lances(world);
     if (world.player.brood && world.player.brood.length) this.brood(dt, world, quality);
     if (world.implode) this.implode(dt, world, quality);
-    if (world.stats.hammer && world.player.alive) this.hammerGlow(dt, world, quality);
   }
   cages(dt, world, quality) {
     const r = this.r,
@@ -167,57 +156,35 @@ class BossCardView {
           });
     }
   }
-  slag(dt, world, quality) {
+  burnPools(dt, world, quality) {
     const r = this.r,
       time = r.time;
-    for (const pool of world.slag) {
+    for (const pool of world.burnPools) {
       const fade = clamp(pool.life / 0.6, 0, 1),
         rise = clamp((3 - pool.life) / 0.25, 0, 1),
         rad = pool.r * (0.6 + 0.4 * rise);
       r.shadows.y(pool.x, 0.02, pool.y, 0, rad * 2.2);
-      // 3.16.0: the burning ground of Searing Collapse: scorched, with flames licking up instead of molten slag
-      if (pool.fire) {
-        r.discs.colC(
-          r.discs.y(pool.x, 0.035, pool.y, 0, rad),
-          EMBER,
-          (0.16 + Math.sin(time * 7 + pool.id) * 0.04) * fade,
-        );
-        r.ringPool.colC(r.ringPool.y(pool.x, 0.045, pool.y, 0, rad), HOT, 0.3 * fade);
-        if (Math.random() < dt * 40 * quality * fade) {
-          const a = Math.random() * TAU,
-            d = Math.sqrt(Math.random()) * rad * 0.9;
-          r.emit(
-            pool.x + Math.cos(a) * d,
-            0.1,
-            pool.y + Math.sin(a) * d,
-            (Math.random() - 0.5) * 0.4,
-            1.4 + Math.random() * 1.2,
-            (Math.random() - 0.5) * 0.4,
-            0.45,
-            0.26,
-            Math.random() < 0.6 ? EMBER : HOT,
-            { drag: 1.5, grow: 1, grav: -1 },
-          );
-        }
-        continue;
-      }
-      r.discs.colC(r.discs.y(pool.x, 0.035, pool.y, 0, rad), MOLTEN, (0.35 + Math.sin(time * 5) * 0.05) * fade);
-      r.discs.colC(r.discs.y(pool.x, 0.04, pool.y, time * 0.4, rad * 0.55), HOT, 0.3 * fade);
-      r.ringPool.colC(r.ringPool.y(pool.x, 0.045, pool.y, 0, rad), EMBER, 0.45 * fade);
-      if (Math.random() < dt * 18 * quality * fade) {
+      // Searing Collapse leaves scorched ground and rising flame.
+      r.discs.colC(
+        r.discs.y(pool.x, 0.035, pool.y, 0, rad),
+        EMBER,
+        (0.16 + Math.sin(time * 7 + pool.id) * 0.04) * fade,
+      );
+      r.ringPool.colC(r.ringPool.y(pool.x, 0.045, pool.y, 0, rad), HOT, 0.3 * fade);
+      if (Math.random() < dt * 40 * quality * fade) {
         const a = Math.random() * TAU,
-          d = Math.random() * rad * 0.85;
+          d = Math.sqrt(Math.random()) * rad * 0.9;
         r.emit(
           pool.x + Math.cos(a) * d,
-          0.15,
-          pool.y + Math.sin(a) * d,
-          0,
-          0.8 + Math.random(),
-          0,
-          0.7,
           0.1,
-          Math.random() < 0.5 ? EMBER : HOT,
-          { drag: 1, grav: -0.5, spark: true },
+          pool.y + Math.sin(a) * d,
+          (Math.random() - 0.5) * 0.4,
+          1.4 + Math.random() * 1.2,
+          (Math.random() - 0.5) * 0.4,
+          0.45,
+          0.26,
+          Math.random() < 0.6 ? EMBER : HOT,
+          { drag: 1.5, grow: 1, grav: -1 },
         );
       }
     }
@@ -293,28 +260,7 @@ class BossCardView {
       );
     }
   }
-  // the next dash slams: embers rise from the drone; while that dash runs, a molten streak follows it
-  hammerGlow(dt, world, quality) {
-    const r = this.r,
-      player = world.player,
-      ready = !(player.hammerT > 0);
-    if (!ready) return;
-    r.sprites.colC(r.sprites.bb(player.x, 0.35, player.y, 1.1, r.B), EMBER, 0.35 + Math.sin(r.time * 6) * 0.08);
-    if (Math.random() < dt * (player.dashT > 0 ? 60 : 6) * quality)
-      r.emit(
-        player.x + (Math.random() - 0.5) * 0.5,
-        0.3,
-        player.y + (Math.random() - 0.5) * 0.5,
-        0,
-        1 + Math.random(),
-        0,
-        0.5,
-        0.1,
-        Math.random() < 0.5 ? EMBER : HOT,
-        { drag: 1.5, grav: -0.4, spark: true },
-      );
-  }
-  /* the events: the slam of the hammer and the burst of a larva (both `boom`), a shatter, a hatch, the cage */
+
   event(ev, world, shakeK) {
     const r = this.r;
     switch (ev.k) {
@@ -326,9 +272,6 @@ class BossCardView {
         r.flash(ev.x, ev.y, ev.r * 1.4, 1.1, GOLD, 5);
         r.addShake(0.08 * shakeK);
         return true;
-      case "hammerReady":
-        r.burst(world.player.x, world.player.y, 0.6, 6, 2.5, HOT, 0.4, 0.14, { spark: true, grav: 3 });
-        return true;
       case "shatter":
         r.burst(ev.x, ev.y, 0.7, 8, 5, ICE_WHITE, 0.35, 0.12, { spark: true, drag: 3, grav: 5 });
         r.ring(ev.x, ev.y, 0.2, 1.2, ICE, 0.2);
@@ -338,17 +281,6 @@ class BossCardView {
         r.ring(ev.x, ev.y, 0.2, 0.9, ACID_PALE, 0.25);
         return true;
       case "boom":
-        if (ev.kind === "hammer") {
-          r.ring(ev.x, ev.y, 0.3, ev.r, EMBER, 0.32);
-          r.ring(ev.x, ev.y, 0.2, ev.r * 0.7, HOT, 0.2);
-          r.emit(ev.x, 0.6, ev.y, 0, 0, 0, 0.18, ev.r * 1.3, HOT, { drag: 0 });
-          r.burst(ev.x, ev.y, 0.4, 22, ev.r * 4, EMBER, 0.6, 0.16, { spark: true, drag: 2, grav: 7 });
-          r.debrisBurst(ev.x, ev.y, 0.3, 8, hex(0x3a2a20), 0.14, 6);
-          r.flash(ev.x, ev.y, ev.r * 2, 1.6, MOLTEN, 4);
-          if (r.attackView) r.attackView.mark(ev.x, ev.y, ev.r * 0.55, MARK_LOOK.slag);
-          r.addShake(0.35 * shakeK);
-          return true;
-        }
         if (ev.kind === "brood") {
           r.ring(ev.x, ev.y, 0.2, ev.r, ACID, 0.25);
           r.burst(ev.x, ev.y, 0.5, 12, 4, ACID, 0.45, 0.16, { drag: 2, grav: 5 });
