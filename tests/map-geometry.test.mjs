@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { Group, Box3, BoxGeometry, CylinderGeometry, Vector3 } from "three";
+import { Group, Box3, BoxGeometry, CylinderGeometry, Vector3, Mesh, MeshBasicMaterial } from "three";
 import { clipToArena, auditArenaGeometry, disposeArena } from "./support/geometry.mjs";
 import { keepExteriorPartsOutside } from "../src/render/map-geometry.js";
 globalThis.__RL_VERSION__ ??= "test";
@@ -18,6 +18,20 @@ test("map audit catches triangle crossings even when every vertex is outside", (
   ];
   assert.ok(face.every((p) => Math.abs(p[0]) > 15 || Math.abs(p[2]) > 15));
   assert.ok(clipToArena(face, 15, 15).length >= 3);
+  const group = new Group(),
+    geometry = new BoxGeometry(60, 2, 60).translate(0, 2, 0),
+    material = new MeshBasicMaterial();
+  group.add(new Mesh(geometry, material));
+  const audit = auditArenaGeometry(
+    { group, obsGroup: new Group(), floorMat: null, rlAnim: [] },
+    { W: 15, H: 15, obstacles: [] },
+  );
+  assert.ok(
+    audit.issues.some((s) => s.includes("scenery face crosses")),
+    "bounds optimisation must still inspect broad faces crossing the arena",
+  );
+  geometry.dispose();
+  material.dispose();
   assert.equal(
     clipToArena(
       face.map((p) => [p[0], 0.1, p[2]]),

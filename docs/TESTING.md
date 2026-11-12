@@ -21,7 +21,9 @@ there is no historical release assertion catalog, always-on soak or hidden exten
 
 The map geometry suite is part of the normal gate. `node --test tests/map-geometry.test.mjs` runs its
 252-layout scene audit on its own. It checks transformed triangle faces, collision footprints, exterior
-bounds, animation samples and GPU reed wind extrema. See [the geometry audit](GEOMETRY-AUDIT-4.0.md).
+bounds, animation samples and GPU reed wind extrema. Conservative bounds include maximum wind
+sway, and crossing faces still receive full clipping; a broad solid spanning the arena guards this path.
+Natural cap meshes must be closed and fit their authored envelopes; snow follows real surface faces. See [the geometry audit](GEOMETRY-AUDIT-4.0.md).
 For centre/edge/corner screenshots use `node tools/verify.js visual <tag> tablet all 60 map` or
 `node tools/verify.js visual <tag> land all 30 map`; each covers nine views in every biome.
 

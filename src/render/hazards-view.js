@@ -149,7 +149,7 @@ void main() {
   acid: `
 void main() {
   float r = length(vP), seed = vI.g * 29.0;
-  float edge = 0.90 + 0.10 * vnoise(vP * 2.4 + seed);
+  float edge = 0.90 + 0.10 * vnoise(vP * 3.7 + seed);
   if (r > edge) discard;
   vec2 q = vP * 2.4 + seed;
   vec3 deep = mix(vec3(0.002, 0.038, 0.032), vec3(0.02, 0.14, 0.18), vI.b);
@@ -157,15 +157,16 @@ void main() {
   float murk = fbm(q * 1.2 + vec2(uTime * 0.06, 0.0));
   // the glow IS the warning: the bloom water carries a mint light from inside, drifting with the current
   vec3 col = mix(deep, lite * 0.55, murk * 0.32);
-  float ripple = 0.5 + 0.5 * sin(r * 17.0 - uTime * 2.2 + fbm(q + uTime * 0.2) * 6.0);
-  col += lite * ripple * 0.06;
+  float ripple = .5 + .5 * sin(dot(vP,vec2(12.0,7.0)) - uTime * 1.4 + fbm(q + uTime * .08) * 5.0);
+  float bloom = smoothstep(.48,.78,fbm(q * 2.8 - uTime * .025));
+  col += lite * (ripple * .035 + bloom * .12);
   vec2 bc = floor(q * 1.7), bf = fract(q * 1.7) - 0.5 - (h22(bc) - 0.5) * 0.4;
   float bt = fract(uTime * 0.55 + h21(bc) * 5.0);
   float bub = step(0.55, h21(bc + 2.0)) * smoothstep(0.035, 0.0, abs(length(bf) - bt * 0.3)) * (1.0 - bt);
-  col += lite * bub * 0.75;
+  col += lite * bub * .4;
   float foam = smoothstep(edge - 0.15, edge - 0.02, r) * (0.55 + 0.45 * fbm(q * 3.0 + uTime * 0.3));
   col = mix(col, lite * 0.5 + 0.025, foam * 0.16);
-  gl_FragColor = vec4(col, (0.84 + 0.14 * foam) * vI.r * smoothstep(edge, edge-.07, r));
+  gl_FragColor = vec4(col, (.78 + .16 * bloom + .06 * foam) * vI.r * (1.0-smoothstep(edge-.06,edge,r)));
   #include <fog_fragment>
   #include <colorspace_fragment>
 }`,
@@ -743,8 +744,12 @@ class HazardView {
         const f = (time * (0.45 + 0.1 * i) + seed * 5 + i / 3) % 1,
           a = seed * 40 + i * 2.4 + Math.floor(time * (0.45 + 0.1 * i) + seed * 5 + i / 3) * 1.7,
           d = rr * (0.2 + 0.5 * ((i * 0.37 + seed) % 1)),
-          s = (0.05 + 0.1 * f) * fade;
-        bubbles.colC(bubbles.y(x + Math.cos(a) * d, 0.04, z + Math.sin(a) * d, 0, s, s * 0.8, s), col, 0.35 + 0.3 * f);
+          s = (0.04 + 0.07 * f) * fade;
+        bubbles.colC(
+          bubbles.y(x + Math.cos(a) * d, 0.04 + f * 0.12, z + Math.sin(a) * d, 0, s, s * 0.8, s),
+          col,
+          0.18 + 0.22 * f,
+        );
         if (f > 0.97 && Math.random() < 0.5 * quality)
           r.emit(x + Math.cos(a) * d, 0.12, z + Math.sin(a) * d, 0, 0.9, 0, 0.35, 0.12, col, { drag: 1 });
       }

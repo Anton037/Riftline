@@ -11,7 +11,7 @@
 > foreground sheet over the play area. Preserve damage, timing, range, seeded layouts and save progress.
 > Use bounded, separate effect resources so player powers cannot consume hostile-warning capacity.
 > Inspect complete phases and multiple map positions on phone/tablet, and document concrete changes
-> and measured costs. Ask before preference-dependent or gameplay-changing decisions.
+> and measured costs. Make routine art and theme choices within this direction; ask before gameplay changes.
 
 The owner selected natural distant aurora ribbons and subtle reflections.
 
@@ -56,13 +56,16 @@ The owner selected natural distant aurora ribbons and subtle reflections.
 - **Maintenance:** release/build identity, five-entry release notes, the roadmap and testing guide are
   updated. The optional bounded abilities check is available locally and through the manual workflow.
 
-Damage, invulnerability, ranges, durations, collision, seeded layouts and saves are unchanged. The
-Shelf's shipwreck theme is left unchanged while the owner's natural-ice-versus-wreck preference is pending.
+Damage, invulnerability, ranges, durations, collision, seeded layouts and saves are unchanged.
+The Shelf's expedition hulls are replaced by natural pressure ridges and calved ice.
 
 ## Rendered review
 
 These are live Three.js renders at High detail, with actual World events and simulation phases.
-Contact sheets only resize and label captures; they do not retouch the game.
+Contact sheets only resize and label captures; they do not retouch the game. The final scenery pass
+is shown first; the power comparisons that follow document the initial effect pass (build r1).
+
+![Final scenery review](review-4.3/scenery-before-after.jpg)
 
 ![Power effects before and after](review-4.3/powers-before-after.jpg)
 
@@ -109,7 +112,7 @@ checks passed 17 tests. All 74 GPU scenes passed without browser/shader errors, 
 or screen-wide flashes. Audio passed 439 sound renders, 18 music renders, 36 budget cases and fault
 recovery. The full audio run took 329.8 seconds; its passing cache is retained for unchanged inputs.
 
-In matched tablet scenes, the Shelf centre drops from 21,892 to 17,366 triangles and from 94 to 87
+In the initial build-r1 matched tablet scenes, the Shelf centre drops from 21,892 to 17,366 triangles and from 94 to 87
 draw calls. Singularity releases all 40 formerly borrowed beam instances and drops from 103 to 101
 draw calls. Nova changes from 98 to 99 calls for its curved shell, while its scene drops from 43,322
 to 41,536 triangles. Particle counts are samples, not deterministic performance promises.
@@ -117,3 +120,42 @@ to 41,536 triangles. Particle counts are samples, not deterministic performance 
 Final check results are recorded in [verification metadata](review-4.3/verification.json). Browser audio
 checks establish finite output, levels, tails and allocator behaviour; device speakers/headphones and
 physical phone/tablet pacing still need human play. No merge or deployment is performed by this review.
+
+
+## Final scenery pass — build r2
+
+The finish is judged by material coherence, grounded geometry, readable silhouettes, restrained decorative
+glow and a clear play area. Routine art and theme choices follow that direction.
+
+A fresh edge/corner review covered all six biomes on landscape phone (54 rendered views). It identified
+foreground City towers crowding the play view, unrelated Shelf hulls, floating snow slabs, decorative
+floor gems, basic hemispherical fungi and moss planks. The existing Core, Caldera and Flats treatments
+were retained after the review.
+
+- City buildings now use a height-dependent setback while the street furniture stays near the curb.
+- The Shelf is entirely glacial: pressure ridges, calved blocks, broad fractured seracs, rooted frost and
+  snow that follows the actual sculpted faces. Shipwrecks, lamps and decorative floor gems are removed.
+- Marsh fungi use closed asymmetric caps with rolled edges and quiet gill light. Tiny floor fungi use
+  cheaper geometry. Moss follows curved logs, and the peat bank has a sculpted contour.
+- Marsh pools use patchy bloom and flowing ripples. Smaller bubbles rise before popping; subdued
+  surface bubbles reduce the polka-dot appearance. Hazard ranges and boundary-ring behaviour remain.
+
+[Matched scenery views](review-4.3/scenery-before-after.jpg) and the
+[scenery measurements](review-4.3/scenery-metrics.json) record this pass. The power phase captures and
+audio comparison above are from build r1; power logic, player models, weapons and audio are unchanged
+in r2. Their passing checks are reused. The revised City, Shelf and Marsh are checked at all nine map
+positions on both phone and tablet, with a fresh standard gate and the full 252-map geometry audit.
+
+The geometry audit now uses conservative transformed bounds to reject scenery that is provably outside
+the walkable volume, including maximum reed sway. Possible crossings still use complete triangle
+clipping. A broad solid spanning the arena is checked explicitly to protect that distinction. The
+75-second standard deadline is unchanged.
+
+Final r2 results: 69 standard tests passed in 46.9 seconds, including all 252 map layouts and the
+1,344 weapon attachment poses. The map audit took 14.5 seconds. All 54 final City/Shelf/Marsh views
+(27 per device layout) passed with painted atlases and shadows enabled, without browser/shader errors.
+
+In the matched phone centre view the Shelf drops from 26,204 to 23,903 triangles and 140 to 137 draw
+calls. The Marsh retains 112 calls and increases from 61,270 to 62,834 triangles (about 2.6%) for the
+sculpted fungi; tiny caps use 48 triangles and larger caps stay within 300. City draw calls remain 116.
+These scene measurements include actors and weather; they are separate from the initial power captures.

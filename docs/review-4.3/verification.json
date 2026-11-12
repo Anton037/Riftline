@@ -1,30 +1,33 @@
 {
   "version": "4.3.0",
-  "build": "r430a1112a-r1",
-  "baseCommit": "7fea2f2f8132c3afaf023008b23807bc846fdcf4",
+  "build": "r430a1112a-r2",
+  "baseCommit": "0974fa235f03a232dbdf74e363828b99261f53d6",
   "buildInfo": {
     "version": "4.3.0",
-    "build_id": "r430a1112a-r1",
-    "build": "r430a1112a-r1",
-    "assets": "6546af82e2f45c6d"
+    "build_id": "r430a1112a-r2",
+    "build": "r430a1112a-r2",
+    "assets": "1226fd3326b31d16"
   },
   "standardChecks": {
-    "passed": 68,
-    "testSeconds": 59.4,
+    "passed": 69,
+    "testSeconds": 46.5,
     "testDeadlineSeconds": 75,
-    "mapsAudited": 252
+    "mapsAudited": 252,
+    "mapGeometrySeconds": 14.5
   },
   "finalFocusedGeometryAndPowers": {
-    "passed": 17,
+    "passed": 18,
     "weaponAttachmentPoses": 1344,
-    "playerTriangleBudgetIncludingShield": 3000
+    "playerTriangleBudgetIncludingShield": 3000,
+    "coveredBy": "standardChecks"
   },
   "gpu": {
     "tabletScenes": 37,
     "phoneScenes": 37,
     "browserAndShaderErrors": 0,
     "powerBeamPoolBorrowing": 0,
-    "screenWidePowerFlashes": 0
+    "screenWidePowerFlashes": 0,
+    "evidenceBuild": "r430a1112a-r1"
   },
   "audio": {
     "sounds": 439,
@@ -40,7 +43,8 @@
     ],
     "novaAfterVoices": [
       "nova"
-    ]
+    ],
+    "evidenceBuild": "r430a1112a-r1"
   },
   "unchanged": [
     "damage",
@@ -52,5 +56,18 @@
     "dependencies"
   ],
   "physicalDevicesTested": false,
-  "pendingPreference": "Retain or replace the Shelf shipwreck theme; wrecks are unchanged."
+  "finalScenery": {
+    "evidenceBuild": "r430a1112a-r2",
+    "baselineViewsAllSixBiomes": 54,
+    "finalPhoneViews": 27,
+    "finalTabletViews": 27,
+    "biomes": [
+      "city",
+      "shelf",
+      "marsh"
+    ],
+    "positionsPerBiomeAndLayout": 9,
+    "browserAndShaderErrors": 0,
+    "naturalCapTriangleBudget": 300
+  }
 }

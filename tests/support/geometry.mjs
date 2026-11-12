@@ -1,4 +1,4 @@
-import { Matrix4, Vector3 } from "three";
+import { Box3, Matrix4, Vector3 } from "three";
 import { REED_WIND } from "../../src/render/map-geometry.js";
 
 // Clip whole triangle faces, including faces whose vertices all lie beyond the arena.
@@ -65,7 +65,8 @@ export function auditArenaGeometry(view, layout, { animatedOnly = false } = {}) 
   let triangles = 0,
     meshes = 0;
   const point = new Vector3(),
-    instance = new Matrix4();
+    instance = new Matrix4(),
+    bounds = new Box3();
   view.group.traverse((mesh) => {
     if (!mesh.geometry) return;
     if (animatedOnly) {
@@ -100,6 +101,28 @@ export function auditArenaGeometry(view, layout, { animatedOnly = false } = {}) 
       }
       // Floors and additive aurora/fog sheets are passable effects, not physical scenery.
       if (mesh.material === view.floorMat || mesh.material.isShaderMaterial) continue;
+      // A complete transformed bounding box proves that every enclosed face is outside the
+      // walkable volume. Include every reed-wind extreme before taking this fast path.
+      // Crossing faces still reach the full polygon clipping below.
+      if (!obstacle) {
+        if (!geometry.boundingBox) geometry.computeBoundingBox();
+        bounds.copy(geometry.boundingBox);
+        if (geometry.hasAttribute("aPhase")) {
+          const sway = Math.max(Math.abs(bounds.min.y), Math.abs(bounds.max.y)) * REED_WIND;
+          bounds.expandByVector(point.set(sway, 0, sway));
+        }
+        bounds.applyMatrix4(matrix);
+        if (
+          bounds.max.y <= 0.8 ||
+          bounds.max.x <= -layout.W + 0.001 ||
+          bounds.min.x >= layout.W - 0.001 ||
+          bounds.max.z <= -layout.H + 0.001 ||
+          bounds.min.z >= layout.H - 0.001
+        ) {
+          triangles += ((idx?.count ?? p.count) / 3) * (geometry.hasAttribute("aPhase") ? 4 : 1);
+          continue;
+        }
+      }
       // Reed bending happens in the GPU vertex shader. Check all four displacement extrema
       // before the instance/world transforms as well as all CPU animation poses.
       const winds = geometry.hasAttribute("aPhase")

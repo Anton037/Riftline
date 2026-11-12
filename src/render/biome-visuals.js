@@ -25,6 +25,7 @@ import {
   Vector4,
 } from "three";
 import { createAurora } from "./aurora.js";
+import { mushroomCapGeometry, topCoatGeometry } from "./natural-geometry.js";
 import { createGroundOcclusion } from "./ground-occlusion.js";
 import { worldMaterial, setWorldShadows } from "./world-material.js";
 import { strataGeometry, shardGeometry } from "./strata-geometry.js";
@@ -180,7 +181,7 @@ void main() {
             water over dark peat, glowing algae veins and reed tufts · The Shattered Core: hex tiles floating over
             a starfield
    props    (same collision shapes) pylons and crates · obsidian spires and lava dykes · crystal clusters,
-            blue ice ridges and half-buried arks · glowcap mushrooms, dead trees and logs · floating
+            fractured blue ice ridges and calved shelves · glowcap mushrooms, dead trees and logs · floating
             obelisks and hovering monoliths
    border   jersey barriers (3.4.0, was a fence) · a basalt rampart with ember pockets · ice wall with crystals · reeds and rocks
             on a peat bank · energy barrier over the abyss
@@ -560,7 +561,6 @@ const RL_BIOME_BUILD = {
         opacity: 0.86,
         flatShading: true,
       }),
-      core = worldMaterial({ color: 0x22345c, emissive: 0x081226, flatShading: true }),
       snow = worldMaterial({ color: 0xe8f4ff, emissive: 0x16243c, flatShading: true }),
       wallW = 0.6,
       wallH = 0.45;
@@ -627,32 +627,10 @@ const RL_BIOME_BUILD = {
         }
         view.rlEmit.push({ x: obstacle.x, z: obstacle.y, y: 2.0, k: "glint" });
       } else {
-        // A fractured shelf boulder with settled snow, without a rectangular block pedestal.
-        const seed = obstacle.x * 3 + obstacle.y;
-        rlMesh(
-          props,
-          strataGeometry(obstacle.w * 1.5, 0.82, obstacle.h * 1.5, seed),
-          core,
-          obstacle.x,
-          0.01,
-          obstacle.y,
-        );
-        rlMesh(
-          props,
-          strataGeometry(obstacle.w * 1.95, 1.05, obstacle.h * 1.95, seed),
-          ice,
-          obstacle.x,
-          0.01,
-          obstacle.y,
-        );
-        rlMesh(
-          props,
-          strataGeometry(obstacle.w * 1.7, 0.14, obstacle.h * 1.7, seed),
-          snow,
-          obstacle.x,
-          0.86,
-          obstacle.y,
-        );
+        const seed = obstacle.x * 3 + obstacle.y,
+          body = strataGeometry(obstacle.w * 1.95, 1.05, obstacle.h * 1.95, seed);
+        rlMesh(props, body, ice, obstacle.x, 0.01, obstacle.y);
+        rlMesh(props, topCoatGeometry(body), snow, obstacle.x, 0.01, obstacle.y);
       }
   },
   // The Glowmarsh: a peat bank with reeds and rocks, glowcap mushrooms, dead trees and mossy logs
@@ -662,9 +640,8 @@ const RL_BIOME_BUILD = {
       bark = worldMaterial({ surface: "wood", color: 0x544b38, flatShading: true }),
       moss = worldMaterial({ surface: "wood", color: 0x1e4a3a, emissive: 0x062a1e, flatShading: true }),
       stem = worldMaterial({ surface: "wood", color: 0xcfd8c4, flatShading: true }),
-      cap = worldMaterial({ surface: "organic", color: 0x2a8a68, emissive: 0x0c3a2a, flatShading: true }),
-      gill = worldMaterial({ color: 0x0e2420 }),
-      spot = rlGlow(biome.accent),
+      cap = worldMaterial({ surface: "organic", color: 0x3d705b, emissive: 0x04170e, flatShading: false }),
+      spot = rlGlow(0x315e4b),
       wood = worldMaterial({ surface: "wood", color: 0x5a5240, flatShading: true }),
       wallW = 1.2;
     for (const [bx, bz, sx, sz] of [
@@ -673,7 +650,14 @@ const RL_BIOME_BUILD = {
       [-W - wallW / 2, 0, wallW, H * 2],
       [W + wallW / 2, 0, wallW, H * 2],
     ])
-      rlMesh(group, propBox(sx, 0.22, sz), worldMaterial({ color: 0x344b42, flatShading: true }), bx, 0.11, bz);
+      rlMesh(
+        group,
+        strataGeometry(sx, 0.22, sz, bx + bz),
+        worldMaterial({ surface: "wood", color: 0x344b42 }),
+        bx,
+        0,
+        bz,
+      );
     const reeds = [],
       rocks = [],
       green = [0x3e6a4a, 0x335a3e, 0x4a7a52, 0x2a4a34];
@@ -754,7 +738,7 @@ const RL_BIOME_BUILD = {
     for (const obstacle of obs)
       if (obstacle.t === "c") {
         if (rng.chance(0.55)) {
-          // glowcap mushroom: pale stem, a teal cap with glowing spots, spores drifting up
+          // Rolled asymmetric caps and subdued gills keep the fungus distinct from a warning disc.
           rlMesh(
             props,
             new CylinderGeometry(obstacle.r * 0.22, obstacle.r * 0.32, 1.25, 8),
@@ -763,28 +747,27 @@ const RL_BIOME_BUILD = {
             0.62,
             obstacle.y,
           );
-          const capMesh = rlMesh(
+          rlMesh(
             props,
-            new SphereGeometry(obstacle.r * 1.02, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+            mushroomCapGeometry(obstacle.r * 0.98, obstacle.r * 0.6, obstacle.x + obstacle.y),
             cap,
             obstacle.x,
-            1.18,
+            1.12,
             obstacle.y,
           );
-          capMesh.scale.y = 0.6;
-          const under = rlMesh(props, new CircleGeometry(obstacle.r * 1.0, 18), gill, obstacle.x, 1.18, obstacle.y);
-          under.rotation.x = Math.PI / 2;
-          for (let j = 0; j < 6; j++) {
-            const angle = rng.range(0, Math.PI * 2),
-              el = rng.range(0.25, 1.2);
-            rlMesh(
+          for (let j = 0; j < 12; j++) {
+            const angle = (j / 12) * TAU,
+              r = obstacle.r;
+            const g = rlMesh(
               props,
-              new SphereGeometry(rng.range(0.06, 0.12), 6, 4),
+              new BoxGeometry(r * 0.52, 0.018, 0.025),
               spot,
-              obstacle.x + Math.cos(angle) * Math.sin(el) * obstacle.r,
-              1.18 + Math.cos(el) * obstacle.r * 0.6,
-              obstacle.y + Math.sin(angle) * Math.sin(el) * obstacle.r,
+              obstacle.x + Math.cos(angle) * r * 0.56,
+              1.12 + r * 0.075,
+              obstacle.y + Math.sin(angle) * r * 0.56,
+              -angle,
             );
+            g.rotation.y = -angle;
           }
           view.rlEmit.push({ x: obstacle.x, z: obstacle.y, y: 1.2 + obstacle.r * 0.6, k: "spore" });
         } else {
@@ -838,24 +821,15 @@ const RL_BIOME_BUILD = {
           col.rotation.x = Math.PI / 2;
         }
       } else {
-        // fallen log along the long side, glow-moss on top, two small glowcaps
+        // Moss settles on the curved bark rather than forming a rectangular board above the log.
         const longX = obstacle.w >= obstacle.h,
           len = Math.max(obstacle.w, obstacle.h) * 2,
           rad = Math.max(0.3, Math.min(obstacle.w, obstacle.h) * 0.9),
-          log = rlMesh(props, new CylinderGeometry(rad, rad * 1.05, len, 10), bark, obstacle.x, rad, obstacle.y);
-        if (longX) {
-          log.rotation.z = Math.PI / 2;
-        } else {
-          log.rotation.x = Math.PI / 2;
-        }
-        rlMesh(
-          props,
-          propBox(longX ? len * 0.8 : rad * 1.1, 0.1, longX ? rad * 1.1 : len * 0.8),
-          moss,
-          obstacle.x,
-          rad * 1.95,
-          obstacle.y,
-        );
+          body = new CylinderGeometry(rad, rad * 1.05, len, 10);
+        if (longX) body.rotateZ(Math.PI / 2);
+        else body.rotateX(Math.PI / 2);
+        rlMesh(props, body, bark, obstacle.x, rad, obstacle.y);
+        rlMesh(props, topCoatGeometry(body, 0.018), moss, obstacle.x, rad, obstacle.y);
         for (const side of [-1, 1]) {
           const endCap = rlMesh(
             props,

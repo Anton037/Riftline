@@ -5,6 +5,56 @@ import { ShaderLib } from "three";
 import { worldMaterial, WORLD_SURFACES } from "../src/render/world-material.js";
 import { strataGeometry, shardGeometry } from "../src/render/strata-geometry.js";
 import { createGroundOcclusion } from "../src/render/ground-occlusion.js";
+import { mushroomCapGeometry, topCoatGeometry } from "../src/render/natural-geometry.js";
+
+test("natural caps are closed within their collision envelope; snow coats follow sculpted faces", () => {
+  for (const radius of [0.18, 1, 3])
+    for (const seed of [1, 42, -12]) {
+      const height = radius * 0.6,
+        g = mushroomCapGeometry(radius, height, seed),
+        p = g.attributes.position,
+        ids = g.index.array,
+        edges = new Map();
+      assert.ok(p.array.every(Number.isFinite));
+      assert.ok(ids.length / 3 <= 300);
+      for (let j = 0; j < p.count; j++) {
+        assert.ok(Math.hypot(p.getX(j), p.getZ(j)) <= radius + 1e-6);
+        assert.ok(p.getY(j) >= 0 && p.getY(j) <= height + 1e-6);
+      }
+      let volume = 0;
+      for (let i = 0; i < ids.length; i += 3) {
+        const [a, b, c] = ids.slice(i, i + 3);
+        volume +=
+          p.getX(a) * (p.getY(b) * p.getZ(c) - p.getZ(b) * p.getY(c)) +
+          p.getY(a) * (p.getZ(b) * p.getX(c) - p.getX(b) * p.getZ(c)) +
+          p.getZ(a) * (p.getX(b) * p.getY(c) - p.getY(b) * p.getX(c));
+        for (let j = 0; j < 3; j++) {
+          const edge = [ids[i + j], ids[i + ((j + 1) % 3)]].sort((a, b) => a - b).join(":");
+          edges.set(edge, (edges.get(edge) || 0) + 1);
+        }
+      }
+      assert.ok(volume > radius * radius * height, "closed cap must face outward and enclose real volume");
+      assert.ok([...edges.values()].every((n) => n === 2));
+      g.dispose();
+    }
+  const rock = strataGeometry(4, 3, 2, 42),
+    coat = topCoatGeometry(rock);
+  const p = coat.attributes.position,
+    source = rock.attributes.position;
+  assert.ok(p.count > 0 && p.array.every(Number.isFinite));
+  for (let i = 0; i < p.count; i++) {
+    assert.ok(p.getY(i) > 1.8);
+    assert.ok(
+      Array.from({ length: source.count }, (_, j) => j).some(
+        (j) =>
+          Math.hypot(p.getX(i) - source.getX(j), p.getY(i) - source.getY(j) - 0.025, p.getZ(i) - source.getZ(j)) < 1e-5,
+      ),
+      "snow must rest on a real sculpted vertex",
+    );
+  }
+  rock.dispose();
+  coat.dispose();
+});
 
 test("sculpted rock is closed and stays grounded inside its authored envelope", () => {
   for (const [w, h, d] of [
