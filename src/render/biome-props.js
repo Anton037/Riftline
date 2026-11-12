@@ -21,7 +21,7 @@ import {
   Vector3,
 } from "three";
 import { worldMaterial } from "./world-material.js";
-import { strataGeometry } from "./strata-geometry.js";
+import { strataGeometry, shardGeometry } from "./strata-geometry.js";
 import { keepExteriorPartsOutside } from "./map-geometry.js";
 import { meshPart, mergeParts, box, ball, bar, pipe, spike } from "./models.js";
 
@@ -249,43 +249,37 @@ function rlStreet(out, W, H, rng, pale, red) {
 
 const pick3 = (rng, items) => items[Math.floor(rng.next() * items.length)];
 
-/* ---- The Aurora Shelf (3.54.0): blue ice ridges and great seracs beyond the wall, ice cliffs on
-   the horizon, snow drifts and half-buried arks around the arena; frost, shards, cracks and snow
-   on the floor. The crest of a tall ridge carries a faint aurora-green rim light. ---- */
+/* ---- The Aurora Shelf: fractured glacial fins, calved shelves and snow beyond the border.
+   Low frost detail leaves the painted ice and combat space readable. ---- */
 function shelfDetail(biome, W, H, obs, rng) {
   const out = list(W, H),
     cyan = biome.grid,
     ice = [0x8fc4ec, 0xaadcf4, 0x6ea6d4, 0xc8e8ff, 0x5a92c4],
     snow = 0xe8f4ff;
-  // the great seracs: three towers of ice on the horizon, their crests rim-lit by the aurora
+  // Three grounded seracs break up the northern skyline.
   const great = [
-    { x: -11, z: -H - 7.5, h: 13.5, r: 2.1 },
-    { x: 3.5, z: -H - 10.5, h: 15, r: 2.5 },
-    { x: 14.5, z: -H - 5.5, h: 12, r: 1.9 },
+    { x: -11, z: -H - 7.5, h: 6.8, r: 2.1 },
+    { x: 3.5, z: -H - 10.5, h: 8.4, r: 2.5 },
+    { x: 14.5, z: -H - 5.5, h: 6.5, r: 1.9 },
   ];
   for (const g of great) {
     const t = list();
-    t.body.push(cone(rng.pick(ice), g.r, g.h, 6, 0, 0, 0, { ry: rng.range(0, 3) }));
+    t.body.push(meshPart(shardGeometry(g.r * 1.7, g.h, g.r * 1.25), rng.pick(ice), { ry: rng.range(0, 3) }));
     for (let i = 0; i < 3; i++) {
       const a = rng.range(0, TAU),
-        hh = g.h * rng.range(0.3, 0.55),
-        rr = g.r * rng.range(0.35, 0.6),
-        lean = rng.range(0.12, 0.3);
+        h = g.h * rng.range(0.25, 0.5);
       t.body.push(
-        cone(rng.pick(ice), rr, hh, 6, Math.cos(a) * g.r * 0.75, 0, Math.sin(a) * g.r * 0.75, {
-          rx: Math.sin(a) * lean,
-          rz: -Math.cos(a) * lean,
+        meshPart(shardGeometry(g.r * 0.7, h, g.r * 0.6), rng.pick(ice), {
+          x: Math.cos(a) * g.r * 0.55,
+          z: Math.sin(a) * g.r * 0.55,
+          rx: Math.sin(a) * 0.15,
+          rz: -Math.cos(a) * 0.15,
         }),
       );
     }
-    // the crest rim: a faint green light where the aurora catches the ridge
-    t.glow.push(
-      box(dim(cyan, 0.55), 0.16, g.h * 0.5, 0.16, { x: g.r * 0.42, y: g.h * 0.55, z: 0 }),
-      gem(dim(cyan, 0.85), g.r * 0.24, -g.r * 0.3, g.h * 0.62, g.r * 0.2, { sy: 1.7 }),
-    );
     put(out, t, g.x, 0, g.z, rng.range(0, TAU));
   }
-  // ice cliffs: stacked tilted slabs standing on the horizon, snow on their tops
+  // Calved ice shelves have continuous fractured faces, rather than stacks of floating blocks.
   for (const p of [
     { x: -5.5, z: -H - 4.5 },
     { x: 9.5, z: -H - 3 },
@@ -293,44 +287,38 @@ function shelfDetail(biome, W, H, obs, rng) {
     { x: W + 6, z: -H - 2 },
   ]) {
     const t = list(),
-      n = 4 + rng.int(0, 2);
-    for (let i = 0; i < n; i++)
+      h = rng.range(2.8, 4.2),
+      w = rng.range(3.2, 4.5),
+      seed = rng.range(1, 1000);
+    t.body.push(
+      meshPart(strataGeometry(w, h, 2.4, seed), rng.pick(ice)),
+      meshPart(strataGeometry(w * 0.86, 0.25, 1.95, seed), snow, { y: h * 0.92 }),
+    );
+    for (let i = 0; i < 2; i++)
       t.body.push(
-        box(rng.pick(ice), rng.range(2.2, 4.2), rng.range(0.9, 1.6), rng.range(1, 1.8), {
-          x: rng.range(-0.5, 0.5),
-          y: 0.45 + i * rng.range(1.05, 1.35),
-          z: rng.range(-0.4, 0.4),
-          rz: rng.range(-0.14, 0.14),
-          rx: rng.range(-0.1, 0.1),
-          ry: rng.range(0, 3),
+        meshPart(shardGeometry(w * 0.3, h * 0.5, 1.0), rng.pick(ice), {
+          x: (i ? 1 : -1) * w * 0.4,
+          z: 0.25,
+          rz: i ? 0.16 : -0.12,
         }),
       );
-    t.body.push(meshPart(new SphereGeometry(rng.range(1.4, 2), 8, 5), snow, { x: 0, y: n * 1.2, sy: 0.3, sz: 0.7 }));
     put(out, t, p.x, 0, p.z, rng.range(0, TAU));
   }
-  // tall ridges: a main spire, leaning satellites, a few glowing gems in the ice
+  // Smaller fractured fins support the skyline without hiding the distant aurora.
   for (const p of outsideSpots(rng, W, H, 16, 2.2, 13, 3.6)) {
     const t = list(),
-      h = rng.range(3.5, 10),
-      r = rng.range(0.5, 1.4);
-    t.body.push(cone(rng.pick(ice), r, h, 6, 0, 0, 0, { ry: rng.range(0, 3) }));
-    for (let i = 0; i < rng.int(2, 4); i++) {
-      const a = rng.range(0, TAU),
-        hh = h * rng.range(0.3, 0.7),
-        rr = r * rng.range(0.4, 0.7),
-        lean = rng.range(0.15, 0.45);
+      h = rng.range(2.5, 5.5),
+      r = rng.range(0.6, 1.4);
+    t.body.push(meshPart(shardGeometry(r * 1.65, h, r * 1.2), rng.pick(ice), { ry: rng.range(0, 3) }));
+    for (let i = 0; i < 2; i++) {
+      const a = rng.range(0, TAU);
       t.body.push(
-        cone(rng.pick(ice), rr, hh, 6, Math.cos(a) * r * 0.8, 0, Math.sin(a) * r * 0.8, {
-          rx: Math.sin(a) * lean,
-          rz: -Math.cos(a) * lean,
+        meshPart(shardGeometry(r * 0.8, h * rng.range(0.25, 0.55), r * 0.6), rng.pick(ice), {
+          x: Math.cos(a) * r * 0.6,
+          z: Math.sin(a) * r * 0.6,
         }),
       );
     }
-    for (let i = 0; i < 2; i++)
-      t.glow.push(
-        gem(dim(cyan, 0.75), r * 0.22, rng.range(-0.3, 0.3) * r, h * rng.range(0.2, 0.45), r * 0.42, { sy: 1.7 }),
-      );
-    if (h > 6.5) t.glow.push(box(dim(cyan, 0.45), 0.12, h * 0.45, 0.12, { x: r * 0.4, y: h * 0.52, z: 0 }));
     put(out, t, p.x, 0, p.z, rng.range(0, TAU));
   }
   // snow drifts with dark blue rocks
@@ -370,19 +358,14 @@ function shelfDetail(biome, W, H, obs, rng) {
     t.glow.push(box(dim(cyan, 0.5), 0.3, 0.06, 0.05, { x: L * 0.3, y: 0.95, z: 0.34 }));
     put(out, t, p.x, 0, p.z, rng.range(0, TAU));
   }
-  // ice shelves: stacked tilted slabs near the wall
+  // Low calved shelves sit on the snow rather than floating in a stack of boxes.
   for (const p of outsideSpots(rng, W, H, 10, 0.8, 2.6, 3)) {
-    const t = list();
-    for (let i = 0; i < 3; i++)
-      t.body.push(
-        box(rng.pick(ice), rng.range(1, 2), 0.25, rng.range(0.7, 1.3), {
-          x: rng.range(-0.3, 0.3),
-          y: 0.15 + i * 0.26,
-          rz: rng.range(-0.2, 0.2),
-          rx: rng.range(-0.15, 0.15),
-          ry: rng.range(0, 3),
-        }),
-      );
+    const t = list(),
+      w = rng.range(1.4, 2.6),
+      h = rng.range(0.45, 0.8),
+      seed = rng.range(1, 1000);
+    t.body.push(meshPart(strataGeometry(w, h, 1.3, seed), rng.pick(ice)));
+    t.body.push(meshPart(strataGeometry(w * 0.88, 0.13, 1.1, seed), snow, { y: h * 0.9 }));
     put(out, t, p.x, 0, p.z, rng.range(0, TAU));
   }
   // Small rooted frost shards and snow; the painted floor supplies its own frost patterns.

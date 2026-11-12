@@ -172,19 +172,17 @@ void main() {
   // portal: spiral arms that turn into a dark core, a bright rim, its colour from instance b (magenta or blue end)
   portal: `
 void main() {
-  float r = length(vP), a = atan(vP.y, vP.x);
-  if (r > 1.0) discard;
-  vec3 hue = mix(vec3(1.0, 0.3, 0.85), vec3(0.5, 0.5, 1.0), vI.b);
-  float arms = 0.5 + 0.5 * sin(a * 3.0 + r * 10.0 - uTime * 3.4);
-  arms = smoothstep(0.35, 1.0, arms) * smoothstep(1.0, 0.25, r);
-  float rim = smoothstep(0.8, 0.95, r) * smoothstep(1.0, 0.95, r);
-  float core = smoothstep(0.32, 0.0, r);
-  vec3 col = vec3(0.015, 0.0, 0.04) + hue * arms * (0.6 + 0.5 * fbm(vP * 3.0 + uTime * 0.5)) + hue * rim * 1.3;
-  col += vec3(0.9, 0.85, 1.0) * core * 0.18 * (0.6 + 0.4 * sin(uTime * 5.0));
-  col *= vI.r;
-  gl_FragColor = vec4(col, smoothstep(1.0, 0.9, r) * 0.95);
-  #include <fog_fragment>
-  #include <colorspace_fragment>
+ float r=length(vP),a=atan(vP.y,vP.x);if(r>1.0)discard;
+ vec3 hue=mix(vec3(.52,.15,.62),vec3(.16,.34,.68),vI.b);
+ float depth=1.0/(r+.16);
+ float current=pow(.5+.5*sin(a*3.0-depth*2.5+uTime*1.6+fbm(vP*4.0)*1.5),6.0);
+ float edge=exp(-pow((r-.88)*38.0,2.0));
+ float opening=smoothstep(.14,.82,r);
+ vec3 col=vec3(.002,.003,.009)+hue*(current*.25*opening+edge*.72);
+ col+=hue*.07*opening*fbm(vec2(a*3.0,depth-uTime*.3));
+ gl_FragColor=vec4(col*vI.r,(1.0-smoothstep(.94,1.0,r))*.98);
+ #include <fog_fragment>
+ #include <colorspace_fragment>
 }`,
   // fire: a pillar of flame on an open tube (x around, y up 0..1) that licks upward; instance r is its strength
   dust: `
@@ -764,10 +762,6 @@ class HazardView {
       ]) {
         const seed = seedOf(px, pz);
         this.put(swirl, px, 0.05, pz, 0, 1.05, 1, seed, blue);
-        r.ringPool.colC(r.ringPool.y(px, 0.07, pz, time * 2.4, 1.08), color, 0.7);
-        const column = r.columns.y(px, 0, pz, 0, 0.8, 1.4, 0.8);
-        r.columns.colC(column, color, 0.22);
-        r.sprites.colC(r.sprites.bb(px, 0.4, pz, 2.2, r.B), color, 0.28);
         // five rune stones float around the mouth, each bobbing at its own pace and turning its rune outward
         for (let i = 0; i < 5; i++) {
           const a = (i / 5) * TAU + time * (blue ? -0.35 : 0.35) + seed * TAU,

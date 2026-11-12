@@ -1,7 +1,6 @@
 // Biome looks: floors, props, borders, ambient particles and the enemy skins (shaders).
 
 import {
-  AdditiveBlending,
   BoxGeometry,
   CircleGeometry,
   Color,
@@ -25,6 +24,7 @@ import {
   Vector2,
   Vector4,
 } from "three";
+import { createAurora } from "./aurora.js";
 import { createGroundOcclusion } from "./ground-occlusion.js";
 import { worldMaterial, setWorldShadows } from "./world-material.js";
 import { strataGeometry, shardGeometry } from "./strata-geometry.js";
@@ -564,91 +564,21 @@ const RL_BIOME_BUILD = {
       snow = worldMaterial({ color: 0xe8f4ff, emissive: 0x16243c, flatShading: true }),
       wallW = 0.6,
       wallH = 0.45;
-    // the aurora: tall curtains standing past the far wall, a defined bright green foot that waves
-    // (the classic aurora's lower border), vertical rays that drift and breathe, the colour rising
-    // green -> violet -> pink (each curtain on its own seed and height)
-    const auroraVert = `varying vec2 vUv;
-void main() {
-  vUv = uv;
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-}`,
-      auroraFrag = `
-uniform float uTime;
-uniform float uSeed;
-uniform float uAlpha;
-uniform float uFoot;
-varying vec2 vUv;
-void main() {
-  float x = vUv.x * (2.2 + uSeed * 0.7) + uSeed * 13.7;
-  float w = sin(x * 1.9 + uTime * 0.1 + uSeed * 3.1) * 0.45 +
-    sin(x * 3.3 - uTime * 0.061 + uSeed) * 0.25 +
-    sin(x * 0.8 + uTime * 0.043) * 0.5;
-  // the foot: a bright, fairly sharp lower border that waves - the aurora reads by its edge
-  float foot = uFoot + w * 0.05;
-  float fringe = smoothstep(foot + 0.07, foot, vUv.y) * smoothstep(foot - 0.05, foot - 0.005, vUv.y);
-  fringe *= smoothstep(0.0, 0.04, vUv.y);
-  // two scales of vertical rays with deep dark gaps between them
-  float rayN = 0.5 + 0.5 * sin(x * 13.0 + w * 4.0 + uTime * 0.33 + sin(x * 5.1 + uTime * 0.12) * 2.2);
-  rayN *= 0.72 + 0.28 * sin(x * 29.0 - uTime * 0.21 + uSeed * 9.0);
-  float rays = pow(rayN, 1.6);
-  // the body: bright just above the foot, fading up, gone before the crest
-  float body = (1.0 - smoothstep(foot, 0.9, vUv.y)) * rays;
-  float pulse = 0.72 + 0.28 * sin(uTime * 0.16 + uSeed * 2.0);
-  vec3 green = vec3(0.12, 1.0, 0.52), violet = vec3(0.45, 0.24, 0.8), pink = vec3(0.9, 0.35, 0.68);
-  float up = smoothstep(0.3, 0.95, vUv.y + w * 0.08);
-  vec3 col = mix(green, violet, up);
-  col = mix(col, pink, smoothstep(0.75, 1.0, vUv.y) * 0.4);
-  col += green * fringe * 0.5;
-  // AdditiveBlending adds rgb * alpha: hand the full colour and put the intensity in the alpha
-  float a = (fringe * (0.6 + 0.4 * rayN) + body * 0.32) * pulse * uAlpha;
-  gl_FragColor = vec4(col * 1.2, a);
-}`;
-    const curtains = [
-      // the shelf's camera never sees the sky (the frame's top edge hits the ground inside the
-      // arena), so the aurora lives in three layers: the horizon curtains fill the backdrop band
-      // when the fight travels to the far wall, one narrow curtain hangs INSIDE the frustum at the
-      // frame's top edge from anywhere (3.55.0 - a thin sheet, its bright foot the only dense part,
-      // so it reads as the aurora's edge overhead without the additive wash that killed the first
-      // take's high near sheets), and the sheen on the ice carries the rest of the run
-      { x: 0, z: -H - 6, y: 5.2, w: 54, h: 12, seed: 0.55, al: 0.9, foot: 0.44 },
-      { x: -13.5, z: -H - 3.5, y: 4.2, w: 26, h: 9, seed: 0.73, al: 0.62, foot: 0.42 },
-      { x: 13.5, z: -H - 4.5, y: 4.4, w: 24, h: 9, seed: 0.11, al: 0.56, foot: 0.42 },
-      { x: -4, z: -H - 12, y: 6.2, w: 72, h: 15, seed: 0.91, al: 0.5, foot: 0.36 },
-      { x: -3.5, z: -10.5, y: 4.6, w: 17, h: 7.5, seed: 0.21, al: 0.3, foot: 0.16 },
-      { x: 7, z: -H - 1.2, y: 3.4, w: 20, h: 7, seed: 0.37, al: 0.38, foot: 0.46 },
-    ];
-    for (const c of curtains) {
-      const mat = new ShaderMaterial({
-        uniforms: UniformsUtils.merge([
-          UniformsLib.fog,
-          { uTime: { value: 0 }, uSeed: { value: c.seed }, uFoot: { value: c.foot } },
-        ]),
-        vertexShader: auroraVert,
-        fragmentShader: auroraFrag,
-        transparent: true,
-        depthWrite: false,
-        blending: AdditiveBlending,
-        side: DoubleSide,
-      });
-      mat.uniforms.uAlpha = { value: c.al };
-      const curtain = new Mesh(new PlaneGeometry(c.w, c.h), mat);
-      curtain.position.set(c.x, c.y, c.z);
-      curtain.onBeforeRender = (r, s, cam) => curtain.quaternion.copy(cam.quaternion);
-      group.add(curtain);
-      view.rlAnim.push({ k: "u", o: mat });
-    }
+    const aurora = createAurora(W, H);
+    group.add(aurora);
+    view.rlAnim.push({ k: "u", o: aurora.material });
     for (const [bx, bz, sx, sz] of [
       [0, -H - wallW / 2, W * 2 + wallW * 2, wallW],
       [0, H + wallW / 2, W * 2 + wallW * 2, wallW],
       [-W - wallW / 2, 0, wallW, H * 2],
       [W + wallW / 2, 0, wallW, H * 2],
     ])
-      rlMesh(group, propBox(sx, wallH, sz), core, bx, wallH / 2, bz);
+      rlMesh(group, strataGeometry(sx, wallH, sz, bx + bz), snow, bx, 0, bz);
     const spikes = [],
       tint = [0xbfe8ff, 0xa4d8f4, 0xdff4ff, 0x7ab0dc];
-    for (const off of [0.6, 1.05])
-      rlAlongBorder(W, H, off, 0.75, (px, pz, nx, nz) => {
-        const len = rng.range(0.7, off < 0.5 ? 1.5 : 2.4),
+    for (const off of [0.75])
+      rlAlongBorder(W, H, off, 2.4, (px, pz, nx, nz) => {
+        const len = rng.range(0.35, 1.25),
           tilt = rng.range(0.1, 0.35);
         spikes.push({
           x: px + rng.range(-0.2, 0.2) * (nz ? 1 : 0),

@@ -1,12 +1,12 @@
 // Mesh builders for the player drone, enemies, bosses and props.
 import { worldMaterial, enemySurface } from "./world-material.js";
+import { createAegisMaterial } from "./aegis-material.js";
 import { BOSS_EFFECTS } from "../data/combat-effects.js";
 import { strataGeometry as basaltStrata, shardGeometry as basaltShard } from "./strata-geometry.js";
 import { armorBox } from "./armor-geometry.js";
 import { mergeStaticMeshes } from "./static-meshes.js";
 
 import {
-  AdditiveBlending,
   BoxGeometry,
   BufferAttribute,
   BufferGeometry,
@@ -1531,18 +1531,8 @@ function buildPlayerModel(weapon, color) {
   gun.add(muzzle);
   mergeStaticMeshes(torso);
   mergeStaticMeshes(gun);
-  let shield = new Mesh(
-    new IcosahedronGeometry(1, 2),
-    new MeshBasicMaterial({
-      color,
-      transparent: true,
-      opacity: 0.16,
-      blending: AdditiveBlending,
-      depthWrite: false,
-      toneMapped: false,
-    }),
-  );
-  shield.position.y = 0.8;
+  let shield = new Mesh(new SphereGeometry(1, 20, 12), createAegisMaterial(color));
+  shield.position.y = 0.95;
   shield.scale.setScalar(1.1);
   group.add(shield);
   const model = {

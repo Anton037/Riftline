@@ -13,6 +13,7 @@ there is no historical release assertion catalog, always-on soak or hidden exten
 | `npm run audit:visual` | Six biomes and bosses on tablet and landscape phone, High | 240 s per layout |
 | `node tools/verify.js equipment <tag>` | Seven weapons, all 25 enemies, smoke/rockets and FPS controls | 240 s |
 | `npm run verify:combat` | Every current boss pattern/Overdrive, seven weapons and biome beam/trap skins | 300 s |
+| `npm run verify:abilities` | Power phases across all biomes, Aegis, portals and nine Shelf views on tablet/phone | 300 s per layout |
 | `npm run verify:audio` | Optional recorded/physical sound correctness | 420 s |
 | `npm run verify:audio-budget` | Optional audio scheduler/real-node parity | 180 s |
 | `npm run probe:audio` | Audio fault recovery | 120 s |
@@ -30,6 +31,8 @@ For centre/edge/corner screenshots use `node tools/verify.js visual <tag> tablet
   references, upgrade data, release notes, atmosphere budgeting, static mesh bounds and the 810-triangle enemy
   kit budget. Combat contracts exercise actual AI for every boss pattern/phase and all ranged enemies,
   preserve source identity through effects/sound, reject orphan content and bound Arc Caster rendering at 420 shots.
+  Power contracts follow actual Nova/Singularity/Aegis events, deduplicate Nova sound, preserve enemy-warning pools,
+  cap concurrent effects and keep the aurora outside the arena at sway extrema.
   Exact rays cover thin/nearby obstacles, diagonal boxes, arena edges and zero reach; live
   beam/gadget checks exercise cover protection.
 - Save checks cover round-trip persistence, migration, unknown future fields and corrupt-save recovery

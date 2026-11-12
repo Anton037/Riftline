@@ -3,7 +3,7 @@ import { worldMaterial } from "./world-material.js";
 import { meshPart, mergeParts, box, ball, bar } from "./models.js";
 import { clamp, TAU } from "../core/util.js";
 import { MARK_LOOK } from "./attacks-view.js";
-import { LOCK_WARN, LOCK_TIME, COLLAPSE_TIME } from "../core/boss-cards.js";
+import { LOCK_WARN, LOCK_TIME } from "../core/boss-cards.js";
 
 const hex = (value) => new Color(value),
   GOLD = hex(0xffc84a),
@@ -15,8 +15,6 @@ const hex = (value) => new Color(value),
   // 3.50.0: the Glowmarsh's bloom
   ACID = hex(0x46ffc0),
   ACID_PALE = hex(0xd9fff0),
-  RIFT = hex(0xa56bff),
-  RIFT_RIM = hex(0x7ae8ff),
   PYLONS = 6;
 
 const MODELS = {
@@ -105,7 +103,6 @@ class BossCardView {
     if (world.splinters && world.splinters.length) this.splinters(world);
     if (world.lances && world.lances.length) this.lances(world);
     if (world.player.brood && world.player.brood.length) this.brood(dt, world, quality);
-    if (world.implode) this.implode(dt, world, quality);
   }
   cages(dt, world, quality) {
     const r = this.r,
@@ -227,40 +224,6 @@ class BossCardView {
         r.emit(larva.x, y, larva.y, -larva.vx * 0.1, 0.2, -larva.vy * 0.1, 0.4, 0.08, ACID_PALE, { drag: 2 });
     }
   }
-  implode(dt, world, quality) {
-    const r = this.r,
-      imp = world.implode,
-      k = clamp(imp.t / COLLAPSE_TIME, 0, 1),
-      pull = imp.r * 1.4,
-      x = imp.x,
-      z = imp.y;
-    // three rings run in from the pull radius, the floor darkens, the core of the drone brightens
-    for (let i = 0; i < 3; i++) {
-      const f = (k + i / 3) % 1,
-        rad = pull * (1 - f);
-      r.ringPool.colC(r.ringPool.y(x, 0.06, z, 0, Math.max(0.2, rad)), i % 2 ? RIFT_RIM : RIFT, 0.3 + f * 0.5);
-    }
-    r.shadows.y(x, 0.025, z, 0, pull * (1.4 - k * 0.6));
-    r.sprites.colC(r.sprites.bb(x, 0.9, z, 1 + k * 2.2, r.B), RIFT, 0.4 + k * 0.6);
-    if (Math.random() < dt * 120 * quality) {
-      const a = Math.random() * TAU,
-        d = pull * (0.6 + Math.random() * 0.4),
-        speed = d / Math.max(0.12, COLLAPSE_TIME - imp.t);
-      r.emit(
-        x + Math.cos(a) * d,
-        0.4,
-        z + Math.sin(a) * d,
-        -Math.cos(a) * speed,
-        0.4,
-        -Math.sin(a) * speed,
-        Math.max(0.1, COLLAPSE_TIME - imp.t),
-        0.14,
-        Math.random() < 0.5 ? RIFT_RIM : RIFT,
-        { drag: 0, spark: true },
-      );
-    }
-  }
-
   event(ev, world, shakeK) {
     const r = this.r;
     switch (ev.k) {
