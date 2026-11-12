@@ -236,7 +236,6 @@ let RL_REQUIRED_DOM = [
     "payRows",
     "payTotal",
     "playBtn",
-    "qualityNote",
     "recBadge",
     "replayTutBtn",
     "rerollBtn",
@@ -253,7 +252,7 @@ let RL_REQUIRED_DOM = [
     "setAuto",
     "setMusic",
     "setNumbers",
-    "setQuality",
+    "setFrameRate",
     "setSfx",
     "settings",
     "shardChip",
@@ -1523,7 +1522,7 @@ async function rlRunHealthNow({ context = "startup" } = {}) {
     const rejected = cleanRun({ v: 1, seed: "oops", weapon: "pulse", wave: 12, hp: "oops", up: {} }),
       bad = {
         v: 1,
-        seed: "oops",
+        seed: 731,
         weapon: "pulse",
         wave: 12,
         hp: 999999,
@@ -1546,7 +1545,9 @@ async function rlRunHealthNow({ context = "startup" } = {}) {
         cleaned.hp === 999999 &&
         // 2.5.1: the level is capped at the upgrade's max (12 since 2.5.0, the check still said 8)
         cleaned.up.dmg === upgradesById.dmg.max &&
-        cleaned.bossKills.length === 1 &&
+        // Repeated valid defeats count in Endless; discard only unknown boss names.
+        cleaned.bossKills.length === 2 &&
+        cleaned.bossKills.every((id) => id === "warden") &&
         Number.isFinite(cleaned.time) &&
         Number.isFinite(cleaned.shards) &&
         cleaned.offer.length === 1,

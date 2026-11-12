@@ -31,8 +31,8 @@ const RL_DEATH_FAMILY = {
   hive: "dSquelch",
   leaper: "dSquelch",
   mender: "dSquelch",
-  brute: "dCrunch",
-  striker: "dCrunch",
+  brute: "dArmor",
+  striker: "dArmor",
   bulwark: "dArmor",
   driller: "dArmor",
   mortar: "dArmor",
@@ -46,10 +46,10 @@ const RL_DEATH_FAMILY = {
   sapper: "dClang",
   bomber: "dRattle",
   charger: "dRattle",
-  carrier: "dRattle",
+  carrier: "dSquelch",
   minebot: "dRattle",
-  sniper: "dShatter",
-  beacon: "dShatter",
+  sniper: "dClang",
+  beacon: "dClang",
 };
 /* 2.9.0: the shot of an enemy by type (default "eshot", the gunner); the sniper has its own lock-on sound */
 const RL_ESHOT_VOICE = {
@@ -1355,7 +1355,7 @@ const musicChords = {
             break;
           case "dmg":
             if (!ev.burn) {
-              this.play(ev.crit ? "crit" : "hit");
+              this.play(ev.crit ? "crit" : "hit", { type: ev.type, shield: !!ev.shield });
             }
             break;
           case "kill":
@@ -4293,6 +4293,9 @@ function rlSoundCatalog() {
     add = (name, spec) => list.push({ name, spec }),
     ids = (names, arg) => names.forEach((id) => add(id + (arg !== undefined ? ":" + arg : ""), { id, arg }));
   ids(RL_SFX_VOICES);
+  for (const type of ["grunt", "swarmer", "core", "prism", "phantom"])
+    for (const id of ["hit", "crit"]) add(`${id}:${type}`, { id, arg: { type } });
+  add("hit:shield", { id: "hit", arg: { type: "grunt", shield: true } });
   ids([
     "block",
     "guardBreak",

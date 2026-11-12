@@ -1,4 +1,3 @@
-import { CylinderGeometry } from "three";
 import { strataGeometry } from "./strata-geometry.js";
 import { armorBox } from "./armor-geometry.js";
 
@@ -19,14 +18,5 @@ export function calderaRidgeParts(obstacle) {
   add("darkRock", strataGeometry(length * 0.88, 0.1, depth * 0.85, length + depth), 0, 0.88, 0);
   add("emberMat", armorBox(length * 0.54, 0.018, 0.03), 0, 0.78, depth * 0.35);
   for (const f of [-0.24, 0.24]) add("emberMat", armorBox(0.025, 0.018, depth * 0.35), length * f, 0.985, 0);
-  for (let k = 0; k < 3; k++) {
-    add(
-      k === 1 ? "hotMat" : "accentMat",
-      new CylinderGeometry(0.035, 0.06, 0.055, 6),
-      (k - 1) * length * 0.26,
-      0.99,
-      0,
-    );
-  }
   return parts;
 }

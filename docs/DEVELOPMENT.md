@@ -44,8 +44,10 @@ semantic cache. Run `npm run check` during development and the checks appropriat
 - `tests/core.test.mjs` exercises deterministic seeds and input streams without stored golden outputs.
   Preserve reproducibility and add focused cases for observable regressions.
 - `window.__riftTest` (end of `main.js`) exposes the game, UI, store, renderer, World and biome list for
-  the browser tests and probes.
+  the browser tests and probes, plus the real startup health checks.
 - `npm run format` formats the code; `npm run format:check` is what CI runs.
+- `npm run dev` watches source, public assets and package metadata. Rebuilds serialize and coalesce
+  changes received during a build to avoid overlapping writes to `dist/`.
 
 ## Versions
 

@@ -9,6 +9,7 @@ import {
   Color,
   ConeGeometry,
   CylinderGeometry,
+  DodecahedronGeometry,
   MeshBasicMaterial,
   OctahedronGeometry,
   SphereGeometry,
@@ -89,6 +90,50 @@ const cyl = (color, rt, rb, h, seg, p = {}) =>
  body: Lambert with vertex colours; glow: unlit, vertex colour = hue, instance colour = brightness (mines: white
  vertices, the hue comes from the instance); mover: Lambert, animated by the instance matrix (head, crystals, ...).
  ========================================================================== */
+// Rooted peat and basalt vents share a natural broken bank, without collars, button faces or lamp studs.
+function naturalVent(bloom) {
+  seed = bloom ? 5 : 13;
+  const rock = bloom ? 0x314335 : 0x424a50,
+    dark = bloom ? 0x1b2c22 : 0x252c31,
+    hot = bloom ? 0x286b53 : 0xbc4818,
+    body = [meshPart(strataGeometry(2, 0.035, 1.9, bloom ? 5 : 13, true), dark)],
+    glow = [meshPart(strataGeometry(0.95, 0.018, 0.86, bloom ? 8 : 19, true), hot, { y: 0.045 })];
+  for (let i = 0; i < 9; i++) {
+    const a = (i / 9) * TAU + rnd() * 0.35,
+      d = 0.53 + rnd() * 0.14,
+      size = 0.1 + rnd() * 0.1;
+    body.push(
+      meshPart(new DodecahedronGeometry(size), i % 3 ? rock : dark, {
+        x: Math.cos(a) * d,
+        y: size * 0.32,
+        z: Math.sin(a) * d,
+        sx: 0.8 + rnd() * 0.7,
+        sy: 0.55,
+        sz: 0.8 + rnd() * 0.4,
+        ry: a,
+      }),
+    );
+  }
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * TAU + 0.4;
+    glow.push(
+      bar(
+        hot,
+        0.018,
+        [Math.cos(a) * 0.32, 0.04, Math.sin(a) * 0.32],
+        [Math.cos(a + 0.2) * 0.82, 0.04, Math.sin(a + 0.2) * 0.82],
+        0.012,
+      ),
+    );
+  }
+  return {
+    body,
+    glow,
+    mover: [
+      meshPart(new SphereGeometry(0.3, 10, 6, 0, TAU, 0, Math.PI / 2), bloom ? 0x26503d : 0x783718, { y: 0.055 }),
+    ],
+  };
+}
 const MODELS = {
   // Blackout City (was the Neon Yard): an electrified steel plate with live conduits
   plate: () => ({
@@ -257,81 +302,8 @@ const MODELS = {
       ],
     };
   },
-  // The Glowmarsh: a peat vent with a pool of glowing bloom water
-  geyser: () => {
-    seed = 5;
-    return {
-      body: [
-        meshPart(strataGeometry(2, 0.05, 2, 7, true), 0x4a5541),
-        cyl(0x3a4a35, 0.55, 0.9, 0.16, 12, { y: 0.03 }),
-        meshPart(new TorusGeometry(0.5, 0.1, 6, 14), 0x526047, { y: 0.18, rx: Math.PI / 2 }),
-        cyl(0x04100c, 0.42, 0.42, 0.02, 12, { y: 0.19 }),
-        ...ring(7, (a) =>
-          ball(0x1e2a1a, 0.1 + rnd() * 0.07, 6, 4, {
-            x: Math.cos(a + rnd() * 0.4) * (0.78 + rnd() * 0.15),
-            y: 0.05,
-            z: Math.sin(a + rnd() * 0.4) * (0.78 + rnd() * 0.15),
-            sy: 0.6,
-          }),
-        ),
-        ...ring(5, (a) =>
-          spike(
-            0x365a3c,
-            0.04,
-            4,
-            [Math.cos(a) * 0.72, 0.1, Math.sin(a) * 0.72],
-            [Math.cos(a) * 0.78, 0.36, Math.sin(a) * 0.78],
-          ),
-        ),
-      ],
-      glow: [
-        cyl(0x46ffc0, 0.38, 0.38, 0.02, 12, { y: 0.2 }),
-        ...ring(5, (a) => ball(0xd9fff0, 0.045, 5, 3, { x: Math.cos(a) * 0.5, y: 0.2, z: Math.sin(a) * 0.5 })),
-        ...ring(5, (a) =>
-          ball(0x46ffc0, 0.04, 5, 3, { x: Math.cos(a + 0.3) * 0.85, y: 0.1, z: Math.sin(a + 0.3) * 0.85 }),
-        ),
-      ],
-      mover: [meshPart(new SphereGeometry(0.4, 10, 6, 0, TAU, 0, Math.PI / 2), 0x3a8a68, { y: 0.2 })],
-    };
-  },
-  // 3.49.0: the Caldera: a basalt nozzle set into the crater floor, molten in the mouth, a cap
-  // that lifts before the jet
-  pyro: () => {
-    seed = 5;
-    return {
-      body: [
-        meshPart(strataGeometry(2, 0.05, 2, 5, true), 0x4b5359),
-        cyl(0x3f484e, 0.55, 0.9, 0.14, 12, { y: 0.03 }),
-        meshPart(new TorusGeometry(0.5, 0.09, 6, 14), 0x505b62, { y: 0.16, rx: Math.PI / 2 }),
-        cyl(0x0d0808, 0.42, 0.42, 0.02, 12, { y: 0.17 }),
-        ...ring(6, (a) =>
-          ball(0x3a2418, 0.09 + rnd() * 0.06, 6, 4, {
-            x: Math.cos(a + rnd() * 0.4) * (0.78 + rnd() * 0.15),
-            y: 0.05,
-            z: Math.sin(a + rnd() * 0.4) * (0.78 + rnd() * 0.15),
-            sy: 0.6,
-          }),
-        ),
-        ...ring(5, (a) =>
-          spike(
-            0x3a2a1a,
-            0.04,
-            4,
-            [Math.cos(a) * 0.72, 0.1, Math.sin(a) * 0.72],
-            [Math.cos(a) * 0.78, 0.34, Math.sin(a) * 0.78],
-          ),
-        ),
-      ],
-      glow: [
-        cyl(0xffd166, 0.36, 0.36, 0.02, 12, { y: 0.18 }),
-        ...ring(5, (a) => ball(0xfff0b8, 0.045, 5, 3, { x: Math.cos(a) * 0.48, y: 0.19, z: Math.sin(a) * 0.48 })),
-        ...ring(5, (a) =>
-          ball(0xffd166, 0.04, 5, 3, { x: Math.cos(a + 0.3) * 0.85, y: 0.1, z: Math.sin(a + 0.3) * 0.85 }),
-        ),
-      ],
-      mover: [meshPart(new SphereGeometry(0.4, 10, 6, 0, TAU, 0, Math.PI / 2), 0x8a6a30, { y: 0.2 })],
-    };
-  },
+  geyser: () => naturalVent(true),
+  pyro: () => naturalVent(false),
   // The Shattered Core: an obsidian disc with a rotating sigil and a hovering shard
   riftburst: () => {
     seed = 3;

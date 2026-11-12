@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { ShaderLib } from "three";
 import { worldMaterial, WORLD_SURFACES } from "../src/render/world-material.js";
-import { strataGeometry } from "../src/render/strata-geometry.js";
+import { strataGeometry, shardGeometry } from "../src/render/strata-geometry.js";
 import { createGroundOcclusion } from "../src/render/ground-occlusion.js";
 
 test("sculpted rock is closed and stays grounded inside its authored envelope", () => {
@@ -86,5 +86,34 @@ test("painted material and biome layers compose once when a material is shared",
     assert.equal(repeated.uniforms.uArtMap, WORLD_SURFACES.finishMap);
     assert.ok(repeated.uniforms.uSkin && repeated.uniforms.uSkinT, "biome layer must retain its uniforms");
     material.dispose();
+  }
+});
+
+test("broken ice and glass shards are closed and fit their authored envelopes", () => {
+  for (const [w, h, d] of [
+    [0.4, 2.1, 0.35],
+    [1.4, 1, 0.14],
+    [0.18, 0.6, 0.16],
+  ]) {
+    const geometry = shardGeometry(w, h, d),
+      p = geometry.attributes.position,
+      indices = geometry.index?.array ?? Array.from({ length: p.count }, (_, i) => i),
+      edges = new Map();
+    const key = (i) => [p.getX(i), p.getY(i), p.getZ(i)].map((v) => v.toFixed(5)).join(",");
+    for (let i = 0; i < indices.length; i += 3)
+      for (let j = 0; j < 3; j++) {
+        const a = indices[i + j],
+          b = indices[i + ((j + 1) % 3)],
+          edge = [key(a), key(b)].sort().join("/");
+        edges.set(edge, (edges.get(edge) || 0) + 1);
+        assert.ok(
+          Math.abs(p.getX(a)) <= w / 2 + 1e-6 &&
+            p.getY(a) >= -1e-6 &&
+            p.getY(a) <= h + 1e-6 &&
+            Math.abs(p.getZ(a)) <= d / 2 + 1e-6,
+        );
+      }
+    assert.ok([...edges.values()].every((n) => n === 2));
+    geometry.dispose();
   }
 });

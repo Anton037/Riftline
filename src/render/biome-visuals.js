@@ -14,7 +14,6 @@ import {
   InstancedMesh,
   Mesh,
   MeshBasicMaterial,
-  MeshLambertMaterial,
   Object3D,
   OctahedronGeometry,
   PlaneGeometry,
@@ -28,7 +27,7 @@ import {
 } from "three";
 import { createGroundOcclusion } from "./ground-occlusion.js";
 import { worldMaterial, setWorldShadows } from "./world-material.js";
-import { strataGeometry } from "./strata-geometry.js";
+import { strataGeometry, shardGeometry } from "./strata-geometry.js";
 import { REED_WIND } from "./map-geometry.js";
 import { addMapArchitecture } from "./map-architecture.js";
 import { calderaRidgeParts } from "./caldera-ridge.js";
@@ -70,11 +69,8 @@ void main() {
           uTerrainMap: { value: null },
           uTerrainReady: { value: 0 },
           uOcclusion: { value: null },
-          uBase: { value: new Color() },
           uGrid: { value: new Color() },
-          uAccent: { value: new Color() },
           uHalf: { value: new Vector2(18, 18) },
-          uPlayer: { value: new Vector2() },
           uTime: { value: 0 },
           uPulse: { value: 0 },
           // 2.4.0: the floor of each biome is a style of one shader (RL_FLOOR_FRAG)
@@ -84,8 +80,6 @@ void main() {
           // 3.29.0: the colour of the floor: how saturated (1 = as the palette says) and how bright it is, per biome
           uVivid: { value: 1 },
           uGain: { value: 1 },
-          // 3.46.0: the procedural detail tier (0 full — 1 fewer octaves — 1 cell voronoi, no starfield)
-          uLod: { value: 0 },
           uL: { value: Array.from({ length: 6 }, () => new Vector4()) },
           uLC: { value: Array.from({ length: 6 }, () => new Color()) },
         },
@@ -122,9 +116,7 @@ void main() {
       this.group.clear();
       const look = RL_BIOME_LOOK[biome.id] || RL_BIOME_LOOK.yard,
         uniforms = this.uniforms;
-      uniforms.uBase.value.setHex(biome.floor);
       uniforms.uGrid.value.setHex(biome.grid);
-      uniforms.uAccent.value.setHex(biome.accent);
       uniforms.uHalf.value.set(layout.W, layout.H);
       this.groundOcclusion?.dispose();
       this.groundOcclusion = createGroundOcclusion(layout.W, layout.H, layout.obs);
@@ -165,7 +157,6 @@ void main() {
         this.obsGroup.position.y = -2.6 * (1 - ease);
       }
       this.uniforms.uTime.value += dt;
-      this.uniforms.uPlayer.value.set(px, pz);
       this.uniforms.uPulse.value = pulse;
       // 2.4.0: animated props (spinning and bobbing); 3.51.0: "u" - a material whose uniforms ride
       // the view's clock (the aurora curtains)
@@ -345,15 +336,6 @@ const rlMesh = (group, geo, mat, x, y, z, ry = 0) => {
 };
 const rlGlow = (color, opacity = 1) =>
   new MeshBasicMaterial({ color, toneMapped: false, transparent: opacity < 1, opacity });
-// A thin ring on the floor at the collision radius, so the footprint reads in every biome.
-const rlFootRing = (group, x, z, radius, mat) => {
-  const ring = rlMesh(group, new TorusGeometry(radius, 0.04, 4, 32), mat, x, 0.05, z);
-  ring.rotation.x = Math.PI / 2;
-  return ring;
-};
-// Outline slab under a box obstacle.
-const rlFootSlab = (group, box, mat, pad = 0.3) =>
-  rlMesh(group, propBox(box.w * 2 + pad, 0.05, box.h * 2 + pad), mat, box.x, 0.03, box.y);
 /* 3.46.0: a static-prop merger. Geometries are collected per material and baked into one mesh
    each at the end — the barrier ring of Blackout City alone used to be ~200 individual meshes,
    each its own draw call, each recomputing its matrix every frame. Transform math goes through
@@ -580,7 +562,6 @@ const RL_BIOME_BUILD = {
       }),
       core = worldMaterial({ color: 0x22345c, emissive: 0x081226, flatShading: true }),
       snow = worldMaterial({ color: 0xe8f4ff, emissive: 0x16243c, flatShading: true }),
-      glow = rlGlow(biome.grid, 0.8),
       wallW = 0.6,
       wallH = 0.45;
     // the aurora: tall curtains standing past the far wall, a defined bright green foot that waves
@@ -693,52 +674,55 @@ void main() {
         // crystal cluster: a tall hexagonal prism and four smaller ones leaning outwards
         const main = rlMesh(
           props,
-          new CylinderGeometry(obstacle.r * 0.3, obstacle.r * 0.5, 2.1, 6),
+          shardGeometry(obstacle.r * 0.9, 2.1, obstacle.r * 0.8),
           ice,
           obstacle.x,
-          1.05,
+          0.01,
           obstacle.y,
           rng.range(0, 6),
         );
         main.rotation.z = rng.range(-0.08, 0.08);
         for (let j = 0; j < 4; j++) {
           const angle = (j / 4) * Math.PI * 2 + rng.range(-0.4, 0.4),
-            len = Math.min(rng.range(0.8, 1.4), obstacle.r * 1.4),
+            len = Math.min(rng.range(0.8, 1.4), obstacle.r * 1.05),
             shard = rlMesh(
               props,
-              new CylinderGeometry(obstacle.r * 0.14, obstacle.r * 0.24, len, 6),
+              shardGeometry(obstacle.r * 0.32, len, obstacle.r * 0.28),
               ice,
-              obstacle.x + Math.cos(angle) * obstacle.r * 0.55,
-              len / 2 - 0.05,
-              obstacle.y + Math.sin(angle) * obstacle.r * 0.55,
+              obstacle.x + Math.cos(angle) * obstacle.r * 0.4,
+              -0.015,
+              obstacle.y + Math.sin(angle) * obstacle.r * 0.4,
             );
-          shard.rotation.set(Math.sin(angle) * 0.35, 0, -Math.cos(angle) * 0.35);
+          shard.rotation.set(Math.sin(angle) * 0.22, 0, -Math.cos(angle) * 0.22);
         }
-        const frost = rlMesh(props, new CircleGeometry(obstacle.r, 20), snow, obstacle.x, 0.02, obstacle.y);
-        frost.rotation.x = -Math.PI / 2;
-        rlFootRing(props, obstacle.x, obstacle.y, obstacle.r * 1.08, glow);
         view.rlEmit.push({ x: obstacle.x, z: obstacle.y, y: 2.0, k: "glint" });
       } else {
-        // ice block: clear shell, dark core, snow cap
-        const height = 1.05;
+        // A fractured shelf boulder with settled snow, without a rectangular block pedestal.
+        const seed = obstacle.x * 3 + obstacle.y;
         rlMesh(
           props,
-          propBox(obstacle.w * 2 * 0.72, height * 0.8, obstacle.h * 2 * 0.72),
+          strataGeometry(obstacle.w * 1.5, 0.82, obstacle.h * 1.5, seed),
           core,
           obstacle.x,
-          height * 0.42,
+          0.01,
           obstacle.y,
         );
-        rlMesh(props, propBox(obstacle.w * 2, height, obstacle.h * 2), ice, obstacle.x, height / 2, obstacle.y);
         rlMesh(
           props,
-          propBox(obstacle.w * 2 + 0.1, 0.14, obstacle.h * 2 + 0.1),
-          snow,
+          strataGeometry(obstacle.w * 1.95, 1.05, obstacle.h * 1.95, seed),
+          ice,
           obstacle.x,
-          height + 0.05,
+          0.01,
           obstacle.y,
         );
-        rlFootSlab(props, obstacle, glow, 0.25);
+        rlMesh(
+          props,
+          strataGeometry(obstacle.w * 1.7, 0.14, obstacle.h * 1.7, seed),
+          snow,
+          obstacle.x,
+          0.86,
+          obstacle.y,
+        );
       }
   },
   // The Glowmarsh: a peat bank with reeds and rocks, glowcap mushrooms, dead trees and mossy logs
@@ -746,13 +730,12 @@ void main() {
     const group = view.group,
       props = view.obsGroup,
       bark = worldMaterial({ surface: "wood", color: 0x544b38, flatShading: true }),
-      moss = worldMaterial({ color: 0x1e4a3a, emissive: 0x062a1e, flatShading: true }),
-      stem = worldMaterial({ color: 0xcfd8c4, flatShading: true }),
-      cap = worldMaterial({ color: 0x2a8a68, emissive: 0x0c3a2a, flatShading: true }),
+      moss = worldMaterial({ surface: "wood", color: 0x1e4a3a, emissive: 0x062a1e, flatShading: true }),
+      stem = worldMaterial({ surface: "wood", color: 0xcfd8c4, flatShading: true }),
+      cap = worldMaterial({ surface: "organic", color: 0x2a8a68, emissive: 0x0c3a2a, flatShading: true }),
       gill = worldMaterial({ color: 0x0e2420 }),
       spot = rlGlow(biome.accent),
-      ring = rlGlow(biome.grid, 0.55),
-      wood = worldMaterial({ color: 0x5a5240, flatShading: true }),
+      wood = worldMaterial({ surface: "wood", color: 0x5a5240, flatShading: true }),
       wallW = 1.2;
     for (const [bx, bz, sx, sz] of [
       [0, -H - wallW / 2, W * 2 + wallW * 2, wallW],
@@ -798,7 +781,7 @@ void main() {
     const reedMesh = rlInst(
       group,
       new CylinderGeometry(0.03, 0.05, 1, 4),
-      new MeshLambertMaterial({ flatShading: true }),
+      worldMaterial({ surface: "wood", flatShading: true, shininess: 4 }),
       reeds,
     );
     if (reedMesh) {
@@ -817,8 +800,12 @@ void main() {
       }
       reedMesh.geometry.setAttribute("aPhase", new InstancedBufferAttribute(phases, 1));
       reedMesh.geometry.setAttribute("aSpeed", new InstancedBufferAttribute(speeds, 1));
-      const reedMat = reedMesh.material;
-      reedMat.onBeforeCompile = (shader) => {
+      const reedMat = reedMesh.material,
+        paintedCompile = reedMat.onBeforeCompile,
+        paintedKey = reedMat.customProgramCacheKey;
+      reedMat.customProgramCacheKey = () => paintedKey.call(reedMat) + ":reed-wind";
+      reedMat.onBeforeCompile = (shader, ...args) => {
+        paintedCompile.call(reedMat, shader, ...args);
         shader.uniforms.uTime = view.uniforms.uTime;
         shader.vertexShader =
           "attribute float aPhase;\nattribute float aSpeed;\nuniform float uTime;\n" +
@@ -920,7 +907,6 @@ void main() {
           );
           col.rotation.x = Math.PI / 2;
         }
-        rlFootRing(props, obstacle.x, obstacle.y, obstacle.r * 1.08, ring);
       } else {
         // fallen log along the long side, glow-moss on top, two small glowcaps
         const longX = obstacle.w >= obstacle.h,
@@ -962,7 +948,6 @@ void main() {
           rlMesh(props, new CylinderGeometry(0.04, 0.05, 0.25, 5), stem, mx, rad * 2 + 0.12, mz);
           rlMesh(props, new SphereGeometry(0.13, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2), spot, mx, rad * 2 + 0.24, mz);
         }
-        rlFootSlab(props, obstacle, ring, 0.2);
       }
   },
   // The Shattered Core: an energy barrier over the abyss, floating obelisks and hovering monoliths
@@ -1117,16 +1102,6 @@ void main() {
         const orb = rlMesh(props, new TorusGeometry(obstacle.r * 0.95, 0.04, 4, 32), hot, obstacle.x, 1.6, obstacle.y);
         orb.rotation.x = 1.2;
         view.rlAnim.push({ o: orb, k: "spin", s: 1.4, b: 1.6, ph: obstacle.y });
-        rlFootRing(props, obstacle.x, obstacle.y, obstacle.r * 1.08, rim);
-        const pad = rlMesh(
-          props,
-          new CircleGeometry(obstacle.r * 0.95, 24),
-          additiveMaterial(null, { color: biome.accent, opacity: 0.16 }),
-          obstacle.x,
-          0.04,
-          obstacle.y,
-        );
-        pad.rotation.x = -Math.PI / 2;
         view.rlEmit.push({ x: obstacle.x, z: obstacle.y, y: 0.6, k: "mote" });
       } else {
         // monolith hovering above its outline, glowing seams on the edges
@@ -1155,11 +1130,9 @@ void main() {
           rlMesh(mono, propBox(0.05, 0.05, obstacle.h * 2 * 0.92 + 0.04), hot, side * obstacle.w * 0.92, height / 2, 0);
         }
         view.rlAnim.push({ o: mono, k: "bob", b: 0.3 + height / 2, ph: obstacle.x + obstacle.y * 0.7, a: 0.1, s: 1.1 });
-        rlFootSlab(props, obstacle, obsid, 0.1);
       }
   },
-  // Ashfall Caldera (3.49.0): a basalt rampart around the crater with ember pockets in it, three fire
-  // beacons over the floor, obsidian spires where the tables stood, charred slabs and the long lava dyke
+  // Ashfall Caldera: fractured basalt around the crater, grounded obsidian spires and cooled rock shelves.
   club(view, biome, W, H, obs, rng) {
     const group = view.group,
       props = view.obsGroup,
@@ -1167,48 +1140,18 @@ void main() {
       darkRock = worldMaterial({ surface: "basalt", color: 0x505960, flatShading: true }),
       obsidian = worldMaterial({ surface: "basalt", color: 0x414951, flatShading: true }),
       emberMat = rlGlow(0x9b4e26),
-      hotMat = rlGlow(0xffe19a),
-      accentMat = new MeshBasicMaterial({ color: biome.accent, toneMapped: false }),
       bake = rlMerger();
-    // the rampart: rough basalt blocks with a dark cap, a molten seam behind every second block and
-    // an ember pocket breathing in the others
-    rlAlongBorder(W, H, 0.5, 2.2, (x, z, nx, nz) => {
-      const along = nx === 0,
-        ry = along ? 0 : Math.PI / 2,
-        ix = x - nx * 0.2,
-        iz = z - nz * 0.2;
-      bake.add(propBox(2.1, 1.5, 0.36), rock, x, 0.75, z, ry);
-      bake.add(propBox(2.16, 0.3, 0.44), darkRock, x, 1.6, z, ry);
-      const k = Math.round((along ? x : z) / 2.2);
-      if (k % 2 === 0) {
-        bake.add(propBox(0.16, 0.5, 0.14), darkRock, ix, 1.0, iz, ry);
-        bake.add(propBox(0.3, 0.22, 0.08), emberMat, ix, 1.42, iz, ry);
-      } else {
-        bake.add(propBox(1.9, 0.05, 0.06), emberMat, ix, 1.47, iz, ry);
-      }
+    // Broken cooled basalt marks the crater edge; no manufactured lamps or light bars.
+    rlAlongBorder(W, H, 0.55, 2.2, (x, z, nx) => {
+      bake.add(
+        strataGeometry(2.1, 0.9 + 0.12 * Math.sin(x + z), 0.65, x * 3 + z),
+        rock,
+        x,
+        0.01,
+        z,
+        nx === 0 ? 0 : Math.PI / 2,
+      );
     });
-    // Fire beacons sit beyond the rampart: tall non-colliding decoration must not hide the fight.
-    const heatMat = additiveMaterial(null, { color: 0xffb45a, opacity: 0.035, side: DoubleSide });
-    for (const [sx, sz] of [
-      [-W - 2.2, -H * 0.45],
-      [W + 2.2, -H * 0.45],
-      [0, -H - 2.2],
-    ]) {
-      bake.add(new CylinderGeometry(0.24, 0.4, 2.6, 7), rock, sx, 1.3, sz);
-      bake.add(new CylinderGeometry(0.36, 0.2, 0.34, 8), emberMat, sx, 2.72, sz);
-      bake.add(new ConeGeometry(0.24, 0.6, 7), hotMat, sx, 3.1, sz);
-      bake.add(new CylinderGeometry(0.5, 1.5, 5.4, 10, 1, true), heatMat, sx, 5.6, sz);
-    }
-    // the fissure line: a low rock ridge just inside the wall, cracked with a molten seam
-    for (const [bx, bz, len, rot] of [
-      [0, -H + 0.7, W * 2 - 2.4, 0],
-      [0, H - 0.7, W * 2 - 2.4, 0],
-      [-W + 0.7, 0, H * 2 - 2.4, Math.PI / 2],
-      [W - 0.7, 0, H * 2 - 2.4, Math.PI / 2],
-    ]) {
-      bake.add(new CylinderGeometry(0.1, 0.15, len, 6), darkRock, bx, 0.12, bz, rot, 0, Math.PI / 2);
-      bake.add(new CylinderGeometry(0.045, 0.045, len * 0.94, 6), emberMat, bx, 0.21, bz, rot, 0, Math.PI / 2);
-    }
     bake.flush(group);
     for (const obstacle of obs)
       if (obstacle.t === "c") {
@@ -1247,8 +1190,6 @@ void main() {
           0,
           tilt,
         );
-        rlFootRing(props, obstacle.x, obstacle.y, r * 0.88, darkRock);
-        rlMesh(props, new SphereGeometry(0.07, 6, 5), hotMat, obstacle.x + r * 0.28, 0.34, obstacle.y);
       } else if (obstacle.w < 1.3 && obstacle.h < 1.3) {
         // a charred slab: a leaning monolith with an ember seam across its face
         const height = 1.15;
@@ -1269,12 +1210,10 @@ void main() {
           height * 0.62,
           obstacle.y + obstacle.h - 0.03,
         );
-        rlFootSlab(props, obstacle, darkRock, 0.1);
       } else {
         // One local frame rotates the ridge, seams and vents together.
-        const materials = { rock, darkRock, emberMat, hotMat, accentMat };
+        const materials = { rock, darkRock, emberMat };
         for (const part of calderaRidgeParts(obstacle)) props.add(new Mesh(part.geometry, materials[part.role]));
-        rlFootSlab(props, obstacle, darkRock, 0.1);
       }
   },
   // The Glass Flats (3.53.0): a low sand berm with glass shards along the border, glass ridges and
@@ -1295,8 +1234,6 @@ void main() {
         flatShading: true,
       }),
       hotGlass = worldMaterial({ color: 0xdbf0e9, emissive: 0x435c58, flatShading: true }),
-      glow = rlGlow(biome.grid, 0.7),
-      hot = rlGlow(biome.accent, 0.8),
       bake = rlMerger();
     // the berm: pale drifts piled along the border, glass shards standing in them
     rlAlongBorder(W, H, 0.5, 1.9, (x, z, nx, nz) => {
@@ -1319,62 +1256,54 @@ void main() {
         ]) {
           const sheet = rlMesh(
             props,
-            propBox(obstacle.r * 1.3, obstacle.r * 1.1, 0.14),
+            shardGeometry(obstacle.r * 1.15, obstacle.r, 0.14),
             glass,
             obstacle.x + dx,
-            obstacle.r * 0.4,
+            0.025,
             obstacle.y + dz,
           );
           sheet.rotation.set(lean * Math.sin(a), a, lean * Math.cos(a));
-          // 3.55.0: both sheets carry the hot fused edge (one read as a bare sheet from above)
-          const edge = rlMesh(
-            props,
-            propBox(obstacle.r * 1.3, 0.05, 0.05),
-            hotGlass,
-            obstacle.x + dx,
-            obstacle.r * 0.96,
-            obstacle.y + dz,
-          );
-          edge.rotation.set(lean * Math.sin(a), a, lean * Math.cos(a));
         }
         rlMesh(
           props,
-          new CylinderGeometry(obstacle.r * 0.5, obstacle.r * 0.7, 0.24, 7),
-          hotGlass,
-          obstacle.x,
-          0.12,
-          obstacle.y,
-        );
-        rlFootRing(props, obstacle.x, obstacle.y, obstacle.r * 1.08, glow);
-        view.rlEmit.push({ x: obstacle.x, z: obstacle.y, y: 1.2, k: "glint" });
-      } else {
-        // a sandstone slab half-melted: the top ran to glass, the sand piled against the wind side
-        const hgt = 1.0;
-        rlMesh(
-          props,
-          propBox(obstacle.w * 2 * 0.8, hgt * 0.75, obstacle.h * 2 * 0.8),
+          strataGeometry(obstacle.r * 1.4, 0.16, obstacle.r * 1.4, obstacle.x + obstacle.y, true),
           sandstone,
           obstacle.x,
-          hgt * 0.36,
+          0.01,
           obstacle.y,
         );
+        view.rlEmit.push({ x: obstacle.x, z: obstacle.y, y: 1.2, k: "glint" });
+      } else {
+        // Eroded sandstone carries a broken glass crust, rather than the old table-shaped stack.
+        const seed = obstacle.x * 7 + obstacle.y;
         rlMesh(
           props,
-          propBox(obstacle.w * 2 * 0.86, 0.14, obstacle.h * 2 * 0.86),
-          hotGlass,
+          strataGeometry(obstacle.w * 1.95, 0.84, obstacle.h * 1.95, seed),
+          sandstone,
           obstacle.x,
-          hgt * 0.78,
+          0.01,
           obstacle.y,
         );
         rlMesh(
           props,
-          propBox(obstacle.w * 2 * 0.92, 0.14, obstacle.h * 2 * 0.92),
+          strataGeometry(obstacle.w * 1.65, 0.16, obstacle.h * 1.65, seed),
           glass,
           obstacle.x,
-          hgt * 0.78 + 0.13,
+          0.7,
           obstacle.y,
         );
-        rlFootSlab(props, obstacle, hot, 0.22);
+        for (const side of [-1, 1]) {
+          const shard = rlMesh(
+            props,
+            shardGeometry(Math.min(0.3, obstacle.w * 0.3), 0.28, 0.08),
+            hotGlass,
+            obstacle.x + side * obstacle.w * 0.5,
+            0.74,
+            obstacle.y,
+            side * 0.7,
+          );
+          shard.rotation.z = side * 0.1;
+        }
       }
   },
 };
@@ -1634,7 +1563,7 @@ function rlSkinMaterial(mat, flash) {
       .replace("#include <common>", `#include <common>${RL_SKIN_FRAG_HEAD}${flash ? "\nvarying float vFlash;" : ""}`)
       .replace(
         "#include <opaque_fragment>",
-        `${RL_SKIN_FRAG_BODY}${flash ? "\noutgoingLight = mix(outgoingLight, vec3(1.0), vFlash);" : ""}\n#include <opaque_fragment>`,
+        `${RL_SKIN_FRAG_BODY}${flash ? "\noutgoingLight += vec3(.38,.31,.22) * clamp(vFlash,0.0,1.0);" : ""}\n#include <opaque_fragment>`,
       );
   };
   mat.customProgramCacheKey = () => (flash ? "flashPaintedSkin:" : "paintedSkin:") + paintedKey;

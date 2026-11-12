@@ -1,5 +1,19 @@
 // Closed hand-shaped strata. Every point remains inside the authored width/depth/height envelope.
-import { BufferGeometry, Float32BufferAttribute } from "three";
+import { BufferGeometry, Float32BufferAttribute, Shape, ExtrudeGeometry } from "three";
+
+// A closed broken shard with a pointed crown; its base is at ground level and fits the authored envelope.
+export function shardGeometry(width, height, depth) {
+  const shape = new Shape();
+  shape.moveTo(-width * 0.5, 0);
+  shape.lineTo(width * 0.48, height * 0.025);
+  shape.lineTo(width * 0.36, height * 0.7);
+  shape.lineTo(-width * 0.06, height);
+  shape.lineTo(-width * 0.43, height * 0.65);
+  shape.closePath();
+  const geometry = new ExtrudeGeometry(shape, { depth, bevelEnabled: false, steps: 1 });
+  geometry.translate(0, 0, -depth * 0.5);
+  return geometry;
+}
 
 export function strataGeometry(width, height, depth, seed = 1, round = false) {
   const sides = 10,

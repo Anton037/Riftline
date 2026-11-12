@@ -6,6 +6,16 @@ Riftline is a touch-only landscape game for phones and tablets. Keep gameplay, r
 biome art and audio coherent. Keep routine checks short and run specialist checks only when relevant.
 The owner merges pull requests. Work remains cumulative with the 3.61.0 graphics/test cleanup.
 
+## 4.1.1 follow-up: walker, biomes and impacts
+
+- Rebuild the player around an attached stabilized weapon bearing, with new armor, legs, feet and muzzle placement.
+- Remove unowned floor rings, decal discs, Caldera lamps/studs and duplicate natural-biome pedestals; sculpt ice and glass props.
+- Carry target material through damage events into impact sound and particles; keep critical hits in the same material family.
+- Keep the drawing buffer when adjusting settings; remove retired graphics-tier shaders and unused mouse projection.
+- Align startup diagnostics with the FPS controls and assert their results in the browser flow.
+- Watch source, public assets and release metadata in development, with serialized rebuilds.
+- Refresh current audio/pacing documentation; retain the required patched dependency overrides and useful verification tools.
+
 ## 4.1 world, equipment and sound update
 
 - Painted terrain across all six biomes; material-specific armor, steel, hide, bark and crystal finishes on characters, bosses and scenery.

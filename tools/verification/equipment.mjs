@@ -125,6 +125,39 @@ try {
     await page.screenshot({ path: `${out}/${weapon}.png`, animations: "disabled" });
     console.log(JSON.stringify(row));
   }
+  // Inspect the physical gun bearing from every aim direction while the body banks, walks and tucks its legs.
+  for (let turn = 0; turn < 8; turn++) {
+    await page.evaluate((turn) => {
+      const T = window.__riftTest,
+        w = T.game.world,
+        r = T.renderer;
+      w.enemies.length = 0;
+      w.pb.length = 0;
+      w.eb.length = 0;
+      w.player.x = w.player.y = 0;
+      w.player.iT = w.player.hurtT = 0;
+      r.corpses.length = 0;
+      r.smokeView.clear();
+      r.P.n = 0;
+      r.lines.length = 0;
+      r.rings.length = 0;
+      r.flashes.length = 0;
+      r.frame(0.01, w);
+      const d = r.player,
+        angle = (turn * Math.PI) / 4;
+      d.base.rotation.set(turn % 2 ? 0.25 : 0, 0, -0.1, "YZX");
+      d.group.position.set(0, d.setWalk(turn * 0.8, 0.8, turn === 6 ? 1 : 0, 8), 0);
+      d.recoil = 0.07;
+      d.aimAt(angle);
+      r.camera.position.set(3.2, 2.6, 3.5);
+      r.camera.lookAt(0, 0.85, 0);
+      r.camera.fov = 34;
+      r.camera.updateProjectionMatrix();
+      r.renderer.render(r.scene, r.camera);
+    }, turn);
+    assert.deepEqual(errors, [], `player turn ${turn}: browser/shader errors`);
+    await page.screenshot({ path: `${out}/player-turn-${turn}.png`, animations: "disabled" });
+  }
   const groups = {
     machines: ["grunt", "gunner", "bomber", "sniper", "bulwark", "mortar", "turret", "charger", "sapper", "driller"],
     organics: ["swarmer", "mite", "splitter", "hive", "leaper", "mender", "carrier"],

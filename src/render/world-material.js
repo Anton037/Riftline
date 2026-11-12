@@ -1,5 +1,6 @@
 // Shared weathered surfaces: restrained grain, deposited dust and directional material highlights.
 import { MeshPhongMaterial } from "three";
+import { actorMaterial } from "../data/materials.js";
 
 export const WORLD_SURFACES = {
   map: { value: null },
@@ -102,11 +103,8 @@ ${surface === "dust" ? "diffuseColor.a *= smoothstep(0.0,0.3,ap.y) * (1.0-smooth
 }
 
 export function enemySurface(type) {
-  return ["swarmer", "mite", "splitter", "hive", "leaper", "carrier", "queen"].includes(type)
-    ? "organic"
-    : ["phantom", "weaver"].includes(type)
-      ? "crystal"
-      : "armor";
+  const surface = actorMaterial(type);
+  return surface === "energy" ? "crystal" : surface;
 }
 
 // Only physical lit meshes cast shadows; glow cards and attack geometry stay transparent to light.

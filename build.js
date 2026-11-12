@@ -2,7 +2,7 @@
 //   src/main.js + the modules it imports (src/core, data, render, audio, ui) and three.js from
 //   npm             -> dist/game-v<version>-<content hash>.js  (one file, bundled and minified by esbuild)
 //   src/index.html, src/sw.js, src/build-info.json -> dist/ (placeholders filled in)
-//   public/*          -> dist/ (icons, fonts, manifest; copied as they are)
+//   public/*          -> dist/ (icons, fonts, textures, audio, manifest; copied as they are)
 // Version and build id live only in package.json ("version", "riftline.build"). The sources use
 // the placeholders __RL_VERSION__, __RL_BUILD__, __RL_VERSION_DASHED__ and __RL_GAME_FILE__.
 // Usage: node build.js [--watch]   (watch also serves dist/ on http://localhost:8124)
@@ -122,10 +122,33 @@ async function build() {
 await build();
 
 if (watch) {
-  let timer = null;
-  fs.watch(r("src"), { recursive: true }, () => {
+  let timer = null,
+    building = false,
+    pending = false;
+  const rebuild = async () => {
+    pending = true;
+    if (building) return;
+    building = true;
+    try {
+      while (pending) {
+        pending = false;
+        try {
+          await build();
+        } catch (error) {
+          console.error(error.message);
+        }
+      }
+    } finally {
+      building = false;
+    }
+  };
+  const changed = () => {
     clearTimeout(timer);
-    timer = setTimeout(() => build().catch((e) => console.error(e.message)), 80);
+    timer = setTimeout(rebuild, 80);
+  };
+  for (const dir of ["src", "public"]) fs.watch(r(dir), { recursive: true }, changed);
+  fs.watch(ROOT, (_event, file) => {
+    if (file === "package.json") changed();
   });
   const { url } = await serve(DIST, 8124);
   console.log(`serving ${url} (rebuilds on change)`);

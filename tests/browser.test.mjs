@@ -18,14 +18,38 @@ for (const tablet of [true, false])
           return e && !e.hidden;
         }, id);
       if (tablet) {
+        const health = await page.evaluate(() => window.__riftTest.health({ context: "browser-test" }));
+        assert.deepEqual(
+          health.filter((check) => check.status === "FAIL"),
+          [],
+          "Startup health checks must pass",
+        );
         await press('[data-go="settings"]');
         await visible("settings");
+        await page.evaluate(() => {
+          const renderer = window.__riftTest.renderer.renderer,
+            original = renderer.setSize;
+          window.__settingsResize = { count: 0, restore: () => (renderer.setSize = original) };
+          renderer.setSize = function (...args) {
+            window.__settingsResize.count++;
+            return original.apply(this, args);
+          };
+        });
         await press('#setFrameRate [data-v="120"]');
         assert.equal(await page.evaluate(() => window.__riftTest.store.data.settings.frameRate), 120);
         assert.equal(await page.evaluate(() => window.__riftTest.renderer.renderer.shadowMap.enabled), true);
         await press('#setFrameRate [data-v="30"]');
         await press("#setNumbers");
         assert.equal(await page.evaluate(() => window.__riftTest.renderer.numbers), false);
+        assert.equal(
+          await page.evaluate(() => {
+            const watched = window.__settingsResize;
+            watched.restore();
+            return watched.count;
+          }),
+          0,
+          "Settings changes must retain the canvas drawing buffer",
+        );
         // A phone may background while the player fetches a backup from another app.
         await press("#restoreBtn");
         await page.locator("#saveImport").fill('{"game":"riftline","v":1,"shards":123}');
