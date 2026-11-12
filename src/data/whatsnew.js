@@ -4,6 +4,17 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "4.1.0",
+    title: "Painted worlds, physical sound",
+    items: [
+      "All six worlds gain painted terrain, weathered materials, grounded shadows and sculpted volcanic rock.",
+      "Painted characters, layered walker armor, detailed weapon barrels and tactile equipment panels carry the new look through the game.",
+      "Material smoke, physical rockets and quieter sparks and glows make the action clearer.",
+      "Combat sound is rebuilt around physical recordings, weighty weapon reports and distinct material impacts, with new ambience accents.",
+      "High detail is standard; choose a 30, 60 or 120 FPS limit, with 60 FPS as the default.",
+    ],
+  },
+  {
     version: "4.0.0",
     title: "Six worlds, rebuilt",
     items: [
@@ -40,17 +51,6 @@ export const WHATS_NEW = [
       "The walker wears a new armored torso and shoulders, with shaped edges and metal highlights on machines and boss armor.",
       "Muzzle jets, directional hit sparks and twin dash trails make attacks read at a glance, while Nova clears its centre faster.",
       "Weapons have distinct dry attacks and shorter bodies, with redesigned hit, explosion, dash and Nova sounds.",
-    ],
-  },
-  {
-    version: "3.62.1",
-    title: "Reliable saves and fairer hazards",
-    items: [
-      "Repeated Endless boss defeats survive Continue, and unusable saves are backed up before replacement.",
-      "Champion rallies expire and every Sunstruck enemy receives its temporary sprint.",
-      "Hazmat and Hazard Seal protect against traps, and fast enemy shots collide along their path.",
-      "Scattergun damage estimates count extra pellets correctly and invalid challenge dates are rejected.",
-      "The Rift Core stops summoning reinforcements into an overcrowded arena.",
     ],
   },
 ];

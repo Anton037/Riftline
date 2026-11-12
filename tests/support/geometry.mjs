@@ -147,6 +147,7 @@ export function disposeArena(view) {
     if (o.material) materials.add(o.material);
   });
   for (const geometry of geometries) geometry.dispose();
+  view.groundOcclusion?.dispose();
   materials.add(view.floorMat);
   for (const material of materials) material.dispose();
 }

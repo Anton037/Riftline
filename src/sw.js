@@ -2,7 +2,7 @@
 // Scope isolates separate deployments on the same GitHub Pages origin.
 const PREFIX = `riftline:${encodeURIComponent(self.registration.scope)}:`;
 const CACHE = PREFIX + 'v__RL_VERSION_DASHED__-__RL_BUILD__-__RL_ASSETS__';
-const FILES = ["./","index.html","__RL_GAME_FILE__","manifest.webmanifest","icon-192.png","icon-512.png","icon-maskable-512.png","apple-touch-icon.png","favicon-48.png","build-info.json","fonts/chakra-petch-latin-600-normal.woff2","fonts/chakra-petch-latin-700-normal.woff2","fonts/barlow-semi-condensed-latin-500-normal.woff2","fonts/barlow-semi-condensed-latin-600-normal.woff2","fonts/barlow-semi-condensed-latin-700-normal.woff2"];
+const FILES = ["./","index.html","__RL_GAME_FILE__","manifest.webmanifest","audio/physical-bank.wav","textures/terrain-atlas.webp","textures/surface-atlas.webp","icon-192.png","icon-512.png","icon-maskable-512.png","apple-touch-icon.png","favicon-48.png","build-info.json","fonts/chakra-petch-latin-600-normal.woff2","fonts/chakra-petch-latin-700-normal.woff2","fonts/barlow-semi-condensed-latin-500-normal.woff2","fonts/barlow-semi-condensed-latin-600-normal.woff2","fonts/barlow-semi-condensed-latin-700-normal.woff2"];
 const CORE = ['./', 'index.html', '__RL_GAME_FILE__'];
 const INSTALLED = new URL('.riftline-installed', self.registration.scope).href;
 self.addEventListener('install', (e) => {

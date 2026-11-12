@@ -143,3 +143,7 @@ One version, one branch, one pull request: bump `version` and the build id in `p
 ## When something breaks
 
 The game keeps its own flight recorder. A crashed run shows a report (version, device, health checks, the exact frame errors) with a **copy** button — paste it into an issue and it pins the bug down fast. Health checks also run at boot in every test session, so most breakage is caught before it ships.
+
+The 4.1 review covers the painted worlds, characters/equipment, physical sound sources and the 30/60/120 FPS
+control: [art and sound review](docs/ART-REVIEW-4.1.md). High detail is standard at every FPS limit; the default is 60.
+Recording credits and pinned source links are in [audio sources](public/audio/SOURCES.md).

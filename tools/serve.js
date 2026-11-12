@@ -14,6 +14,8 @@ const TYPES = {
   ".json": "application/json; charset=utf-8",
   ".webmanifest": "application/manifest+json",
   ".png": "image/png",
+  ".webp": "image/webp",
+  ".wav": "audio/wav",
   ".woff2": "font/woff2",
   ".css": "text/css; charset=utf-8",
   ".txt": "text/plain; charset=utf-8",

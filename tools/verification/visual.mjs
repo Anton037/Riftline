@@ -9,10 +9,10 @@ const url = process.argv[2] || "http://localhost:8124/index.html";
 const tag = process.argv[3] || "current";
 const mobile = ["land", "phone"].includes(process.argv[4]);
 const requestedBiome = process.argv[5] && process.argv[5] !== "all" ? process.argv[5] : null;
-const quality = process.argv[6] || "high";
-assert.ok(["high", "auto", "battery"].includes(quality), `Unknown quality: ${quality}`);
-if (process.argv[7]) assert.equal(process.argv[7], "map", "Unknown visual review mode");
-const mapReview = process.argv[7] === "map";
+const frameRate = +(process.argv[6] || 60);
+assert.ok([30, 60, 120].includes(frameRate), `Unknown frame rate: ${frameRate}`);
+if (process.argv[7]) assert.ok(["map", "overview"].includes(process.argv[7]), "Unknown visual review mode");
+const mapReview = ["map", "overview"].includes(process.argv[7]);
 const mapPositions = {
   centre: [0, 0],
   north: [0, -1],
@@ -24,8 +24,12 @@ const mapPositions = {
   southwest: [-1, 1],
   southeast: [1, 1],
 };
-const scenes = mapReview ? Object.keys(mapPositions) : ["encounter", "boss", "warnings", "telegraphs"];
-const out = `verification-output/${tag}-${mobile ? "land" : "tablet"}-${quality}`;
+const scenes = mapReview
+  ? process.argv[7] === "overview"
+    ? ["centre"]
+    : Object.keys(mapPositions)
+  : ["encounter", "boss", "warnings", "telegraphs"];
+const out = `verification-output/${tag}-${mobile ? "land" : "tablet"}-${frameRate}fps`;
 fs.mkdirSync(out, { recursive: true });
 const browser = await chromium.launch({ args: launchArgs() });
 try {
@@ -49,6 +53,11 @@ try {
   });
   await page.goto(url);
   await page.waitForFunction(() => window.__riftTest?.renderer, null, { timeout: 90000 });
+  await page.waitForFunction(
+    () =>
+      window.__riftTest.renderer.arena.uniforms.uTerrainReady.value === 1 &&
+      window.__riftTest.renderer.finishAtlasReady,
+  );
   await page.evaluate(() => {
     window.__visualManualFrames = true;
   });
@@ -62,10 +71,10 @@ try {
     for (const scene of scenes) {
       const boss = scene === "boss";
       const row = await page.evaluate(
-        ({ id, boss, scene, quality, position }) => {
+        ({ id, boss, scene, frameRate, position }) => {
           const T = window.__riftTest;
           for (const k of Object.keys(T.store.data.seen)) T.store.data.seen[k] = true;
-          T.store.data.settings.quality = quality;
+          T.store.data.settings.frameRate = frameRate;
           T.game.settingsChanged(true);
           const random = Math.random;
           Math.random = () => 0.42;
@@ -161,18 +170,23 @@ try {
             id,
             boss,
             scene,
-            quality,
+            frameRate,
             actual: w.arena.biome.id,
             bossType: w.boss?.type || null,
+            shadows: r.renderer.shadowMap.enabled,
+            atlasReady: r.arena.uniforms.uTerrainReady.value === 1 && r.finishAtlasReady,
             calls: r.renderer.info.render.calls,
             triangles: r.renderer.info.render.triangles,
             particles: r.P.n,
             bossMeshes,
           };
         },
-        { id, boss, scene, quality, position: mapReview ? mapPositions[scene] : null },
+        { id, boss, scene, frameRate, position: mapReview ? mapPositions[scene] : null },
       );
+      assert.deepEqual(errors, [], `${id}/${scene}: browser or shader errors`);
       assert.equal(row.actual, id);
+      assert.equal(row.atlasReady, true);
+      assert.equal(row.shadows, true);
       if (boss) assert.ok(row.bossType, `${id}: missing boss`);
       if (mobile && boss) {
         const placement = await page.evaluate(() => {

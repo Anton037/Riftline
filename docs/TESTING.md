@@ -11,7 +11,8 @@ there is no historical release assertion catalog, always-on soak or hidden exten
 | `npm run e2e` | Touch, onboarding/audio, training and worker update | Game flows 25–30 s; worker 20 s; process 75 s |
 | `npm run test:render` | Same browser checks with actual drawing | Game flows 180 s each; process 600 s |
 | `npm run audit:visual` | Six biomes and bosses on tablet and landscape phone, High | 240 s per layout |
-| `npm run verify:audio` | Optional synthesized sound correctness | 420 s |
+| `node tools/verify.js equipment <tag>` | Seven weapons, all 25 enemies, smoke/rockets and FPS controls | 240 s |
+| `npm run verify:audio` | Optional recorded/physical sound correctness | 420 s |
 | `npm run verify:audio-budget` | Optional audio scheduler/real-node parity | 180 s |
 | `npm run probe:audio` | Audio fault recovery | 120 s |
 | `npm run probe:mix` / `probe:music` / `probe:place` | Optional sound measurements | 300 / 420 / 180 s |
@@ -19,8 +20,8 @@ there is no historical release assertion catalog, always-on soak or hidden exten
 The map geometry suite is part of the normal gate. `node --test tests/map-geometry.test.mjs` runs its
 252-layout scene audit on its own. It checks transformed triangle faces, collision footprints, exterior
 bounds, animation samples and GPU reed wind extrema. See [the geometry audit](GEOMETRY-AUDIT-4.0.md).
-For centre/edge/corner screenshots use `node tools/verify.js visual <tag> tablet all high map` or
-`node tools/verify.js visual <tag> land all battery map`; each covers nine views in every biome.
+For centre/edge/corner screenshots use `node tools/verify.js visual <tag> tablet all 60 map` or
+`node tools/verify.js visual <tag> land all 30 map`; each covers nine views in every biome.
 
 ## Standard contracts
 
@@ -58,18 +59,21 @@ No arbitrary sleep is used to wait for gameplay. The runner terminates its proce
 ## Targeted visual review
 
 ```sh
-# One biome on a phone in Saver (the saved setting is named battery)
-node tools/verify.js visual review land void battery
-# Every biome on a tablet in Auto
-node tools/verify.js visual review tablet all auto
+# One biome on a phone with the 30 FPS cap, retaining High detail
+node tools/verify.js visual review land void 30
+# Every biome on a tablet with the default 60 FPS cap
+node tools/verify.js visual review tablet all 60
+# Seven weapons, all 25 enemies, smoke/rockets and FPS controls
+node tools/verify.js equipment review
 ```
 
-Arguments after `visual`: output tag, layout (`land`/`phone` or `tablet`), biome ID or `all`, quality
-(`high`, `auto`, `battery`). Screenshots and metrics go to `verification-output/<tag>-<layout>-<quality>/`.
+Arguments after `visual`: output tag, layout (`land`/`phone` or `tablet`), biome ID or `all`, FPS limit
+(`30`, `60`, `120`). Screenshots and metrics go to `verification-output/<tag>-<layout>-<fps>fps/`.
+All limits retain High detail, shadows and the full particle budget.
 Each biome has encounter, boss, warning/projectile and charge/sniper telegraph scenes. These are staged
 encounters, not a claim that every boss attack/phase has been visually reviewed.
 The capture freezes the live loop after boot, advances twelve settling updates with only the final WebGL
-submission, and captures real pixels. Auto captures its starting configuration, not sustained thermal adaptation.
+submission, and captures real pixels. FPS limits are pacing ceilings; the staged capture is not a sustained performance benchmark.
 Use a physical device for that.
 
 All npm probes use the same temporary server and bounded process wrapper. Cleanup runs after failure,
@@ -81,10 +85,10 @@ backend flags. Software frame times are not mobile GPU benchmarks.
 
 PRs run `npm run check`. Pages runs the Node contracts and builds without downloading Chromium.
 Both normal jobs have a five-minute ceiling. The manual verification workflow runs the selected
-specialist check and uploads visual screenshots/metrics even after failures (seven-day retention).
+specialist check and uploads biome/equipment screenshots and metrics even after failures (seven-day retention).
 
 Before release, play boss fights on a phone/tablet in landscape. Check warnings against bright ice/glass,
-multitouch ownership, speaker audibility, Auto/Saver frame pacing and several minutes of heat/memory.
+multitouch ownership, speaker audibility, 30/60/120 FPS pacing and several minutes of heat/memory.
 Keep an old run open during a real deployment; apply the update outside the run and continue offline.
 These physical-device, full published-release, long-session and balance checks remain manual.
 
@@ -93,3 +97,16 @@ These physical-device, full published-release, long-session and balance checks r
 The suite includes focused audit regressions for saves, calendars, enemy buffs, traps, projectile collision and summons. It runs without GPU drawing by default; the optional drawing suite
 has a separate deadline because software rasterisation is much slower. Timing depends on hardware
 and CI load; these deadlines are not a mobile FPS target.
+
+`node tools/verify.js visual <tag> tablet all 60 overview` captures one centred game view per biome for
+matched art comparisons. The visual checks also require both painted atlases to load and verify that
+sun shadows stay enabled at every FPS setting. `tests/art.test.mjs` checks closed sculpted geometry, deterministic
+feathered ground-contact masks and idempotent paint/biome shader composition on shared boss materials.
+
+The worker fixture observes registration and controller state synchronously; asynchronous identity replies do not
+serialize lifecycle notifications. Failed activation includes the worker states in its error for diagnosis.
+
+`tests/physical-audio.test.mjs` checks source-bank regions, finite faded physical bodies and the 48-entry cache bound; weather and wildlife must remain independent of the material recordings.
+The full audio health suite requires the recorded bank to decode, then checks samples, tails, mixing, continuous
+fire and voice protection. Its cache includes the binary bank, so changing a recording invalidates previous results.
+Rebuild the CC0 source bank with `python tools/build-audio-bank.py` (Python 3 and ffmpeg), then run `npm run format`.

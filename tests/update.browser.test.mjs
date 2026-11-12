@@ -113,52 +113,53 @@ test("updates keep installed snapshots intact and old bundles available offline"
     const reg = await navigator.serviceWorker.getRegistration();
     await new Promise((resolve, reject) => {
       const observed = new Set();
-      let checking = false,
-        again = false;
+      let settled = false;
       const cleanup = () => {
         clearTimeout(timer);
         navigator.serviceWorker.removeEventListener("controllerchange", check);
         reg.removeEventListener("updatefound", check);
         for (const worker of observed) worker.removeEventListener("statechange", check);
       };
-      const timer = setTimeout(() => {
+      const finish = (error) => {
+        if (settled) return;
+        settled = true;
         cleanup();
-        reject(new Error("Release B did not activate and take control"));
+        if (error) reject(error);
+        else resolve();
+      };
+      const timer = setTimeout(() => {
+        const state = (worker) => worker?.state || null;
+        finish(
+          new Error(
+            "Release B did not activate and take control: " +
+              JSON.stringify({
+                installing: state(reg.installing),
+                waiting: state(reg.waiting),
+                active: state(reg.active),
+                controller: state(navigator.serviceWorker.controller),
+              }),
+          ),
+        );
       }, 5000);
-      async function check() {
-        if (checking) {
-          again = true;
-          return;
-        }
-        checking = true;
-        try {
-          do {
-            again = false;
-            for (const worker of [reg.installing, reg.waiting, reg.active]) {
-              if (worker && !observed.has(worker)) {
-                observed.add(worker);
-                worker.addEventListener("statechange", check);
-              }
-            }
-            const waiting = reg.waiting;
-            if ((await identify(waiting)) === "b") waiting.postMessage("skipWaiting");
-            const controller = navigator.serviceWorker.controller;
-            if (controller?.state === "activated" && (await identify(controller)) === "b") {
-              cleanup();
-              resolve();
-              return;
-            }
-          } while (again);
-        } catch (error) {
-          cleanup();
-          reject(error);
-        } finally {
-          checking = false;
+      function check() {
+        // Subscribe synchronously, including to the controller while registration references change.
+        // An identity request must not serialize or suppress another worker's lifecycle notification.
+        for (const worker of [reg.installing, reg.waiting, reg.active, navigator.serviceWorker.controller]) {
+          if (!worker) continue;
+          if (!observed.has(worker)) {
+            observed.add(worker);
+            worker.addEventListener("statechange", check);
+          }
+          void identify(worker).then((identity) => {
+            if (settled || identity !== "b") return;
+            if (reg.waiting === worker) worker.postMessage("skipWaiting");
+            if (navigator.serviceWorker.controller === worker && worker.state === "activated") finish();
+          }, finish);
         }
       }
       navigator.serviceWorker.addEventListener("controllerchange", check);
       reg.addEventListener("updatefound", check);
-      void check();
+      check();
     });
   });
   assert.equal(await page.evaluate(() => window.release), "a", "Existing page stays on its running bundle");

@@ -45,7 +45,7 @@ test("old saves migrate and unsupported settings are discarded", () => {
   const store = new SaveStore();
   assert.ok(store.data.weapons.tesla);
   assert.equal(store.data.weapon, "tesla");
-  for (const key of ["zoom", "contrast", "shake", "timer", "fps"]) assert.ok(!(key in store.data.settings));
+  for (const key of ["zoom", "contrast", "shake", "timer", "fps", "quality"]) assert.ok(!(key in store.data.settings));
   assert.ok(store.data.shards > 0);
   assert.ok(store.data.run);
 });
@@ -105,5 +105,18 @@ test("unusable save identities are backed up before autosave replaces them", () 
     const store = new SaveStore();
     store.save("test");
     assert.ok([...entries].some(([k, v]) => k.startsWith(SAVE_KEY + ".backup-") && v === raw));
+  }
+});
+
+test("frame rate limits migrate independently of removed graphics presets", () => {
+  for (const frameRate of [30, 60, 120, true, 59, "120", null]) {
+    const raw = newSave();
+    raw.settings = { ...raw.settings, quality: "battery", frameRate };
+    reset(JSON.stringify(raw));
+    const store = new SaveStore();
+    assert.equal(store.data.settings.frameRate, [30, 60, 120].includes(frameRate) ? frameRate : 60);
+    assert.ok(!("quality" in store.data.settings));
+    store.save("test");
+    assert.equal(new SaveStore().data.settings.frameRate, store.data.settings.frameRate);
   }
 });

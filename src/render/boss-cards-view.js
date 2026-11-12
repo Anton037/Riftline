@@ -7,7 +7,8 @@
 //   brood      small larvae with wings and a green glow that circle the drone, then dive at an enemy
 //   implode    rings and sparks drawn into the drone before the Nova
 
-import { Color, MeshBasicMaterial, MeshLambertMaterial, OctahedronGeometry } from "three";
+import { Color, MeshBasicMaterial, OctahedronGeometry } from "three";
+import { worldMaterial } from "./world-material.js";
 import { meshPart, mergeParts, box, ball, bar } from "./models.js";
 import { clamp, TAU } from "../core/util.js";
 import { MARK_LOOK } from "./attacks-view.js";
@@ -84,7 +85,8 @@ class BossCardView {
           mergeParts(parts.flat()),
           glow
             ? new MeshBasicMaterial({ toneMapped: false, vertexColors: true })
-            : new MeshLambertMaterial({
+            : worldMaterial({
+                surface: name === "larva" ? "organic" : name === "pylon" ? "metal" : "ice",
                 vertexColors: true,
                 flatShading: true,
                 ...(lit ? { emissive: 0x223344 } : {}),

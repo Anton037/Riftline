@@ -14,7 +14,6 @@
 // language of the game: a ring at the edge of the danger that lights up.
 
 import {
-  BoxGeometry,
   CircleGeometry,
   Color,
   ConeGeometry,
@@ -25,7 +24,6 @@ import {
   AdditiveBlending,
   NormalBlending,
   MeshBasicMaterial,
-  MeshLambertMaterial,
   OctahedronGeometry,
   ShaderMaterial,
   SphereGeometry,
@@ -33,6 +31,8 @@ import {
   UniformsLib,
   UniformsUtils,
 } from "three";
+import { dustRibbonGeometry } from "./strata-geometry.js";
+import { worldMaterial } from "./world-material.js";
 import { meshPart, mergeParts, box } from "./models.js";
 import { clamp, TAU, makeRng } from "../core/util.js";
 
@@ -153,28 +153,19 @@ void main() {
   // 3.54.0: the melt burns orange under a darker crust - the pool read as a pale cookie before
   molten: `
 void main() {
-  float r = length(vP), a = atan(vP.y, vP.x), seed = vI.g * 41.0, heat = vI.r;
-  float edge = 0.84 + 0.1 * vnoise(vec2(a * 1.6 + seed, seed));
-  if (r > edge) discard;
-  vec2 q = vP * 3.2 + seed;
-  vec2 flow = vec2(fbm(q * 0.7 + uTime * 0.12), fbm(q * 0.7 - uTime * 0.1 + 7.0));
-  vec3 v = voro(q + flow * 1.3);
-  float melt = clamp(heat * 0.55, 0.0, 0.85);
-  float heatK = clamp(heat * 0.7, 0.0, 1.0);
-  // the heat opens the seams AND the molten middle, and it gates the brightness: an idle pool sits
-  // dark-custed over dull seams with a small burning eye, an erupting one blazes across
-  float crust = smoothstep(0.03 + melt * 0.12, 0.1 + melt * 0.3, v.y) *
-    smoothstep(0.1, 0.55, r / edge + 0.55 - 0.45 * heatK);
-  vec3 hot = mix(vec3(0.75, 0.18, 0.01), vec3(1.0, 0.55, 0.14), fbm(q * 1.6 + vec2(0.0, uTime * 0.6)));
-  hot *= (0.15 + 0.85 * heatK) * (0.7 + heat * 0.35 + 0.08 * sin(uTime * 2.0 + seed));
-  vec3 rock = vec3(0.014, 0.009, 0.007) * (0.6 + 0.8 * fbm(q * 4.0));
-  rock += vec3(0.14, 0.035, 0.0) * smoothstep(0.12, 0.03, v.y) * (0.2 + 0.55 * heatK);
-  vec3 col = mix(hot, rock, crust);
-  // the eye: a small always-molten centre, the vent's throat
-  col += vec3(1.0, 0.5, 0.1) * smoothstep(0.13, 0.0, r) * (0.3 + 0.45 * heat);
-  float cool = smoothstep(edge - 0.2, edge, r);
-  col = mix(col, rock * 0.85 + hot * 0.04, cool * 0.85);
-  gl_FragColor = vec4(col, 1.0);
+  float r=length(vP), a=atan(vP.y,vP.x), seed=vI.g*41.0, heat=vI.r;
+  float edge=.9+.055*vnoise(vec2(a*2.2+seed,seed));
+  if(r>edge) discard;
+  vec2 q=vP*4.6+seed;
+  vec3 cell=voro(q+vec2(fbm(q*.5+uTime*.025),fbm(q*.5+7.0))*.5);
+  float activity=clamp((heat-.15)*.8,0.0,1.0);
+  float fissure=1.0-smoothstep(.012,.045+activity*.028,cell.y);
+  vec3 basalt=mix(vec3(.022,.027,.032),vec3(.055,.055,.052),fbm(q*1.7));
+  vec3 magma=mix(vec3(.44,.065,.004),vec3(1.0,.32,.025),activity);
+  float throat=(1.0-smoothstep(.055,.15,r))*(.3+activity*.7);
+  vec3 col=basalt*(.85+.2*cell.z)+magma*(fissure*(.2+activity*.65)+throat);
+  col*=mix(.6,1.0,smoothstep(edge,edge-.12,r));
+  gl_FragColor=vec4(col,1.0);
   #include <fog_fragment>
   #include <colorspace_fragment>
 }`,
@@ -192,17 +183,17 @@ void main() {
   float frost = smoothstep(0.45, 0.9, fbm(vec2(q.x * 1.6 + q.y * 0.4, q.y * 0.5)));
   // 3.55.0: the Shelf's rinks read as night ice, not white discs - the deep blue keeps more of
   // the sheet, the frost wash and the rim lose a step (the 3.44.0 rest stays: enemies read)
-  vec3 deep = vec3(0.05, 0.2, 0.4), clear = vec3(0.24, 0.52, 0.78);
+  vec3 deep = vec3(0.035, 0.12, 0.2), clear = vec3(0.12, 0.28, 0.38);
   vec3 col = mix(deep, clear, smoothstep(0.0, edge, r) * 0.7 + 0.25 * v.z);
-  col = mix(col, vec3(0.62, 0.8, 0.94), frost * 0.45);
-  col += vec3(0.7, 0.88, 1.0) * crack * 0.55;
+  col = mix(col, vec3(0.39, 0.57, 0.65), frost * 0.35);
+  col += vec3(0.7, 0.88, 1.0) * crack * 0.18;
   float rim = smoothstep(edge - 0.06, edge - 0.005, r);
-  col = mix(col, vec3(0.78, 0.92, 1.0), rim * 0.4);
+  col = mix(col, vec3(0.78, 0.92, 1.0), rim * 0.13);
   vec2 gc = floor(vP * 9.0 + seed), gf = fract(vP * 9.0 + seed) - 0.5;
   float glint = step(0.93, h21(gc)) * smoothstep(0.12, 0.0, length(gf)) * (0.5 + 0.5 * sin(uTime * 1.5 + h21(gc + 3.0) * 30.0));
   col += vec3(glint * 0.42);
   col *= 0.8 + 0.35 * vI.r;
-  gl_FragColor = vec4(col, clamp(0.6 + 0.15 * frost + 0.2 * rim + 0.2 * crack + glint, 0.0, 0.9));
+  gl_FragColor = vec4(col, clamp(0.48 + 0.12 * frost + 0.08 * rim + 0.12 * crack + glint, 0.0, 0.8) * smoothstep(edge, edge-.07, r));
   #include <fog_fragment>
   #include <colorspace_fragment>
 }`,
@@ -216,18 +207,18 @@ void main() {
   if (r > edge) discard;
   vec2 q = vP * 2.4 + seed;
   vec3 deep = mix(vec3(0.002, 0.038, 0.032), vec3(0.02, 0.14, 0.18), vI.b);
-  vec3 lite = mix(vec3(0.26, 0.96, 0.66), vec3(0.3, 0.88, 1.0), vI.b);
+  vec3 lite = mix(vec3(0.16, 0.48, 0.26), vec3(0.3, 0.88, 1.0), vI.b);
   float murk = fbm(q * 1.2 + vec2(uTime * 0.06, 0.0));
   // the glow IS the warning: the bloom water carries a mint light from inside, drifting with the current
-  vec3 col = mix(deep, lite * 0.55, murk * 0.6);
+  vec3 col = mix(deep, lite * 0.55, murk * 0.32);
   float ripple = 0.5 + 0.5 * sin(r * 17.0 - uTime * 2.2 + fbm(q + uTime * 0.2) * 6.0);
-  col += lite * ripple * 0.12;
+  col += lite * ripple * 0.06;
   vec2 bc = floor(q * 1.7), bf = fract(q * 1.7) - 0.5 - (h22(bc) - 0.5) * 0.4;
   float bt = fract(uTime * 0.55 + h21(bc) * 5.0);
   float bub = step(0.55, h21(bc + 2.0)) * smoothstep(0.035, 0.0, abs(length(bf) - bt * 0.3)) * (1.0 - bt);
   col += lite * bub * 0.75;
   float foam = smoothstep(edge - 0.15, edge - 0.02, r) * (0.55 + 0.45 * fbm(q * 3.0 + uTime * 0.3));
-  col = mix(col, lite * 0.7 + 0.06, foam * 0.5);
+  col = mix(col, lite * 0.5 + 0.025, foam * 0.35);
   gl_FragColor = vec4(col, (0.84 + 0.14 * foam) * vI.r);
   #include <fog_fragment>
   #include <colorspace_fragment>
@@ -357,32 +348,25 @@ const MODELS = {
   // pool, ember studs where the seams breathe, no rocks
   nozzle: () => {
     const rng = makeRng(0x1a7b),
-      body = [meshPart(new CylinderGeometry(0.92, 1.1, 0.07, 22, 1, true), 0x51483f, { y: 0.035 })],
+      body = [meshPart(new TorusGeometry(1.0, 0.06, 4, 32), 0x414c56, { rx: Math.PI / 2, y: 0.025 })],
       glow = [];
-    for (let i = 0; i < 12; i++) {
-      const a = (i / 12) * TAU + rng.range(-0.08, 0.08),
-        d = rng.range(1.0, 1.08);
+    for (let i = 0; i < 15; i++) {
+      const a = (i / 15) * TAU + rng.range(-0.12, 0.12),
+        d = rng.range(0.92, 1.02),
+        size = rng.range(0.1, 0.19);
       body.push(
-        box(i % 2 ? 0x685345 : 0x49413b, 0.22, 0.09, 0.1, {
+        meshPart(new DodecahedronGeometry(size), [0x59636b, 0x444c55, 0x70716a][i % 3], {
           x: Math.cos(a) * d,
           z: Math.sin(a) * d,
-          y: 0.075,
-          ry: -a,
+          y: size * 0.25,
+          sx: 2.0,
+          sy: 0.5,
+          sz: 0.9,
+          ry: -a + Math.PI / 2 + rng.range(-0.2, 0.2),
         }),
       );
-    }
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * TAU + 0.2 + rng.range(-0.15, 0.15),
-        r0 = 0.9,
-        r1 = rng.range(1.2, 1.34);
-      glow.push(
-        box(0xffb45a, r1 - r0, 0.012, rng.range(0.025, 0.04), {
-          x: Math.cos(a) * (r0 + r1) * 0.5,
-          z: Math.sin(a) * (r0 + r1) * 0.5,
-          y: 0.012,
-          ry: -a,
-        }),
-      );
+      if (i % 4 === 0)
+        glow.push(box(0xa84c1e, 0.1, 0.018, 0.018, { x: Math.cos(a) * 0.87, z: Math.sin(a) * 0.87, y: 0.04, ry: -a }));
     }
     return { body, glow };
   },
@@ -455,31 +439,10 @@ const MODELS = {
   // spin is real (a smooth cone reads as a dune - the look pass's lesson). The update spins the set.
   // 3.55.0: the sheets read as DUST - pale sand tones, thinner and deeper (the old dark-brown
   // boxes read as debris scattered over the field, not as a whirling column)
-  funnel: () => {
-    const body = [],
-      turns = 2.1,
-      steps = 11;
-    for (let i = 0; i < steps; i++) {
-      const f = i / (steps - 1),
-        a = f * turns * TAU,
-        rad = 1.02 - f * 0.72,
-        w = 0.3 - f * 0.14;
-      body.push(
-        meshPart(new BoxGeometry(w, 0.14 + f * 0.1, 0.5), [0xd8c8a8, 0xc4b088, 0xbfa878][i % 3], {
-          x: Math.cos(a) * rad,
-          y: 0.2 + f * 2.5,
-          z: Math.sin(a) * rad,
-          ry: -a + Math.PI / 2,
-          rz: 0.18,
-        }),
-      );
-    }
-    body.push(meshPart(new ConeGeometry(0.34, 0.9, 6, 1, true), 0xbfa878, { y: 0.35 }));
-    return {
-      body,
-      glow: [meshPart(new ConeGeometry(0.3, 2.7, 6, 1, true), 0xe8dcb8, { y: 1.4 })],
-    };
-  },
+  funnel: () => ({
+    body: [meshPart(dustRibbonGeometry(0), 0xcbbca0), meshPart(dustRibbonGeometry(Math.PI * 0.8), 0xe0d4b9)],
+    glow: [meshPart(dustRibbonGeometry(Math.PI * 1.6), 0xe8dec8)],
+  }),
   // bloom pool: a bank of peat lumps and a few dead reeds
   bank: () => {
     const rng = makeRng(0xac1d),
@@ -525,7 +488,7 @@ const MODELS = {
 // the shards on the rim of an ice sheet of radius rr: where they stand, how big, how far they lean (from its seed)
 function shardsOf(rr, seed) {
   const rng = makeRng(Math.floor(seed * 1e9)),
-    count = Math.max(7, Math.round(rr * 3)),
+    count = Math.max(5, Math.round(rr * 1.8)),
     start = rng.range(0, TAU),
     out = [];
   for (let i = 0; i < count; i++) {
@@ -537,7 +500,7 @@ function shardsOf(rr, seed) {
       dz: Math.sin(a) * d,
       a,
       w,
-      h: rng.range(0.4, 0.85) * (i % 4 === 0 ? 1.5 : 1),
+      h: rng.range(0.15, 0.4) * (i % 4 === 0 ? 1.5 : 1),
       lean: rng.range(0.15, 0.5),
       tone: [1, 0.86, 0.74][i % 3],
     });
@@ -569,8 +532,23 @@ class HazardView {
         const pool = new this.Pool(
           mergeParts(parts.flat()),
           glow
-            ? new MeshBasicMaterial({ toneMapped: false, vertexColors: true, transparent: true, depthWrite: false })
-            : new MeshLambertMaterial({ vertexColors: true, flatShading: true }),
+            ? new MeshBasicMaterial({
+                toneMapped: false,
+                vertexColors: true,
+                transparent: true,
+                depthWrite: false,
+                opacity: name === "funnel" ? 0.16 : 1,
+                side: name === "funnel" ? DoubleSide : FrontSide,
+              })
+            : worldMaterial({
+                color: 0xffffff,
+                vertexColors: true,
+                surface: name === "funnel" ? "dust" : "stone",
+                transparent: name === "funnel",
+                opacity: name === "funnel" ? 0.42 : 1,
+                depthWrite: name !== "funnel",
+                side: name === "funnel" ? DoubleSide : FrontSide,
+              }),
           max,
         );
         pool.mesh.renderOrder = glow ? 2 : 1;
@@ -682,8 +660,8 @@ class HazardView {
       if (state === "warn") {
         // the lava swells into a dome that trembles before it bursts
         const dome = this.get("dome");
-        const s = rr * (0.15 + 0.35 * k) * (1 + Math.sin(time * 24) * 0.05 * k);
-        dome.glow.colC(dome.glow.y(x, 0.03, z, 0, s, 0.2 + 0.5 * k, s), WHITE, 0.55 + 0.45 * k);
+        const s = rr * (0.08 + 0.12 * k) * (1 + Math.sin(time * 24) * 0.05 * k);
+        dome.glow.colC(dome.glow.y(x, 0.03, z, 0, s, 0.08 + 0.14 * k, s), WHITE, 0.55 + 0.45 * k);
         this.ring(x, z, rr, spray, 0.35 + k * 0.6);
         if (Math.random() < dt * (4 + 18 * k) * quality)
           r.emit(
@@ -750,7 +728,7 @@ class HazardView {
         rr = vent.r,
         seed = seedOf(x, z),
         rot = seed * TAU,
-        sc = rr * 0.95;
+        sc = Math.min(rr * 0.95, 0.92);
       // the cover rattles while the current builds and jumps when it arcs
       let lift = 0,
         tilt = 0,
@@ -843,9 +821,9 @@ class HazardView {
       let list = this.shards.get(key);
       if (!list) this.shards.set(key, (list = shardsOf(rr, seed)));
       for (const s of list)
-        shard.colC(shard.yr(x + s.dx, -0.02, z + s.dz, s.a, s.w, s.h, s.w, -s.lean, 0), ICE_SHARD, s.tone);
+        shard.colC(shard.yr(x + s.dx, -0.02, z + s.dz, s.a, s.w, s.h, s.w, -s.lean, 0), ICE_SHARD, s.tone * 0.7);
       const ring = r.ringPool.y(x, 0.05, z, 0, rr);
-      r.ringPool.colC(ring, ICE, 0.08);
+      r.ringPool.colC(ring, ICE, 0.015);
       if (Math.random() < dt * 2 * rr * quality) {
         const a = Math.random() * TAU,
           d = Math.random() * rr;

@@ -219,19 +219,12 @@ if (noJsNotice) {
   noJsNotice.remove();
 }
 setLogContext({ version: GAME_VERSION, build: BUILD_ID, mode: isStandaloneBuild ? "standalone" : "artifact" });
-let qualityPresets = {
-    high: { dpr: 2, particles: 1400, fps: 0 },
-    battery: { dpr: 1, particles: 500, fps: 30 },
-    auto: { dpr: 1.5, particles: 1400, fps: 0 },
-  },
-  store = new SaveStore(),
+let store = new SaveStore(),
   sound = new SoundEngine(),
   elementById = (id) => document.getElementById(id),
   renderer = null;
 try {
-  // 3.6.0: Saver draws without edge smoothing (multisampling is fixed when the WebGL context is made, so a change of
-  // the setting takes effect at the next start)
-  renderer = new Renderer(elementById("gl"), { dpr: 1.5, antialias: store.data.settings.quality !== "battery" });
+  renderer = new Renderer(elementById("gl"), { dpr: 2, antialias: true });
   // 3.13.0: thunder and sirens of the place come with their light
   sound.onScape = (kind, pan) => renderer.scapeLight(kind, pan);
   let gl = renderer.renderer.getContext(),
@@ -810,20 +803,6 @@ const overlay = new Overlay(elementById("ov")),
       this.previewW = weapon;
     },
   };
-game.qualityNote = () => {
-  let settings = store.data.settings,
-    dpr = renderer ? renderer.dpr.toFixed(2).replace(/0$/, "") : "-";
-  // edge smoothing follows the setting at the next start
-  const smooth = !renderer || renderer.antialias,
-    restart = (settings.quality === "battery") === smooth ? " (edge smoothing changes at the next start)" : "";
-  return (
-    (settings.quality === "auto"
-      ? `Adapts to your device (now ${dpr}\xD7)`
-      : settings.quality === "battery"
-        ? "Lower resolution, 30 fps, no edge smoothing"
-        : `Sharpest (${dpr}\xD7)`) + restart
-  );
-};
 /* 3.24.0: the medal of a boss kill (core/medals.js): the best one per boss is kept; a banner says what was earned */
 function awardBossMedal(ev, world) {
   if (world.training) return;
@@ -894,8 +873,6 @@ input.onBlur = () => {
     game.pause();
   }
 };
-let qualityPreset = qualityPresets.auto,
-  autoDpr = 1.5;
 /* 3.58.0: the motion preference of the device. index.html already stops the CSS animations; the camera shake
    and the weapon recoil are three.js, so they read the flag here. 3.57.0's note promised this and the code
    never asked, so a reduced-motion player still got a shaking camera. */
@@ -910,24 +887,18 @@ function applySettings() {
   input.stickScale = settings.stickSize;
   input.fixedMove = settings.stickFixed ? (radius) => fixedStickCenter(store.data.settings, radius) : null;
   placeHud();
-  qualityPreset = qualityPresets[settings.quality] || qualityPresets.auto;
-  // Saver draws the 2D overlay (health bars, numbers, sticks) at one pixel per CSS pixel
-  overlay.dprCap = settings.quality === "battery" ? 1 : 2;
+  overlay.dprCap = 2;
   if (renderer) {
     // 3.57.0: the camera distance, the warning contrast and the screen-shake toggle were settings nobody
     // needed: the camera now sits at its tuned distance, warnings draw in their own colours, and the shake
     // is a fixed, gentler amount (endless mode used to stack it into something unpleasant).
     renderer.numbers = settings.numbers !== false;
     renderer.motion = reducedMotion() ? 0 : 1;
-    let dpr = settings.quality === "auto" ? autoDpr : qualityPreset.dpr;
-    renderer.setQuality(dpr, qualityPreset.particles);
+    renderer.setQuality(2, 1400);
   }
 }
 let loopFrameId = 0,
   frameErrorCount = 0,
-  slowWindowCount = 0,
-  fpsWindowTime = 0,
-  fpsWindowFrames = 0,
   dimFrameCounter = 0,
   menuFrame = 0;
 /* 3.11.0: Riftline plays in landscape on phones and tablets. index.html sets needs-rotate on <body> while such a
@@ -953,11 +924,8 @@ const framePacer = makePacer();
 function loopTick(now) {
   loopFrameId = requestAnimationFrame(loopTick);
   let dt = (now - (game.last || now)) / 1e3;
-  // 3.31.0: phones and tablets draw every other refresh of a screen faster than 100 Hz during a run (render/pacing.js;
-  // the menu draws every other frame already)
-  const halve = !qualityPreset.fps && game.mode === "game" && document.body.dataset.device !== "desktop";
-  if (!paceFrame(framePacer, now, halve)) return;
-  if (!(qualityPreset.fps && dt < 1 / qualityPreset.fps - 0.004)) {
+  if (!paceFrame(framePacer, now, store.data.settings.frameRate)) return;
+  {
     game.last = now;
     dt = Math.min(0.1, Math.max(0, dt));
     // 3.11.0: a phone or tablet held upright shows the rotate screen; a run waits paused behind it (pause() does
@@ -1038,7 +1006,6 @@ function runFrame(dt) {
             : 0,
         );
       }
-      updateAutoQuality(dt, settings);
     }
     if (game.paused) return;
     if (renderer) {
@@ -1514,44 +1481,6 @@ function showTipOnce(key, text) {
     seen["tip_" + key] = true;
     store.save("tip");
     ui.toast(text, "hint", 5200);
-  }
-}
-// 2.4.2: Auto quality also steps back up. Before, two slow windows (a stutter at the start of
-// a run is enough) lowered the resolution until the next reload. It now rises again one step
-// after 20 s at 57+ fps. A level it had to leave twice becomes the ceiling for the session, so
-// a device at its limit does not flip between two levels.
-let rlQUp = 0,
-  rlQCeil = 1.5;
-const rlQLeft = {},
-  rlQParticles = (dpr) => (dpr >= 1.5 ? qualityPreset.particles : dpr <= 1 ? 800 : 1100);
-function updateAutoQuality(dt, settings) {
-  if (settings.quality !== "auto" || !renderer) return;
-  fpsWindowTime += dt;
-  fpsWindowFrames++;
-  if (fpsWindowTime < 2.5) return;
-  let fps = fpsWindowFrames / fpsWindowTime;
-  fpsWindowTime = 0;
-  fpsWindowFrames = 0;
-  if (fps < 48) {
-    slowWindowCount++;
-  } else {
-    slowWindowCount = Math.max(0, slowWindowCount - 1);
-  }
-  rlQUp = fps >= 57 ? rlQUp + 1 : 0;
-  if (slowWindowCount >= 2 && autoDpr > 1) {
-    if (rlQLeft[autoDpr]) {
-      rlQCeil = Math.min(rlQCeil, autoDpr - 0.25);
-    }
-    rlQLeft[autoDpr] = true;
-    autoDpr = Math.max(1, autoDpr - 0.25);
-    slowWindowCount = 0;
-    rlQUp = 0;
-    renderer.setQuality(autoDpr, rlQParticles(autoDpr));
-  } else if (rlQUp >= 8 && autoDpr + 0.25 <= rlQCeil) {
-    autoDpr += 0.25;
-    rlQUp = 0;
-    slowWindowCount = 0;
-    renderer.setQuality(autoDpr, rlQParticles(autoDpr));
   }
 }
 // 2.8.1: cached; it is read every frame and getComputedStyle forces a style recalculation on phones.

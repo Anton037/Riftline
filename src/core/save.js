@@ -64,6 +64,7 @@ const RL_SETTING_RANGE = {
   stickSize: HUD_LIMITS.stick,
 };
 function rlSettingNum(key, value, def) {
+  if (key === "frameRate") return [30, 60, 120].includes(value) ? value : def;
   const [lo, hi] = RL_SETTING_RANGE[key] || [0, 2],
     num = cleanNumber(value, def, lo, hi);
   return num;
@@ -169,7 +170,7 @@ const SAVE_KEY = "riftline.save.v1",
     // Phone feedback for hits, dashes and the end of a run.
     vibration: true,
     numbers: true,
-    quality: "auto",
+    frameRate: 60,
     // 3.8.0: the left-handed (swap) and reduce-flashes (calm) settings are gone; a save that has them drops them on load
     // 3.57.0: the zoom, warning-contrast, screen-shake toggle and the timer/FPS readouts are gone too - a save
     // that carries them drops them on load like the old ones above
@@ -486,12 +487,7 @@ function cleanSave(input) {
       if (typeof def == "number") {
         save.settings[key] = rlSettingNum(key, rawSettings[key], def);
       } else {
-        // 3.28.2: the Ultra setting is gone (it was hot and slow and looked no better); a save that has it plays on High
-        save.settings[key] = ["auto", "high", "battery"].includes(rawSettings[key])
-          ? rawSettings[key]
-          : rawSettings[key] === "ultra"
-            ? "high"
-            : def;
+        save.settings[key] = def;
       }
     }
   }

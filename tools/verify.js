@@ -5,6 +5,7 @@ import { runNode } from "./process.js";
 const [kind, ...extra] = process.argv.slice(2);
 const suites = {
   visual: ["tools/verification/visual.mjs", 240000],
+  equipment: ["tools/verification/equipment.mjs", 240000],
   audio: ["tools/verification/audio.mjs", 420000],
   "audio-budget": ["tools/verification/audio-budget.mjs", 180000],
   "probe-audio": ["scripts/rl-audio-check.mjs", 120000],
