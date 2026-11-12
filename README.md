@@ -1,158 +1,79 @@
 # Riftline
 
-**Riftline** is a 3D arena roguelite wave shooter for the browser — one arena, six biomes, escalating waves, one broken drone against all of it. Built with three.js and WebAudio, no framework, no build-time game engine: the game IS the code in `src/`.
+A touch-only 3D arena roguelite for phones and tablets in landscape.
 
-**Play it:** https://anton037.github.io/Riftline/ — installable (PWA), runs offline after the first visit, a touch-only game for phones and tablets in landscape.
+[Play Riftline](https://anton037.github.io/Riftline/)
 
-## What's in the game
-
-- **7 weapons**, each with its own projectile behaviour, plus one evolution path per weapon
-- **25 enemy types** with late-run role diversity, champions, elites and **6 bosses** (one per biome cycle), each with phases, enrage and a boss card reward
-- **6 biomes** — Blackout City, the Glowmarsh, the Aurora Shelf, the Shattered Core, the Ashfall Caldera and the Glass Flats — each with its own floor, props, hazards (live vents, ice, acid, portals, magma vents, dust devils that move), light, music theme and soundscape
-- A 20-wave run crosses Blackout City, two of the other four places, and the Shattered Core; Endless walks all six
-- **62 run upgrades** including 13 evolutions, rarer cards offered more often, no duplicates in one offer
-- **19 persistent workshop modules**, milestones through wave 200, threat levels, medals
-- **Endless** continuation with escalating mutators after the main run
-- A dynamic wave director that mixes 12+ encounter modes instead of a fixed spawn table
+Fight through six biomes with seven weapons, evolving upgrades, workshop progression and achievements.
+Each biome has its own boss, hazards, scenery and soundscape. Complete the 20-wave run or continue into
+Endless. Saves and installed game assets work offline after the first successful load.
 
 ## Controls
 
 | Action | Touch control |
 |---|---|
-| Move | Drag the left side |
-| Aim / fire | Drag the right side; auto-fire is enabled by default |
-| Dash / Nova / gadget | Tap the corresponding action button |
+| Move | Drag the left stick |
+| Aim / fire | Drag the right stick; auto-fire is enabled by default |
+| Dash, Nova, Singularity | Tap the action buttons |
 | Pause | Tap the pause button |
 
-Hold the device in landscape. Move and resize the controls in Settings. Keyboard, mouse and
-controller gameplay are not supported. Menus keep native browser accessibility and text entry.
+Hold the device in landscape. Controls can be moved and resized in Settings. High detail is standard;
+choose a 30, 60 or 120 FPS cap, with 60 FPS as the default. Gameplay uses touch input; menus support
+normal browser navigation and text entry.
 
 ## Development
 
-```
-npm install          # node 22.13+ or 24+
-npm run build        # bundle src/ into dist/ (esbuild), substitute version + build id
-npm run dev          # rebuild after source, public asset or package metadata changes
-npm run serve        # serve dist/ for a quick look
-npm test             # focused unit contracts + touch/onboarding/progression flows + worker update check
-npm run audit:visual # all six biomes + bosses, tablet and landscape phone, metrics and images
-npm run e2e          # the bounded touch and worker browser checks
-npm run test:render  # same flows with real pixel drawing
-npm run verify:audio # optional recorded/physical audio catalog (several minutes)
-npm run lint         # catch undefined names and unused game declarations
-npm run format       # prettier
+Use Node.js 22.13+ or 24+.
+
+```sh
+npm ci
+npm run build
+npm run serve
 ```
 
-### Project docs
+The server prints its address. `npm run dev` watches source, assets and package metadata; run the
+server in a separate terminal. Serve the game over HTTP or HTTPS so assets, saves and the service
+worker behave correctly.
 
-- `docs/DEVELOPMENT.md` — the code history, the working rules and the release steps
-- `docs/ROADMAP.md` — the owner's wishes and decisions (read at the start of a session)
-- `docs/TESTING.md` — current test groups, CI routing and reasons for removing redundant work
-- `docs/GITHUB.md` — the repository settings only the owner can change
-
-### Which renderer the browser suites use
-
-Every browser-driven suite launches Chromium through `tools/browser.js`, so the backend is chosen
-in one place instead of in each file. Set `RIFT_RENDERER` to pick it:
-
-| `RIFT_RENDERER` | Effect |
+| Command | Purpose |
 |---|---|
-| unset / `auto` | prefer the real GPU; Chromium falls back to software when there is none. The default, and correct on both a workstation and a GPU-less runner |
-| `gpu` | force the hardware path — fails loudly rather than silently measuring software rendering |
-| `swiftshader` | force software rasterisation, for byte-identical frame pacing or to reproduce a driver bug |
+| `npm run check` | Formatting, lint, build and the standard tests |
+| `npm run test:unit` | Simulation, saves, data and geometry contracts |
+| `npm run e2e` | Touch, onboarding, progression and offline update flows |
+| `npm run test:render` | Browser flows with actual WebGL drawing |
+| `npm run audit:visual` | All six biomes and bosses on phone and tablet |
+| `npm run verify:abilities` | Power phases and scenery on phone and tablet |
+| `npm run verify:combat` | Boss attacks, weapons and biome effects |
+| `npm run verify:audio` | Optional audio rendering and voice-budget checks |
 
-This matters: software rendering managed 4 fps on a machine whose GPU ran the same build at 61 fps, so a
-frame-rate assertion tuned on one measures the host, not the game.
+[Development](docs/DEVELOPMENT.md) covers the code, assets and release process.
+[Testing](docs/TESTING.md) lists targeted commands, deadlines and coverage.
+Generated verification output belongs in the ignored `verification-output/` directory or CI artifacts.
 
-### Probes (measure a change instead of guessing)
+## Project structure
 
-The npm probe commands build once, start a temporary server and run with a hard deadline.
-Their entire process tree is cleaned up after success, failure or cancellation.
-
-| Probe | Answers |
+| Path | Contents |
 |---|---|
-| `npm run probe:mix` | the mix balance at the default volumes, per bus, from numbers rather than taste |
-| `npm run probe:music` | optional music spectra, loudness and rhythm measurements |
-| `npm run probe:place` | ambience peak levels relative to weapon sounds |
-| `npm run probe:audio` | chaos checks of the audio engine's failure paths |
+| `src/core/` | Deterministic simulation, combat, waves, maps and saves |
+| `src/data/` | Weapons, actors, biomes, upgrades and progression |
+| `src/render/` | Three.js models, materials, scenery and effects |
+| `src/audio/` | Recorded material voices, music and environmental sound |
+| `src/ui/` | Touch input, screens, HUD and haptics |
+| `public/` | Fonts, textures, sound bank, app icons and asset notices |
+| `tests/` | Simulation, geometry, browser and worker tests |
+| `tools/`, `scripts/` | Build support, verification and asset generation |
 
-### Test groups
+`src/main.js` connects the game systems. `build.js` bundles the game into `dist/`, and `src/sw.js`
+provides offline installation and updates. GitHub Actions validates pull requests; merging to `main`
+builds and deploys GitHub Pages.
 
-`npm test` builds once and runs focused Node contracts and five browser checks. `npm run check` adds
-formatting and lint. The tablet touch flow covers settings, movement, dash, pause, upgrades, offline
-save reload, continue and death. The phone flow covers simultaneous sticks and dash, cancellation,
-pause and resume. A fresh profile exercises onboarding and real WebAudio background/resume, and
-practice checks preserve real progress and a saved run. A small real-worker fixture checks failed installs and same-version updates.
-Default game flows skip GPU draw calls; `npm run test:render` draws real pixels.
-See [docs/TESTING.md](docs/TESTING.md) for deadlines, specialist commands and limits.
+## Saves and troubleshooting
 
-Continue restarts a fighting checkpoint at the beginning of its wave. A checkpoint at the card
-choice keeps its offer and the RNG for subsequent rerolls and banishes.
+A fighting checkpoint resumes at the beginning of its wave. A card-choice checkpoint preserves its
+offer and subsequent choice randomness. Settings includes save import/export.
+A crash report records the release, device and relevant errors; include it when reporting a problem.
 
-The ESLint dependency overrides select patched minimatch 11.0.1 while ESLint and config-array
-still request 10.x. Remove these overrides once their supported ranges include the fixed release.
+## Asset credits
 
-Audio catalog renders and six-biome screenshots are manual tools under `tools/verification/`.
-`npm run verify:audio -- --full` ignores the passing cache and renders fresh samples.
-
-### What lint catches
-
-`no-undef` exists because of 3.45.0: the HUD's buff row read a local variable from a neighbouring function as a bare identifier — legal at parse time, invisible to esbuild and to every test (no test had a buff on screen), and it killed a real player's run the first time they dashed. A static undefined-name check fails that class before it ships. Unused declarations in game code are also flagged.
-
-## Architecture
-
-```
-src/
-  main.js          boot, wiring, the frame loop, run lifecycle, crash path
-  core/
-    world.js       the simulation: step, player, enemies, projectiles, economy
-    waves.js       wave director: encounter modes, biome cycling, bosses
-    ai.js          enemy behaviour
-    arena.js       arena geometry, hazards, props
-    save.js        localStorage save, snapshot sanitize, import/export
-    diagnostics.js health checks, run monitor (test-only), post-run audit, crash reports
-    ...            difficulty, mutators, medals, stats, traps, walk (the walker), util
-  render/
-    renderer.js    three.js scene, enemy/projectile meshes, biome visuals, effects
-    overlay.js     2D HUD canvas: health bars, off-screen markers, hints
-    interp.js      interpolation between simulation steps
-    pacing.js      30/60/120 FPS deadlines, independent of the 60 Hz simulation
-  audio/
-    sound.js       routing, voice budgets, synthesized music, room tones, event beds
-    physical-voices.js recorded material voices and modeled environmental accents
-    source-bank.js offsets into the compact CC0 recording bank
-    place.js       the sounds of the place: biome far-scenes, hazard proximity loops
-  ui/
-    ui.js          screens, HUD DOM, banners, cards, settings
-    input.js       touch sticks, buttons and pointer ownership
-    haptics.js     phone vibration and best-effort switch feedback
-    hud-layout.js  safe areas, HUD element placement
-  data/            weapons, enemies, biomes, upgrades, progression, what's new
-  sw.js            service worker: one cache per build, updates apply when idle
-build.js           esbuild bundling + __RL_*__ placeholder substitution
-tests/             the suites above
-tools/             test runner, optional verification, dev server
-```
-
-**Sound:** WebAudio combines a compact CC0 recording bank with damped material bodies and modeled weather,
-wildlife and machinery. The synthesized score retains its biome arrangements. The bank is precached for offline
-play; [source credits and pinned recordings](public/audio/SOURCES.md) accompany the optional asset builder.
-The offline renderer checks real samples, mixing, continuous fire and voice limits.
-
-## Releases
-
-One version, one branch, one pull request: bump `version` and the build id in `package.json` (`r<version-digits>a<MMDD><letter>-r1`), add the top entry in `src/data/whatsnew.js` (the QA checks that it matches the game version), Prettier clean, suite green. Merging to `main` deploys to GitHub Pages. The service worker serves the new build the next time the game is opened and applies it when the player is idle.
-
-## When something breaks
-
-The game keeps its own flight recorder. A crashed run shows a report (version, device, health checks, the exact frame errors) with a **copy** button — paste it into an issue and it pins the bug down fast. Health checks also run at boot in every test session, so most breakage is caught before it ships.
-
-The 4.1 review covers the painted worlds, characters/equipment, physical sound sources and the 30/60/120 FPS
-control: [art and sound review](docs/ART-REVIEW-4.1.md). High detail is standard at every FPS limit; the default is 60.
-Recording credits and pinned source links are in [audio sources](public/audio/SOURCES.md).
-
-The [4.1.1 checkup](docs/CHECKUP-4.1.1.md) covers the connected walker, biome cleanup, material-specific hits,
-repository maintenance and the checks actually performed.
-
-The [4.2 combat review](docs/COMBAT-REVIEW-4.2.md) covers distinct weapon flight, matching boss/enemy
-effects and sound, the volcanic Tyrant model, painted surface relief and complete retired-content removal.
+[Third-party notices](public/THIRD-PARTY-NOTICES.txt) contain the bundled code and font licenses.
+[Audio sources](public/audio/SOURCES.md) credit the recorded sounds and explain how to rebuild the bank.

@@ -23,7 +23,7 @@ The map geometry suite is part of the normal gate. `node --test tests/map-geomet
 252-layout scene audit on its own. It checks transformed triangle faces, collision footprints, exterior
 bounds, animation samples and GPU reed wind extrema. Conservative bounds include maximum wind
 sway, and crossing faces still receive full clipping; a broad solid spanning the arena guards this path.
-Natural cap meshes must be closed and fit their authored envelopes; snow follows real surface faces. See [the geometry audit](GEOMETRY-AUDIT-4.0.md).
+Natural cap meshes must be closed and fit their authored envelopes; snow follows real surface faces.
 For centre/edge/corner screenshots use `node tools/verify.js visual <tag> tablet all 60 map` or
 `node tools/verify.js visual <tag> land all 30 map`; each covers nine views in every biome.
 
@@ -102,7 +102,7 @@ backend flags. Software frame times are not mobile GPU benchmarks.
 
 PRs run `npm run check`. Pages runs the Node contracts and builds without downloading Chromium.
 Both normal jobs have a five-minute ceiling. The manual verification workflow runs the selected
-specialist check and uploads biome/equipment/combat screenshots and metrics even after failures (seven-day retention).
+specialist check and uploads biome/equipment/combat/ability screenshots and metrics even after failures (seven-day retention).
 
 Before release, play boss fights on a phone/tablet in landscape. Check warnings against bright ice/glass,
 multitouch ownership, speaker audibility, 30/60/120 FPS pacing and several minutes of heat/memory.
@@ -111,7 +111,7 @@ These physical-device, full published-release, long-session and balance checks r
 
 ## Measured duration
 
-The suite includes focused audit regressions for saves, calendars, enemy buffs, traps, projectile collision and summons. It runs without GPU drawing by default; the optional drawing suite
+The suite includes focused audit regressions for saves, enemy buffs, traps, projectile collision and summons. It runs without GPU drawing by default; the optional drawing suite
 has a separate deadline because software rasterisation is much slower. Timing depends on hardware
 and CI load; these deadlines are not a mobile FPS target.
 

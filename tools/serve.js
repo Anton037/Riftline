@@ -1,6 +1,6 @@
 // Minimal static file server for dist/ (tests, `npm run dev`, `npm run serve`).
 // The game needs http(s) rather than file:// (service worker, build-info fetch, fonts).
-// `base` mounts the folder under a sub-path, e.g. '/Games-with-Claude/riftline/' like GitHub Pages.
+// `base` mounts the folder under a sub-path, e.g. '/Riftline/' like GitHub Pages.
 // CLI: node tools/serve.js [port] [base]
 
 import http from "node:http";
