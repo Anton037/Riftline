@@ -1765,10 +1765,8 @@ function buildBossModel(type, color) {
       shard.rotation.z = i % 2 ? 0.35 : -0.2;
     }
     // 3.51.0: two aurora gems ride the orbit - the shelf's light refracting in the Prism's ice
-    const auroraA = new MeshBasicMaterial({ color: 0x46e890, toneMapped: false, transparent: true }),
-      auroraB = new MeshBasicMaterial({ color: 0xc86ee0, toneMapped: false, transparent: true });
-    auroraA.userData.opacity = auroraA.opacity;
-    auroraB.userData.opacity = auroraB.opacity;
+    const auroraA = ice(0x46e890, 0x186b42, 0.84),
+      auroraB = ice(0xc86ee0, 0x562066, 0.84);
     addMesh(
       new OctahedronGeometry(0.16, 0),
       auroraA,

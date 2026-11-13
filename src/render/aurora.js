@@ -1,7 +1,7 @@
 // One distant, curved, world-anchored curtain mesh. No camera-facing cards enter the arena.
 import { BufferGeometry, Float32BufferAttribute, Mesh, ShaderMaterial, DoubleSide } from "three";
 
-export function auroraGeometry(W, H) {
+function auroraGeometry(W, H) {
   const positions = [],
     uv = [],
     layers = [],

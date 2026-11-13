@@ -67,7 +67,9 @@ for (const [biome, skin] of Object.entries(SENTINEL_BEAMS)) specs.push({ kind: "
 for (const [biome, skin, fam] of [
   ["caldera", "magma", "beam"],
   ["caldera", "embermine", "mine"],
+  ["caldera", "pyro", "floor"],
   ["flats", "glassmine", "mine"],
+  ["flats", "sunspike", "floor"],
 ])
   for (const phase of ["warn", "fire"]) specs.push({ kind: "trap", biome, skin, fam, phase, time: 0.1 });
 // Close views check material detail and silhouette on every boss, plus the Tyrant's magma lob.

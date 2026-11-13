@@ -22,7 +22,7 @@ export const LEGACY_MODULES = {
   routeScanner: { costs: [1800, 3800, 6800], to: "fieldSupply" },
 };
 
-export const LEGACY_UPGRADES = {
+const LEGACY_UPGRADES = {
   hammer: { to: "shockdash", k: 2 },
   caliber: { to: "dmg", k: 0.67 },
   kinetic: { to: "dmg", k: 0.54 },

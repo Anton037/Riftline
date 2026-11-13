@@ -219,11 +219,6 @@ ${LAYERS}void main() {
       vec2 ec = floor(q * 5.0), ef = fract(q * 5.0) - 0.5;
       float ember = step(0.9, h21(ec)) * smoothstep(0.22, 0.05, length(ef));
       lay(vec3(1.0, 0.4, 0.08) * 1.5, ember * smoothstep(0.7, 0.0, t) * f * f * f);
-    } else if (b == 1) {
-      lay(vec3(0.015, 0.008, 0.005), ch * 0.9);
-      vec3 v = voro(q * 1.6);
-      float seam = smoothstep(0.06, 0.0, v.y) * smoothstep(1.0, 0.2, t);
-      lay(mix(vec3(0.6, 0.06, 0.0), vec3(1.0, 0.55, 0.12), f) * 1.4, seam * f * f);
     } else if (b == 2) {
       // The Aurora Shelf: the blast melted the frost (a dark wet middle), a star of new frost on the rim
       lay(vec3(0.05, 0.1, 0.16), ch * 0.7);
@@ -379,11 +374,13 @@ const MODELS = {
     glow: [meshPart(new OctahedronGeometry(1), 0xffffff, { sx: 1.65, sy: 0.15, sz: 0.15 })],
   }),
   cinder: () => ({
-    body: [meshPart(new IcosahedronGeometry(1, 1), 0x473c34, { sx: 1.4, sy: 0.85, sz: 0.85 })],
+    body: [meshPart(new IcosahedronGeometry(1, 1), 0x473c34, { sx: 1.32, sy: 0.78, sz: 0.78 })],
     glow: [
-      box(0xffffff, 0.9, 0.055, 0.1, { x: 0.2, y: 0.74, rz: 0.2 }),
-      box(0xffffff, 0.45, 0.08, 0.055, { x: -0.3, y: -0.3, z: 0.73, rz: -0.5 }),
-      meshPart(new OctahedronGeometry(0.28), 0xffffff, { x: 1.15, sx: 1.4, sy: 0.7 }),
+      meshPart(new OctahedronGeometry(0.92), 0xffffff, { sx: 1.25, sy: 0.92, sz: 0.92, rx: 0.4 }),
+      box(0xffffff, 1.1, 0.09, 0.14, { x: 0.15, y: 0.78, rz: 0.18 }),
+      box(0xffffff, 0.85, 0.12, 0.09, { x: -0.2, y: -0.25, z: 0.78, rz: -0.4 }),
+      box(0xffffff, 0.85, 0.12, 0.09, { x: 0.1, y: -0.7, z: -0.45, rz: 0.35 }),
+      meshPart(new OctahedronGeometry(0.36), 0xffffff, { x: 1.12, sx: 1.45, sy: 0.85, sz: 0.85 }),
     ],
   }),
   glasshot: () => ({
@@ -690,9 +687,9 @@ class AttackView {
       r.shadows.y(hx, 0.025, hz, 0, 0.9 * (0.4 + 0.6 * k));
       if (hazard.src === "tyrant") {
         const P = this.get("cinder"),
-          size = 0.34;
+          size = 0.36;
         P.body.col(P.body.yr(hx, hy, hz, yaw, size, size, size, pitch, time * 4), 1, 1, 1);
-        P.glow.colC(P.glow.yr(hx, hy, hz, yaw, size, size, size, pitch, time * 4), FIRE, 1.1);
+        P.glow.colC(P.glow.yr(hx, hy, hz, yaw, size, size, size, pitch, time * 4), FIRE_HOT, 1.35);
         if (chance(10)) r.emit(hx, hy, hz, 0, 0.3, 0, 0.4, 0.1, FIRE_HOT, { grav: 3, spark: true });
       } else {
         // 3.32.0: a Frost mortar's shell glows icy and trails frost mist instead of smoke
@@ -1127,17 +1124,17 @@ class AttackView {
         }
         case "cinder": {
           const P = this.get("cinder"),
-            s = shot.r * 1.35,
+            s = shot.r * 1.4,
             roll = time * 3 + shot.x;
           P.body.col(P.body.yr(shot.x, h, shot.y, angle, s, s, s, 0, roll), 1, 1, 1);
-          P.glow.colC(P.glow.yr(shot.x, h, shot.y, angle, s, s, s, 0, roll), FIRE, 1.15);
+          P.glow.colC(P.glow.yr(shot.x, h, shot.y, angle, s, s, s, 0, roll), FIRE_HOT, 1.35);
           if (chance(8))
             r.emit(shot.x - ca * 0.25, h - 0.04, shot.y - sa * 0.25, 0, 0.35, 0, 0.4, 0.08, FIRE_HOT, {
               grav: 3,
               spark: true,
             });
-          halo = 3.3;
-          light = 0.25;
+          halo = 3.8;
+          light = 0.42;
           break;
         }
         case "siren": {
@@ -1192,4 +1189,4 @@ class AttackView {
   }
 }
 
-export { AttackView, lookOf, Z as ATTACK_LOOK, M as MARK_LOOK };
+export { AttackView, M as MARK_LOOK };

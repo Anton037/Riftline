@@ -2042,7 +2042,7 @@ function updateEnemyRole(game, enemy, dt) {
   return updateEnemyCore(game, enemy, dt);
 }
 
-export { RL_KITERS, updateEnemy, updateBoss, findOpenSpot, initBoss, OVERDRIVE, bossPatterns };
+export { updateEnemy, updateBoss, initBoss, OVERDRIVE, bossPatterns };
 
 /* ---- 3.56.0: THE GLASSWYRM, the boss of the Glass Flats ----
  A wyrm of living fused glass that swims the sand beneath the sheets. Everything it does is

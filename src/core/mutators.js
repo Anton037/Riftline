@@ -45,4 +45,4 @@ function rlMutatorsFor(seed, wave) {
   return { mods, gained };
 }
 
-export { MUTATORS, MUTATOR_IDS, MUTATOR_MAX_LEVEL, rlMutatorsFor };
+export { MUTATORS, rlMutatorsFor };

@@ -802,13 +802,6 @@ function placeObstacles(rng, biomeId, template, W, H) {
       tryAdd([{ ...ob, x: Math.cos(angle) * radius, y: Math.sin(angle) * radius }]);
     }
     placeSymmetric(rng, biomeId, "mirror4", W, H, tryAdd, 2);
-  } else if (template === "lanes") {
-    let laneY = rng.range(6, Math.min(9.5, H - 5)),
-      laneW = rng.range(3, 5.5),
-      laneX = rng.range(3.2, 5.5);
-    for (let sy of [-1, 1])
-      for (let sx of [-1, 1]) tryAdd([{ t: "b", w: laneW / 2, h: 0.7, x: sx * (laneX + laneW / 2), y: sy * laneY }]);
-    placeSymmetric(rng, biomeId, "mirror2", W, H, tryAdd, 3);
   } else placeSymmetric(rng, biomeId, template, W, H, tryAdd, rng.int(2, 4));
   return placed;
 }
@@ -1085,7 +1078,7 @@ function placeFeatures(rng, biomeId, obs, W, H) {
   return features;
 }
 
-export { placeObstacles, mapTemplates, hitsObstacle, obstacleShapes, Arena, buildLayout, isConnected, SpatialHash };
+export { placeObstacles, mapTemplates, hitsObstacle, Arena, buildLayout, SpatialHash };
 
 // ---- 2.5.0 C: stronger biomes. A hazard wave now has about five hazards (was ~3.3), each about
 // 25–30% bigger than the 2.4.6 sizes, and the Shattered Core has two portal pairs in most waves (was 40%).
@@ -1198,7 +1191,7 @@ function rlHazardRoom250(arena, hazard, want) {
   while (rad > hazard.r && hitsObstacle(arena.obs, hazard.x, hazard.y, rad + 0.85)) rad -= 0.05;
   return Math.max(hazard.r, rad);
 }
-export { rlAddHazard250, rlPortalPair250, rlHazardRoom250, RL_HAZARD_SIZE_250, spawnZone as rlSpawnZone };
+export { rlAddHazard250, rlPortalPair250, rlHazardRoom250 };
 
 // Entry distance along a unit ray; parallel slabs are handled without division by zero.
 function rayBoxEntry(x, y, dx, dy, minX, minY, maxX, maxY) {

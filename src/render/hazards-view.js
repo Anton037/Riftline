@@ -460,8 +460,8 @@ class HazardView {
     let pool = this.pl["s:" + kind];
     if (pool) return pool;
     const mat = surfaceMaterial(kind);
-    pool = this.pl["s:" + kind] = new this.Pool(kind === "fire" ? tube() : disc(), mat, max);
-    pool.mesh.renderOrder = kind === "fire" ? 4 : 1;
+    pool = this.pl["s:" + kind] = new this.Pool(kind === "pyro" ? tube() : disc(), mat, max);
+    pool.mesh.renderOrder = kind === "pyro" ? 4 : 1;
     this.mats.push(mat);
     this.add(pool);
     return pool;
