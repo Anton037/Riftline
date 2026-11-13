@@ -4,6 +4,7 @@ import { serve } from "./serve.js";
 import { runNode } from "./process.js";
 const [kind, ...extra] = process.argv.slice(2);
 const suites = {
+  performance: ["tools/verification/performance.mjs", 240000],
   visual: ["tools/verification/visual.mjs", 240000],
   equipment: ["tools/verification/equipment.mjs", 240000],
   combat: ["tools/verification/combat.mjs", 300000],

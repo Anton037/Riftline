@@ -14,6 +14,7 @@ there is no historical release assertion catalog, always-on soak or hidden exten
 | `node tools/verify.js equipment <tag>` | Seven weapons, all 25 enemies, smoke/rockets and FPS controls | 240 s |
 | `npm run verify:combat` | Every current boss pattern/Overdrive, seven weapons and biome beam/trap skins | 300 s |
 | `npm run verify:abilities` | Power phases across all biomes, Aegis, portals and nine Shelf views on tablet/phone | 300 s per layout |
+| `npm run verify:performance` | Seeded simulation, renderer CPU, HUD and synchronized WebGL measurements | 240 s |
 | `npm run verify:audio` | Optional recorded/physical sound correctness | 420 s |
 | `npm run verify:audio-budget` | Optional audio scheduler/real-node parity | 180 s |
 | `npm run probe:audio` | Audio fault recovery | 120 s |
@@ -102,7 +103,7 @@ backend flags. Software frame times are not mobile GPU benchmarks.
 
 PRs run `npm run check`. Pages runs the Node contracts and builds without downloading Chromium.
 Both normal jobs have a five-minute ceiling. The manual verification workflow runs the selected
-specialist check and uploads biome/equipment/combat/ability screenshots and metrics even after failures (seven-day retention).
+specialist check and uploads its verification output, including performance profiles, even after failures (seven-day retention).
 
 Before release, play boss fights on a phone/tablet in landscape. Check warnings against bright ice/glass,
 multitouch ownership, speaker audibility, 30/60/120 FPS pacing and several minutes of heat/memory.
@@ -131,3 +132,12 @@ Rebuild the CC0 source bank with `python tools/build-audio-bank.py` (Python 3 an
 Player geometry checks cover 1,344 combinations of weapon, body facing, aim and walking/banking/dash pose.
 The weapon bearing must stay connected and the muzzle must follow the independent aim. Material checks cover
 damage-event identity, normal/critical hit families and shield impacts; the audio catalog renders each family.
+
+## Performance measurements
+
+`npm run verify:performance` measures all six biomes and a crowded Arc Caster case with fixed actors,
+projectiles and particles. It separates simulation, renderer CPU, HUD and synchronized WebGL work,
+and saves a Chrome CPU profile and measurements in `verification-output/`. WebGL timings include
+full-frame readback to complete queued work; its transfer cost is part of the measurement. Keep the viewport, pixel
+ratio, scene counts and renderer backend identical when comparing builds. Software-renderer timings
+are relative host measurements; they do not establish phone FPS or thermal behaviour.

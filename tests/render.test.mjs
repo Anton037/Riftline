@@ -1,10 +1,92 @@
 // Renderer data/geometry contracts without GPU timing or screenshot comparisons.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { Group, Mesh, BoxGeometry, MeshLambertMaterial, Box3, Vector3, Quaternion } from "three";
-import { mergeStaticMeshes } from "../src/render/static-meshes.js";
+import { Group, Mesh, BoxGeometry, MeshLambertMaterial, Box3, Vector3, Quaternion, Matrix4 } from "three";
+import { mergeStaticMeshes, freezeStaticTransforms } from "../src/render/static-meshes.js";
+import { writeSegmentMatrix } from "../src/render/instance-transforms.js";
 import { biomeList } from "../src/data/biomes.js";
 import { biomeAtmosphere, atmosphereDensity } from "../src/data/atmosphere.js";
+
+test("direct segment matrices preserve endpoints, width and height in every direction", () => {
+  const values = new Float32Array(16),
+    matrix = new Matrix4(),
+    point = new Vector3();
+  for (const [x0, z0, x1, z1] of [
+    [-5, -7, 2, 3],
+    [0, 0, 0, 2],
+    [3, 5, 3, -8],
+    [4, 4, -8, 4],
+    [1e6, -1e6, 1e6 + 4, -1e6 + 5],
+  ]) {
+    assert.equal(writeSegmentMatrix(values, 0, x0, z0, x1, z1, 1.4, 0.08, 0.04), true);
+    matrix.fromArray(values);
+    point.set(0, 0, 0).applyMatrix4(matrix);
+    assert.ok(point.distanceTo(new Vector3(x0, 1.4, z0)) < 1e-5);
+    point.set(1, 0, 0).applyMatrix4(matrix);
+    assert.ok(point.distanceTo(new Vector3(x1, 1.4, z1)) < 1e-5);
+    assert.ok(Math.abs(Math.hypot(values[8], values[10]) - 0.08) < 1e-7);
+    assert.ok(Math.abs(values[5] - 0.04) < 1e-7);
+    assert.ok(Math.abs(values[0] * values[8] + values[2] * values[10]) < 1e-6);
+  }
+  const previous = values.slice();
+  assert.equal(writeSegmentMatrix(values, 0, 1, 2, 1, 2, 1, 0.1, 0.1), false);
+  assert.deepEqual(values, previous, "zero-length segments must not corrupt a reused instance");
+});
+
+test("frozen scenery still inherits an animated parent's full world transform", () => {
+  const root = new Group(),
+    moving = new Group(),
+    geometry = new BoxGeometry(),
+    material = new MeshLambertMaterial(),
+    fixed = new Mesh(geometry, material),
+    child = new Mesh(geometry, material);
+  root.add(fixed, moving);
+  moving.add(child);
+  fixed.position.x = 3;
+  child.position.z = 1;
+  freezeStaticTransforms(root, new Set([moving]));
+  root.updateMatrixWorld();
+  assert.equal(child.matrixAutoUpdate, false);
+  assert.equal(moving.matrixAutoUpdate, true);
+  moving.position.set(-2, 1, 4);
+  moving.rotation.y = Math.PI / 2;
+  root.updateMatrixWorld();
+  assert.ok(child.getWorldPosition(new Vector3()).distanceTo(new Vector3(-1, 1, 4)) < 1e-9);
+  assert.equal(fixed.getWorldPosition(new Vector3()).x, 3);
+  geometry.dispose();
+  material.dispose();
+});
+
+test("arena rises settle before freezing and animated scenery keeps moving", async () => {
+  globalThis.__RL_VERSION__ ??= "test";
+  globalThis.__RL_BUILD__ ??= "test";
+  const { ArenaView } = await import("../src/render/biome-visuals.js"),
+    view = new ArenaView(new Group()),
+    biome = biomeList.find((b) => b.id === "core"),
+    layout = { key: "rise:first", W: 15, H: 15, obs: [{ t: "c", x: 3, y: 2, r: 1 }] };
+  view.build(biome, layout);
+  view.build(biome, { ...layout, key: "rise:second" }, true);
+  const position = new Vector3();
+  view.update(0.35, 0, 0, 0);
+  view.group.updateMatrixWorld();
+  assert.ok(view.obsGroup.getWorldPosition(position).y < 0);
+  view.update(0.35, 0, 0, 0);
+  view.group.updateMatrixWorld();
+  assert.equal(view.obsGroup.getWorldPosition(position).y, 0);
+  assert.equal(view.obsGroup.matrixAutoUpdate, false);
+  const animated = view.rlAnim.find((a) => a.k === "spinbob");
+  assert.ok(animated);
+  const before = animated.o.getWorldPosition(new Vector3());
+  view.update(0.3, 0, 0, 0);
+  view.group.updateMatrixWorld();
+  assert.ok(animated.o.getWorldPosition(new Vector3()).distanceTo(before) > 1e-5);
+  view.group.traverse((o) => {
+    o.geometry?.dispose();
+    o.material?.dispose();
+  });
+  view.groundOcclusion.dispose();
+  view.floorMat.dispose();
+});
 
 test("all six atmospheres are defined and yield to a busy combat pool", () => {
   assert.deepEqual(Object.keys(biomeAtmosphere).sort(), biomeList.map((b) => b.id).sort());

@@ -4,6 +4,14 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "4.3.1",
+    title: "Smoother combat",
+    items: [
+      "Rendering does less work during crowded fights and heavy Arc Caster fire.",
+      "Painted worlds, shadows and weapon effects retain their full detail.",
+    ],
+  },
+  {
     version: "4.3.0",
     title: "Powerful abilities, a natural frozen horizon",
     items: [
@@ -44,15 +52,6 @@ export const WHATS_NEW = [
       "Material smoke, physical rockets and quieter sparks and glows make the action clearer.",
       "Combat sound is rebuilt around physical recordings, weighty weapon reports and distinct material impacts, with new ambience accents.",
       "High detail is standard; choose a 30, 60 or 120 FPS limit, with 60 FPS as the default.",
-    ],
-  },
-  {
-    version: "4.0.0",
-    title: "Six worlds, rebuilt",
-    items: [
-      "Six rebuilt environments: worn city streets, wind-carved snow, living marsh banks, fractured Core slabs, cooled volcanic crust and glass-strewn dunes.",
-      "Map obstacles gain foundations, layered materials and physical detail, with new landmarks framing each arena.",
-      "Weathered manhole metal, cooler glass and brighter walker armor keep the world and combat readable.",
     ],
   },
 ];

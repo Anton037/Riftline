@@ -59,6 +59,7 @@ export class WeaponEffectsView {
     this.r = renderer;
     this.Pool = Pool;
     this.list = [];
+    this.arcCache = new WeakMap();
   }
   add(geometry, material, max) {
     const pool = new this.Pool(geometry, material, max);
@@ -95,15 +96,32 @@ export class WeaponEffectsView {
     const pool = this.segments();
     pool.colC(pool.seg(x0, z0, x1, z1, y, width, width), color, intensity);
   }
-  arc(x, z, angle, length, width, seed, y = 1.4, count = 8) {
+  arc(x, z, angle, length, width, seed, y = 1.4, count = 8, shot = null) {
     const ca = Math.cos(angle),
       sa = Math.sin(angle),
       beat = Math.floor(this.r.time * 24);
+    let offsets;
+    if (shot) {
+      let cached = this.arcCache.get(shot);
+      if (!cached) {
+        cached = { beat: -Infinity, seed: null, count: 0, offsets: new Float64Array(8) };
+        this.arcCache.set(shot, cached);
+      }
+      if (cached.beat !== beat || cached.seed !== seed) {
+        cached.beat = beat;
+        cached.seed = seed;
+        cached.count = 0;
+      }
+      for (let i = cached.count + 1; i < count; i++)
+        cached.offsets[i - 1] = Math.sin(seed * 13.7 + i * 11.9 + beat * 2.1);
+      cached.count = Math.max(cached.count, count - 1);
+      offsets = cached.offsets;
+    }
     let px = x - ca * length,
       pz = z - sa * length;
     for (let i = 1; i <= count; i++) {
       const f = i / count,
-        off = i === count ? 0 : Math.sin(seed * 13.7 + i * 11.9 + beat * 2.1) * width,
+        off = i === count ? 0 : (offsets ? offsets[i - 1] : Math.sin(seed * 13.7 + i * 11.9 + beat * 2.1)) * width,
         qx = x - ca * length * (1 - f) - sa * off,
         qz = z - sa * length * (1 - f) + ca * off;
       this.segment(px, pz, qx, qz, y, 0.065, ARC, 0.75);
@@ -165,6 +183,7 @@ export class WeaponEffectsView {
             shot.id,
             1.4,
             arcDetail,
+            shot,
           );
           break;
         case "returning-blade": {

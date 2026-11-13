@@ -44,6 +44,7 @@ worker behave correctly.
 | `npm run audit:visual` | All six biomes and bosses on phone and tablet |
 | `npm run verify:abilities` | Power phases and scenery on phone and tablet |
 | `npm run verify:combat` | Boss attacks, weapons and biome effects |
+| `npm run verify:performance` | Reproducible simulation and renderer measurements |
 | `npm run verify:audio` | Optional audio rendering and voice-budget checks |
 
 [Development](docs/DEVELOPMENT.md) covers the code, assets and release process.

@@ -38,7 +38,7 @@ import { clamp, TAU, hashString, makeRng } from "../core/util.js";
 import { hexColor, additiveMaterial } from "./materials.js";
 import { addBiomeDetail } from "./biome-props.js";
 import { mergeGeometries } from "./models.js";
-import { mergeStaticMeshes } from "./static-meshes.js";
+import { mergeStaticMeshes, freezeStaticTransforms } from "./static-meshes.js";
 import { biomeAtmosphere, propAtmosphereRates, atmosphereDensity } from "../data/atmosphere.js";
 
 const propBox = (w, h, d) => (Math.min(w, h, d) >= 0.16 ? armorBox(w, h, d) : new BoxGeometry(w, h, d));
@@ -150,12 +150,19 @@ void main() {
       setWorldShadows(this.obsGroup);
       this.rise = animate && !first ? 0 : 1;
       props.position.y = this.rise < 1 ? -2.6 : 0;
+      const moving = new Set(this.rlAnim.filter((a) => a.o.isObject3D).map((a) => a.o));
+      if (this.rise < 1) moving.add(props);
+      freezeStaticTransforms(this.group, moving);
     }
     update(dt, px, pz, pulse) {
       if (this.obsGroup && this.rise < 1) {
         this.rise = Math.min(1, this.rise + dt / 0.7);
         let ease = 1 - Math.pow(1 - this.rise, 3);
         this.obsGroup.position.y = -2.6 * (1 - ease);
+        if (this.rise === 1) {
+          this.obsGroup.updateMatrix();
+          this.obsGroup.matrixAutoUpdate = false;
+        }
       }
       this.uniforms.uTime.value += dt;
       this.uniforms.uPulse.value = pulse;

@@ -7,7 +7,7 @@ on:
         description: Check group
         type: choice
         default: visual
-        options: [visual, equipment, combat, abilities, audio, audio-budget, render]
+        options: [visual, equipment, combat, abilities, performance, audio, audio-budget, render]
 permissions:
   contents: read
 concurrency:
@@ -35,16 +35,17 @@ jobs:
             equipment) node tools/verify.js equipment current ;;
             combat) npm run verify:combat ;;
             abilities) npm run verify:abilities ;;
+            performance) npm run verify:performance ;;
             audio) npm run verify:audio ;;
             audio-budget) npm run verify:audio-budget ;;
             render) npm run test:render ;;
             *) exit 2 ;;
           esac
-      - name: Keep visual review images and metrics
-        if: always() && (inputs.suite == 'visual' || inputs.suite == 'equipment' || inputs.suite == 'combat' || inputs.suite == 'abilities')
+      - name: Keep verification output
+        if: always() && (inputs.suite == 'visual' || inputs.suite == 'equipment' || inputs.suite == 'combat' || inputs.suite == 'abilities' || inputs.suite == 'performance')
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: visual-review-${{ github.run_id }}
+          name: verification-${{ github.run_id }}
           path: verification-output/
           if-no-files-found: warn
           retention-days: 7

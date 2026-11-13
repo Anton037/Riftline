@@ -2,6 +2,15 @@
 import { Mesh } from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
+// Preserve inherited motion while avoiding local matrix composition for fixed scenery.
+export function freezeStaticTransforms(root, moving = new Set()) {
+  root.traverse((object) => {
+    if (moving.has(object)) return;
+    object.updateMatrix();
+    object.matrixAutoUpdate = false;
+  });
+}
+
 export function mergeStaticMeshes(root, moving = new Set()) {
   for (const child of [...root.children]) {
     if (child.isGroup) mergeStaticMeshes(child, moving);

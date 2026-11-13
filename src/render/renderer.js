@@ -1,4 +1,5 @@
 // three.js renderer (Renderer): scene, camera, lights, instanced pools, particles, per-frame drawing.
+import { writeSegmentMatrix } from "./instance-transforms.js";
 import { SmokeView } from "./smoke-view.js";
 import { AbilityEffectsView } from "./ability-effects-view.js";
 import { WeaponEffectsView } from "./weapon-effects-view.js";
@@ -98,6 +99,8 @@ const tmpColor = new Color(),
       this.mesh = new InstancedMesh(geo, mat, max);
       this.mesh.instanceMatrix.setUsage(DynamicDrawUsage);
       this.mesh.frustumCulled = false;
+      // Pool meshes stay at the origin; their motion lives in instanceMatrix.
+      this.mesh.matrixAutoUpdate = false;
       this.mesh.count = 0;
       this.m = this.mesh.instanceMatrix.array;
       if (opts.color !== false) {
@@ -225,10 +228,11 @@ const tmpColor = new Color(),
       return idx;
     }
     seg(x0, z0, x1, z1, y, width, height) {
-      let dx = x1 - x0,
-        dz = z1 - z0,
-        len = Math.hypot(dx, dz);
-      return len < 1e-4 ? -1 : this.y(x0, y, z0, Math.atan2(dz, dx), len, height, width);
+      if (this.n >= this.max) return -1;
+      const idx = this.n;
+      if (!writeSegmentMatrix(this.m, idx * 16, x0, z0, x1, z1, y, width, height)) return -1;
+      this.n++;
+      return idx;
     }
     col(idx, r, g, b) {
       if (idx < 0 || !this.c) return;
@@ -417,6 +421,8 @@ const MAX_PARTICLES = 1400,
       this.dprCap = opts.dpr || 2;
       this.zoom = 1;
       this.scene = new Scene();
+      // The world scene stays at the origin; camera and actor nodes own all motion.
+      this.scene.matrixAutoUpdate = false;
       this.scene.fog = new Fog(395798, 30, 75);
       this.camera = new PerspectiveCamera(42, 1, 0.5, 200);
       this.hemi = new HemisphereLight(2771594, 657944, 1.9);
@@ -2534,7 +2540,9 @@ const MAX_PARTICLES = 1400,
     drawParticles(dt) {
       let parts = this.P,
         basis = this.B,
-        count = parts.n;
+        count = parts.n,
+        lastDrag = NaN,
+        damp = 0;
       for (let i = 0; i < count; i++) {
         parts.life[i] -= dt;
         if (parts.life[i] <= 0) {
@@ -2560,7 +2568,10 @@ const MAX_PARTICLES = 1400,
           }
           continue;
         }
-        let damp = 1 - Math.exp(-parts.drag[i] * dt);
+        if (parts.drag[i] !== lastDrag) {
+          lastDrag = parts.drag[i];
+          damp = 1 - Math.exp(-lastDrag * dt);
+        }
         parts.vx[i] -= parts.vx[i] * damp;
         parts.vy[i] -= parts.vy[i] * damp + parts.grav[i] * dt;
         parts.vz[i] -= parts.vz[i] * damp;

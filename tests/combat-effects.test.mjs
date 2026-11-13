@@ -230,6 +230,51 @@ test("every Arc Caster shot remains visible at the simulation projectile cap", (
   }
 });
 
+test("cached arcs match uncached geometry while phase, motion and detail change", () => {
+  class RecordingPool extends Pool {
+    constructor(...args) {
+      super(...args);
+      this.transforms = [];
+    }
+    seg(...values) {
+      this.transforms.push(values);
+      return super.seg(...values);
+    }
+  }
+  const w = world("tesla");
+  w.fire(0);
+  const shot = w.pb[0],
+    before = JSON.stringify(shot),
+    r = { scene: new Group(), time: 1 },
+    referenceR = { scene: new Group(), time: 1 },
+    view = new WeaponEffectsView(r, RecordingPool),
+    reference = new WeaponEffectsView(referenceR, RecordingPool);
+  for (const [time, count, seed] of [
+    [1, 8, shot.id],
+    [1.01, 4, shot.id],
+    [1.02, 8, shot.id],
+    [1.07, 4, shot.id],
+    [1.07, 8, shot.id + 1],
+  ]) {
+    r.time = referenceR.time = time;
+    for (const v of [view, reference])
+      if (v.segmentsPool) {
+        v.segmentsPool.n = 0;
+        v.segmentsPool.transforms = [];
+      }
+    const args = [time * 2, -time, 0.7 + time, 0.3 + time, 0.12, seed, 1.4, count];
+    view.arc(...args, shot);
+    reference.arc(...args);
+    assert.deepEqual(view.segmentsPool.transforms, reference.segmentsPool.transforms);
+  }
+  assert.equal(JSON.stringify(shot), before, "render caching must not add fields to simulation shots");
+  for (const v of [view, reference])
+    for (const p of v.list) {
+      p.mesh.geometry.dispose();
+      p.mesh.material.dispose();
+    }
+});
+
 test("motion and summon effects no longer borrow unrelated actor palettes", () => {
   const bursts = [],
     rings = [],
