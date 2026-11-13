@@ -1478,6 +1478,33 @@ const MAX_PARTICLES = 1400,
           case "gadgetDeny":
             this.burst(world.player.x, world.player.y, 0.9, 4, 2.5, resistColor, 0.25, 0.14, { spark: true, drag: 4 });
             break;
+          case "novaReady":
+            this.ring(world.player.x, world.player.y, 0.35, 1.45, hexColor(0x6ee7ff), 0.32, 0.14);
+            this.burst(world.player.x, world.player.y, 0.9, 6, 3.2, whiteColor, 0.3, 0.15, {
+              up: 3,
+              spark: true,
+            });
+            break;
+          case "shieldUp":
+            this.ring(world.player.x, world.player.y, 1.1, 0.55, hexColor(0x74f7ff), 0.28, 0.12);
+            this.burst(world.player.x, world.player.y, 0.9, 6, 2.8, hexColor(0x74f7ff), 0.28, 0.14, {
+              spark: true,
+              drag: 3,
+            });
+            break;
+          case "barrier":
+            this.ring(ev.x, ev.y, 0.4, 2.4, goldColor, 0.42, 0.16);
+            this.burst(ev.x, ev.y, 0.9, 10, 4.5, goldColor, 0.4, 0.2, { up: 3, spark: true, drag: 2 });
+            this.flash(ev.x, ev.y, 3.5, 1.2, goldColor, 4);
+            break;
+          case "bountyPulse":
+            this.ring(ev.x, ev.y, 0.3, 1.4, goldColor, 0.28, 0.12);
+            this.burst(ev.x, ev.y, 1.0, 5, 2.5, goldColor, 0.32, 0.14, { up: 3.5, spark: true });
+            break;
+          case "shortArm":
+            this.ring(ev.x, ev.y, 0.25, ev.r || 1.4, hexColor(0x7ce8ff), 0.26);
+            this.burst(ev.x, ev.y, 0.6, 7, 4.0, goldColor, 0.28, 0.12, { spark: true, drag: 4 });
+            break;
           case "dash": {
             const p = world.player,
               a = Math.atan2(p.vy, p.vx),
@@ -1955,11 +1982,13 @@ const MAX_PARTICLES = 1400,
           drone.aimAt(player.aim, dt);
         }
         const shieldHit = Math.max(0, 1 - (time - this.abilityView.shieldHitAt) / 0.28);
-        drone.shield.visible = player.shield || shieldHit > 0;
+        const barrierUp = world.barrierT > 0;
+        drone.shield.visible = player.shield || barrierUp || shieldHit > 0;
         const shieldUniforms = drone.shield.material.uniforms;
         shieldUniforms.uTime.value = time;
         shieldUniforms.uHit.value = shieldHit;
-        shieldUniforms.uFade.value = player.shield ? 1 : shieldHit;
+        shieldUniforms.uFade.value = player.shield || barrierUp ? 1 : shieldHit;
+        shieldUniforms.uColor.value.setHex(barrierUp ? 0xffc84a : weaponDefs[world.weapon].color);
         let blink =
             player.iT > 0 &&
             player.hurtT <= 0 &&

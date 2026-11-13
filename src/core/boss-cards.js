@@ -247,7 +247,7 @@ function fangBurst(world, enemy) {
       hits: 0,
     });
   }
-  world.emit("shatter", { x: enemy.x, y: enemy.y, r: enemy.r });
+  world.emit("shatter", { x: enemy.x, y: enemy.y, r: enemy.r, glass: true });
 }
 
 function updateLances(world, dt) {
@@ -272,7 +272,7 @@ function updateLances(world, dt) {
         // a lance pierces one body, then shatters
         if (s.hits > 1) s.life = 0;
       } else s.life = 0;
-      world.emit("splinterHit", { x: s.x, y: s.y });
+      world.emit("splinterHit", { x: s.x, y: s.y, glass: true });
     });
   }
   let w = 0;
