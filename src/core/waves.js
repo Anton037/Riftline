@@ -227,7 +227,7 @@ let RL_BIOME_MIX_CUR = null;
 function set_RL_BIOME_MIX_CUR(mix) {
   return (RL_BIOME_MIX_CUR = mix);
 }
-export { waveEvents, spawnWeights, EVENT_CHANCE, planWave, heavyEnemies, rollUpgradeOffer, set_RL_BIOME_MIX_CUR };
+export { waveEvents, EVENT_CHANCE, planWave, rollUpgradeOffer, set_RL_BIOME_MIX_CUR };
 
 // ---- 2.5.0 C: biome events and signature enemies ----
 // One event per hazard biome, on top of Elite Surge and Shard Rain. World.eventFor gives every

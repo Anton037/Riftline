@@ -366,12 +366,13 @@ const MAX_PARTICLES = 1400,
   // 3.17.0: what a foot kicks up on each ground (core/walk.js FLOOR): a puff of dust, snow, mud, droplets or sparks
   STEP_LOOK = {
     asphalt: { color: hexColor(0x8a93a0), size: 0.26, life: 0.35, up: 0.5, grav: 1.5 },
-    grate: { color: hexColor(0xffb347), size: 0.1, life: 0.28, up: 1.2, grav: 6, spark: true },
     frost: { color: hexColor(0xe6f6ff), size: 0.3, life: 0.45, up: 0.6, grav: 1 },
     ice: { color: hexColor(0xbff0ff), size: 0.12, life: 0.3, up: 1, grav: 5, spark: true, ring: true },
     mud: { color: hexColor(0x5a4a2a), size: 0.22, life: 0.45, up: 1.6, grav: 8 },
     glass: { color: hexColor(0xb070ff), size: 0.14, life: 0.3, up: 0.5, grav: 0, spark: true, ring: true },
     acid: { color: hexColor(0x46ffc0), size: 0.16, life: 0.4, up: 1.8, grav: 7 },
+    crust: { color: hexColor(0xffb45a), size: 0.12, life: 0.3, up: 1.1, grav: 5, spark: true },
+    sandglass: { color: hexColor(0xffe9c4), size: 0.2, life: 0.34, up: 0.7, grav: 2, spark: true },
   },
   // 3.16.0: the colours of the portals a boss calls open (render loop, world.markers with `boss`)
   BOSS_PORTAL = Object.fromEntries(
@@ -1009,44 +1010,110 @@ const MAX_PARTICLES = 1400,
               0.07,
               this.player.recoil + (def.id === "rail" || def.id === "scatter" ? 0.06 : 0.035) * this.motion,
             );
-            if (WEAPON_EFFECTS[ev.w].muzzle === "arc") {
+            const muzzleKind = WEAPON_EFFECTS[ev.w].muzzle;
+            if (muzzleKind === "arc") {
+              for (const side of [-1, 1]) {
+                const forkA = ev.a + side * (0.18 + Math.random() * 0.14);
+                this.line(
+                  muzzle.x,
+                  muzzle.z,
+                  muzzle.x + Math.cos(forkA) * 0.72,
+                  muzzle.z + Math.sin(forkA) * 0.72,
+                  side > 0 ? color : whiteColor,
+                  0.09,
+                  0.035,
+                  muzzle.y,
+                  0.14,
+                );
+              }
+            } else if (muzzleKind === "mechanical") {
+              const perpX = -dirZ,
+                perpZ = dirX;
+              for (const side of [-1, 1])
+                this.line(
+                  muzzle.x,
+                  muzzle.z,
+                  muzzle.x + (dirX * 0.22 + perpX * side * 0.16),
+                  muzzle.z + (dirZ * 0.22 + perpZ * side * 0.16),
+                  color,
+                  0.07,
+                  0.022,
+                  muzzle.y,
+                );
+              this.burst(muzzle.x, muzzle.z, muzzle.y, 4, 1.8, color, 0.13, 0.075, { spark: true, drag: 6 });
+            } else if (muzzleKind === "combustion") {
+              for (let j = -2; j <= 2; j++) {
+                const coneA = ev.a + j * 0.14,
+                  len = j === 0 ? 0.42 : 0.3;
+                this.line(
+                  muzzle.x,
+                  muzzle.z,
+                  muzzle.x + Math.cos(coneA) * len,
+                  muzzle.z + Math.sin(coneA) * len,
+                  j === 0 ? whiteColor : color,
+                  0.065,
+                  0.04,
+                  muzzle.y,
+                );
+              }
+              this.emit(muzzle.x, muzzle.y, muzzle.z, dirX * 4.5, 0, dirZ * 4.5, 0.1, 0.85, color, { drag: 0 });
+            } else if (muzzleKind === "rail") {
+              const perpX = -dirZ,
+                perpZ = dirX;
+              for (const side of [-1, 1])
+                this.line(
+                  muzzle.x,
+                  muzzle.z,
+                  muzzle.x - dirX * 0.18 + perpX * side * 0.34,
+                  muzzle.z - dirZ * 0.18 + perpZ * side * 0.34,
+                  color,
+                  0.11,
+                  0.03,
+                  muzzle.y,
+                );
+              this.ring(muzzle.x + dirX * 0.15, muzzle.z + dirZ * 0.15, 0.12, 0.85, color, 0.14);
+              this.emit(muzzle.x, muzzle.y, muzzle.z, dirX * 5, 0, dirZ * 5, 0.1, 0.65, whiteColor, { drag: 0 });
+            } else if (muzzleKind === "backblast") {
               this.line(
                 muzzle.x,
                 muzzle.z,
-                muzzle.x + dirX * 0.7,
-                muzzle.z + dirZ * 0.7,
-                color,
-                0.09,
-                0.035,
-                muzzle.y,
-                0.12,
-              );
-            } else if (WEAPON_EFFECTS[ev.w].muzzle === "mechanical") {
-              this.burst(muzzle.x, muzzle.z, muzzle.y, 3, 1.5, color, 0.12, 0.07, { spark: true, drag: 6 });
-            } else if (WEAPON_EFFECTS[ev.w].muzzle !== "fire") {
-              // Warm combustion flashes and compact energy jets leave a little material smoke.
-              this.line(
-                muzzle.x,
-                muzzle.z,
-                muzzle.x + dirX * 0.26,
-                muzzle.z + dirZ * 0.26,
+                muzzle.x + dirX * 0.3,
+                muzzle.z + dirZ * 0.3,
                 whiteColor,
-                0.055,
+                0.065,
+                0.08,
+                muzzle.y,
+              );
+              const backX = muzzle.x - dirX * 0.62,
+                backZ = muzzle.z - dirZ * 0.62;
+              this.emit(backX, muzzle.y, backZ, -dirX * 3.2, 0.35, -dirZ * 3.2, 0.18, 0.55, color, { drag: 3 });
+              this.smokeView.emit(backX, muzzle.y, backZ, 0.42, 0x9da7a8, 0.36);
+            } else if (muzzleKind === "fire") {
+              this.emit(
+                muzzle.x + dirX * 0.12,
+                muzzle.y,
+                muzzle.z + dirZ * 0.12,
+                dirX * 3.5,
+                0.3,
+                dirZ * 3.5,
+                0.08,
+                0.32,
+                whiteColor,
+                { drag: 2 },
+              );
+            } else {
+              // Pulse blaster: crisp twin-core energy flash and forward bolt streak.
+              this.line(
+                muzzle.x,
+                muzzle.z,
+                muzzle.x + dirX * 0.32,
+                muzzle.z + dirZ * 0.32,
+                whiteColor,
+                0.06,
                 0.075,
                 muzzle.y,
               );
-              this.emit(
-                muzzle.x,
-                muzzle.y,
-                muzzle.z,
-                dirX * 4,
-                0,
-                dirZ * 4,
-                0.09,
-                def.id === "scatter" ? 0.8 : 0.5,
-                color,
-                { drag: 0 },
-              );
+              this.emit(muzzle.x, muzzle.y, muzzle.z, dirX * 4, 0, dirZ * 4, 0.09, 0.52, color, { drag: 0 });
             }
             if (["pulse", "scatter", "rocket", "flame"].includes(def.id))
               this.smokeView.emit(muzzle.x, muzzle.y, muzzle.z, def.id === "scatter" ? 0.5 : 0.3, 0x9da7a8, 0.32);
@@ -1081,7 +1148,7 @@ const MAX_PARTICLES = 1400,
             break;
           }
           case "wingShot":
-            this.emit(ev.x, 0.9, ev.y, 0, 0, 0, 0.06, 0.6, hexColor(4846335), { drag: 0 });
+            this.emit(ev.x, 0.9, ev.y, 0, 0, 0, 0.06, 0.6, hexColor(weaponDefs[world.weapon].color), { drag: 0 });
             break;
           case "dmg": {
             if (showNumbers) {
@@ -1207,8 +1274,7 @@ const MAX_PARTICLES = 1400,
                 enemySurface(ev.type) === "organic" ? 0x5e7562 : 0x89908d,
                 0.5,
               );
-            // 3.50.0: the Hive Queen goes out in a burst of spores: slow glowing motes that hang
-            // over the pools a moment, and a pale ring of the bloom (the standard bursts stay)
+            // Bespoke boss death signatures so every biome finale goes out in its own element.
             if (ev.type === "queen") {
               for (let j = 0; j < 14; j++)
                 this.emit(
@@ -1224,6 +1290,35 @@ const MAX_PARTICLES = 1400,
                   { drag: 1.2 },
                 );
               this.ring(ev.x, ev.y, 0.4, 4.5, hexColor(0xd9fff0), 0.5);
+            } else if (ev.type === "warden") {
+              this.burst(ev.x, ev.y, 1.2, 16, 8, hexColor(0x2766ff), 0.55, 0.24, { spark: true, drag: 3 });
+              this.burst(ev.x, ev.y, 1.2, 16, 8, hexColor(0xff3045), 0.55, 0.24, { spark: true, drag: 3 });
+              this.ring(ev.x, ev.y, 0.5, 5.2, hexColor(0x3a8bff), 0.42);
+            } else if (ev.type === "prism") {
+              this.burst(ev.x, ev.y, 1.5, 22, 9, hexColor(0xcff6ff), 0.75, 0.28, { spark: true, up: 4, drag: 2 });
+              this.ring(ev.x, ev.y, 0.4, 5.4, hexColor(0x7be8ff), 0.48);
+            } else if (ev.type === "core") {
+              this.burst(ev.x, ev.y, 1.8, 20, 8.5, hexColor(0xc27bff), 0.7, 0.3, { spark: true, up: 5, drag: 2 });
+              this.burst(ev.x, ev.y, 1.8, 12, 6, hexColor(0xff5cab), 0.65, 0.26, { up: 4, drag: 2 });
+              this.ring(ev.x, ev.y, 0.5, 5.8, hexColor(0xdcb3ff), 0.5);
+            } else if (ev.type === "tyrant") {
+              this.burst(ev.x, ev.y, 1.1, 22, 9, hexColor(0xffa14a), 0.8, 0.34, {
+                spark: true,
+                up: 7,
+                grav: 9,
+                drag: 1.5,
+              });
+              this.smokeView.emit(ev.x, 1.1, ev.y, 2.2, 0x3a322d, 0.7);
+              this.ring(ev.x, ev.y, 0.5, 5.4, hexColor(0xff6b2b), 0.48);
+            } else if (ev.type === "wyrm") {
+              this.burst(ev.x, ev.y, 1.2, 22, 9.5, hexColor(0xffe08a), 0.7, 0.26, {
+                spark: true,
+                up: 5,
+                grav: 7,
+                drag: 2,
+              });
+              this.burst(ev.x, ev.y, 0.5, 14, 6, hexColor(0xd8c8a8), 0.7, 0.32, { up: 3, drag: 3 });
+              this.ring(ev.x, ev.y, 0.5, 5.4, hexColor(0xffdf88), 0.46);
             }
             let base = hexColor(ev.boss ? bossDefs[ev.type].color : enemyDefs[ev.type].color),
               dark = this._dk || (this._dk = new Color());
@@ -1866,9 +1961,16 @@ const MAX_PARTICLES = 1400,
         shieldUniforms.uHit.value = shieldHit;
         shieldUniforms.uFade.value = player.shield ? 1 : shieldHit;
         let blink =
-            player.iT > 0 && player.hurtT <= 0 && world.state === "fight" && Math.floor(time * 20) % 2 ? 0.35 : 0,
+            player.iT > 0 &&
+            player.hurtT <= 0 &&
+            player.dashT <= 0 &&
+            world.waveT > 1.05 &&
+            world.state === "fight" &&
+            Math.floor(time * 12) % 2
+              ? 0.12
+              : 0,
           hurt = player.hurtT > 0 ? player.hurtT / 0.3 : 0;
-        for (let mat of drone.mats) mat.emissive.setRGB(hurt * 0.9 + blink, blink * 0.8, blink);
+        for (let mat of drone.mats) mat.emissive.setRGB(hurt * 0.9 + blink * 0.35, blink * 0.85, blink);
         this.shadows.y(player.x, 0.02, player.y, 0, 1.9);
         if (player.manual) {
           let reach = world.arena.rayLen(player.x, player.y, player.aim, Math.min(world.stats.range, 16)),
@@ -1915,7 +2017,7 @@ const MAX_PARTICLES = 1400,
         for (let wing of player.wings) {
           this.wing.y(wing.x, Math.sin(time * 4 + wing.x) * 0.1, wing.y, player.aim, 1.3);
           let halo = this.sprites.bb(wing.x, 0.9, wing.y, 1, basis);
-          this.sprites.colHex(halo, 4846335, 0.5);
+          this.sprites.colHex(halo, weaponDefs[world.weapon].color, 0.5);
           this.shadows.y(wing.x, 0.02, wing.y, 0, 0.9);
         }
       }
@@ -2456,19 +2558,34 @@ const MAX_PARTICLES = 1400,
         grow = Math.max(grow, clamp((this.focusK - 0.15) / 0.45, 0, 1));
       }
       if (group.userData.energyTime) group.userData.energyTime.value = time;
-      let scale = easeOutBack(grow);
-      group.position.set(
-        boss.x,
-        boss.type === "prism" || boss.type === "queen" || boss.type === "wyrm" ? Math.sin(time * 1.6) * 0.2 : 0,
-        boss.y,
-      );
+      let scale = easeOutBack(grow),
+        walking = boss.st === "walk",
+        rushing = boss.st === "charge" && boss.sub === 1,
+        lift =
+          boss.type === "prism" || boss.type === "wyrm"
+            ? (1 + Math.sin(time * 1.6)) * 0.09
+            : boss.type === "queen"
+              ? Math.abs(Math.sin(time * 2.2)) * 0.08
+              : walking
+                ? Math.abs(Math.sin(time * 6.5)) * 0.09
+                : 0,
+        pitch = rushing ? -0.14 : walking ? -0.04 : 0,
+        roll =
+          boss.type === "warden" || boss.type === "tyrant"
+            ? Math.sin(time * (rushing ? 14 : 6.5)) * (rushing ? 0.06 : walking ? 0.035 : 0)
+            : 0;
+      group.position.set(boss.x, lift, boss.y);
       group.scale.setScalar(Math.max(0.01, scale));
       // 3.56.0: the Glasswyrm's body undulates as it swims (the segments rock in local z)
       if (group.userData.tail)
         for (const seg of group.userData.tail)
           seg.m.position.z = seg.z + Math.sin(time * 5.5 + seg.i * 1.15) * (0.08 + seg.i * 0.05);
-      group.rotation.y = -boss.face;
-      for (let part of view.spin) part.m.rotation[part.ax] += part.v * dt * (boss.enraged ? 1.8 : 1);
+      group.rotation.order = "YZX";
+      group.rotation.set(roll, -boss.face, pitch);
+      for (let part of view.spin) {
+        part.m.rotation[part.ax] += part.v * dt * (boss.enraged ? 1.8 : 1);
+        if (boss.type === "core") part.m.position.y = 2.4 + Math.sin(time * 1.5) * 0.15;
+      }
       let flash = boss.flash;
       const identity = BOSS_EFFECTS[boss.type];
       for (let mat of view.mats)
@@ -2521,6 +2638,66 @@ const MAX_PARTICLES = 1400,
           0.3,
           hexColor(0xd8c8a8),
           { drag: 1.2, grav: -3 },
+        );
+      }
+      if (boss.type === "warden") {
+        const sirenBlue = Math.sin(time * 14) > 0,
+          siren = this.sprites.bb(boss.x, 3.35, boss.y, 1.9, this.B);
+        this.sprites.colHex(siren, sirenBlue ? 0x2766ff : 0xff3045, 0.32);
+        if (rushing && Math.random() < dt * 28)
+          this.emit(
+            boss.x - Math.cos(boss.face) * 1.2 + (Math.random() - 0.5) * 1.8,
+            0.25,
+            boss.y - Math.sin(boss.face) * 1.2 + (Math.random() - 0.5) * 1.8,
+            (Math.random() - 0.5) * 2.5,
+            1.4 + Math.random() * 1.5,
+            (Math.random() - 0.5) * 2.5,
+            0.28,
+            0.16,
+            hexColor(sirenBlue ? 0x5ab0ff : 0xff6b4a),
+            { spark: true, drag: 2 },
+          );
+      }
+      if (boss.type === "queen" && Math.random() < dt * 10) {
+        this.emit(
+          boss.x + (Math.random() - 0.5) * 2.4,
+          1.2 + Math.random() * 1.6,
+          boss.y + (Math.random() - 0.5) * 2.4,
+          (Math.random() - 0.5) * 0.5,
+          0.4 + Math.random() * 0.5,
+          (Math.random() - 0.5) * 0.5,
+          1.2,
+          0.16,
+          hexColor(0x52ff9b),
+          { drag: 1.2 },
+        );
+      }
+      if (boss.type === "core" && Math.random() < dt * 14) {
+        this.emit(
+          boss.x + (Math.random() - 0.5) * 2.6,
+          1.2 + Math.random() * 2.2,
+          boss.y + (Math.random() - 0.5) * 2.6,
+          (Math.random() - 0.5) * 0.8,
+          0.6 + Math.random() * 0.8,
+          (Math.random() - 0.5) * 0.8,
+          0.85,
+          0.18,
+          hexColor(Math.random() < 0.5 ? 0xb56cff : 0xff5cab),
+          { spark: true, drag: 1.2 },
+        );
+      }
+      if (boss.type === "tyrant" && Math.random() < dt * (rushing ? 32 : 14)) {
+        this.emit(
+          boss.x + (Math.random() - 0.5) * 2.2,
+          1.1 + Math.random() * 1.8,
+          boss.y + (Math.random() - 0.5) * 2.2,
+          (Math.random() - 0.5) * 1.4,
+          1.2 + Math.random() * 1.6,
+          (Math.random() - 0.5) * 1.4,
+          0.55,
+          0.16,
+          hexColor(0xff9a42),
+          { spark: true, drag: 1.5 },
         );
       }
       if (boss.type === "warden" && boss.st === "charge" && boss.sub === 0) {
@@ -2708,4 +2885,4 @@ const RL_WHITEOUT_FOG = [0.7, 1.12],
   RL_WHITEOUT_TINT = new Color(0xe6f0f6),
   RL_WHITEOUT_SNOW = new Color(0xffffff);
 
-export { Renderer, BOSS_PORTAL, hexColor, additiveMaterial, markHomeViewDirty };
+export { Renderer, markHomeViewDirty };

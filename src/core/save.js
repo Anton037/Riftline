@@ -703,20 +703,7 @@ function rlMigrateUpgrades(run) {
   }
   return out;
 }
-export {
-  rlMigrateUpgrades,
-  defaultSettings,
-  RL_RETIRE_NOTE,
-  SaveStore,
-  SAVE_KEY,
-  rlMigrateRetired,
-  rlRecordRun,
-  rlSanitizeHistory,
-  set_RL_RETIRE_NOTE,
-  cleanRun,
-  cleanSave,
-  newSave,
-};
+export { RL_RETIRE_NOTE, SaveStore, SAVE_KEY, rlRecordRun, set_RL_RETIRE_NOTE, cleanRun, newSave };
 
 /* ==========================================================================
    2.5.0 B: merged workshop modules are refunded
@@ -761,4 +748,4 @@ function rlMigrateModules(raw) {
   return out;
 }
 
-export { RL_MODULE_NOTE, rlMigrateModules, set_RL_MODULE_NOTE };
+export { RL_MODULE_NOTE, set_RL_MODULE_NOTE };

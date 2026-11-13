@@ -169,8 +169,6 @@ const SCAPE = {
     ],
   },
 };
-// the far sounds of each biome (3.9.0; since 3.13.0 taken from SCAPE)
-const BIOME_PLACE = Object.fromEntries(Object.entries(SCAPE).map(([biome, sc]) => [biome, sc.far.map((f) => f.id)]));
 const PLACE_IDS = Object.keys(PLACE);
 
 /* 3.17.0: the sounding prop nearest to the drone (null: none within PROP_HEAR). The street lamps stand every ~7 m
@@ -327,4 +325,4 @@ function placeTick(e, world, dt) {
   }
 }
 
-export { PLACE, PLACE_IDS, BIOME_PLACE, SCAPE, placeTick, PROP_HEAR };
+export { PLACE, PLACE_IDS, SCAPE, placeTick };

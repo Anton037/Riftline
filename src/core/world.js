@@ -568,7 +568,6 @@ const rlStep = 1 / 60,
       // of any biome when Endless comes back to it)
       const special = {
         city: ["gunner", "bomber", "brute", "sniper", "sentinel"],
-        works: ["brute", "grunt", "charger", "minebot", "driller"],
         shelf: ["bulwark", "gunner", "sentinel", "turret"],
         core: ["striker", "brute", "phantom", "weaver"],
         marsh: ["splitter", "brute", "sapper", "carrier"],
@@ -583,7 +582,6 @@ const rlStep = 1 / 60,
       let pool = (
         {
           city: ["grunt", "gunner"],
-          works: ["brute", "grunt"],
           shelf: ["bulwark", "gunner"],
           core: ["striker", "brute"],
           marsh: ["splitter", "brute"],

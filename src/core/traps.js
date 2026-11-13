@@ -145,15 +145,7 @@ function trapStrike(world, trap, skin, radius) {
     trapEffectsOnPlayer(world, skin, trap);
   world.hash.query(trap.x, trap.y, radius, (enemy) => {
     if (enemy.dead || enemy.boss || Math.hypot(enemy.x - trap.x, enemy.y - trap.y) > radius + enemy.r) return;
-    world.hurtEnemy(
-      enemy,
-      enemy.maxHp * skin.frac,
-      enemy.x - trap.x,
-      enemy.y - trap.y,
-      skin.special === "quake" ? 9 : 3,
-      false,
-      "trap",
-    );
+    world.hurtEnemy(enemy, enemy.maxHp * skin.frac, enemy.x - trap.x, enemy.y - trap.y, 3, false, "trap");
     if (skin.special === "chill") enemy.slowT = Math.max(enemy.slowT, 1.6);
   });
   // the acid puddle stays off a spot where an enemy is about to appear (spawns keep away from hazards)
@@ -306,4 +298,4 @@ function rlPlaceAgain(world, trap) {
   return null;
 }
 
-export { TRAP_SKINS, BIOME_TRAPS, TRAP_FROM, trapCount, rlPlanTraps, rlUpdateTraps };
+export { TRAP_SKINS, rlPlanTraps, rlUpdateTraps };

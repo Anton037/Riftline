@@ -287,10 +287,6 @@ function rlHealthAdd(id, status, detail) {
   RL_HEALTH.push({ id: id, status: status, detail: String(detail || "") });
 }
 let RL_LAST_RUN_AUDIT = null;
-// assigned from other modules (an imported binding cannot be assigned)
-function set_RL_LAST_RUN_AUDIT(value) {
-  return (RL_LAST_RUN_AUDIT = value);
-}
 /* ==========================================================================
  Riftline 2.2.3 diagnostics
  --------------------------------------------------------------------------
@@ -1742,28 +1738,18 @@ function rlMonEnable() {
 setLogHook(logError);
 
 export {
-  RL_EVENT_KINDS,
-  RL_HEALTH,
-  RL_LAST_RUN_AUDIT,
   RL_MON,
   RL_RT,
   errorLog,
   setLogContext,
-  rlMonBeginWave,
   rlMonCrashed,
   rlMonEnable,
   rlMonFinish,
   rlMonFrame,
-  rlMonIssue,
   rlMonPreEnd,
   rlMonStart,
-  rlMonStep,
   rlRunAudit,
   rlRunHealth,
-  rlUiButtonGuardSelfTest,
-  RL_BOSS_EVENTS,
-  rlEventPayloadError,
-  set_RL_LAST_RUN_AUDIT,
   buildReport,
   logError,
 };

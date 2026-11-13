@@ -379,6 +379,5 @@ workshopModules.push(
     costs: [900, 2200],
   },
 );
-const modulesById = Object.fromEntries(workshopModules.map((mod) => [mod.id, mod]));
 
-export { threatMods, milestones, workshopModules, modulesById, threatLevels };
+export { threatMods, milestones, workshopModules, threatLevels };

@@ -11,7 +11,6 @@ const STEP_LEN = 1,
 // the ground under the drone: the sheets of ice and the pools of acid of the arena, else the floor of the biome
 const FLOOR = {
   city: "asphalt",
-  works: "grate",
   shelf: "frost",
   marsh: "mud",
   core: "glass",
@@ -57,4 +56,4 @@ function walkStep(world, x0, y0, dt) {
     });
 }
 
-export { STEP_LEN, DASH_TIME, FLOOR, walkStep };
+export { STEP_LEN, DASH_TIME, walkStep };

@@ -1737,4 +1737,4 @@ function holdTitleCard(ui, kind, html, min, ms) {
   ui.cardHold = { token: showTitleCard(ui, html, ms), kind, at: performance.now(), min };
 }
 
-export { GameUI, RL_TOUCH_CLICK_GUARD, getById, rlBiomeTitle, iconPaths, escapeHtml, rlBiomeCardInfo };
+export { GameUI, RL_TOUCH_CLICK_GUARD, getById, rlBiomeTitle, escapeHtml };

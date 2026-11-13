@@ -22,7 +22,7 @@ export function worldMaterial({ color = 0xffffff, surface = "stone", ...options 
   return paintMaterial(material, surface);
 }
 
-export function paintMaterial(material, surface = "armor") {
+function paintMaterial(material, surface = "armor") {
   const metal = surface === "metal",
     ice = surface === "ice" || surface === "crystal";
   const previousCompile = material.onBeforeCompile;

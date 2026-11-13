@@ -587,7 +587,8 @@ class TrapView {
         }
         break;
       }
-      case "icespike": {
+      case "icespike":
+      case "sunspike": {
         P.glow.colC(P.glow.y(x, 0, z, 0, rr, 1, rr), WHITE, 0.35 + k * 0.9 + hit);
         let h = 0.2;
         if (warn) h = 0.2 + 0.55 * k * k;
@@ -1052,10 +1053,11 @@ class TrapView {
         r.addShake(0.12 * shakeK);
         break;
       case "icespike":
+      case "sunspike":
         r.ring(x, z, rad * 0.2, rad * 1.1, look.main, 0.4);
         r.burst(x, z, 0.3, 14, rad * 3, WHITE, 0.5, 0.2, { spark: true, drag: 3 });
         r.burst(x, z, 0.3, 8, rad * 2, look.main, 0.6, 0.3, { drag: 3, up: 4 });
-        r.debrisBurst(x, z, 0.4, 10, hex(0xbfe6f7), 0.14, 7);
+        r.debrisBurst(x, z, 0.4, 10, ev.skin === "sunspike" ? look.dust : hex(0xbfe6f7), 0.14, 7);
         r.flash(x, z, rad * 1.8, 1.1, look.main, 5);
         r.addShake(0.2 * shakeK);
         break;

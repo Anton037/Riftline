@@ -199,7 +199,7 @@ export const biomeAtmosphere = {
   ],
 };
 
-export const propAtmosphereRates = { spark: 5, steam: 3, glint: 1.5, spore: 2.5, mote: 3 };
+export const propAtmosphereRates = { steam: 3, glint: 1.5, spore: 2.5, mote: 3 };
 
 // Atmosphere yields first in a crowded fight. Combat can still use the full particle pool.
 export const AMBIENT_POOL_SHARE = 0.3;

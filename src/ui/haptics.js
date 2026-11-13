@@ -24,7 +24,7 @@ export function hapticMode() {
 }
 
 /* one short tick; true when the tick path ran (the native call stays with the caller) */
-export function hapticTick() {
+function hapticTick() {
   if (!coarsePointer()) return false;
   const el = rlEnsureSwitch();
   if (!el) return false;

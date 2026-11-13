@@ -2,14 +2,7 @@
 
 import { PhysicalVoices, preloadPhysicalAudio, setNaturalWave } from "./physical-voices.js";
 import { hookLog as logError } from "../core/run-hooks.js";
-import {
-  BOSS_EFFECTS,
-  ENEMY_EFFECTS,
-  WEAPON_EFFECTS,
-  BEAM_EFFECTS,
-  shotVoiceFor,
-  attackSurface,
-} from "../data/combat-effects.js";
+import { BOSS_EFFECTS, WEAPON_EFFECTS, BEAM_EFFECTS, shotVoiceFor, attackSurface } from "../data/combat-effects.js";
 import { upgradesById } from "../data/upgrades.js";
 import { PLACE, PLACE_IDS, placeTick } from "./place.js";
 
@@ -47,11 +40,6 @@ const RL_DEATH_FAMILY = {
   sniper: "dClang",
   beacon: "dClang",
 };
-const RL_ESHOT_VOICE = Object.fromEntries(
-  Object.entries(ENEMY_EFFECTS)
-    .filter(([, effect]) => effect.shot)
-    .map(([id, effect]) => [id, effect.shot]),
-);
 /* wind-up voices of the "charge" event (enemy types and the bosses that charge) */
 const RL_CHARGE_VOICE = {
   brute: "windHeavy",
@@ -123,21 +111,8 @@ function attackVoice(kind, src, biome, chill) {
     }[attackSurface(kind, src, biome, chill)] || null
   );
 }
-const BOSS_ROOT = { warden: 45, prism: 52, queen: 41, core: 42, tyrant: 43, wyrm: 47 },
-  BOSS_SOUND = {
-    warden: { wave: "square", lp: 900, det: 0, motif: [0, 0, 7], gap: 0.1, chord: [0, 7, 12, 19] },
-    prism: { wave: "sine", lp: 9e3, det: 6, motif: [12, 7, 4, 0], gap: 0.08, chord: [0, 4, 7, 11] },
-    queen: { wave: "triangle", lp: 1400, det: 35, motif: [0, -1, 0, -1], gap: 0.1, chord: [0, 3, 7, 10] },
-    core: { wave: "sawtooth", lp: 1e3, det: 18, motif: [0, 6, 0, 6], gap: 0.11, chord: [0, 7, 14, 19] },
-    // 3.47.0: the Tyrant: a smooth saw with a slow growl, the motif walks root - fifth - flat
-    // seventh - octave (a man who owns the room)
-    tyrant: { wave: "sawtooth", lp: 1100, det: 12, motif: [0, 7, 10, 12], gap: 0.09, chord: [0, 7, 10, 15] },
-    // 3.56.0: the Glasswyrm: a glassy triangle with a wide detune (light through a flawed pane), the
-    // motif rises root - fifth - octave - tenth (it comes up from below)
-    wyrm: { wave: "triangle", lp: 5200, det: 22, motif: [0, 7, 12, 16], gap: 0.085, chord: [0, 4, 9, 14] },
-  },
-  /* 2.9.0: how far the music dips for the big hits (gain factor 1 - x, about 100 ms; the music goes on) */
-  MUSIC_DUCK = {
+/* 2.9.0: how far the music dips for the big hits (gain factor 1 - x, about 100 ms; the music goes on) */
+const MUSIC_DUCK = {
     nova: 0.15,
     die: 0.15,
     boom: 0.1,
@@ -288,153 +263,6 @@ const THREAT_WARNING_VOICES = new Set([
   ...Object.values(BEAM_VOICE),
   ...Object.values(RL_TRAP_SOUND).map((voice) => voice.warn),
 ]);
-/* the beeps of the mines per skin: pitch, wave, filter (and an end-pitch factor for a chirp) */
-
-/* Event kinds that sound (with sample payloads, used by the self-test to check that the consumer
- really reacts to each) and the ones that stay silent on purpose. Every kind of RL_EVENT_KINDS is in
- exactly one of the two. */
-const RL_SOUND_EVENTS = {
-  aim: [{}, { type: "turret" }],
-  barrier: [{}],
-  beamWarn: [{}, { small: true }, { skin: "cryo" }, { small: true, skin: "acid" }, { small: true, skin: "flame" }],
-  blink: [{}],
-  blinkWarn: [{}],
-  block: [{}],
-  boom: [
-    { kind: "boom" },
-    { kind: "stomp", r: 4.8 },
-    { kind: "glacier", r: 2.3 },
-    { kind: "rain", src: "queen", r: 1.5 },
-    { kind: "rain", src: "core", r: 2.2 },
-    { kind: "fire", r: 1 },
-    { kind: "mortar", src: "mortar", r: 2, chill: true },
-    { kind: "shorted", src: "grunt", r: 1.6 },
-  ],
-  boss: [{ id: "warden" }, { id: "prism" }, { id: "queen" }, { id: "core" }, { id: "tyrant" }, { id: "wyrm" }],
-  bossAtk: [
-    { id: "warden", atk: "ring" },
-    { id: "tyrant", atk: "summon" },
-  ],
-  bossDown: [{ id: "warden" }, { id: "wyrm" }],
-  bounce: [{}],
-  bountyPulse: [{}],
-  chain: [{}],
-  champion: [{}],
-  championDown: [{}],
-  charge: [{ type: "brute" }],
-  chill: [{}],
-  stun: [{ skin: "plate" }, { skin: "riftburst" }],
-  shortArm: [{ r: 1.6 }],
-  cleared: [{}, { boss: true }],
-  combo: [{ n: 20 }],
-  comboEnd: [{ n: 20 }],
-  surge: [
-    { n: 15, i: 1 },
-    { n: 60, i: 5 },
-  ],
-  dash: [{}],
-  dmg: [{}],
-  edash: [{ type: "charger" }],
-  die: [{}],
-  enrage: [{ id: "warden" }, { id: "wyrm" }],
-  erupt: [{}],
-  // 3.53.0: a dust devil of the Flats bears down on the player
-  devilNear: [{}],
-  eshot: [
-    { type: "gunner" },
-    { type: "gunner", frost: true },
-    { type: "turret" },
-    { type: "drone" },
-    { type: "boss" },
-    { type: "sniper" },
-    { type: "boss", boss: "warden" },
-    { type: "boss", boss: "queen" },
-    { type: "boss", boss: "core" },
-    { type: "weaver" },
-    { type: "carrier" },
-    { type: "boss", boss: "tyrant" },
-  ],
-  freeze: [{}],
-  fuse: [{}],
-  guardBreak: [{}],
-  guardUp: [{}],
-  hatch: [{}, { big: true }],
-  heal: [{}],
-  maxed: [{ heal: 30, shards: 12 }],
-  step: [
-    { ground: "asphalt", foot: 0, v: 6 },
-    { ground: "ice", foot: 1, v: 6 },
-  ],
-  land: [{ ground: "grate" }],
-  lockdown: [{ r: 3.2 }],
-  lockOn: [{ r: 3.2, n: 3 }],
-  shatter: [{ r: 0.5 }],
-  broodHatch: [{}],
-  implode: [{ r: 9, t: 0.35 }],
-  singularity: [{}],
-  singOpen: [{ r: 5.8, dur: 1.5 }],
-  gadgetReady: [{}],
-  gadgetDeny: [{}],
-  ping: [{ resist: true }],
-  trapWarn: [
-    { fam: "floor", skin: "plate", delay: 1 },
-    { fam: "floor", skin: "icespike", delay: 1 },
-    { fam: "floor", skin: "geyser", delay: 1 },
-    { fam: "floor", skin: "riftburst", delay: 1 },
-    { fam: "beam", skin: "laser", delay: 1, dur: 2 },
-    { fam: "beam", skin: "flame", delay: 1, dur: 2 },
-    { fam: "beam", skin: "rift", delay: 1, dur: 2 },
-    { fam: "mine", skin: "mine", delay: 0.45 },
-    { fam: "mine", skin: "frost", delay: 0.45 },
-    { fam: "mine", skin: "spore", delay: 0.45 },
-    { fam: "mine", skin: "riftmine", delay: 0.45 },
-  ],
-  trapFire: [
-    { skin: "plate" },
-    { skin: "icespike" },
-    { skin: "geyser" },
-    { skin: "riftburst" },
-    { skin: "mine" },
-    { skin: "frost" },
-    { skin: "spore" },
-    { skin: "riftmine" },
-  ],
-  trapArm: [{ skin: "mine" }, { skin: "frost" }, { skin: "spore" }, { skin: "riftmine" }],
-  hurt: [{}],
-  kill: [{ type: "grunt", r: 0.5 }],
-  kit: [{}],
-  lob: [{}],
-  mend: [{}],
-  mine: [{}],
-  nova: [{}],
-  novaReady: [{}],
-  offer: [{}],
-  phase: [{ n: 2 }],
-  pick: [{ id: "dmg" }],
-  portal: [{}],
-  reroll: [{}],
-  revive: [{}],
-  shard: [{}],
-  shieldBreak: [{}],
-  shieldPop: [{}],
-  shieldUp: [{}],
-  shot: [{ w: "pulse" }],
-  supplyDrop: [{}],
-  thud: [{}],
-  victory: [{}],
-  warp: [{ who: "weaver" }],
-  wave: [{ n: 2 }],
-  wingShot: [{}],
-};
-const RL_SILENT_EVENTS = new Set([
-  "mutator", // 3.3.0: main.js plays its cue with the banner (after the biome card)
-  "pop", // a bullet expiring: far too frequent
-  "spark", // impact effect, covered by "dmg"
-  "spawn", // one enemy appears: the "portal" group sound covers it
-  "zap", // effect of the arc weapons, covered by their shot voice
-  "splinterHit", // 3.15.0: a Shard Field splinter hitting, covered by "dmg" and the shatter
-]);
-
 /* a small seeded random generator (0..1) for the offline test renders */
 function makeSeeded(seed) {
   let state = seed >>> 0 || 1;
@@ -3017,13 +2845,6 @@ const CALM_MOTIF = ["x..x..x...x..x..", "x.x...x.x...x.x.", "x..x.x...x..x...", 
       // limit of the sampling rate and warned): no one hears it, so it is left out
       if (f * 7.1 < 16000) bus.t(f * 7.1, 0.07, "sine", v * 0.12, { attack: 0.001, ...o });
     },
-    pipes: (bus, f, v, o) => {
-      bus.t(f, o.lite ? 0.9 : 2, "sine", v, { attack: 0.002, rev: 0.8, ...o });
-      bus.t(f * 1.505, o.lite ? 0.5 : 1.2, "sine", v * 0.45, { attack: 0.002, ...o });
-      if (o.lite) return;
-      bus.t(f * 2.41, 0.6, "sine", v * 0.2, { attack: 0.002, ...o });
-      bus.n(0.03, v * 1.5, { type: "bandpass", f: 900, q: 3, color: "pink", attack: 0.001, ...o });
-    },
     // The Aurora Shelf (3.51.0): a music box - the ice bell with a tine's metallic ping on top
     ice: (bus, f, v, o) => {
       bell(bus, f, v, o.lite ? 0.7 : 1.4, { rev: 0.7, ...o });
@@ -3043,15 +2864,6 @@ const CALM_MOTIF = ["x..x..x...x..x..", "x.x...x.x...x.x.", "x..x.x...x..x...", 
       if (o.lite) return;
       bus.t(f * 1.004, 2.6, "sine", v * 0.8, { attack: 0.004, ...o });
       bus.t(f * 2.76, 0.9, "sine", v * 0.25, { attack: 0.002, ...o });
-    },
-    // the old Caldera's vibraphone (kept for the record; the Caldera strikes obsidian instead)
-    // (the 9.2 partial carries the piano's 16 kHz guard: on the G-major bar the motif runs high)
-    vibes: (bus, f, v, o) => {
-      bus.t(f, o.lite ? 1 : 2.2, "sine", v, { attack: 0.002, rev: 0.65, ...o });
-      bus.t(f * 4.01, o.lite ? 0.2 : 0.5, "sine", v * 0.22, { attack: 0.001, ...o });
-      if (o.lite) return;
-      bus.t(f * 1.004, 2.2, "sine", v * 0.5, { attack: 0.002, ...o });
-      if (f * 9.2 < 16000) bus.t(f * 9.2, 0.14, "sine", v * 0.1, { attack: 0.001, ...o });
     },
     // 3.53.0: the Glass Flats: glassine - a struck glass harmonic (a sine with the glass's 2.76
     // partial) and a hot ping on top: noon light on sheet glass
@@ -3074,10 +2886,9 @@ const CALM_MOTIF = ["x..x..x...x..x..", "x.x...x.x...x.x.", "x..x.x...x..x...", 
       bus.n(0.03, v * 1.2, { type: "bandpass", f: 640, q: 2.4, color: "pink", attack: 0.001, ...o });
     },
   },
-  /* the level of each instrument against the ice bells (the pipes, the kalimba, the glass and the vibes are
-     softer by nature) */
+  /* the level of each instrument against the ice bells (the kalimba and the glass are softer by nature) */
   // 3.53.0: the Flats' glassine joins the voices
-  VOICE_GAIN = { piano: 1.4, pipes: 1.6, ice: 1, kalimba: 1.5, glass: 1.5, vibes: 1.35, cinder: 1.45, glassine: 1.4 },
+  VOICE_GAIN = { piano: 1.4, ice: 1, kalimba: 1.5, glass: 1.5, cinder: 1.45, glassine: 1.4 },
   /* the pad of each biome: notes (from the step data), wave, low-pass, fade, detune, room, level, tremolo rate */
   CALM_PAD = {
     city: {
@@ -3217,13 +3028,6 @@ const BLOOM_VOICE = {
     g.t(f, len, "sine", v, { attack: 0.35, to: f * 0.992, ...o });
     g.t(f * 1.5, len * 0.8, "sine", v * 0.42, { attack: 0.5, detune: 7, to: f * 1.5 * 0.99, ...o });
     g.t(f * 2.7, len * 0.4, "sine", v * 0.1, { attack: 0.3, ...o });
-  },
-  // 3.47.0: the Caldera's bloom: a struck vibraphone bar, smooth, with the metallic partials dying fast
-  // (the 9.2 partial carries the same 16 kHz guard as the motif voice)
-  vibe: (g, f, v, len, o) => {
-    g.t(f, len, "sine", v, { attack: 0.004, ...o });
-    g.t(f * 4.01, len * 0.25, "sine", v * 0.18, { attack: 0.002, ...o });
-    if (f * 9.2 < 16000) g.t(f * 9.2, 0.12, "sine", v * 0.08, { attack: 0.001, ...o });
   },
   // 3.49.0: the Caldera's bloom: a hot shard pings and cools fast, one cold partial under the guard
   ember: (g, f, v, len, o) => {
@@ -3934,12 +3738,12 @@ function marshBoss(e, c) {
 /* The Shattered Core boss (Rift Core), 172 BPM, F# minor (F#m D A E): the finale, drum and bass with a choir. Drop: a breakbeat
    (kick on 1 and the "and" of 3, snare on 2 and 4, ghost snares), a reese bass (two saws a little apart under a
    low-pass) that pumps, the choir sings the chords, the glass motif; variation: the motifs of the other biomes come
-   back, one bar each (electric piano, struck pipes, ice bells, kalimba), over the break with brass stabs; breakdown:
+   back, one bar each (electric piano, obsidian shards, ice bells, kalimba), over the break with brass stabs; breakdown:
    half time, the choir alone with the glass, a deep drum, a heartbeat; build: the snare rolls, the choir climbs,
    riser */
 const BREAK_K = ["x.........x.....", "x.........x..x.."],
   BREAK_GHOST = "......x..x....x.",
-  QUOTES = ["piano", "pipes", "ice", "kalimba"];
+  QUOTES = ["piano", "cinder", "ice", "kalimba"];
 function coreBoss(e, c) {
   const { b, bar, sec, root, chord } = c,
     k = kit(e, c),
@@ -4350,7 +4154,7 @@ function rlSoundCatalog() {
   // 3.34.0: a Shorted enemy's spot arcs, and its warning
   ids(["aShort"], 1.6);
   ids(["shortFizz"]);
-  for (const boss of Object.keys(BOSS_ROOT)) {
+  for (const boss of Object.keys(BOSS_EFFECTS)) {
     ids(["bossIntro"], boss);
     for (const id of [
       "bWind",
@@ -4376,9 +4180,9 @@ function rlSoundCatalog() {
   for (const source of ["beacon", "mender"]) add(`mend:${source}`, { id: "mend", arg: source });
   for (const rarity of [1, 2, 3, 4, 5, 6]) ids(["pick"], rarity);
   // 3.17.0: the walker: a footstep on every ground, the landing after a dash
-  for (const ground of ["asphalt", "grate", "frost", "ice", "mud", "glass", "acid", "sandglass"])
+  for (const ground of ["asphalt", "frost", "ice", "mud", "glass", "acid", "crust", "sandglass"])
     add("step:" + ground, { id: "step", arg: { ground } });
-  add("land:grate", { id: "land", arg: { ground: "grate" } });
+  add("land:crust", { id: "land", arg: { ground: "crust" } });
   // 3.15.0: the boss cards
   ids(["bcCage", "bcLock", "bcShatter", "bcHatch", "bcBurst", "bcImplode"]);
   for (const id of ["elite", "rain", "blackout", "whiteout", "bloom", "riftstorm", "devils"]) ids(["event"], id);
@@ -4390,25 +4194,4 @@ function rlSoundCatalog() {
   return list;
 }
 
-export {
-  rlSoundCatalog,
-  musicChords,
-  RL_SFX_VOICES,
-  rlShotSfx,
-  musicVoices,
-  trackInfo,
-  SoundEngine,
-  RL_DEATH_FAMILY,
-  RL_ESHOT_VOICE,
-  RL_CHARGE_VOICE,
-  RL_DASH_VOICE,
-  RL_BOSS_ATK,
-  RL_SOUND_EVENTS,
-  RL_SILENT_EVENTS,
-  RL_TRAP_SOUND,
-  MAX_VOICES,
-  MUSIC_DUCK,
-  BOSS_SOUND,
-  attackVoice,
-  AMB_PREVIEW,
-};
+export { musicChords, RL_SFX_VOICES, rlShotSfx, RL_TRAP_SOUND, attackVoice, musicVoices, SoundEngine };

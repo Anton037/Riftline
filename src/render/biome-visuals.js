@@ -134,7 +134,6 @@ void main() {
       this.obsGroup = props;
       this.rlAnim = [];
       this.rlEmit = [];
-      this.rlSway = null;
       (RL_BIOME_BUILD[biome.id] || RL_BIOME_BUILD.city)(
         this,
         biome,
@@ -1212,16 +1211,10 @@ const RL_BIOME_BUILD = {
   },
 };
 
-// Ambient particles: the air of the biome, around the camera, plus sparks/spores/glints from props.
+// Ambient particles: the air of the biome, around the camera, plus steam/spores/glints/motes from props.
 const RL_C = {
-  ember: new Color(0xffa040),
-  ember2: new Color(0xffd070),
-  snow: new Color(0xdceeff),
   white: new Color(0xffffff),
-  rain: new Color(0x9fb4cc),
   steam: new Color(0x5a6270),
-  fly: new Color(0xffd98a), // 3.44.0: the Glowmarsh's fireflies, the one warm light in the night
-  ash: new Color(0x8a7f74), // 3.49.0: the caldera's falling ash
 };
 function rlAmbient(renderer, dt, world, opt) {
   const biome = renderer.biome,
@@ -1262,22 +1255,7 @@ function rlAmbient(renderer, dt, world, opt) {
   if (!(arena.rise >= 1) || !arena.rlEmit) return;
   for (const src of arena.rlEmit) {
     if (Math.abs(src.x - cx) > 22 || Math.abs(src.z - cz) > 18) continue;
-    if (src.k === "spark") {
-      if (count(propAtmosphereRates.spark)) {
-        renderer.emit(
-          src.x + (Math.random() - 0.5) * 0.4,
-          src.y,
-          src.z + (Math.random() - 0.5) * 0.4,
-          (Math.random() - 0.5) * 0.6,
-          1.6 + Math.random() * 1.4,
-          (Math.random() - 0.5) * 0.6,
-          1.3,
-          0.22,
-          RL_C.ember,
-          { ambient: true, drag: 0.6, grow: 1.2 },
-        );
-      }
-    } else if (src.k === "steam") {
+    if (src.k === "steam") {
       // 3.4.0: steam rising from the manholes of Blackout City
       if (count(propAtmosphereRates.steam)) {
         renderer.emit(
