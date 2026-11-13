@@ -235,9 +235,18 @@ class BossCardView {
         r.flash(ev.x, ev.y, ev.r * 1.4, 1.1, GOLD, 5);
         r.addShake(0.08 * shakeK);
         return true;
-      case "shatter":
-        r.burst(ev.x, ev.y, 0.7, 8, 5, ICE_WHITE, 0.35, 0.12, { spark: true, drag: 3, grav: 5 });
-        r.ring(ev.x, ev.y, 0.2, 1.2, ICE, 0.2);
+      case "shatter": {
+        const spark = ev.glass ? GOLD_WHITE : ICE_WHITE;
+        const ring = ev.glass ? GOLD : ICE;
+        r.burst(ev.x, ev.y, 0.7, 8, 5, spark, 0.35, 0.12, { spark: true, drag: 3, grav: 5 });
+        r.ring(ev.x, ev.y, 0.2, 1.2, ring, 0.2);
+        return true;
+      }
+      case "splinterHit":
+        r.burst(ev.x, ev.y, 0.7, 5, 4, ev.glass ? GOLD : ICE_WHITE, 0.2, 0.08, {
+          spark: true,
+          drag: 5,
+        });
         return true;
       case "broodHatch":
         r.burst(ev.x, ev.y, 0.5, 8, 3, ACID, 0.4, 0.14, { drag: 3, grav: 4 });

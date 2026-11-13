@@ -231,3 +231,22 @@ test("every weapon stays attached and aims correctly through turns, banking and 
     });
   }
 });
+
+test("BossCardView distinguishes Frost Prism shatter from Glasswyrm Fang shatter and splinter hits", async () => {
+  const { BossCardView } = await import("../src/render/boss-cards-view.js");
+  const bursts = [],
+    rings = [];
+  const view = new BossCardView({
+    burst: (...args) => bursts.push(args),
+    ring: (...args) => rings.push(args),
+  });
+  assert.equal(view.event({ k: "shatter", x: 1, y: 2, r: 0.6 }, {}, 1), true);
+  assert.equal(view.event({ k: "shatter", x: 3, y: 4, r: 0.6, glass: true }, {}, 1), true);
+  assert.equal(view.event({ k: "splinterHit", x: 5, y: 6 }, {}, 1), true);
+  assert.equal(view.event({ k: "splinterHit", x: 7, y: 8, glass: true }, {}, 1), true);
+  assert.equal(bursts.length, 4);
+  assert.equal(rings.length, 2);
+  assert.notEqual(bursts[0][5].getHex(), bursts[1][5].getHex());
+  assert.notEqual(rings[0][4].getHex(), rings[1][4].getHex());
+  assert.notEqual(bursts[2][5].getHex(), bursts[3][5].getHex());
+});
