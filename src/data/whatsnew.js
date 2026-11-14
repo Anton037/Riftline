@@ -4,6 +4,16 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "4.3.1",
+    title: "The Glass Flats rebuilt, clearer combat telegraphs",
+    items: [
+      "The Glass Flats gains sandstone berms, horizon buttes, dunes, glass-crowned outcrops and cracked sunspike basins.",
+      "Glasswyrm fights solo with distinct callouts, while Chargers, Drillers, Weavers, Sentinels, Phantoms and Sunstruck foes telegraph clearly.",
+      "Heat Sink responds to dust devils and hazards, saved runs preserve boss card counters, and DPS stats reflect full blast damage.",
+      "Physical footsteps, Ashfall ambience and boss card sound ducking are tuned across every arena.",
+    ],
+  },
+  {
     version: "4.3.0",
     title: "Powerful abilities, a natural frozen horizon",
     items: [
@@ -44,15 +54,6 @@ export const WHATS_NEW = [
       "Material smoke, physical rockets and quieter sparks and glows make the action clearer.",
       "Combat sound is rebuilt around physical recordings, weighty weapon reports and distinct material impacts, with new ambience accents.",
       "High detail is standard; choose a 30, 60 or 120 FPS limit, with 60 FPS as the default.",
-    ],
-  },
-  {
-    version: "4.0.0",
-    title: "Six worlds, rebuilt",
-    items: [
-      "Six rebuilt environments: worn city streets, wind-carved snow, living marsh banks, fractured Core slabs, cooled volcanic crust and glass-strewn dunes.",
-      "Map obstacles gain foundations, layered materials and physical detail, with new landmarks framing each arena.",
-      "Weathered manhole metal, cooler glass and brighter walker armor keep the world and combat readable.",
     ],
   },
 ];
