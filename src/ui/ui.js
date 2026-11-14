@@ -44,17 +44,17 @@ function rlRenderHistory() {
       ? "a lava vent"
       : id === "shock"
         ? "a live manhole"
-      : id === "acid"
-        ? "acid"
-        : id === "devil"
-          ? "a dust devil"
-          : id === "trap"
-            ? "a trap"
-            : enemyDefs[id]
-              ? "a " + enemyDefs[id].name
-              : bossDefs[id]
-                ? bossDefs[id].name
-                : "";
+        : id === "acid"
+          ? "acid"
+          : id === "devil"
+            ? "a dust devil"
+            : id === "trap"
+              ? "a trap"
+              : enemyDefs[id]
+                ? "a " + enemyDefs[id].name
+                : bossDefs[id]
+                  ? bossDefs[id].name
+                  : "";
   el.innerHTML = history
     .map((run) => {
       const icon = run.outcome === "win" ? "trophy" : run.outcome === "quit" ? "close" : "skull",

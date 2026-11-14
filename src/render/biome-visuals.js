@@ -1214,11 +1214,7 @@ const RL_BIOME_BUILD = {
         for (const side of [-1, 1]) {
           const shard = rlMesh(
             props,
-            shardGeometry(
-              Math.min(0.45, obstacle.w * 0.42),
-              rng.range(0.45, 0.72),
-              Math.min(0.28, obstacle.h * 0.35),
-            ),
+            shardGeometry(Math.min(0.45, obstacle.w * 0.42), rng.range(0.45, 0.72), Math.min(0.28, obstacle.h * 0.35)),
             side > 0 ? hotGlass : glass,
             obstacle.x + (longX ? side * obstacle.w * 0.35 : 0),
             0.55,

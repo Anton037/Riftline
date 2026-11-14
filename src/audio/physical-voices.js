@@ -344,30 +344,30 @@ export function physicalProfile(id, arg, place = false) {
             ? "horn"
             : /radio/i.test(id)
               ? "radio"
-          : /lampBuzz|portalHum|gravityHum|^hum$/i.test(id)
-            ? "buzz"
-            : /rainDrop/i.test(id)
-              ? "rain"
-              : /gutter|drip|bubble|blub|mud|gurgle|splash/i.test(id)
-                ? "water"
-                : /cricket|cicada|insect/i.test(id)
-                  ? "insect"
-                  : /frog/i.test(id)
-                    ? "frog"
-                    : /bird|owl|heron|chirp/i.test(id)
-                      ? "bird"
-                      : /dog|howl/i.test(id)
-                        ? "mammal"
-                        : /wind|gust|breeze|hiss|sizzle|dustRush|steamBlast|fumarole/i.test(id) ||
-                            /breath|devilMoan|portalWhisper|swell|groan|lavaWarn/i.test(id)
-                          ? "air"
-                          : /thunder|boom|avalanche|fall|quake|rubble|heartbeat/i.test(id)
-                            ? "boom"
-                            : /ice|icicle|glass|crystal|crack|shimmer|creak|glitch|reversed/i.test(id)
-                              ? "glass"
-                              : /spark|cl[au]nk|anvil|metal|vent|charge/i.test(id)
-                                ? "armor"
-                                : "room";
+              : /lampBuzz|portalHum|gravityHum|^hum$/i.test(id)
+                ? "buzz"
+                : /rainDrop/i.test(id)
+                  ? "rain"
+                  : /gutter|drip|bubble|blub|mud|gurgle|splash/i.test(id)
+                    ? "water"
+                    : /cricket|cicada|insect/i.test(id)
+                      ? "insect"
+                      : /frog/i.test(id)
+                        ? "frog"
+                        : /bird|owl|heron|chirp/i.test(id)
+                          ? "bird"
+                          : /dog|howl/i.test(id)
+                            ? "mammal"
+                            : /wind|gust|breeze|hiss|sizzle|dustRush|steamBlast|fumarole/i.test(id) ||
+                                /breath|devilMoan|portalWhisper|swell|groan|lavaWarn/i.test(id)
+                              ? "air"
+                              : /thunder|boom|avalanche|fall|quake|rubble|heartbeat/i.test(id)
+                                ? "boom"
+                                : /ice|icicle|glass|crystal|crack|shimmer|creak|glitch|reversed/i.test(id)
+                                  ? "glass"
+                                  : /spark|cl[au]nk|anvil|metal|vent|charge/i.test(id)
+                                    ? "armor"
+                                    : "room";
   } else if (!P[id]) {
     if (/^(tc|tm|tb|bw)|warn|wind|\block\b|servo|fuse|bWind|tArm|^beam(?:Small)?$/i.test(id)) family = "warning";
     else if (/boom|nova$|slam|thud|erupt|quake|collapse|bigkill|die/i.test(id)) family = "boom";
