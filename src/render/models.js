@@ -1578,7 +1578,8 @@ function buildBossModel(type, color) {
       shininess: 28,
       flatShading: true,
     }),
-    glowMat = new MeshBasicMaterial({ color, toneMapped: false, transparent: true }),
+    glowMat = new MeshBasicMaterial({ color, toneMapped: false }),
+    makeTranslucent = [],
     spin = [],
     addMesh = (geo, mat, x, y, z, parent = group) => {
       let mesh = new Mesh(geo, mat);
@@ -1698,25 +1699,25 @@ function buildBossModel(type, color) {
     // core and visor, crystal shoulders and crown (hullMat: frosted ice, flashes on hits), dark-blue
     // rock chunks (darkMat), orbiting frost shards and a frozen ring below. Everything fades out while
     // it blinks (fadeMats); the ice keeps its own translucency (userData.opacity).
-    const ice = (color, emissive, opacity) => {
+    const ice = (color, emissive, opacity, deferTransparent = false) => {
       const mat = worldMaterial({
         surface: finish,
         color,
         emissive,
         flatShading: true,
-        transparent: true,
+        transparent: !deferTransparent,
         opacity,
         depthWrite: false,
       });
+      if (deferTransparent) makeTranslucent.push(mat);
       mat.userData.opacity = opacity;
       return mat;
     };
     let iceMat = ice(13431295, 1716822, 0.8),
-      paleIceMat = ice(14745599, 2771583, 0.5);
+      paleIceMat = ice(14745599, 2771583, 0.5, true);
     hullMat.color.setHex(10934000);
-    hullMat.transparent = true;
     darkMat.color.setHex(2837350);
-    darkMat.transparent = true;
+    makeTranslucent.push(hullMat, darkMat, glowMat);
     let body = addMesh(new OctahedronGeometry(1.35, 0), iceMat, 0, 2.3, 0);
     body.scale.set(1, 1.5, 1);
     spin.push({ m: body, ax: "y", v: 0.35 });
@@ -1927,10 +1928,11 @@ function buildBossModel(type, color) {
         color,
         emissive,
         flatShading: true,
-        transparent: true,
+        transparent: false,
         opacity,
         depthWrite: false,
       });
+      makeTranslucent.push(mat);
       mat.userData.opacity = opacity;
       return mat;
     };
@@ -1972,6 +1974,7 @@ function buildBossModel(type, color) {
     );
     tailSpike.rotation.z = Math.PI / 2;
     group.userData.tail = tail;
+    group.userData.moving = tail.map((seg) => seg.m);
     // shards of the sheets it broke orbit the head
     const orbit = new Group();
     orbit.position.set(1.9, 2.0, 0);
@@ -2002,6 +2005,7 @@ function buildBossModel(type, color) {
       shard.rotation.y = -a;
     }
     group.userData.fadeMats = [vitre, vitreDark, glowMat];
+    makeTranslucent.push(glowMat);
     // (vitre stays out of mats: the flash loop would zero its emissive - the dark underside flashes)
     group.userData.mats = [vitreDark];
   } else {
@@ -2009,6 +2013,9 @@ function buildBossModel(type, color) {
     const energy = glowMat.clone(),
       clock = { value: 0 };
     energy.color = glowMat.color;
+    energy.transparent = true;
+    energy.depthWrite = false;
+    makeTranslucent.push(glowMat);
     energy.onBeforeCompile = (shader) => {
       shader.uniforms.uCoreTime = clock;
       shader.vertexShader = shader.vertexShader
@@ -2076,8 +2083,13 @@ function buildBossModel(type, color) {
     let groundRing = addMesh(new TorusGeometry(2.4, 0.08, 5, 44), glowMat, 0, 0.1, 0);
     groundRing.rotation.x = Math.PI / 2;
   }
-  mergeStaticMeshes(group, new Set(spin.map((part) => part.m)));
-  return { group, mats: [hullMat, darkMat, ...(group.userData.mats || [])], glowMat, spin };
+  const moving = new Set([...spin.map((part) => part.m), ...(group.userData.moving || [])]);
+  mergeStaticMeshes(group, moving);
+  for (const mat of makeTranslucent) mat.transparent = true;
+  const mats = [...(group.userData.mats || [])];
+  if (type !== "tyrant" && type !== "wyrm") mats.unshift(hullMat);
+  if (type !== "wyrm") mats.unshift(darkMat);
+  return { group, mats, glowMat, spin };
 }
 // Compact missile casing with a pointed nose and four stabilizer fins; +X is forward.
 function rocketProjectileGeometry() {

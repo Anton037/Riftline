@@ -179,6 +179,7 @@ const Arena = class {
     for (let vent of this.vents) if (near(vent.x, vent.y, vent.r, 0.7)) return true;
     for (let patch of this.ice) if (near(patch.x, patch.y, patch.r, 0.45)) return true;
     for (let puddle of this.acid) if (near(puddle.x, puddle.y, puddle.r, 0.55)) return true;
+    for (let devil of this.devils || []) if (near(devil.x, devil.y, devil.r, 0.55)) return true;
     for (let portal of this.portals)
       if (near(portal.ax, portal.ay, 1, 0.45) || near(portal.bx, portal.by, 1, 0.45)) return true;
     return false;

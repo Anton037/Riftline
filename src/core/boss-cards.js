@@ -58,7 +58,6 @@ function resetBossCards(world) {
   world.splinters = [];
   world.implode = null;
   world.lances = [];
-  world.fangN = 0;
 }
 
 // the densest group of enemies near the drone (bosses count, ghosts and spawning enemies do not)
@@ -203,7 +202,7 @@ function updateSplinters(world, dt) {
     world.hash.query(s.x, s.y, 1, (enemy) => {
       if (s.life <= 0 || enemy.dead || enemy.ghost || enemy.id === s.from) return;
       if (Math.hypot(enemy.x - s.x, enemy.y - s.y) > enemy.r + 0.15) return;
-      world.hurtEnemy(enemy, s.dmg, s.vx, s.vy, 0.6, false, "shard");
+      world.hurtEnemy(enemy, s.dmg, s.vx, s.vy, 0.6, false, "fang");
       if (!enemy.dead && !enemy.shielded) enemy.slowT = Math.max(enemy.slowT, 1.5);
       world.emit("splinterHit", { x: s.x, y: s.y });
       s.life = 0;
@@ -264,7 +263,7 @@ function updateLances(world, dt) {
       if (s.life <= 0 || enemy.dead || enemy.ghost || enemy.id === s.from) return;
       if (Math.hypot(enemy.x - s.x, enemy.y - s.y) > enemy.r + 0.15) return;
       if (s.struck && s.struck.has(enemy.id)) return;
-      world.hurtEnemy(enemy, s.dmg, s.vx, s.vy, 0.6, false, "shard");
+      world.hurtEnemy(enemy, s.dmg, s.vx, s.vy, 0.6, false, "fang");
       if (!enemy.dead) {
         s.struck = s.struck || new Set([s.from]);
         s.struck.add(enemy.id);

@@ -5,8 +5,6 @@
 // blocks a hazard or a telegraph) and never on the start area; tall props stand outside the border.
 
 import {
-  BoxGeometry,
-  CircleGeometry,
   Color,
   ConeGeometry,
   CylinderGeometry,
@@ -614,51 +612,79 @@ function marshDetail(biome, W, H, obs, rng) {
 
 /* ---- The Shattered Core: floating islands with crystals, spires, broken pillars, pylons and far rings outside
    the barrier; rune circles, cracks, crystal tufts and drifting shards on the tiles. ---- */
-/* ---- The Glass Flats (3.55.0): pale sand dunes, glass ridges and dry shrubs outside; glass
-   blisters, glare patches and shard tufts on the ground. ---- */
+/* ---- The Glass Flats: sandstone buttes and fused-glass spires on the northern horizon, sculpted
+   wind-carved dunes, crystalline ridges and dry shrubs outside the wall; small rooted glass tufts
+   inside so the combat floor stays readable. ---- */
 function flatsDetail(biome, W, H, obs, rng) {
   const out = list(W, H),
-    hot = biome.accent,
-    // 3.55.0: the dunes and the berm read as pale sand (they used to be dark brown boxes against
-    // the near-white floor - clutter, not detail), the glass reads brighter than the floor
-    sand = [0x8a7048, 0x96805a, 0x7a6238],
-    glass = [0xe8dfc4, 0xf2ecd4, 0xdcd0a4],
+    sand = [0x8f744c, 0x9c8258, 0x7c643c],
+    sandstone = [0x745c38, 0x644f30, 0x826944],
+    glass = [0xd8ebe6, 0xc8e4df, 0xe8dfc4],
     dry = 0x2e2416;
-  // dunes: pale mounds with a wind-blown crest (fewer, bigger, smoother than the first take)
-  for (const p of outsideSpots(rng, W, H, 9, 1.2, 10, 3.6)) {
+  // Desert horizon: sandstone buttes with fused-glass crusts and tall jagged glass monoliths beyond the far edges.
+  const buttes = [
+    { x: -10, z: -H - 14.5, w: 8.6, d: 6.4, h: 7.4 },
+    { x: 7.5, z: -H - 17.5, w: 10.2, d: 7.4, h: 10.2 },
+    { x: -W - 9.2, z: -H - 11.2, w: 6.8, d: 5.8, h: 6.4 },
+    { x: W + 9.4, z: -H - 12.2, w: 7.4, d: 6.2, h: 7.0 },
+  ];
+  for (const b of buttes) {
     const t = list(),
-      r = rng.range(1.4, 2.8);
+      seed = b.x * 5 + b.z,
+      mesa = strataGeometry(b.w, b.h, b.d, seed);
     t.body.push(
-      meshPart(new SphereGeometry(r, 10, 6), pick3(rng, sand), { sy: rng.range(0.24, 0.4), sz: rng.range(0.8, 1.3) }),
+      meshPart(mesa, pick3(rng, sandstone)),
+      meshPart(topCoatGeometry(mesa, 0.04), pick3(rng, glass)),
+      meshPart(strataGeometry(b.w * 1.18, 1.3, b.d * 1.18, seed + 19, true), pick3(rng, sand)),
     );
-    if (rng.chance(0.5))
-      t.body.push(meshPart(new SphereGeometry(r * 0.4, 8, 5), pick3(rng, glass), { x: r * 0.4, y: r * 0.16, sy: 0.5 }));
-    put(out, t, p.x, 0, p.z, rng.range(0, TAU));
+    for (let i = 0; i < 4; i++) {
+      const sx = (i - 1.5) * b.w * 0.2,
+        sz = rng.range(-b.d * 0.18, b.d * 0.18),
+        sh = b.h * rng.range(0.32, 0.56);
+      t.body.push(
+        meshPart(shardGeometry(b.w * 0.16, sh, b.d * 0.12), pick3(rng, glass), {
+          x: sx,
+          y: b.h * 0.85,
+          z: sz,
+          ry: rng.range(0, TAU),
+          rz: (i - 1.5) * 0.09,
+        }),
+      );
+    }
+    put(out, t, b.x, 0, b.z, rng.range(-0.35, 0.35));
   }
-  // glass ridges: tilted sheets that catch the noon light, most with a hot edge
-  for (const p of outsideSpots(rng, W, H, 9, 1.6, 8, 4)) {
+  // Wind-sculpted exterior dunes with a thin glazed crest.
+  for (const p of outsideSpots(rng, W, H, 9, 1.4, 9.5, 3.6)) {
     const t = list(),
-      w = rng.range(1.2, 2.6),
-      h = rng.range(0.5, 1.3);
-    t.body.push(
-      meshPart(new BoxGeometry(w, h, 0.14), pick3(rng, glass), {
-        y: h * 0.3,
-        rz: rng.range(-0.2, 0.2),
-        ry: rng.range(0, TAU),
-      }),
-    );
-    if (rng.chance(0.75)) t.glow.push(box(dim(hot, 0.9), w * 0.7, 0.05, 0.03, { y: h * 0.55, z: 0.06 }));
+      w = rng.range(2.4, 4.4),
+      h = rng.range(0.65, 1.35),
+      d = rng.range(1.6, 2.8),
+      body = strataGeometry(w, h, d, rng.range(1, 1000), true);
+    t.body.push(meshPart(body, pick3(rng, sand)));
+    if (rng.chance(0.6)) t.body.push(meshPart(topCoatGeometry(body, 0.025), pick3(rng, glass)));
     put(out, t, p.x, 0, p.z, rng.range(0, TAU));
   }
-  // fused glass blisters: the melt bubbled and froze mid-rise - low bright domes with a hot glint
-  for (const p of scatter(rng, W, H, obs, 6, { gap: 2.8, pad: 0.9 })) {
+  // Exterior vitrified glass ridges erupting from sandstone plinths.
+  for (const p of outsideSpots(rng, W, H, 9, 1.6, 8, 3.8)) {
     const t = list(),
-      r = rng.range(0.5, 1.1);
-    t.body.push(meshPart(new SphereGeometry(r, 10, 6), pick3(rng, glass), { sy: rng.range(0.3, 0.45) }));
-    t.glow.push(gem(dim(hot, 0.8), r * 0.16, 0, r * 0.34, 0));
+      w = rng.range(1.4, 2.4),
+      h = rng.range(1.0, 2.2),
+      base = strataGeometry(w * 0.9, 0.36, 0.95, p.x + p.z, true);
+    t.body.push(meshPart(base, pick3(rng, sandstone)));
+    for (let j = 0; j < 3; j++) {
+      const scale = j === 0 ? 1 : rng.range(0.48, 0.78);
+      t.body.push(
+        meshPart(shardGeometry(w * 0.42 * scale, h * scale, 0.24 * scale), pick3(rng, glass), {
+          x: (j - 1) * w * 0.22,
+          z: rng.range(-0.14, 0.14),
+          ry: rng.range(-0.5, 0.5),
+          rz: (j - 1) * 0.16,
+        }),
+      );
+    }
     put(out, t, p.x, 0, p.z, rng.range(0, TAU));
   }
-  // dry shrubs: dark twig bundles the heat could not take
+  // Dry shrubs outside the perimeter wall.
   for (const p of outsideSpots(rng, W, H, 10, 0.8, 5, 2.6)) {
     const t = list();
     for (let i = 0; i < 5; i++) {
@@ -667,28 +693,21 @@ function flatsDetail(biome, W, H, obs, rng) {
     }
     put(out, t, p.x, 0, p.z, rng.range(0, TAU));
   }
-  // ground: glare patches and shard tufts
-  for (const p of scatter(rng, W, H, obs, 10, { gap: 2.6 }))
-    out.body.push(
-      meshPart(new CircleGeometry(rng.range(0.3, 0.8), 8), pick3(rng, glass), {
-        x: p.x,
-        y: 0.012,
-        rx: -PI / 2,
-        rz: rng.range(0, TAU),
-      }),
-    );
-  for (const p of scatter(rng, W, H, obs, 8, { gap: 2.2 })) {
+  // Open combat floor: only subtle, low-profile rooted glass tufts (no glowing domes or flat decal discs).
+  for (const p of scatter(rng, W, H, obs, 10, { gap: 2.2 })) {
     const t = list();
-    for (let i = 0; i < 3; i++)
+    for (let i = 0; i < 3; i++) {
+      const a = i * 2.1 + rng.range(-0.2, 0.2),
+        r = rng.range(0.08, 0.16);
       t.body.push(
-        spike(
-          pick3(rng, glass),
-          0.05,
-          4,
-          [Math.cos(i * 2.1) * 0.12, 0.05, Math.sin(i * 2.1) * 0.12],
-          [Math.cos(i * 2.1) * 0.2, rng.range(0.18, 0.4), Math.sin(i * 2.1) * 0.2],
-        ),
+        meshPart(shardGeometry(r * 1.4, rng.range(0.16, 0.34), r * 0.9), pick3(rng, glass), {
+          x: Math.cos(a) * 0.12,
+          z: Math.sin(a) * 0.12,
+          ry: a,
+          rz: rng.range(-0.18, 0.18),
+        }),
       );
+    }
     put(out, t, p.x, 0, p.z, rng.range(0, TAU));
   }
   return out;

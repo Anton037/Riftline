@@ -165,8 +165,9 @@ function buildStatRows(weaponId, run, workshop, hp) {
     now = computeStats(weaponId, run, workshop),
     base = computeStats(weaponId, {}, workshop),
     shots = (s) => (weapon.count || 1) + (s.extra || 0) * (weapon.cone ? 2 : 1),
-    perHit = (s) => weapon.dmg * s.dmgMul,
-    perSecond = (s) => perHit(s) * s.rateMul * weapon.rate * shots(s) * (1 + s.crit * (s.critMul - 1)),
+    perHit = (s) => (weapon.dmg + (weapon.explodeDmg || 0)) * s.dmgMul,
+    perSecond = (s) =>
+      perHit(s) * s.rateMul * weapon.rate * shots(s) * (1 + s.crit * (s.critMul - 1)) * (s.overdrive ? 7 / 6 : 1),
     row = (label, f, unit, better = "up", digits = 1) => ({
       label,
       now: f(now),
@@ -188,7 +189,7 @@ function buildStatRows(weaponId, run, workshop, hp) {
     row("Armor", (s) => s.armor * 100, "%", "up", 0),
     row("Regeneration", (s) => s.regen, "/s", "up", 1),
     row("Pickup radius", (s) => s.magnet, " m", "up", 1),
-    row("Nova strength", (s) => s.novaMul, "\u00d7", "up", 2),
+    row("Nova charge", (s) => s.novaMul, "\u00d7", "up", 2),
   ];
   rows[0].hp = hp;
   return rows;

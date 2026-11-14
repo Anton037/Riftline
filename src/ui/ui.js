@@ -44,8 +44,10 @@ function rlRenderHistory() {
       ? "a lava vent"
       : id === "shock"
         ? "a live manhole"
-        : id === "acid"
-          ? "acid"
+      : id === "acid"
+        ? "acid"
+        : id === "devil"
+          ? "a dust devil"
           : id === "trap"
             ? "a trap"
             : enemyDefs[id]
@@ -136,7 +138,7 @@ const getById = (id) => document.getElementById(id),
   formatPercent = (value) => Math.round(value * 100) + "%",
   formatCooldown = (value) => (value > 0 ? formatTenths(value) + " s" : "off"),
   statRows = [
-    ["Damage", (stats) => stats.weapon.dmg * stats.dmgMul, formatTenths],
+    ["Damage", (stats) => (stats.weapon.dmg + (stats.weapon.explodeDmg || 0)) * stats.dmgMul, formatTenths],
     ["Fire rate", (stats) => stats.weapon.rate * stats.rateMul, (value) => formatTenths(value) + "/s"],
     ["Projectiles", (stats) => stats.weapon.count + (stats.weapon.cone ? stats.extra * 2 : stats.extra), String],
     ["Pierce", (stats) => (stats.pierce > 99 ? 0 : stats.pierce), String],
@@ -185,12 +187,17 @@ const getById = (id) => document.getElementById(id),
     nova: ["Nova", "#7ff6ff"],
     pop: ["Bomber blasts", "#ffe14a"],
     lava: ["Lava", "#ff6a2a"],
+    shock: ["Live manholes", "#8fd0ff"],
     inferno: ["Inferno", "#ff5a3a"],
+    overload: ["Overload", "#ffd27a"],
+    reactive: ["Reactive Plating", "#9ff8ff"],
+    surge: ["Combo Surge", "#ffe14a"],
     grenade: ["Singularity", "#b57bff"], // 3.12.0: the old id of the gadget, kept for saved run records
     trap: ["Arena traps", "#aeb9cf"], // 3.0.0: enemies caught by a trap
     // 3.15.0: the boss cards
     lockdown: ["Lockdown Grid", "#ff4a5a"],
     shard: ["Shard Field", "#9ae6ff"],
+    fang: ["Glasswyrm Fang", "#ffd98a"],
     brood: ["Brood", "#a8f03a"],
     other: ["Other", "#93a2bf"],
   },
@@ -1134,6 +1141,9 @@ const getById = (id) => document.getElementById(id),
       }
       if (player.inAcid && world.state === "fight") {
         chips.push(["acid", "ACID", "#b4ff3d", -1]);
+      }
+      if (player.inDevil && world.state === "fight") {
+        chips.push(["devil", "DUST DEVIL", "#ffe9c4", -1]);
       }
       if (player.slowT > 0) {
         // 3.7.1: an electric trap stuns (0.8 s), ice chills (1.6 s)

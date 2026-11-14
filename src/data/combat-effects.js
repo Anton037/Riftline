@@ -138,7 +138,7 @@ export function attackSurface(kind, source, biome, chill) {
   if (kind === "drill" || kind === "shorted") return "crack";
   if (kind === "fire" || kind === "volatile") return "burn";
   if (kind === "rain") {
-    const who = source || { marsh: "queen", core: "core", caldera: "tyrant" }[biome];
+    const who = source || { marsh: "queen", core: "core", caldera: "tyrant", flats: "wyrm" }[biome];
     return { queen: "acid", core: "rift", tyrant: "molten", wyrm: "glass" }[who] || "target";
   }
   return "target";

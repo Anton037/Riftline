@@ -1,5 +1,6 @@
 import { Color, MeshBasicMaterial, OctahedronGeometry } from "three";
 import { worldMaterial } from "./world-material.js";
+import { shardGeometry } from "./strata-geometry.js";
 import { meshPart, mergeParts, box, ball, bar } from "./models.js";
 import { clamp, TAU } from "../core/util.js";
 import { MARK_LOOK } from "./attacks-view.js";
@@ -26,7 +27,7 @@ const MODELS = {
       box(0x1a1e26, 0.22, 0.1, 0.22, { y: 1.1 }),
       box(0x1a1e26, 0.2, 0.06, 0.2, { y: 0.42 }),
     ],
-    glow: [ball(0xffc84a, 0.08, 6, 4, { y: 1.2 }), box(0xffc84a, 0.18, 0.04, 0.18, { y: 0.46 })],
+    glow: [ball(0xffffff, 0.08, 6, 4, { y: 1.2 }), box(0xffffff, 0.18, 0.04, 0.18, { y: 0.46 })],
   }),
   // a larva of the Brood: three body segments, two pairs of wings, a pale sting
   larva: () => ({
@@ -37,9 +38,9 @@ const MODELS = {
       bar(0xa0e8c8, 0.03, [-0.36, 0, 0], [-0.5, -0.03, 0]),
     ],
     glow: [
-      ball(0x8fffd9, 0.04, 4, 3, { x: 0.27, y: 0.05, z: 0.07 }),
-      ball(0x8fffd9, 0.04, 4, 3, { x: 0.27, y: 0.05, z: -0.07 }),
-      ball(0x46ffc0, 0.06, 5, 3, { x: -0.28, y: 0.04 }),
+      ball(0xffffff, 0.04, 4, 3, { x: 0.27, y: 0.05, z: 0.07 }),
+      ball(0xffffff, 0.04, 4, 3, { x: 0.27, y: 0.05, z: -0.07 }),
+      ball(0xffffff, 0.06, 5, 3, { x: -0.28, y: 0.04 }),
     ],
     mover: [
       bar(0x8fdcc0, 0.14, [0.05, 0.08, 0.06], [-0.05, 0.12, 0.42], 0.01),
@@ -52,7 +53,7 @@ const MODELS = {
   }),
   // 3.56.0: a hot glass lance of the Glasswyrm Fang, long and thin along x
   lance: () => ({
-    body: [meshPart(new OctahedronGeometry(0.14, 0), 0xffd98a, { sx: 3.6, sy: 0.55, sz: 0.55 })],
+    body: [meshPart(shardGeometry(0.16, 0.72, 0.14), 0xffd98a, { x: -0.36, rz: -Math.PI / 2 })],
   }),
 };
 
@@ -62,22 +63,23 @@ class BossCardView {
     this.Pool = Pool;
     this.pl = {};
     this.list = [];
-    this.wingT = 0;
   }
   get(name, max) {
     let set = this.pl[name];
     if (set) return set;
     const m = MODELS[name](),
+      surface = name === "larva" ? "organic" : name === "pylon" ? "metal" : name === "lance" ? "crystal" : "ice",
+      emissive = name === "splinter" ? 0x223344 : name === "lance" ? 0x3a2a14 : 0,
       mk = (parts, glow, lit) => {
         const pool = new this.Pool(
           mergeParts(parts.flat()),
           glow
             ? new MeshBasicMaterial({ toneMapped: false, vertexColors: true })
             : worldMaterial({
-                surface: name === "larva" ? "organic" : name === "pylon" ? "metal" : "ice",
+                surface,
                 vertexColors: true,
                 flatShading: true,
-                ...(lit ? { emissive: 0x223344 } : {}),
+                ...(lit ? { emissive } : {}),
               }),
           max,
         );
@@ -87,7 +89,7 @@ class BossCardView {
         return pool;
       };
     set = this.pl[name] = {
-      body: mk(m.body, false, name === "splinter"),
+      body: mk(m.body, false, name === "splinter" || name === "lance"),
       glow: m.glow ? mk(m.glow, true) : null,
       mover: m.mover ? mk(m.mover, false) : null,
     };

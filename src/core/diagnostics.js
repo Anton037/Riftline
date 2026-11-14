@@ -331,6 +331,7 @@ function rlRunAudit(world, outcome, abandoned) {
       checkObj(arena.vents, "vent");
       checkObj(arena.ice, "ice");
       checkObj(arena.acid, "acid");
+      checkObj(arena.devils, "devil");
       const pts = [];
       for (const portal of arena.portals || []) {
         if (![portal.ax, portal.ay, portal.bx, portal.by].every(finite)) {
