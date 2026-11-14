@@ -3,6 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { PhysicalVoices, physicalProfile } from "../src/audio/physical-voices.js";
+import { PLACE_IDS } from "../src/audio/place.js";
 import { SOURCE_CLIPS } from "../src/audio/source-bank.js";
 const ctx = {
   sampleRate: 22050,
@@ -126,4 +127,19 @@ test("physical voice cache distinguishes filters and excitation without changing
   assert.notEqual(b, c);
   assert.equal(voices.buffer(filtered, 1), b);
   assert.ok(c.getChannelData(0).every(Number.isFinite));
+});
+
+test("prefix and place rules map movement, desert/volcanic cues and place accents cleanly", () => {
+  assert.equal(physicalProfile("dash").family, "wind");
+  assert.equal(physicalProfile("devilNear").family, "wind");
+  assert.equal(physicalProfile("deny").family, "ui");
+  assert.equal(physicalProfile("bcLock").family, "bcLock");
+  assert.equal(physicalProfile("bcShatter").family, "bcShatter");
+  assert.equal(physicalProfile("tsPyro").family, "tsPyro");
+  assert.equal(physicalProfile("tsSun").family, "tsSun");
+  assert.equal(physicalProfile("step", { ground: "frost" }).sample, "snow");
+  assert.equal(physicalProfile("step", { ground: "acid" }).sample, "grass");
+  for (const id of PLACE_IDS) {
+    assert.notEqual(physicalProfile(id, null, true).family, "room", `place ${id} fell back to generic room`);
+  }
 });

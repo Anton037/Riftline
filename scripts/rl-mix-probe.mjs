@@ -77,6 +77,8 @@ const result = await page.evaluate(async (secs) => {
 
     ["music-fight-shelf-09", { music: "fight", biome: "shelf", intensity: 0.9 }],
     ["music-fight-marsh-09", { music: "fight", biome: "marsh", intensity: 0.9 }],
+    ["music-fight-caldera-09", { music: "fight", biome: "caldera", intensity: 0.9 }],
+    ["music-fight-flats-09", { music: "fight", biome: "flats", intensity: 0.9 }],
     ["music-boss-city", { music: "boss", biome: "city", heat: 0.5 }],
     ["music-boss-core", { music: "boss", biome: "core", heat: 0.5 }],
   ]) {

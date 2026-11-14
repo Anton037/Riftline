@@ -43,7 +43,19 @@ for (const biome of ["city", "shelf", "marsh", "core", "caldera", "flats"]) {
 
 const warnings = await withAudioPage(url, () => {
   const E = window.__riftTest.game.sound.constructor;
-  return ["lock", "servo", "windHeavy", "windWhine", "windSlash", "windDrill", "windLeap", "beam", "tcPlate"].map(
+  return [
+    "lock",
+    "servo",
+    "windHeavy",
+    "windWhine",
+    "windSlash",
+    "windDrill",
+    "windLeap",
+    "beam",
+    "tcPlate",
+    "tcPyro",
+    "tcSun",
+  ].map(
     (id) => {
       const ctx = new OfflineAudioContext(1, 44100, 44100),
         engine = new E();

@@ -131,6 +131,11 @@ const MUSIC_DUCK = {
     aRift: 0.1,
     aLava: 0.08,
     aIce: 0.08,
+    aGlass: 0.08,
+    tsPyro: 0.08,
+    tsSun: 0.08,
+    tsGlass: 0.08,
+    bcShatter: 0.06,
     guardBreak: 0.08,
     thud: 0.08,
     singCollapse: 0.1,
@@ -151,6 +156,7 @@ const MUSIC_DUCK = {
     singPull: 0.25,
     bcImplode: 0.3,
     bcCage: 0.15,
+    bcShatter: 0.15,
     nova: 0.3,
     bigkill: 0.35,
     die: 0.3,
@@ -171,6 +177,9 @@ const MUSIC_DUCK = {
     aIce: 0.35,
     aAcid: 0.15,
     aRift: 0.35,
+    aGlass: 0.28,
+    aFire: 0.15,
+    aShort: 0.2,
   },
   /* how much room each biome gives the sounds: the Aurora Shelf and the Shattered Core are vast, the Glowmarsh damp;
      3.49.0: the Ashfall Caldera is a crater bowl (rock all around) */
@@ -2171,6 +2180,18 @@ const musicChords = {
             color: "pink",
           });
           this.tone(3800 + Math.random() * 1500, 0.03, "square", 0.015, { at: 0.3 + Math.random() * 0.4, lp: 6e3 });
+          break;
+        case "ashfall":
+          // hot ash droning in the updraft, occasional pop of a cooling ember
+          this.accentT = now + 1.4 + Math.random() * 1.8;
+          this.noise(1.1, 0.035, { type: "bandpass", f: 380, to: 180, q: 0.8, attack: 0.35, color: "brown" });
+          if (Math.random() < 0.55)
+            this.noise(0.05, 0.035, {
+              type: "bandpass",
+              f: 1800 + Math.random() * 1600,
+              q: 3,
+              at: 0.2 + Math.random() * 0.4,
+            });
           break;
         default:
           this.accentT = now + 5;
@@ -4185,7 +4206,8 @@ function rlSoundCatalog() {
   add("land:crust", { id: "land", arg: { ground: "crust" } });
   // 3.15.0: the boss cards
   ids(["bcCage", "bcLock", "bcShatter", "bcHatch", "bcBurst", "bcImplode"]);
-  for (const id of ["elite", "rain", "blackout", "whiteout", "bloom", "riftstorm", "devils"]) ids(["event"], id);
+  for (const id of ["elite", "rain", "blackout", "whiteout", "bloom", "riftstorm", "ashfall", "devils"])
+    ids(["event"], id);
   for (const bed of ["hum", ...Object.keys(AMBIENCE_LEVEL)]) add("bed:" + bed, { bed, stopAt: 1.1, stopRel: 0.1 });
   // 3.43.0: the room tones render too (a short take of each, the real attack is slower than the test fade)
   for (const biome of Object.keys(ROOM_TONE_LEVEL)) add("tone:" + biome, { tone: biome, stopAt: 1.0, fade: 0.25 });

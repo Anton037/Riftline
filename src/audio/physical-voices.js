@@ -265,7 +265,11 @@ const P = {
     lowpass: 4500,
   },
   tsEmber: { dur: 0.65, sample: "wood", body: 70, air: 0.4, grain: 0.17, gain: 0.38, gate: 0.1, lowpass: 2000 },
+  tsPyro: { dur: 0.62, sample: "wood", body: 78, air: 0.44, grain: 0.18, gain: 0.38, gate: 0.1, lowpass: 2100 },
   tsGlass: { dur: 0.5, sample: "glass", body: 490, air: 0.24, grain: 0.2, gain: 0.33, gate: 0.1, lowpass: 5000 },
+  tsSun: { dur: 0.56, sample: "glass", body: 540, air: 0.26, grain: 0.22, gain: 0.34, gate: 0.1, lowpass: 5200 },
+  bcLock: { dur: 0.26, sample: "plate", body: 320, air: 0.08, grain: 0.05, gain: 0.27, gate: 0.05, lowpass: 3400 },
+  bcShatter: { dur: 0.38, sample: "glass", body: 760, air: 0.12, grain: 0.18, gain: 0.25, gate: 0.04, lowpass: 6200 },
   event: { dur: 1.25, sample: "heavy", body: 58, air: 0.32, grain: 0.1, gain: 0.33, gate: 0.4 },
   impact: { dur: 0.16, sample: "metal", body: 230, air: 0.1, grain: 0.05, gain: 0.19, gate: 0.025 },
   hitArmor: { dur: 0.13, sample: "heavy", body: 135, air: 0.035, grain: 0.015, gain: 0.2, gate: 0.035, lowpass: 2200 },
@@ -340,36 +344,37 @@ export function physicalProfile(id, arg, place = false) {
             ? "horn"
             : /radio/i.test(id)
               ? "radio"
-              : /lampBuzz/i.test(id)
-                ? "buzz"
-                : /rainDrop/i.test(id)
-                  ? "rain"
-                  : /gutter|drip|bubble|blub|mud|gurgle|splash/i.test(id)
-                    ? "water"
-                    : /cricket|cicada|insect/i.test(id)
-                      ? "insect"
-                      : /frog/i.test(id)
-                        ? "frog"
-                        : /bird|owl|heron|chirp/i.test(id)
-                          ? "bird"
-                          : /dog|howl/i.test(id)
-                            ? "mammal"
-                            : /wind|gust|breeze|hiss|sizzle|dustRush|steamBlast|fumarole|breath/i.test(id)
-                              ? "air"
-                              : /thunder|boom|avalanche|fall|quake|rubble/i.test(id)
-                                ? "boom"
-                                : /ice|icicle|glass|crystal|crack|shimmer|creak/i.test(id)
-                                  ? "glass"
-                                  : /spark|cl[au]nk|anvil|metal|vent/i.test(id)
-                                    ? "armor"
-                                    : "room";
+          : /lampBuzz|portalHum|gravityHum|^hum$/i.test(id)
+            ? "buzz"
+            : /rainDrop/i.test(id)
+              ? "rain"
+              : /gutter|drip|bubble|blub|mud|gurgle|splash/i.test(id)
+                ? "water"
+                : /cricket|cicada|insect/i.test(id)
+                  ? "insect"
+                  : /frog/i.test(id)
+                    ? "frog"
+                    : /bird|owl|heron|chirp/i.test(id)
+                      ? "bird"
+                      : /dog|howl/i.test(id)
+                        ? "mammal"
+                        : /wind|gust|breeze|hiss|sizzle|dustRush|steamBlast|fumarole/i.test(id) ||
+                            /breath|devilMoan|portalWhisper|swell|groan|lavaWarn/i.test(id)
+                          ? "air"
+                          : /thunder|boom|avalanche|fall|quake|rubble|heartbeat/i.test(id)
+                            ? "boom"
+                            : /ice|icicle|glass|crystal|crack|shimmer|creak|glitch|reversed/i.test(id)
+                              ? "glass"
+                              : /spark|cl[au]nk|anvil|metal|vent|charge/i.test(id)
+                                ? "armor"
+                                : "room";
   } else if (!P[id]) {
-    if (/^(tc|tm|tb|bw)|warn|wind|lock|servo|fuse|bWind|tArm|^beam(?:Small)?$/i.test(id)) family = "warning";
+    if (/^(tc|tm|tb|bw)|warn|wind|\block\b|servo|fuse|bWind|tArm|^beam(?:Small)?$/i.test(id)) family = "warning";
     else if (/boom|nova$|slam|thud|erupt|quake|collapse|bigkill|die/i.test(id)) family = "boom";
     else if (/^dSquelch|dCrunch|dPop|hatch|brood/i.test(id)) family = "organic";
     else if (/^dArmor|dClang|block|guard|shield|plant|ram|resist/i.test(id)) family = "armor";
     else if (/dShatter|frost|freeze|cryo|^tsIce|^tsFrost|aIce/i.test(id)) family = "glass";
-    else if (/^d|kill/i.test(id)) family = "debris";
+    else if (/^d(?=[A-Z])/.test(id) || /kill/i.test(id)) family = "debris";
     else if (/eshot|snipe|wing|lob|chain/i.test(id)) family = /Queen|Weaver|Frost|Prism/.test(id) ? "tesla" : "pulse";
     else if (/step|land/.test(id)) family = "step";
     else if (/dash|blink|warp|singPull|hover|devil/i.test(id)) family = "wind";
@@ -472,9 +477,9 @@ export function physicalProfile(id, arg, place = false) {
   }
   if (family === "step") {
     const ground = arg?.ground;
-    p.sample = /ice|snow/.test(ground)
+    p.sample = /ice|snow|frost/.test(ground)
       ? "snow"
-      : /peat|mud|water|grass/.test(ground)
+      : /peat|mud|acid|water|grass/.test(ground)
         ? "grass"
         : /wood/.test(ground)
           ? "timber"
