@@ -427,7 +427,7 @@ upgradeList.push(
     max: 2,
     icon: "flame",
     desc: (level, count = level + 1) =>
-      `Lava, acid or an erupting vent nearby: +${25 * count}% fire rate for 3 s and Nova charge`,
+      `Lava, acid, dust devils or a live hazard nearby: +${25 * count}% fire rate for 3 s and Nova charge`,
   },
   {
     id: "slipstream",

@@ -1133,7 +1133,7 @@ function handleWorldEvents(world) {
         hitStop(0.03);
         break;
       case "bossAtk":
-        overlay.callout(ev.atk);
+        overlay.callout(ev.atk, ev.id);
         break;
       case "offer":
         if (!game.overShown) {
@@ -1482,11 +1482,11 @@ document.addEventListener(
   const restoreBtn = getById("restoreBtn");
   const replayTutBtn = getById("replayTutBtn");
   if (backupBtn) {
-    backupBtn.addEventListener("click", exportSave);
+    ui.click(backupBtn, exportSave);
   }
   if (shareBtn && !navigator.share) shareBtn.hidden = true;
   if (shareBtn) {
-    shareBtn.addEventListener("click", async function () {
+    ui.click(shareBtn, async function () {
       const value = makeBackup();
       try {
         await navigator.share({ title: "Riftline save", text: value });
@@ -1497,10 +1497,10 @@ document.addEventListener(
     });
   }
   if (restoreBtn) {
-    restoreBtn.addEventListener("click", importSave);
+    ui.click(restoreBtn, importSave);
   }
   if (replayTutBtn) {
-    replayTutBtn.addEventListener("click", async function () {
+    ui.click(replayTutBtn, async function () {
       const ok = await ui.confirm(
         "Replay tutorial?",
         "The onboarding will show again on your next fresh run. Your current run and progress stay untouched.",

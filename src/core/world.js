@@ -206,6 +206,10 @@ const rlStep = 1 / 60,
     singularity: "grenade",
     // 3.15.0: the boss cards
     brood: "brood",
+    // 2.5.0 A: Overload, Reactive Plating, Combo Surge
+    overload: "overload",
+    reactive: "reactive",
+    surge: "surge",
   },
   // 3.12.0: the Singularity (it replaced the grenade): damage of its collapse (times the damage multiplier and Event
   // Horizon), how long the rift pulls, how far it pulls (times the blast radius), how hard (m/s² before mass)
@@ -243,7 +247,9 @@ const rlStep = 1 / 60,
       // 3.15.0: the chance of the next boss card (it grows after each boss offer without one)
       this.bossLuck = snap && Number.isFinite(snap.bossLuck) ? clamp(snap.bossLuck, 0, 1) : BOSS_CARD_CHANCE;
       this.offerExclusive = null;
-      this.broodN = 0;
+      this.broodN = (snap && snap.broodN) | 0;
+      this.tributeN = (snap && snap.tributeN) | 0;
+      this.fangN = (snap && snap.fangN) | 0;
       this.runStats = {
         dmgTaken: (snap && snap.runStats && Number(snap.runStats.dmgTaken)) || 0,
         dashes: (snap && snap.runStats && Number(snap.runStats.dashes)) || 0,
@@ -459,7 +465,10 @@ const rlStep = 1 / 60,
           !boss && !this.event && wave >= 3 && (wave - 1) % 5 >= 2 && champRng.chance(0.4)
             ? this.championType(biome.id, wave, champRng)
             : null;
-        this.plan = planWave(this.rng, wave, this.tm, !!boss, this.event ? waveEvents[this.event].plan : {});
+        this.plan =
+          boss === "wyrm"
+            ? []
+            : planWave(this.rng, wave, this.tm, !!boss, this.event ? waveEvents[this.event].plan : {});
         this.planIdx = 0;
         this.planTotal = this.plan.reduce((sum, group) => sum + group.members.length, 0);
         // 3.0.0: the traps of this wave (none on boss waves and before wave 6)
@@ -678,6 +687,9 @@ const rlStep = 1 / 60,
         bestCombo: this.bestCombo,
         evolved: this.evolved,
         bossLuck: this.bossLuck,
+        broodN: this.broodN | 0,
+        tributeN: this.tributeN | 0,
+        fangN: this.fangN | 0,
         runStats: {
           dmgTaken: Math.round(this.runStats.dmgTaken),
           dashes: this.runStats.dashes | 0,
@@ -811,6 +823,7 @@ const rlStep = 1 / 60,
     enterEndless() {
       if (this.state !== "victory") return false;
       this.shards = 0;
+      this.shardFrac = 0;
       this.kills = 0;
       this.bossKills = [];
       this.legendaries = 0;
@@ -883,14 +896,25 @@ const rlStep = 1 / 60,
           rate = stats.rateMul,
           dashId = player.dashId;
         if (tuned) {
-          // Heat Sink: an erupting vent within 2.5 m of its edge keeps the heat up and charges Nova
-          if (stats.heatSink && fight)
+          // Heat Sink: an erupting vent or dust devil within 2.5 m of its edge keeps the heat up and charges Nova
+          if (stats.heatSink && fight) {
+            let heated = false;
             for (const vent of this.arena.vents)
               if (vent.st === "erupt" && Math.hypot(player.x - vent.x, player.y - vent.y) < vent.r + 2.5) {
-                player.heatT = RL_HEAT_TIME;
-                this.addNova(10 * stats.heatSink * dt);
+                heated = true;
                 break;
               }
+            if (!heated && this.arena.devils)
+              for (const devil of this.arena.devils)
+                if (Math.hypot(player.x - devil.x, player.y - devil.y) < devil.r + 2.5) {
+                  heated = true;
+                  break;
+                }
+            if (heated) {
+              player.heatT = RL_HEAT_TIME;
+              this.addNova(10 * stats.heatSink * dt);
+            }
+          }
           player.skating = skating;
           if (skating) stats.speed = speed * (1 + 0.15 * stats.skates);
           if (player.heatT > 0) stats.rateMul = rate * (1 + 0.25 * stats.heatSink);
@@ -1018,13 +1042,7 @@ const rlStep = 1 / 60,
         });
       }
       enemy.vt = (enemy.vt || 0) - dt;
-      if (enemy.variant === "scorch" && enemy.vt <= 0 && Math.hypot(enemy.vx, enemy.vy) > 0.5) {
-        enemy.vt = 1.1;
-        let src = this._src;
-        this._src = enemy.type;
-        this.hazard({ x: enemy.x, y: enemy.y, r: 1, delay: 0.8, dmg: enemy.dmg * 0.6, kind: "fire" });
-        this._src = src;
-      } else if (enemy.variant === "sunstruck" && enemy.vt <= 0) {
+      if (enemy.variant === "sunstruck" && enemy.vt <= 0) {
         // 3.53.0: the Glass Flats' variant: it gleams, then sprints - a short solar burst toward
         // its aim (the ai reads enemy.sunT for the speed)
         enemy.vt = 2.6 + this.rng.next();
@@ -1818,8 +1836,8 @@ const rlStep = 1 / 60,
         hit = true;
       }
       if (hit && player.alive) {
-        // 2.5.0 A: Heat Sink: lava and acid damage (after Hazmat) heat the drone up
-        if (stats.heatSink && (src === "lava" || src === "shock" || src === "acid")) {
+        // 2.5.0 A: Heat Sink: hazard damage (after Hazmat) heats the drone up
+        if (stats.heatSink && RL_HAZARD_SRC.has(src)) {
           player.heatT = RL_HEAT_TIME;
           this.addNova(3 * stats.heatSink);
         }
@@ -2054,6 +2072,9 @@ const rlStep = 1 / 60,
       }
       if (enemy.flash > 0) {
         enemy.flash = Math.max(0, enemy.flash - dt * 7);
+      }
+      if (enemy.healFlash > 0) {
+        enemy.healFlash = Math.max(0, enemy.healFlash - dt);
       }
       if (enemy.slowT > 0) {
         enemy.slowT -= dt;

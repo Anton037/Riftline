@@ -294,6 +294,9 @@ function cleanRun(raw) {
     evolved: Math.floor(cleanNumber(raw.evolved, 0, 0, 1e6)),
     // 3.15.0: the chance of the next boss card
     bossLuck: cleanNumber(raw.bossLuck, BOSS_CARD_CHANCE, 0, 1),
+    broodN: Math.floor(cleanNumber(raw.broodN, 0, 0, 99)),
+    tributeN: Math.floor(cleanNumber(raw.tributeN, 0, 0, 99)),
+    fangN: Math.floor(cleanNumber(raw.fangN, 0, 0, 99)),
     runStats: { dmgTaken: 0, dashes: 0, critHits: 0 },
     dmgSrc: {},
     // 3.46.0: the death recap survives a resume (the last twelve hits and the totals by source)
