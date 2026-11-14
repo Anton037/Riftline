@@ -12,14 +12,15 @@ const PALETTES = {
 export function addMapArchitecture(view, biome, W, H, obstacles) {
   const colors = PALETTES[biome.id];
   if (!colors) return;
-  const mats = colors
-    .slice(0, 3)
-    .map((color) =>
-      worldMaterial({ color, surface: biome.id === "flats" ? "sandstone" : biome.id === "city" ? "metal" : "stone" }),
-    );
-  mats.push(new MeshBasicMaterial({ color: colors[3], toneMapped: false }));
+  const mats = [],
+    surface = biome.id === "flats" ? "sandstone" : biome.id === "city" ? "metal" : "stone",
+    mat = (m) =>
+      (mats[m] ??=
+        m < 3
+          ? worldMaterial({ color: colors[m], surface })
+          : new MeshBasicMaterial({ color: colors[3], toneMapped: false }));
   const part = (parent, geometry, m, x, y, z, rotation = 0) => {
-    const mesh = new Mesh(geometry, mats[m]);
+    const mesh = new Mesh(geometry, mat(m));
     mesh.position.set(x, y, z);
     mesh.rotation.y = rotation;
     parent.add(mesh);

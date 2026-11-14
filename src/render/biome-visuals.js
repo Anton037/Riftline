@@ -560,7 +560,14 @@ const RL_BIOME_BUILD = {
         opacity: 0.86,
         flatShading: true,
       }),
-      snow = worldMaterial({ color: 0xe8f4ff, emissive: 0x16243c, flatShading: true }),
+      snow = worldMaterial({
+        surface: "ice",
+        color: 0xe8f4ff,
+        emissive: 0x16243c,
+        specular: 0x4b5c6e,
+        shininess: 18,
+        flatShading: true,
+      }),
       wallW = 0.6,
       wallH = 0.45;
     const aurora = createAurora(W, H);
@@ -1119,14 +1126,12 @@ const RL_BIOME_BUILD = {
         for (const part of calderaRidgeParts(obstacle)) props.add(new Mesh(part.geometry, materials[part.role]));
       }
   },
-  // The Glass Flats (3.53.0): a low sand berm with glass shards along the border, glass ridges and
-  // half-melted sandstone slabs on the field - the noon light does the rest
+  // The Glass Flats: wind-sculpted sandstone berms studded with vitrified glass fins, faceted
+  // glass-crowned outcrops and striated sandstone ridges with fused glass crusts.
   flats(view, biome, W, H, obs, rng) {
     const group = view.group,
       props = view.obsGroup,
-      // 3.55.0: the berm and the sandstone read as pale sunlit sand (the dark browns turned the
-      // border into a caterpillar of boxes against the near-white floor), the glass runs brighter
-      sand = worldMaterial({ color: 0x8a7048, flatShading: true }),
+      sand = worldMaterial({ surface: "sandstone", color: 0x9c8256, flatShading: true }),
       sandstone = worldMaterial({ surface: "sandstone", color: 0x745c38, flatShading: true }),
       glass = worldMaterial({
         surface: "ice",
@@ -1136,76 +1141,91 @@ const RL_BIOME_BUILD = {
         opacity: 0.84,
         flatShading: true,
       }),
-      hotGlass = worldMaterial({ color: 0xdbf0e9, emissive: 0x435c58, flatShading: true }),
-      bake = rlMerger();
-    // the berm: pale drifts piled along the border, glass shards standing in them
-    rlAlongBorder(W, H, 0.5, 1.9, (x, z, nx, nz) => {
-      const along = nx === 0;
-      bake.add(propBox(along ? 2.4 : 0.9, 0.5, along ? 0.9 : 2.4), sand, x, 0.22, z, 0);
-      bake.add(new SphereGeometry(0.55, 7, 5), sand, x + nx * 0.2, 0.3, z + nz * 0.2);
-      if (Math.round((along ? x : z) * 7) % 2 === 0)
-        bake.add(new ConeGeometry(0.14, rng.range(0.7, 1.5), 4), glass, x, 0.75, z, 0, 0, rng.range(-0.3, 0.3));
+      hotGlass = worldMaterial({ surface: "ice", color: 0xdbf0e9, emissive: 0x435c58, flatShading: true }),
+      wallW = 0.72,
+      wallH = 0.42;
+    for (const [bx, bz, sx, sz] of [
+      [0, -H - wallW / 2, W * 2 + wallW * 2, wallW],
+      [0, H + wallW / 2, W * 2 + wallW * 2, wallW],
+      [-W - wallW / 2, 0, wallW, H * 2],
+      [W + wallW / 2, 0, wallW, H * 2],
+    ])
+      rlMesh(group, strataGeometry(sx, wallH, sz, bx + bz), sand, bx, 0, bz);
+    const fins = [],
+      tint = [0xbfe8e2, 0xa4d4d8, 0xe8dfc4, 0xd8ebe4];
+    rlAlongBorder(W, H, 0.78, 2.1, (px, pz, nx, nz) => {
+      const len = rng.range(0.45, 1.35),
+        tilt = rng.range(0.12, 0.34);
+      fins.push({
+        x: px + rng.range(-0.18, 0.18) * (nz ? 1 : 0),
+        y: wallH - 0.12,
+        z: pz + rng.range(-0.18, 0.18) * (nx ? 1 : 0),
+        rx: nz * tilt,
+        rz: -nx * tilt,
+        ry: rng.range(0, 6),
+        sx: rng.range(0.75, 1.25),
+        sy: len,
+        sz: rng.range(0.75, 1.25),
+        c: rng.pick(tint),
+      });
     });
-    bake.flush(group);
+    rlInst(
+      group,
+      shardGeometry(0.42, 1, 0.16),
+      worldMaterial({ surface: "ice", emissive: 0x1a3032, transparent: true, opacity: 0.86, flatShading: true }),
+      fins,
+    );
     for (const obstacle of obs)
       if (obstacle.t === "c") {
-        // a glass ridge: two low sheets fused at the middle and leaning a little, a hot core of
-        // sand under a glare ring (tall sheets read as dark scribbles from the steep camera - the
-        // first take's lesson)
-        const a = rng.range(0, Math.PI);
-        for (const [dx, dz, lean] of [
-          [0, 0, 0.14],
-          [Math.cos(a + 1.2) * obstacle.r * 0.32, Math.sin(a + 1.2) * obstacle.r * 0.32, -0.12],
-        ]) {
-          const sheet = rlMesh(
-            props,
-            shardGeometry(obstacle.r * 1.15, obstacle.r, 0.14),
-            glass,
-            obstacle.x + dx,
-            0.025,
-            obstacle.y + dz,
-          );
-          sheet.rotation.set(lean * Math.sin(a), a, lean * Math.cos(a));
-        }
-        rlMesh(
+        const seed = obstacle.x * 3 + obstacle.y,
+          base = strataGeometry(obstacle.r * 1.9, 0.74, obstacle.r * 1.9, seed, true);
+        rlMesh(props, base, sandstone, obstacle.x, 0.01, obstacle.y);
+        rlMesh(props, topCoatGeometry(base, 0.03), glass, obstacle.x, 0.01, obstacle.y);
+        const main = rlMesh(
           props,
-          strataGeometry(obstacle.r * 1.4, 0.16, obstacle.r * 1.4, obstacle.x + obstacle.y, true),
-          sandstone,
-          obstacle.x,
-          0.01,
-          obstacle.y,
-        );
-        view.rlEmit.push({ x: obstacle.x, z: obstacle.y, y: 1.2, k: "glint" });
-      } else {
-        // Eroded sandstone carries a broken glass crust, rather than the old table-shaped stack.
-        const seed = obstacle.x * 7 + obstacle.y;
-        rlMesh(
-          props,
-          strataGeometry(obstacle.w * 1.95, 0.84, obstacle.h * 1.95, seed),
-          sandstone,
-          obstacle.x,
-          0.01,
-          obstacle.y,
-        );
-        rlMesh(
-          props,
-          strataGeometry(obstacle.w * 1.65, 0.16, obstacle.h * 1.65, seed),
+          shardGeometry(obstacle.r * 0.78, 1.55 + obstacle.r * 0.25, obstacle.r * 0.44),
           glass,
           obstacle.x,
-          0.7,
+          0.01,
           obstacle.y,
+          rng.range(0, 6),
         );
+        main.rotation.z = rng.range(-0.08, 0.08);
+        for (let j = 0; j < 3; j++) {
+          const angle = (j / 3) * Math.PI * 2 + rng.range(-0.4, 0.4),
+            len = Math.min(rng.range(0.75, 1.25), obstacle.r * 0.95),
+            shard = rlMesh(
+              props,
+              shardGeometry(obstacle.r * 0.34, len, obstacle.r * 0.2),
+              j === 0 ? hotGlass : glass,
+              obstacle.x + Math.cos(angle) * obstacle.r * 0.36,
+              0.01,
+              obstacle.y + Math.sin(angle) * obstacle.r * 0.36,
+            );
+          shard.rotation.set(Math.sin(angle) * 0.2, angle + 0.5, -Math.cos(angle) * 0.2);
+        }
+        view.rlEmit.push({ x: obstacle.x, z: obstacle.y, y: 1.6, k: "glint" });
+      } else {
+        const seed = obstacle.x * 7 + obstacle.y,
+          body = strataGeometry(obstacle.w * 1.95, 0.9, obstacle.h * 1.95, seed);
+        rlMesh(props, body, sandstone, obstacle.x, 0.01, obstacle.y);
+        rlMesh(props, topCoatGeometry(body, 0.03), glass, obstacle.x, 0.01, obstacle.y);
+        const longX = obstacle.w >= obstacle.h;
         for (const side of [-1, 1]) {
           const shard = rlMesh(
             props,
-            shardGeometry(Math.min(0.3, obstacle.w * 0.3), 0.28, 0.08),
-            hotGlass,
-            obstacle.x + side * obstacle.w * 0.5,
-            0.74,
-            obstacle.y,
-            side * 0.7,
+            shardGeometry(
+              Math.min(0.45, obstacle.w * 0.42),
+              rng.range(0.45, 0.72),
+              Math.min(0.28, obstacle.h * 0.35),
+            ),
+            side > 0 ? hotGlass : glass,
+            obstacle.x + (longX ? side * obstacle.w * 0.35 : 0),
+            0.55,
+            obstacle.y + (longX ? 0 : side * obstacle.h * 0.35),
+            side * 0.6,
           );
-          shard.rotation.z = side * 0.1;
+          shard.rotation.z = side * 0.12;
         }
       }
   },

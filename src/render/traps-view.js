@@ -15,7 +15,7 @@ import {
   TorusGeometry,
 } from "three";
 import { worldMaterial } from "./world-material.js";
-import { strataGeometry } from "./strata-geometry.js";
+import { strataGeometry, shardGeometry } from "./strata-geometry.js";
 import { meshPart, mergeParts, box, ball, bar, spike } from "./models.js";
 import { clamp, TAU, angleDiff } from "../core/util.js";
 
@@ -147,85 +147,91 @@ const MODELS = {
       ...ring(4, (a) => box(0xffb347, 0.05, 0.016, 0.05, { x: Math.cos(a) * 0.78, y: 0.12, z: Math.sin(a) * 0.78 })),
     ],
   }),
-  // The Aurora Shelf: a frozen patch with cracks; crystals erupt from its middle
+  // The Aurora Shelf: a fractured ice crater with frost boulders and erupting crystal shards.
   icespike: () => {
     seed = 11;
+    const ice = [0x9ecbe2, 0x7fb4d4, 0xc3e6f7];
     return {
       body: [
-        meshPart(strataGeometry(2, 0.04, 2, 11, true), 0x527e93),
-        cyl(0x3d6f90, 0.58, 0.62, 0.05, 12),
+        meshPart(strataGeometry(2, 0.04, 2, 11, true), 0x4b748a),
         ...ring(9, (a, i) => {
-          const h = 0.28 + rnd() * 0.22;
-          return spike(
-            i % 2 ? 0xbfe6f7 : 0x7fb8d8,
-            0.07 + rnd() * 0.03,
-            5,
-            [Math.cos(a) * 0.86, 0.02, Math.sin(a) * 0.86],
-            [Math.cos(a) * 0.93, h, Math.sin(a) * 0.93],
-          );
-        }),
-        ...ring(10, (a) =>
-          box(0xa8d8ee, 0.12, 0.012, 0.07, {
-            x: Math.cos(a + 0.2) * (0.3 + rnd() * 0.5),
-            y: 0.062,
-            z: Math.sin(a + 0.2) * (0.3 + rnd() * 0.5),
+          const d = 0.56 + rnd() * 0.14,
+            s = 0.09 + rnd() * 0.08;
+          return meshPart(new DodecahedronGeometry(s), i % 3 ? 0x628ea4 : 0x3b6074, {
+            x: Math.cos(a) * d,
+            y: s * 0.3,
+            z: Math.sin(a) * d,
+            sx: 0.85 + rnd() * 0.6,
+            sy: 0.55,
+            sz: 0.8 + rnd() * 0.5,
             ry: rnd() * 3,
+          });
+        }),
+        ...ring(8, (a, i) =>
+          meshPart(shardGeometry(0.22, 0.28 + rnd() * 0.22, 0.14), ice[i % 3], {
+            x: Math.cos(a) * 0.78,
+            y: 0.02,
+            z: Math.sin(a) * 0.78,
+            rx: Math.sin(a) * 0.22,
+            ry: -a,
+            rz: -Math.cos(a) * 0.22,
           }),
         ),
       ],
       glow: [
-        ...ring(6, (a, i) => rbar(0x9ae6ff, a + 0.2, 0.12, 0.55 + (i % 2) * 0.3, 0.03, 0.012, 0.075)),
-        ...ring(6, (a) => rbar(0xffffff, a + 0.6, 0.62, 0.84, 0.02, 0.012, 0.077)),
+        meshPart(strataGeometry(0.95, 0.018, 0.86, 14, true), 0x8ad8f4, { y: 0.042 }),
+        ...ring(4, (a) => rbar(0xffffff, a + 0.4, 0.22, 0.72, 0.024, 0.012, 0.052)),
       ],
       mover: [
-        spike(0xcdeeff, 0.16, 6, [0, 0, 0], [0.02, 1, 0.01]),
-        spike(0x8cc9ea, 0.12, 6, [0.14, 0, 0.04], [0.3, 0.72, 0.08]),
-        spike(0xeaf8ff, 0.12, 6, [-0.1, 0, 0.12], [-0.22, 0.78, 0.2]),
-        spike(0x8cc9ea, 0.11, 6, [-0.05, 0, -0.14], [-0.14, 0.62, -0.3]),
-        spike(0xcdeeff, 0.1, 6, [0.1, 0, -0.12], [0.26, 0.5, -0.24]),
-        spike(0xeaf8ff, 0.07, 5, [0.2, 0, 0.2], [0.4, 0.34, 0.34]),
-        spike(0x8cc9ea, 0.07, 5, [-0.22, 0, -0.04], [-0.42, 0.3, -0.06]),
+        meshPart(shardGeometry(0.32, 1.0, 0.24), 0xcdeeff),
+        meshPart(shardGeometry(0.24, 0.74, 0.18), 0x8cc9ea, { x: 0.18, z: 0.06, ry: 0.7, rz: -0.18 }),
+        meshPart(shardGeometry(0.22, 0.78, 0.18), 0xeaf8ff, { x: -0.14, z: 0.15, ry: 2.1, rx: 0.16, rz: 0.14 }),
+        meshPart(shardGeometry(0.2, 0.62, 0.16), 0x8cc9ea, { x: -0.08, z: -0.18, ry: 4.0, rx: -0.18 }),
+        meshPart(shardGeometry(0.18, 0.52, 0.14), 0xcdeeff, { x: 0.15, z: -0.14, ry: 5.2, rz: -0.2 }),
       ],
     };
   },
-  // The Glass Flats: a sunspike - fused glass plates erupt from a sandy disc, the tips hot; the
-  // erupting spike is a shard of sheet glass that catches the noon light
+  // The Glass Flats: a cracked sandstone basin ringed by fused rubble; jagged sheet-glass shards erupt.
   sunspike: () => {
     seed = 17;
+    const glass = [0xe8dfc4, 0xd4e6e2, 0xc8b890];
     return {
       body: [
-        // 3.55.0: the sandy disc reads as sunlit sand (the old dark browns read as chocolate
-        // cookies dropped on the near-white glass)
-        meshPart(strataGeometry(2, 0.05, 2, 17, true), 0xbaa783),
-        cyl(0xc1b18e, 0.6, 0.7, 0.06, 10, { y: 0.02 }),
-        ...ring(8, (a, i) =>
-          spike(
-            i % 2 ? 0xd8ccb0 : 0xc8b890,
-            0.09 + rnd() * 0.04,
-            4,
-            [Math.cos(a) * 0.8, 0.03, Math.sin(a) * 0.8],
-            [Math.cos(a) * 0.9, 0.3 + rnd() * 0.5, Math.sin(a) * 0.9],
-          ),
-        ),
-        ...ring(6, (a) =>
-          box(0xb0a078, 0.16, 0.02, 0.1, {
-            x: Math.cos(a) * (0.35 + rnd() * 0.4),
-            y: 0.075,
-            z: Math.sin(a) * (0.35 + rnd() * 0.4),
+        meshPart(strataGeometry(2, 0.045, 2, 17, true), 0x9c8966),
+        ...ring(9, (a, i) => {
+          const d = 0.56 + rnd() * 0.14,
+            s = 0.09 + rnd() * 0.08;
+          return meshPart(new DodecahedronGeometry(s), i % 3 ? 0xb49f79 : 0x7b6948, {
+            x: Math.cos(a) * d,
+            y: s * 0.3,
+            z: Math.sin(a) * d,
+            sx: 0.85 + rnd() * 0.6,
+            sy: 0.55,
+            sz: 0.8 + rnd() * 0.5,
             ry: rnd() * 3,
+          });
+        }),
+        ...ring(8, (a, i) =>
+          meshPart(shardGeometry(0.24, 0.28 + rnd() * 0.24, 0.14), glass[i % 3], {
+            x: Math.cos(a) * 0.76,
+            y: 0.02,
+            z: Math.sin(a) * 0.76,
+            rx: Math.sin(a) * 0.24,
+            ry: -a,
+            rz: -Math.cos(a) * 0.24,
           }),
         ),
       ],
       glow: [
-        ...ring(5, (a, i) => rbar(0xffe9c4, a + 0.3, 0.14, 0.6 + (i % 2) * 0.3, 0.028, 0.012, 0.08)),
-        ...ring(4, (a) => rbar(0xfff3d6, a + 0.7, 0.66, 0.88, 0.02, 0.012, 0.082)),
+        meshPart(strataGeometry(0.95, 0.018, 0.86, 21, true), 0xffdfa0, { y: 0.045 }),
+        ...ring(4, (a) => rbar(0xfff3d6, a + 0.5, 0.2, 0.74, 0.024, 0.012, 0.055)),
       ],
       mover: [
-        spike(0xfff3d6, 0.16, 5, [0, 0, 0], [0.02, 1, 0.01]),
-        spike(0xffe9c4, 0.12, 5, [0.14, 0, 0.05], [0.3, 0.7, 0.08]),
-        spike(0xffffff, 0.11, 5, [-0.11, 0, 0.12], [-0.22, 0.76, 0.2]),
-        spike(0xffe9c4, 0.1, 5, [-0.06, 0, -0.14], [-0.15, 0.6, -0.3]),
-        spike(0xfff3d6, 0.09, 4, [0.12, 0, -0.11], [0.28, 0.48, -0.24]),
+        meshPart(shardGeometry(0.32, 1.0, 0.2), 0xfff3d6),
+        meshPart(shardGeometry(0.24, 0.72, 0.16), 0xffe9c4, { x: 0.18, z: 0.06, ry: 0.8, rz: -0.2 }),
+        meshPart(shardGeometry(0.22, 0.76, 0.16), 0xffffff, { x: -0.14, z: 0.15, ry: 2.2, rx: 0.18, rz: 0.14 }),
+        meshPart(shardGeometry(0.2, 0.6, 0.14), 0xffe9c4, { x: -0.08, z: -0.18, ry: 4.1, rx: -0.2 }),
+        meshPart(shardGeometry(0.18, 0.5, 0.14), 0xfff3d6, { x: 0.16, z: -0.14, ry: 5.3, rz: -0.22 }),
       ],
     };
   },

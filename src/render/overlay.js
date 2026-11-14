@@ -3,7 +3,27 @@
 import { enemyDefs, bossDefs } from "../data/enemies.js";
 import { clamp } from "../core/util.js";
 
-const healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, bulwark: 1, mortar: 1, striker: 1 },
+const healthBarTypes = {
+    brute: 1,
+    hive: 1,
+    splitter: 1,
+    sniper: 1,
+    gunner: 1,
+    bulwark: 1,
+    mortar: 1,
+    striker: 1,
+    mender: 1,
+    turret: 1,
+    charger: 1,
+    minebot: 1,
+    sapper: 1,
+    phantom: 1,
+    sentinel: 1,
+    carrier: 1,
+    driller: 1,
+    beacon: 1,
+    weaver: 1,
+  },
   bossAttackNames = {
     charge: "CHARGE",
     ring: "BULLET RING",
@@ -31,6 +51,11 @@ const healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, b
     glacier: "GLACIER",
     barrage: "MOLTEN FAN",
     firestorm: "OVERDRIVE · FIRESTORM",
+    // 3.56.0: Glasswyrm
+    rise: "SAND BURST",
+    sunlance: "SUN LANCE",
+    mirage: "MIRAGE",
+    noon: "OVERDRIVE · NOON",
   },
   Overlay = class {
     constructor(canvas) {
@@ -54,8 +79,8 @@ const healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, b
       }
       this.hurts.push({ a: angle, life: 0.8 });
     }
-    callout(attack) {
-      let label = bossAttackNames[attack];
+    callout(attack, id) {
+      let label = attack === "shards" && id === "wyrm" ? "GLASS FAN" : bossAttackNames[attack];
       if (label) {
         this.callouts = [{ t: label, life: 1.4 }];
       }
@@ -164,9 +189,17 @@ const healthBarTypes = { brute: 1, hive: 1, splitter: 1, sniper: 1, gunner: 1, b
         margin = 26;
       for (let enemy of world.enemies) {
         let windingUp =
-          (enemy.type === "sniper" && enemy.st === 1) ||
-          (enemy.type === "striker" && enemy.st === 1) ||
-          (enemy.type === "mortar" && enemy.st === 1);
+          enemy.st === 1 &&
+          (enemy.type === "sniper" ||
+            enemy.type === "striker" ||
+            enemy.type === "mortar" ||
+            enemy.type === "brute" ||
+            enemy.type === "leaper" ||
+            enemy.type === "turret" ||
+            enemy.type === "charger" ||
+            enemy.type === "driller" ||
+            enemy.type === "sentinel" ||
+            enemy.type === "weaver");
         if (
           (!enemy.boss && !fewEnemies && !windingUp && !(world.state === "fight" && world.stragglerT > 3)) ||
           inView(enemy.x, 0.6, enemy.y)

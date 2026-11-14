@@ -383,7 +383,7 @@ const MAX_PARTICLES = 1400,
   hurtColor = hexColor(16724048),
   warnColor = new Color(16728160),
   variantColors = {
-    scorch: hexColor(16738858),
+    flareheart: hexColor(0xffb520),
     frost: hexColor(11462911),
     phase: hexColor(16732120),
     // 3.50.0: the Glowmarsh's Bloomed
@@ -1620,7 +1620,7 @@ const MAX_PARTICLES = 1400,
             this.pulse = 1;
             break;
           case "mend": {
-            const mend = hexColor(enemyDefs[ev.src]?.color || enemyDefs.mender.color);
+            const mend = hexColor(enemyDefs[ev.src || ev.type]?.color || enemyDefs.mender.color);
             if (ev.tx == null) {
               this.ring(ev.x, ev.y, 0.5, ev.r || 6, mend, 0.5);
               this.burst(ev.x, ev.y, 1, 10, 2, mend, 0.5, 0.15, { up: 2 });
@@ -2103,6 +2103,10 @@ const MAX_PARTICLES = 1400,
           scale *= 1 + enemy.flash * 0.16;
           scaleY *= 1 - enemy.flash * 0.2;
         }
+        if (enemy.type === "phantom" && enemy.ghost) {
+          scale *= 0.86;
+          scaleY *= 1.12;
+        }
         let bodyIdx = pools.body.yr(enemy.x, lift, enemy.y, angle, scale, scaleY, scale, pitch, roll);
         pools.body.flash(bodyIdx, enemy.flash > 0 ? enemy.flash : enemy.slowT > 0 ? 0.25 : 0);
         let tint = enemy.variant ? variantColors[enemy.variant] : null;
@@ -2120,32 +2124,62 @@ const MAX_PARTICLES = 1400,
             Math.random() < 0.5 ? whiteColor : tint,
             { spark: true, drag: 2 },
           );
-        if (enemy.slowT > 0) {
+        if (enemy.type === "phantom" && enemy.ghost) {
+          pools.body.col(bodyIdx, 0.45, 0.35, 0.9);
+        } else if (enemy.healFlash > 0) {
+          pools.body.col(bodyIdx, 0.75, 1.35, 0.95);
+        } else if (enemy.slowT > 0) {
           pools.body.col(bodyIdx, 0.7, 0.9, 1.3);
+        } else if (enemy.corrode) {
+          pools.body.col(bodyIdx, 0.9, 1.3, 0.6);
+        } else if (tint) {
+          pools.body.col(bodyIdx, 0.55 + tint.r * 0.7, 0.55 + tint.g * 0.7, 0.55 + tint.b * 0.7);
+        } else if (enemy.elite) {
+          pools.body.col(bodyIdx, 1.25, 1.05, 0.7);
         } else {
-          if (enemy.corrode) {
-            pools.body.col(bodyIdx, 0.9, 1.3, 0.6);
-          } else {
-            if (tint) {
-              pools.body.col(bodyIdx, 0.55 + tint.r * 0.7, 0.55 + tint.g * 0.7, 0.55 + tint.b * 0.7);
-            } else {
-              if (enemy.elite) {
-                pools.body.col(bodyIdx, 1.25, 1.05, 0.7);
-              } else {
-                pools.body.col(bodyIdx, 1, 1, 1);
-              }
-            }
-          }
+          pools.body.col(bodyIdx, 1, 1, 1);
         }
         let glowIdx = pools.glow.yr(enemy.x, lift, enemy.y, angle, scale, scaleY, scale, pitch, roll),
           glowK = 1;
-        if ((enemy.type === "gunner" || enemy.type === "sniper") && enemy.st === 1) {
+        if (
+          ((enemy.type === "gunner" ||
+            enemy.type === "sniper" ||
+            enemy.type === "charger" ||
+            enemy.type === "driller" ||
+            enemy.type === "weaver" ||
+            enemy.type === "sentinel") &&
+            enemy.st === 1) ||
+          enemy.sunT > 0
+        ) {
           glowK = 1.6 + Math.sin(time * 30) * 0.4;
         }
         if (enemy.type === "bomber" && enemy.st === 1) {
           glowK = 2;
         }
-        pools.glow.colC(glowIdx, tint || (enemy.elite ? goldColor : pools.color), glowK);
+        if (enemy.type === "phantom" && enemy.ghost) {
+          glowK = 0.35 + Math.sin(time * 28) * 0.25;
+          if (Math.random() < dt * 18)
+            this.emit(enemy.x, 0.65, enemy.y, 0, 0.6, 0, 0.28, 0.24, pools.color, { drag: 2 });
+        }
+        if (enemy.sunT > 0 && Math.random() < dt * 24) {
+          this.emit(
+            enemy.x,
+            0.55,
+            enemy.y,
+            -enemy.vx * 0.15,
+            0.5,
+            -enemy.vy * 0.15,
+            0.25,
+            0.26,
+            variantColors.sunstruck,
+            { spark: true, drag: 2 },
+          );
+        }
+        pools.glow.colC(
+          glowIdx,
+          enemy.sunT > 0 ? variantColors.sunstruck : tint || (enemy.elite ? goldColor : pools.color),
+          glowK,
+        );
         if (enemy.champion) {
           let ring = this.ringPool.y(enemy.x, 0.06, enemy.y, time * 1.5, 7);
           this.ringPool.colC(ring, goldColor, 0.18 + Math.sin(time * 4) * 0.06);
@@ -2210,6 +2244,16 @@ const MAX_PARTICLES = 1400,
         }
         if (enemy.type === "turret" && enemy.st === 1) {
           this.aimLine(world, enemy.x, enemy.y, enemy.ta, enemy.t2 < 0.22, 1 - enemy.t2 / 0.62);
+        }
+        if (enemy.type === "charger" && enemy.st === 1) {
+          this.chargeLine(enemy.x, enemy.y, enemy.ta, 9.5, 1.35, 1 - enemy.t2 / 0.48);
+        }
+        if (enemy.type === "driller" && enemy.st === 1) {
+          this.chargeLine(enemy.x, enemy.y, enemy.ta, 9.5, 1.6, 1 - enemy.t2 / 0.58);
+        }
+        if (enemy.type === "weaver" && enemy.st === 1) {
+          const aim = Math.atan2(world.player.y - enemy.y, world.player.x - enemy.x);
+          this.aimLine(world, enemy.x, enemy.y, aim, enemy.t2 < 0.16, 1 - enemy.t2 / 0.45);
         }
         if (enemy.type === "bulwark") {
           let guardUp = enemy.guardDown <= 0,

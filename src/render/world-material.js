@@ -123,10 +123,17 @@ export function enemySurface(type) {
   return surface === "energy" ? "crystal" : surface;
 }
 
-// Only physical lit meshes cast shadows; glow cards and attack geometry stay transparent to light.
+// Only physical lit meshes cast shadows; glow cards, low-opacity shells and attack geometry stay transparent to light.
 export function setWorldShadows(root) {
   root.traverse((object) => {
-    if (object.isMesh && object.material && !object.material.isMeshBasicMaterial && !object.material.isShaderMaterial)
+    const mat = object.material;
+    if (
+      object.isMesh &&
+      mat &&
+      !mat.isMeshBasicMaterial &&
+      !mat.isShaderMaterial &&
+      (!mat.transparent || mat.opacity >= 0.5)
+    )
       object.castShadow = object.receiveShadow = true;
   });
 }
