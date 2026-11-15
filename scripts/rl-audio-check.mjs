@@ -5,7 +5,7 @@ import { launchArgs } from "../tools/browser.js";
 import { openAudioPage } from "../tools/verification/audio-page.mjs";
 
 const BASE = process.argv[2] || "http://localhost:8124/index.html";
-const browser = await chromium.launch({ args: launchArgs() });
+const browser = await chromium.launch({ args: [...launchArgs(), "--autoplay-policy=no-user-gesture-required"] });
 const page = await openAudioPage(browser, BASE);
 page.on("pageerror", (err) => console.log("PAGEERROR:", err.message));
 
@@ -25,8 +25,9 @@ const result = await page.evaluate(async () => {
 
   // H1: the scheduler is alive and stepping after unlock
   sound.unlock();
+  await sound.ctx?.resume?.().catch(() => {});
   sound.setMusic("fight", "city");
-  await wait(400);
+  await wait(500);
   if (!sound.timer) out.fail.push("scheduler not running after unlock");
   const sched0 = sound.musicScheduled;
   await wait(300);
@@ -81,7 +82,7 @@ const result = await page.evaluate(async () => {
   }
   sound.ctx.createOscillator = realOsc;
   if (sound.toneBed) out.fail.push("toneBed left registered after a failed build");
-  if (!sound.deadTone.city) out.fail.push("deadTone not marked after the throw");
+  if (sound.deadTone.city == null) out.fail.push("deadTone not marked after the throw");
   try {
     sound.startTone("city");
   } catch {}

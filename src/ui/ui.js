@@ -169,6 +169,7 @@ const getById = (id) => document.getElementById(id),
     ["Burn", (stats) => stats.thermite, formatPercent],
     ["Repair chance", (stats) => stats.siphonCh, formatPercent],
     ["Nova radius", (stats) => stats.novaR, (value) => formatTenths(value) + " m"],
+    ["Nova charge", (stats) => stats.novaMul, (value) => "\u00d7" + formatTenths(value)],
     ["Drones", (stats) => stats.wingmen, String],
     ["Bloodrush cap", (stats) => (stats.bloodrush ? 0.4 : 0), formatPercent], // 2.6.0
   ],

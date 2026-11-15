@@ -1914,7 +1914,7 @@ const musicChords = {
       // orphaned forever while syncTone retried the build every 30 ms tick, stacking a new
       // orphan set each time). A tone that failed gets one more try after 10 s.
       let dead = this.deadTone[name];
-      if (dead && ctx.currentTime - dead < 10) return;
+      if (dead != null && ctx.currentTime - dead < 10) return;
       let now = ctx.currentTime,
         gain = ctx.createGain(),
         nodes = [],
@@ -2087,7 +2087,7 @@ const musicChords = {
       // 3.46.0: a tone whose build threw gets one more try after 10 s (was: dead for the session)
       if (want && !this.toneBed) {
         let dead = this.deadTone[want];
-        if (!dead || ctx.currentTime - dead >= 10) this.startTone(want);
+        if (dead == null || ctx.currentTime - dead >= 10) this.startTone(want);
       }
       if (this.toneBed) {
         let boss = this.playKind === "boss";
@@ -2117,8 +2117,8 @@ const musicChords = {
         if (name !== "hum" && name !== amb) this.stopBed(name);
       }
       // 3.46.0: a bed whose build threw gets one more try after 10 s (was: dead for the session)
-      let dead = amb ? this.deadBeds[amb] : 0;
-      if (amb && !this.beds[amb] && (!dead || now - dead >= 10)) this.startBed(amb);
+      let dead = amb ? this.deadBeds[amb] : null;
+      if (amb && !this.beds[amb] && (dead == null || now - dead >= 10)) this.startBed(amb);
       if (amb && now >= this.accentT) this.accent(amb, now);
       if (this.voices.length > 8) {
         for (let i = this.voices.length - 1; i >= 0; i--)
