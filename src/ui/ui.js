@@ -1423,7 +1423,6 @@ const getById = (id) => document.getElementById(id),
       getById("abandonBtn").textContent = "Abandon run";
       getById("pauseStats").innerHTML =
         `<span>${formatTime(world.time)}</span><span>${formatCount(world.kills)} KILLS</span><span>${formatCount(world.shards)} SHARDS</span>`;
-      getById("pauseBuild").innerHTML = this.buildHtml(world);
       this.renderStatRows(world);
       this.coverHud(true);
       getById("pause").hidden = false;
@@ -1431,14 +1430,14 @@ const getById = (id) => document.getElementById(id),
       // 2.4.2: the build in the pause menu explains each upgrade on tap or click
       const own = upgradeList.filter((upgrade) => world.up[upgrade.id] && !upgrade.repeat),
         info = getById("pauseUpInfo");
-      if (own.length) {
-        getById("pauseBuild").innerHTML = own
-          .map(
-            (upgrade) =>
-              `<button type="button" class="bi r${upgrade.rarity}" data-up="${upgrade.id}" aria-label="${escapeHtml(upgrade.name)}">${iconSvg(upgrade.icon)}${escapeHtml(upgrade.name)}${world.up[upgrade.id] > 1 ? " \xD7" + world.up[upgrade.id] : ""}</button>`,
-          )
-          .join("");
-      }
+      getById("pauseBuild").innerHTML = own.length
+        ? own
+            .map(
+              (upgrade) =>
+                `<button type="button" class="bi r${upgrade.rarity}" data-up="${upgrade.id}" aria-label="${escapeHtml(upgrade.name)}">${iconSvg(upgrade.icon)}${escapeHtml(upgrade.name)}${world.up[upgrade.id] > 1 ? " \xD7" + world.up[upgrade.id] : ""}</button>`,
+            )
+            .join("")
+        : this.buildHtml(world);
       info.hidden = !own.length;
       info.innerHTML = '<p class="note">Select an upgrade to see what it does.</p>';
     }

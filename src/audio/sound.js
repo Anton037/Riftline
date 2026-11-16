@@ -191,26 +191,15 @@ const MUSIC_DUCK = {
     [2700, 9, 0.18],
     [0, 0.7, 0.12],
   ],
-  AMBIENCE_LEVEL = { blackout: 0.07, whiteout: 0.085, bloom: 0.06, riftstorm: 0.055, ashfall: 0.07 },
-  /* 3.43.0: the room tone of each biome - the steady bed under everything, wherever the game is (home,
-     upgrade, pause, fight). The events pile onto it: the whiteout storm rises out of the shelf's calm wind.
-     3.45.5: raised so the place stays audible while the music plays (the mix note above); the shelf needs the
-     most, its events are the sparsest. */
-  ROOM_TONE_LEVEL = { city: 0.038, shelf: 0.046, marsh: 0.036, core: 0.038, caldera: 0.04, flats: 0.034 },
+  AMBIENCE_LEVEL = { blackout: 0.032, whiteout: 0.048, bloom: 0.034, riftstorm: 0.032, ashfall: 0.04 },
+  ROOM_TONE_LEVEL = { city: 0.024, shelf: 0.032, marsh: 0.024, core: 0.024, caldera: 0.026, flats: 0.024 },
   /* 3.43.0: the event beds gather and pass instead of snapping on and off - a storm builds over about
      three seconds and dies away over about four, while the room tone stays underneath. */
   BED_ATTACK = { blackout: 0.6, whiteout: 1.2, bloom: 0.8, riftstorm: 1.2, ashfall: 1.0 },
   BED_RELEASE = { blackout: 0.5, whiteout: 1.4, bloom: 0.7, riftstorm: 1.1, ashfall: 0.9 },
   // 3.9.0: the default of the Ambience slider; at it the atmospheres of the music play at the level they had before
   AMB_REF = 0.8,
-  /* 3.45.5: the mix balance (measured with scripts/rl-mix-probe.mjs, rms of 20 s offline renders at the default
-     volumes). Before: the fight music sat 2 dB under the short-term level of the shots (it masked them) and the
-     boss tracks towered 6.7 dB OVER the fight (the effects drowned). Now the music scale sits the fight theme
-     clearly under the shots and the boss tracks keep their heat without the wall. The place is not lifted on the
-     bus - the deep-test catalog caps the place sounds against single shots (3.13.0) and the beds already sat at
-     two thirds of the cap - the room tone and the steady beds get louder instead (see ROOM_TONE_LEVEL and the
-     bed levels in audio/place.js): the constant layers of the place are what the music must not hide. */
-  MUSIC_SCALE = 0.44,
+  MUSIC_SCALE = 0.3,
   MAX_VOICES = 24,
   // 2.8.2: the music has its own budget; shots and other sounds can no longer take notes away from it
   // 3.2.0: 36 (was 20): the boss tracks double-track their guitars (two amps) and play blast beats; 3.5.0: 44, they
@@ -1724,27 +1713,22 @@ const musicChords = {
             break;
           }
           case "blackout": {
-            // 3.4.0: a dying transformer: a 50 Hz buzz that flickers, and a crackle that comes and goes
-            let buzz = filter("lowpass", 400, 1.2, osc("sawtooth", 50)),
-              buzzAmp = ctx.createGain(),
-              flicker = osc("square", 5.3),
-              flickerDepth = ctx.createGain();
-            buzzAmp.gain.value = 0.5;
-            flickerDepth.gain.value = 0.35;
-            flicker.connect(flickerDepth);
-            flickerDepth.connect(buzzAmp.gain);
-            buzz.connect(buzzAmp);
-            buzzAmp.connect(gain);
-            let crackle = filter("bandpass", 2600, 4, loop(1.2, "pink")),
-              crackleAmp = ctx.createGain(),
-              swell = osc("sine", 0.23),
+            // Soft dark rain wash with gentle slow movement instead of a harsh 5.3 Hz transformer buzz
+            let wash = filter("lowpass", 340, 0.7, loop(0.6, "brown")),
+              washAmp = ctx.createGain(),
+              swell = osc("sine", 0.09),
               swellDepth = ctx.createGain();
-            crackleAmp.gain.value = 0.16;
-            swellDepth.gain.value = 0.16;
+            washAmp.gain.value = 0.55;
+            swellDepth.gain.value = 0.15;
             swell.connect(swellDepth);
-            swellDepth.connect(crackleAmp.gain);
-            crackle.connect(crackleAmp);
-            crackleAmp.connect(gain);
+            swellDepth.connect(washAmp.gain);
+            wash.connect(washAmp);
+            washAmp.connect(gain);
+            let air = filter("bandpass", 900, 0.9, loop(1.0, "pink")),
+              airAmp = ctx.createGain();
+            airAmp.gain.value = 0.18;
+            air.connect(airAmp);
+            airAmp.connect(gain);
             break;
           }
           case "ashfall": {
@@ -1963,83 +1947,79 @@ const musicChords = {
           };
         switch (name) {
           case "city": {
-            // Blackout City: the wash of far traffic under a rain that never quite reaches, a transformer hum
+            // Blackout City: soft rain/traffic air wash without harsh transformer buzz
             let wash = filter("lowpass", 240, 0.6, loop(0.5, "brown")),
-              washAmp = amp(wash, 0.6);
-            drift(washAmp.gain, 0.05, 0.22);
+              washAmp = amp(wash, 0.55);
+            drift(washAmp.gain, 0.05, 0.18);
             drift(wash.frequency, 0.031, 60);
-            let hum = filter("lowpass", 300, 1.1, osc("sawtooth", 50));
-            amp(hum, 0.11);
+            let air = filter("bandpass", 820, 0.8, loop(0.8, "pink"));
+            amp(air, 0.08);
             break;
           }
           case "shelf": {
-            // The Aurora Shelf: a thin high wind that wanders (the calm cousin of the whiteout storm) and the
-            // faint glassy sheen of the ice
+            // The Aurora Shelf: a thin high wind that wanders and the faint sheen of the ice
             let wind = filter("bandpass", 520, 0.7, loop(1, "pink"));
-            amp(wind, 0.6);
+            amp(wind, 0.52);
             drift(wind.frequency, 0.09, 180);
             let sheen = filter("bandpass", 1900, 6, loop(1.4, "pink")),
-              sheenAmp = amp(sheen, 0.16);
-            drift(sheenAmp.gain, 0.045, 0.12);
+              sheenAmp = amp(sheen, 0.12);
+            drift(sheenAmp.gain, 0.045, 0.08);
             let ring = osc("sine", 1320),
-              ringAmp = amp(ring, 0.03);
-            drift(ringAmp.gain, 0.037, 0.02);
+              ringAmp = amp(ring, 0.012);
+            drift(ringAmp.gain, 0.037, 0.008);
             break;
           }
           case "marsh": {
             // The Glowmarsh (3.50.0): a heavy drone over water that laps against the peat, and a faint
             // glassy sheen far above - the bioluminescence humming to itself
             let drone = filter("lowpass", 190, 0.8, loop(0.5, "brown"));
-            amp(drone, 0.55);
+            amp(drone, 0.5);
             let deep = osc("sine", 55);
-            amp(deep, 0.1);
+            amp(deep, 0.08);
             let lap = filter("bandpass", 300, 2, loop(0.8, "brown")),
-              lapAmp = amp(lap, 0.3);
-            drift(lapAmp.gain, 0.12, 0.16);
+              lapAmp = amp(lap, 0.25);
+            drift(lapAmp.gain, 0.12, 0.12);
             drift(lap.frequency, 0.07, 90);
             let sheen = filter("bandpass", 2100, 5, loop(1.2, "pink")),
-              sheenAmp = amp(sheen, 0.06);
-            drift(sheenAmp.gain, 0.09, 0.03);
+              sheenAmp = amp(sheen, 0.05);
+            drift(sheenAmp.gain, 0.09, 0.025);
             drift(sheen.frequency, 0.04, 300);
             break;
           }
           case "core": {
             // The Shattered Core: a slow sub throb and a shimmering sheen far above it
-            let throb = amp(osc("sine", 44), 0.5),
-              fifth = amp(osc("sine", 66), 0.18);
-            drift(throb.gain, 0.1, 0.2);
-            drift(fifth.gain, 0.1, 0.08);
+            let throb = amp(osc("sine", 44), 0.38),
+              fifth = amp(osc("sine", 66), 0.12);
+            drift(throb.gain, 0.1, 0.16);
+            drift(fifth.gain, 0.1, 0.06);
             let shimmer = filter("bandpass", 2400, 6, loop(1.3, "pink")),
-              shimmerAmp = amp(shimmer, 0.08);
-            drift(shimmerAmp.gain, 0.06, 0.06);
+              shimmerAmp = amp(shimmer, 0.06);
+            drift(shimmerAmp.gain, 0.06, 0.04);
             drift(shimmer.frequency, 0.05, 600);
             break;
           }
           case "flats": {
             // 3.53.0: the Glass Flats: the noon hiss - hot air over the glass, a low sand drone and
-            // the far tick of the sheets settling (the amps stay well over the tone gate: the first
-            // CI round measured 0.0008 - the caldera's silent-tone lesson)
-            const hiss = amp(filter("bandpass", 3400, 1.4, loop(1.3, "pink")), 0.05);
-            drift(hiss.gain, 0.14, 0.012);
-            const drone = amp(filter("lowpass", 130, 0.8, osc("sine", 48)), 0.075);
-            drift(drone.gain, 0.08, 0.02);
-            const tick = amp(filter("highpass", 5200, 1, loop(1.7, "pink")), 0.009);
-            drift(tick.gain, 0.06, 0.004);
+            // the far tick of the sheets settling
+            const hiss = amp(filter("bandpass", 3400, 1.4, loop(1.3, "pink")), 0.045);
+            drift(hiss.gain, 0.14, 0.01);
+            const drone = amp(filter("lowpass", 130, 0.8, osc("sine", 48)), 0.07);
+            drift(drone.gain, 0.08, 0.018);
+            const tick = amp(filter("highpass", 5200, 1, loop(1.7, "pink")), 0.008);
+            drift(tick.gain, 0.06, 0.003);
             break;
           }
           case "caldera": {
             // 3.49.0: the Ashfall Caldera: the crater breathes - the rumble under everything, the
-            // crackle of the cooling crust, the far hiss of gas. The mountain's slow pulse swells
-            // the rumble. (No music-bus bed: the march owns the music bus alone - a copy of the
-            // rumble there only painted a flat skirt across the band the phone test measures.)
-            const drone = amp(filter("lowpass", 160, 0.8, osc("sawtooth", 42)), 0.075);
-            drift(drone.gain, 0.06, 0.015);
+            // crackle of the cooling crust, the far hiss of gas.
+            const drone = amp(filter("lowpass", 130, 0.8, osc("triangle", 42)), 0.06);
+            drift(drone.gain, 0.06, 0.014);
             const rumble = amp(filter("lowpass", 120, 0.9, loop(0.7, "brown")), 0.04);
             drift(rumble.gain, 0.09, 0.015);
             const crackle = amp(filter("bandpass", 2200, 6, loop(0.7, "pink")), 0.008);
-            drift(crackle.gain, 0.11, 0.005);
+            drift(crackle.gain, 0.11, 0.004);
             const hiss = amp(filter("highpass", 4800, 1, loop(1.1, "pink")), 0.004);
-            drift(hiss.gain, 0.05, 0.003);
+            drift(hiss.gain, 0.05, 0.002);
             break;
           }
         }
@@ -2142,55 +2122,51 @@ const musicChords = {
     accentOf(name, now) {
       switch (name) {
         case "whiteout":
-          // a gust of wind and a high icy ring
-          this.accentT = now + 1.8 + Math.random() * 2.2;
-          this.noise(1.2, 0.04, { type: "bandpass", f: 500, to: 1400, q: 1, attack: 0.5, color: "pink" });
-          this.tone(2200 + Math.random() * 800, 0.6, "sine", 0.016, { attack: 0.2 });
+          // a soft gust of wind and an occasional faint icy ring
+          this.accentT = now + 5.0 + Math.random() * 5.0;
+          this.noise(1.3, 0.024, { type: "bandpass", f: 500, to: 1200, q: 1, attack: 0.5, color: "pink" });
+          if (Math.random() < 0.4) this.tone(2200 + Math.random() * 700, 0.6, "sine", 0.007, { attack: 0.25 });
           break;
         case "bloom": {
-          // bubbles, close together
-          this.accentT = now + 0.08 + Math.random() * 0.25;
-          let f = 200 + Math.random() * 500;
-          this.tone(f, 0.08, "sine", 0.045, { to: f * 1.8 });
-          if (Math.random() < 0.4) this.tone(f * 0.6, 0.06, "sine", 0.03, { to: f * 1.1, at: 0.05 });
+          // sparse gentle water bubbles
+          this.accentT = now + 3.2 + Math.random() * 3.8;
+          let f = 220 + Math.random() * 420;
+          this.tone(f, 0.09, "sine", 0.018, { to: f * 1.7 });
           break;
         }
         case "blackout":
-          // a snap of sparks somewhere in the dark, now and then a far siren or thunder
-          this.accentT = now + 0.9 + Math.random() * 1.6;
-          for (let i = 0; i < 3; i++)
-            this.noise(0.02, 0.05, { type: "bandpass", f: 2500 + Math.random() * 4000, q: 5, at: i * 0.04 });
-          if (Math.random() < 0.25) this.noise(2.2, 0.008, { f: 160, to: 60, attack: 0.3, q: 0.7, color: "brown" });
-          else if (Math.random() < 0.3) this.tone(600, 0.8, "triangle", 0.012, { to: 900, attack: 0.3 });
+          // rare quiet distant thunder or one soft muted spark tick
+          this.accentT = now + 5.5 + Math.random() * 6.0;
+          if (Math.random() < 0.45) this.noise(2.0, 0.007, { f: 160, to: 60, attack: 0.4, q: 0.7, color: "brown" });
+          else this.noise(0.025, 0.016, { type: "bandpass", f: 2200 + Math.random() * 2600, q: 4, color: "pink" });
           break;
         case "riftstorm":
-          // the sweep up or down, and a dry tick of a far discharge
-          this.accentT = now + 2.4 + Math.random() * 1.2;
+          // subtle slow spatial swell
+          this.accentT = now + 5.0 + Math.random() * 5.0;
           this.accentFlip = !this.accentFlip;
-          this.tone(this.accentFlip ? 300 : 2000, 0.9, "sine", 0.045, {
-            to: this.accentFlip ? 2000 : 300,
-            attack: 0.4,
+          this.tone(this.accentFlip ? 320 : 1400, 0.9, "sine", 0.018, {
+            to: this.accentFlip ? 1400 : 320,
+            attack: 0.45,
           });
-          this.noise(0.9, 0.04, {
+          this.noise(0.9, 0.018, {
             type: "bandpass",
-            f: this.accentFlip ? 1000 : 3500,
-            to: this.accentFlip ? 3500 : 1000,
+            f: this.accentFlip ? 900 : 2600,
+            to: this.accentFlip ? 2600 : 900,
             q: 2,
-            attack: 0.4,
+            attack: 0.45,
             color: "pink",
           });
-          this.tone(3800 + Math.random() * 1500, 0.03, "square", 0.015, { at: 0.3 + Math.random() * 0.4, lp: 6e3 });
           break;
         case "ashfall":
-          // hot ash droning in the updraft, occasional pop of a cooling ember
-          this.accentT = now + 1.4 + Math.random() * 1.8;
-          this.noise(1.1, 0.035, { type: "bandpass", f: 380, to: 180, q: 0.8, attack: 0.35, color: "brown" });
-          if (Math.random() < 0.55)
-            this.noise(0.05, 0.035, {
+          // gentle warm updraft, occasional muted ember
+          this.accentT = now + 4.5 + Math.random() * 4.5;
+          this.noise(1.1, 0.02, { type: "bandpass", f: 360, to: 180, q: 0.8, attack: 0.4, color: "brown" });
+          if (Math.random() < 0.4)
+            this.noise(0.05, 0.016, {
               type: "bandpass",
-              f: 1800 + Math.random() * 1600,
+              f: 1600 + Math.random() * 1400,
               q: 3,
-              at: 0.2 + Math.random() * 0.4,
+              at: 0.25 + Math.random() * 0.4,
             });
           break;
         default:
@@ -2761,23 +2737,18 @@ const pumpDip = (k, at, depth, rel = 0.09) => {
 const BED_LEVEL = { fight: 1, boss: 1 },
   MUSIC_BEDS = {
     city: {
-      gain: 0.48,
+      gain: 0.42,
       boss: 0.4,
-      build({ osc, loop, filt, lfo, level }) {
-        // rain as a soft band of pink noise that swells and ebbs (the drops are notes of the theme), the far traffic as
-        // a low brown rumble, the hum of the dead transformers
-        const rain = level(filt("bandpass", 1100, 0.6, loop(1, "pink")), 0.012);
-        lfo(0.05, 0.006, rain.gain);
-        const traffic = level(filt("lowpass", 320, 0.7, loop(0.8, "brown")), 0.035);
-        lfo(0.05, 0.02, traffic.gain);
-        level(filt("lowpass", 240, 0.8, osc("sawtooth", 50)), 0.025);
-        level(osc("sine", 100), 0.006);
+      build({ loop, filt, lfo, level }) {
+        // soft band-limited rain wash and low traffic air without 50 Hz transformer buzz
+        const rain = level(filt("bandpass", 980, 0.7, loop(1, "pink")), 0.01);
+        lfo(0.05, 0.004, rain.gain);
+        const traffic = level(filt("lowpass", 280, 0.7, loop(0.8, "brown")), 0.026);
+        lfo(0.05, 0.012, traffic.gain);
       },
-      // 3.4.0: over the boss fight a police helicopter circles (blades: low noise chopped 11 times a second)
       bossExtra({ loop, filt, lfo, level }) {
-        const blades = level(filt("lowpass", 380, 1, loop(0.8, "brown")), 0.014);
-        lfo(11, 0.012, blades.gain, "square");
-        lfo(0.07, 0.005, blades.gain);
+        const swell = level(filt("lowpass", 260, 0.9, loop(0.8, "brown")), 0.012);
+        lfo(0.14, 0.006, swell.gain);
       },
     },
     shelf: {
@@ -2813,30 +2784,31 @@ const BED_LEVEL = { fight: 1, boss: 1 },
     marsh: {
       gain: 0.3,
       boss: 1.4,
-      build({ loop, filt, lfo, level }) {
-        // murk that wobbles below; the insects and frogs are notes of the theme (crickets as tones)
-        const murk = filt("lowpass", 240, 1.8, loop(0.6, "brown"));
-        lfo(0.4, 80, murk.frequency);
-        level(murk, 0.11);
-        const damp = level(filt("bandpass", 600, 0.7, loop(0.9, "pink")), 0.008);
-        lfo(0.09, 0.005, damp.gain);
+      build({ osc, loop, filt, lfo, level, root }) {
+        // warm bayou swell below with minimal sub-bass murk so 2-12 kHz stays clean and tonal
+        const drone = filt("lowpass", 260, 1.6, osc("triangle", root / 2));
+        lfo(0.35, 90, drone.frequency);
+        level(drone, 0.045);
+        const murk = filt("lowpass", 200, 0.9, loop(0.6, "brown"));
+        lfo(0.4, 60, murk.frequency);
+        level(filt("lowpass", 260, 0.7, murk), 0.025);
       },
     },
     core: {
       gain: 0.6,
       boss: 0.48,
       build({ osc, loop, filt, lfo, level, root }) {
-        // two drones that beat against each other, a dark space wind, a high eerie tone that wavers
+        // two drones that beat gently against each other, a dark space wind, a subtle high shimmer
         level(osc("sine", root / 4), 0.045);
-        level(osc("sine", root / 4 + 0.6), 0.045);
-        level(filt("lowpass", 300, 0.7, osc("sawtooth", root / 2 + 0.3)), 0.012);
+        level(osc("sine", root / 4 + 0.4), 0.04);
+        level(filt("lowpass", 260, 0.7, osc("triangle", root / 2 + 0.3)), 0.01);
         const wind = filt("bandpass", 300, 1.1, loop(0.7, "brown"));
         lfo(0.03, 140, wind.frequency);
-        level(wind, 0.09);
+        level(wind, 0.085);
         const eerie = osc("sine", root * 4);
-        lfo(5, 6, eerie.frequency);
-        const high = level(eerie, 0.004);
-        lfo(0.07, 0.004, high.gain);
+        lfo(0.25, 3, eerie.frequency);
+        const high = level(eerie, 0.003);
+        lfo(0.07, 0.0025, high.gain);
       },
     },
     // (the Ashfall Caldera has no music bed of its own: its rumble and crackle live on the ambience
@@ -2872,12 +2844,12 @@ const CALM_MOTIF = ["x..x..x...x..x..", "x.x...x.x...x.x.", "x..x.x...x..x...", 
       if (o.lite) return;
       bus.t(f * 3.94, 0.3, "sine", v * 0.28, { attack: 0.001, ...o });
     },
-    // The Glowmarsh: a kalimba, a short triangle with a ping on top and a wooden tick
+    // The Glowmarsh: a kalimba, a warm triangle with harmonic tine overtones
     kalimba: (bus, f, v, o) => {
       bus.t(f, o.lite ? 0.6 : 1.1, "triangle", v, { attack: 0.002, rev: 0.5, ...o });
       if (o.lite) return;
-      bus.t(f * 3.01, 0.18, "sine", v * 0.4, { attack: 0.001, ...o });
-      bus.n(0.015, v * 1.2, { type: "bandpass", f: 1800, q: 4, color: "pink", attack: 0.001, ...o });
+      bus.t(f * 3.01, 0.22, "sine", v * 0.4, { attack: 0.001, ...o });
+      if (f * 5.2 < 16000) bus.t(f * 5.2, 0.22, "sine", v * 0.24, { attack: 0.001, ...o });
     },
     // The Shattered Core: glass, two sines that beat slowly and a high inharmonic partial, a lot of room
     glass: (bus, f, v, o) => {
@@ -2942,12 +2914,12 @@ const CALM_MOTIF = ["x..x..x...x..x..", "x.x...x.x...x.x.", "x..x.x...x..x...", 
     },
     marsh: {
       notes: (c) => [c.chord[1], c.chord[2], c.chord[0] + 12],
-      wave: "sawtooth",
-      lp: 620,
+      wave: "triangle",
+      lp: 800,
       fade: 0.5,
       det: 9,
       rev: 0.5,
-      vol: 0.016,
+      vol: 0.018,
       trem: 1.1,
     },
     core: {
@@ -3089,48 +3061,35 @@ function calmPad(k, c, biome) {
 /* the sub of a chord and, when it swells, a heartbeat: two soft thumps */
 function calmFloor(k, c, beat) {
   const { b, L, root } = c;
-  if (b === 0) k.p.t(subNote(root), c.barSec * 0.95, "sine", 0.08, { attack: 0.3, hold: c.barSec * 0.5 });
-  if (L > 0.5 && b === 0) kick(k, 0.3, beat);
-  if (L > 0.5 && b === 3) kick(k, 0.18, { ...beat, dur: 0.2 });
-  if (L > 0.2 && b % 2 === 1 && R(c, 3) < 0.25 + 0.3 * L)
-    k.m.n(0.008, 0.035, { type: "bandpass", f: 5200, q: 1.2, color: "pink", pan: P(c, 4, 0.8), rev: 0.6 });
+  if (b === 0) k.p.t(subNote(root), c.barSec * 0.95, "sine", 0.075, { attack: 0.3, hold: c.barSec * 0.5 });
+  if (L > 0.5 && b === 0) kick(k, 0.22, beat);
+  if (L > 0.5 && b === 3) kick(k, 0.14, { ...beat, dur: 0.2 });
 }
 
 /* The Glass Flats, 92 BPM, D major (D A Bm G): noon over the sheet glass. A glassine motif, a wide
-   bright pad, the sub; the heat shimmers in two slow bands that sing against the chords, glass pings
-   ring off the chord tones and the dust hisses on the off beats as it swells */
+   bright pad, the sub and subtle slow heat shimmer bands */
 function glassCalm(e, c) {
   const { b, bar, L, chord, root } = c,
     k = kit(e, c);
   calmMotif(k, c, "glassine");
   calmPad(k, c, "flats");
   calmFloor(k, c, { f0: 110, f1: 44, dur: 0.26 });
-  // the signature: the heat shimmer - two slow bands that hold through the bar and bend against
-  // each chord (the band's tonal floor, like the Caldera's pedal but wide)
   if (b === 0) {
-    k.d.t(midiToFreq(chord[0] + 24), c.barSec * 1.06, "sine", 0.012, { lp: 5200, attack: 0.2, pan: -0.3, rev: 0.2 });
-    k.d.t(midiToFreq(chord[2] + 24), c.barSec * 1.06, "sine", 0.009, {
-      lp: 6200,
-      attack: 0.24,
+    k.d.t(midiToFreq(chord[0] + 24), c.barSec * 1.06, "sine", 0.01, { lp: 4800, attack: 0.25, pan: -0.3, rev: 0.25 });
+    k.d.t(midiToFreq(chord[2] + 24), c.barSec * 1.06, "sine", 0.008, {
+      lp: 5400,
+      attack: 0.28,
       pan: 0.32,
       det: 4,
-      rev: 0.2,
+      rev: 0.25,
     });
   }
-  // glass pings ring off the chord every other beat (high, against the shimmer)
-  if (b % 2 === 0 && b % 8 !== 0)
-    VOICE.glassine(k.d, midiToFreq(chord[[1, 2, 0][(b >> 1) % 3]] + 24), 0.008, { lite: true, pan: 0.34 });
-  // sand hisses on the off beats as the fight swells
-  if (L > 0.3 && b % 4 === 3)
-    k.m.n(0.012, 0.004, { type: "bandpass", f: 2600, to: 1500, q: 1.3, color: "pink", pan: P(c, 6, 0.7) });
-  // the ground breathes: a low drum walks the down-beats late in the fight (root, fifth, root, a step up)
-  if (L > 0.45 && b % 4 === 0) {
+  if (L > 0.4 && b % 4 === 0) {
     const walk = [root - 24, root - 17, root - 24, root - 14][b >> 2];
-    k.p.t(midiToFreq(walk), 0.4, "triangle", 0.05, { lp: 560, attack: 0.004 });
+    k.p.t(midiToFreq(walk), 0.4, "triangle", 0.044, { lp: 520, attack: 0.006 });
   }
-  // a far devil moans under every fourth bar's head (the scape carries the rest)
-  if (L > 0.2 && (bar & 3) === 3 && b === 0 && R(c, 30) < 0.5)
-    k.d.t(midiToFreq(chord[1] - 12), c.barSec * 1.3, "sawtooth", 0.006, { lp: 420, attack: 0.5, pan: -0.4 });
+  if (L > 0.3 && (bar & 7) === 7 && b === 0)
+    k.d.t(midiToFreq(chord[1] - 12), c.barSec * 1.3, "triangle", 0.007, { lp: 380, attack: 0.55, pan: -0.35 });
 }
 
 /* The Glass Flats' own boss (the Glasswyrm, 134 BPM): it comes up from below. Drop: a hot four on the
@@ -3195,72 +3154,35 @@ function shardPluck(k, c, vol, o = {}) {
   k.d.t(2637, 0.09, "sine", vol * 0.6, { at: 0.005, ...o, lp: 8000 });
 }
 
-/* Blackout City, 78 BPM, A minor (Am F Dm E): rain on empty streets. An electric piano motif, a soft pad, the sub; a
-   far siren, thunder rolling in, radio chatter, rain drops and drips from a gutter (a soft band of rain and the hum of
-   dead transformers are the atmosphere) */
+/* Blackout City, 78 BPM, A minor (Am F Dm E): quiet rain on empty streets. Electric piano motif, soft pad, sub;
+   gentle walking bass and sparse comping as intensity rises, with only rare distant city echoes. */
 function cityCalm(e, c) {
   const { b, bar, L, chord, root } = c,
     k = kit(e, c);
   calmMotif(k, c, "piano");
   calmPad(k, c, "city");
   calmFloor(k, c, { f0: 100, f1: 40, dur: 0.25 });
-  // 3.46.0: the city's rain theme: a piano comp on the "and" of the first and the third beat, a short
-  // seventh chord in the echo that answers the walking bass (the swing of the track carries the rest)
-  if (L > 0.35 && (b === 2 || b === 10) && R(c, 30) < 0.8) {
-    const pan = b === 2 ? -0.35 : 0.35;
-    VOICE.piano(k.d, midiToFreq(chord[1] + 12), 0.018 * VOICE_GAIN.piano, { pan, lite: true });
-    VOICE.piano(k.d, midiToFreq(chord[0] + 22), 0.014 * VOICE_GAIN.piano, { pan, lite: true, at: 0.012 });
+  if (L > 0.35 && (bar & 1) === 1 && b === 10 && R(c, 30) < 0.75) {
+    VOICE.piano(k.d, midiToFreq(chord[1] + 12), 0.015 * VOICE_GAIN.piano, { pan: 0.32, lite: true });
+    VOICE.piano(k.d, midiToFreq(chord[0] + 22), 0.011 * VOICE_GAIN.piano, { pan: 0.32, lite: true, at: 0.014 });
   }
-  // 3.14.0: noir. As it swells, a walking bass on every beat (root, fifth, third, a step towards the next chord) and
-  // brushes: a soft sweep on 2 and 4, light taps on the eighths
   if (L > 0.3 && b % 4 === 0) {
     const walk = [root - 24, chord[2] - 24, chord[1] - 24, root - 22][b >> 2];
-    k.p.t(midiToFreq(walk), 0.42, "triangle", 0.06, { lp: 520, attack: 0.004 });
+    k.p.t(midiToFreq(walk), 0.42, "triangle", 0.048, { lp: 500, attack: 0.004 });
   }
-  if (L > 0.25 && (b === 4 || b === 12))
-    k.m.n(0.2, 0.014, { type: "bandpass", f: 3200, to: 2400, q: 0.8, attack: 0.06, pan: 0.2, rev: 0.3 });
-  if (L > 0.4 && b % 2 === 0 && b !== 4 && b !== 12)
-    k.m.n(0.03, 0.005, { type: "highpass", f: 5200, attack: 0.002, pan: -0.2 });
-  // the far siren sings on the chord (up and down a minor third from its root)
-  if (bar % 8 === 5 && b === 0) {
+  if (L > 0.5 && (b === 4 || b === 12))
+    k.m.n(0.18, 0.007, { type: "bandpass", f: 2800, to: 2100, q: 0.8, attack: 0.06, pan: 0.2, rev: 0.3 });
+  if (bar % 16 === 13 && b === 0) {
     const lo = midiToFreq(chord[0] + 24),
       hi = midiToFreq(chord[0] + 27);
-    k.d.t(lo, 0.9, "triangle", 0.012, { to: hi, attack: 0.3, opt: true, rev: 0.7, pan: -0.6 });
-    k.d.t(hi, 0.9, "triangle", 0.01, { to: lo, at: 0.9, attack: 0.1, opt: true, rev: 0.7, pan: -0.6 });
+    k.d.t(lo, 0.9, "triangle", 0.007, { to: hi, attack: 0.32, opt: true, rev: 0.75, pan: -0.6 });
+    k.d.t(hi, 0.9, "triangle", 0.006, { to: lo, at: 0.9, attack: 0.12, opt: true, rev: 0.75, pan: -0.6 });
   }
-  if (bar % 8 === 2 && b === 0)
-    k.m.n(2.6, 0.009, { f: 200, to: 50, attack: 0.25, q: 0.7, color: "brown", opt: true, rev: 0.3 });
-  if (L > 0.3 && b % 2 === 0 && R(c, 5) < 0.05)
-    for (let i = 0; i < 4; i++)
-      k.d.n(0.05, 0.02, {
-        type: "bandpass",
-        f: 1400 + R(c, 6 + i) * 1600,
-        q: 7,
-        color: "pink",
-        at: i * 0.07,
-        opt: true,
-        pan: 0.6,
-      });
-  if (b % 4 === 2 && R(c, 10) < 0.04) k.m.t(3400, 0.05, "sine", 0.02, { to: 800, opt: true, pan: P(c, 11) });
-  // 3.7.0: the rain is drops now (no hiss): small plinks all around, more of them as it swells, and now and then a
-  // drip from a gutter on a note of the chord that rings in the echo
-  if (R(c, 12) < 0.35 + 0.3 * L) {
-    const f = 1500 + R(c, 13) * 1700;
-    k.m.t(f, 0.04, "sine", 0.016, { to: f * 0.55, opt: true, pan: P(c, 14, 0.9), rev: 0.25 });
-  }
-  if (b % 2 === 1 && R(c, 15) < 0.12)
-    k.d.t(midiToFreq(chord[(R(c, 16) * 3) | 0] + 36), 0.12, "sine", 0.018, {
-      to: midiToFreq(chord[0] + 31),
-      opt: true,
-      pan: P(c, 17, 0.8),
-    });
+  if (bar % 16 === 4 && b === 0)
+    k.m.n(2.4, 0.006, { f: 180, to: 50, attack: 0.35, q: 0.7, color: "brown", opt: true, rev: 0.35 });
 }
 
-/* The Aurora Shelf, 72 BPM, E minor (Em C G D, the chords breathe over two bars): an ice cavern. No beat at all until the
-   intensity is high (then a slow heartbeat), bells of ice in the echo and the room whose pattern changes per section,
-   a glass pad, a deep sub on every chord, ticks of ice, cracks, wind chimes and a creak (a wind that sings on the chord
-   is the atmosphere). The model of the other themes. Every eighth bar a run of glass slides down the chord and rings
-   out in the echo (the harmonica of the cavern). */
+/* The Aurora Shelf, 72 BPM, E minor (Em C G D): ice motif, glass pad, deep sub, rare wind chimes and slow harmonica breaths. */
 const SHELF_CHIME = [76, 79, 81, 83, 86, 88];
 function shelfCalm(e, c) {
   const { b, bar, L } = c,
@@ -3268,36 +3190,18 @@ function shelfCalm(e, c) {
   calmMotif(k, c, "ice");
   calmPad(k, c, "shelf");
   calmFloor(k, c, { f0: 100, f1: 40, dur: 0.25 });
-  // 3.46.0: the harmonica of the cavern: on every eighth bar a slow run of glass slides down the chord
-  // (five tones over the bar, wide in the room), the sound of a breath on the frozen walls
   if ((bar & 7) === 3 && b % 3 === 0) {
     const i = b / 3,
       f = midiToFreq(c.chord[[3, 2, 1, 0, 2, 1][i]] + 36);
-    k.d.t(f, 1.1, "sine", 0.011, { to: f * 0.985, attack: 0.09, pan: (i - 2) * 0.35, rev: 0.8, opt: true });
+    k.d.t(f, 1.1, "sine", 0.008, { to: f * 0.985, attack: 0.1, pan: (i - 2) * 0.35, rev: 0.8, opt: true });
   }
-  if (b % 4 === 2 && R(c, 5) < 0.08) {
-    k.m.n(0.02, 0.06, { type: "bandpass", f: 4600, q: 1.4, color: "pink", opt: true, pan: P(c, 6), rev: 0.4 });
-    k.m.t(3800, 0.08, "sine", 0.025, { to: 900, opt: true, pan: P(c, 6) });
-  }
-  if (b % 2 === 0 && b > 0 && R(c, 7) < 0.04 + 0.05 * L)
-    bell(k.d, midiToFreq(SHELF_CHIME[(R(c, 8) * 6) | 0]), 0.025, 1.7, { opt: true, rev: 0.5, pan: P(c, 9) });
-  if ((bar & 3) === 1 && b === 9 && R(c, 10) < 0.6) {
-    k.m.n(0.9, 0.03, { type: "bandpass", f: 260, to: 210, q: 9, color: "pink", attack: 0.3, opt: true });
-    k.m.t(78, 0.9, "sawtooth", 0.008, { to: 70, lp: 300, attack: 0.3, opt: true });
-  }
-  // 3.17.0: the shelf keeps time as it swells (like the other places since 3.14.0): icicles tick on the off-beats in
-  // a falling figure on the chord, the ice creaks on 2 and 4, and a gust of wind breathes in over every fourth bar
-  if (L > 0.35 && b % 4 === 2) {
-    const f = midiToFreq(c.chord[[2, 1, 0, 1][b >> 2]] + 36);
-    k.m.t(f, 0.05, "sine", 0.014, { to: f * 0.97, pan: b % 8 === 2 ? -0.45 : 0.45, rev: 0.5 });
-  }
-  if (L > 0.5 && (b === 4 || b === 12))
-    k.m.n(0.05, 0.012, { type: "bandpass", f: 2600, to: 1500, q: 3, color: "pink", attack: 0.002, pan: 0.2 });
-  if (L > 0.45 && (bar & 3) === 3 && b === 0)
-    k.m.n(c.barSec, 0.02, {
+  if (L > 0.25 && b % 4 === 0 && b > 0 && R(c, 7) < 0.04 + 0.04 * L)
+    bell(k.d, midiToFreq(SHELF_CHIME[(R(c, 8) * 6) | 0]), 0.018, 1.7, { opt: true, rev: 0.55, pan: P(c, 9) });
+  if (L > 0.4 && (bar & 7) === 7 && b === 0)
+    k.m.n(c.barSec, 0.01, {
       type: "bandpass",
-      f: 500,
-      to: 1400,
+      f: 480,
+      to: 1200,
       q: 1.2,
       color: "pink",
       attack: c.barSec * 0.8,
@@ -3306,57 +3210,28 @@ function shelfCalm(e, c) {
 }
 
 const LOG_DRUM = "x..x..x...x.x...";
-/* The Glowmarsh, 69 BPM, F minor (Fm Ab Eb Cm): a foggy bayou at night. A kalimba motif, a soft wobbling pad, the sub;
-   a dub answer of the kalimba in the low octave (the echo carries it); rising bubbles, frog croaks, mud squelches,
-   crickets (the murk is the atmosphere) */
+/* The Glowmarsh, 69 BPM, F minor (Fm Ab Eb Cm): kalimba motif, warm pad, sub, and subtle dub log-drum pulse as intensity grows. */
 function marshCalm(e, c) {
   const { b, bar, L, chord } = c,
     k = kit(e, c);
   calmMotif(k, c, "kalimba");
   calmPad(k, c, "marsh");
   calmFloor(k, c, { f0: 115, f1: 40, dur: 0.24 });
-  // 3.46.0: the dub answer: on the last off-beat of the bar the kalimba drops an octave and the echo
-  // carries the note into the next one (lazy, out of the swamp)
-  if (L > 0.25 && (b === 7 || b === 15) && R(c, 20) < 0.55)
-    VOICE.kalimba(k.d, midiToFreq(chord[b === 7 ? 0 : 2] - 12), 0.026 * VOICE_GAIN.kalimba, {
-      pan: b === 7 ? 0.4 : -0.4,
+  if (b === 0)
+    k.d.t(midiToFreq(chord[2] + 36), c.barSec * 1.05, "sine", 0.007, {
+      attack: 0.25,
+      rev: 0.15,
+      pan: 0.28,
     });
-  if (R(c, 4) < 0.08 + 0.05 * L) {
-    const f = 170 + R(c, 5) * 500,
-      pan = P(c, 6, 0.8);
-    k.m.t(f, 0.09, "sine", 0.045, { to: f * 1.9, opt: true, pan });
-    if (R(c, 7) < 0.25) k.m.t(f * 0.7, 0.07, "sine", 0.03, { to: f * 1.4, at: 0.07, opt: true, pan });
-  }
-  // 3.14.0: bayou. As it swells, a log drum on the root and fifth in a lazy syncopation, and the frogs croak in time
-  // (on the "and" of 2 and 4) instead of anywhere
+  if (L > 0.25 && (bar & 1) === 1 && b === 15 && R(c, 20) < 0.5)
+    VOICE.kalimba(k.d, midiToFreq(chord[2] - 12), 0.018 * VOICE_GAIN.kalimba, { pan: -0.4 });
   if (L > 0.3 && pat(LOG_DRUM)[b]) {
     const f = midiToFreq((b % 8 === 6 ? chord[2] : chord[0]) - 12);
-    k.p.t(f, 0.2, "sine", 0.05, { to: f * 0.86, attack: 0.002 });
-    k.m.n(0.012, 0.012, { type: "bandpass", f: 1400, q: 3, attack: 0.001 });
-  }
-  if ((b === 6 || b === 14) && R(c, 8) < 0.2 + 0.35 * L) {
-    const f = Math.max(90, Math.min(130, midiToFreq(chord[0] - 12))),
-      pan = P(c, 10, 0.8);
-    k.m.t(f, 0.11, "square", 0.028, { to: f * 1.35, lp: 650, q: 6, opt: true, pan, rev: 0.3 });
-    k.m.t(f * 1.1, 0.13, "square", 0.028, { to: f, lp: 650, q: 6, at: 0.15, opt: true, pan, rev: 0.3 });
-  }
-  if ((bar & 1) === 1 && b === 13 && R(c, 11) < 0.5) {
-    k.m.n(0.16, 0.026, { f: 900, to: 150, q: 7, color: "brown", opt: true, pan: -0.4 });
-    k.m.t(180, 0.14, "sine", 0.06, { to: 55, opt: true, pan: -0.4 });
-  }
-  // 3.7.0: the insects are crickets now (no buzzing band of noise): short trains of chirps on a high tone, here and
-  // there in the dark, more of them as it swells
-  if (b % 2 === 0 && R(c, 12) < 0.12 + 0.12 * L) {
-    const f = 4000 + R(c, 13) * 900,
-      pan = P(c, 14, 0.9),
-      n = 2 + ((R(c, 15) * 3) | 0);
-    for (let i = 0; i < n; i++) k.m.t(f, 0.022, "sine", 0.009, { at: i * 0.055, opt: true, pan, rev: 0.3 });
+    k.p.t(f, 0.22, "sine", 0.042, { to: f * 0.88, attack: 0.003 });
   }
 }
 
-/* The Shattered Core, 60 BPM, F# minor (F#m D A E, the chords breathe over two bars): dark and breathing. A glass motif, low
-   detuned drones as the pad, the sub; a whisper chant on the head of every second bar; a reversed swell before every
-   fourth bar, long pings far away (the beating drones, the space wind and the eerie tone are the atmosphere) */
+/* The Shattered Core, 60 BPM, F# minor (F#m D A E): glass motif, dark triangle/sine drones, sub, and rare gentle whisper/choir swells. */
 const VOID_FORMANTS = [
   [700, 1200],
   [300, 2300],
@@ -3368,51 +3243,19 @@ function coreCalm(e, c) {
   calmMotif(k, c, "glass");
   calmPad(k, c, "core");
   calmFloor(k, c, { f0: 90, f1: 32, dur: 0.35 });
-  // 3.46.0: the chant of the core: a whisper on the head of every second bar, a vowel that walks the
-  // formants and leans to the other side each time (something is in there, and it is breathing)
-  if ((bar & 1) === 0 && b === 0 && L > 0.15) {
-    const [f1, f2] = VOID_FORMANTS[(bar >> 1) % 3];
-    formant(k.d, chord[0] < 50 ? f1 : f1 * 1.12, f2, c.barSec * 0.7, 0.014, {
-      attack: 0.25,
-      pan: (bar >> 1) & 1 ? 0.5 : -0.5,
+  if ((bar & 3) === 0 && b === 0 && L > 0.2) {
+    const [f1, f2] = VOID_FORMANTS[(bar >> 2) % 3];
+    formant(k.d, chord[0] < 50 ? f1 : f1 * 1.12, f2, c.barSec * 0.7, 0.011, {
+      attack: 0.28,
+      pan: (bar >> 2) & 1 ? 0.5 : -0.5,
       rev: 0.6,
       opt: true,
     });
   }
-  if ((bar & 3) === 3 && b === 6) {
-    k.m.n(1.6, 0.05, { type: "bandpass", f: 500, to: 2600, q: 0.9, color: "pink", attack: 1.45, opt: true });
-    k.m.t(200, 1.6, "sawtooth", 0.016, { to: 1200, attack: 1.5, lp: 2000, opt: true });
-  }
-  if (L > 0.2 && b % 2 === 0 && R(c, 2) < 0.07) {
-    const [f1, f2] = VOID_FORMANTS[(R(c, 3) * 3) | 0];
-    formant(k.d, f1, f2, 1.5, 0.03, { attack: 0.45, hold: 0.3, opt: true, pan: P(c, 4), rev: 0.5 });
-  }
-  if (b % 2 === 0 && R(c, 5) < 0.07)
-    k.d.t(midiToFreq(chord[(R(c, 6) * 3) | 0] + (R(c, 7) < 0.5 ? 24 : 36)), 2.6, "sine", 0.03, {
-      opt: true,
-      rev: 0.7,
-      pan: P(c, 8),
-    });
-  if (b === 11 && L > 0.4) k.p.t(midiToFreq(c.root - 17), 0.3, "sawtooth", 0.07, { lp: 380 });
-  // 3.14.0: a choir swells at the head of every fourth bar as it grows, and glitches stutter in time at the end of
-  // every second bar (three sixteenths on a chord tone, high and short)
-  if (L > 0.3 && (bar & 3) === 0 && b === 0) choir(k, [chord[0] + 12, chord[2] + 12], c.barSec * 2, 0.016);
-  if (L > 0.35 && (bar & 1) === 1 && b === 13)
-    for (let i = 0; i < 3; i++)
-      k.m.t(midiToFreq(chord[i % 3] + 36), 0.025, "square", 0.007, {
-        lp: 3200,
-        at: (i * c.barSec) / 16,
-        opt: true,
-        pan: P(c, 20 + i, 0.7),
-      });
+  if (b === 11 && L > 0.4) k.p.t(midiToFreq(c.root - 17), 0.32, "triangle", 0.05, { lp: 340, attack: 0.008 });
+  if (L > 0.35 && (bar & 3) === 2 && b === 0) choir(k, [chord[0] + 12, chord[2] + 12], c.barSec * 2, 0.014);
 }
 
-/* ---- Ashfall Caldera, 84 BPM, G minor (Gm Eb F D): the mountain keeps its own slow time. A struck
-   obsidian motif, a dark pad, the sub; the crust cracks on a fixed sparse pattern (the signature of
-   the place - fixed, because a flood of noise grains would own the 2-12 kHz band's windows) and a
-   deep drum walks under it; a horn answers from far up the slope every fourth bar and gas hisses
-   through the cracks (the rumble and the pulse of the mountain are the atmosphere). 3.49.0. ---- */
-const CALDERA_CRACK = ".x...x...x...x..";
 /* the crust cracking: two grains of filtered noise, the second lower, the pan wanders with the slope */
 function calderaKnock(k, c, v, o = {}) {
   k.m.n(0.02, v, { type: "bandpass", f: 520, q: 4.2, attack: 0.001, pan: o.pan ?? 0.15, at: o.at });
@@ -3425,50 +3268,40 @@ function calderaKnock(k, c, v, o = {}) {
     pan: (o.pan ?? 0.15) * -0.8,
   });
 }
+
+/* Ashfall Caldera, 84 BPM, G minor (Gm Eb F D): obsidian motif, warm pad, sub, gentle walking bass, and occasional distant horn. */
 function calderaCalm(e, c) {
   const { b, bar, L, chord, root } = c,
     k = kit(e, c);
   calmMotif(k, c, "cinder");
   calmPad(k, c, "caldera");
   calmFloor(k, c, { f0: 92, f1: 36, dur: 0.3 });
-  // the signature: the crust cracks on the off-beats, a little harder as the fight swells
-  if (L > 0.2 && pat(CALDERA_CRACK)[b]) calderaKnock(k, c, 0.009 + 0.006 * L, { pan: (b & 2) * 0.2 - 0.1 });
-  // a deep drum walks the down-beats as it swells (root, fifth, root, a step down)
   if (L > 0.3 && b % 4 === 0) {
     const walk = [root - 24, root - 17, root - 24, root - 26][b >> 2];
-    k.p.t(midiToFreq(walk), 0.42, "triangle", 0.055, { lp: 520, attack: 0.004 });
+    k.p.t(midiToFreq(walk), 0.42, "triangle", 0.046, { lp: 500, attack: 0.004 });
   }
-  // embers ring off the chord every other beat (tones high in the band, against the floor)
-  if (b % 2 === 0 && b % 8 !== 0)
-    VOICE.cinder(k.d, midiToFreq(chord[[1, 2, 0][(b >> 1) % 3]] + 24), 0.009, { lite: true, pan: 0.35 });
-  // the heat shimmer: a quiet high pedal that holds through the bar - the band's tonal floor
   if (b === 0) {
-    k.d.t(midiToFreq(chord[1] + 24), c.barSec * 1.05, "triangle", 0.011, {
-      lp: 2400,
-      attack: 0.18,
+    k.d.t(midiToFreq(chord[1] + 24), c.barSec * 1.05, "triangle", 0.008, {
+      lp: 2200,
+      attack: 0.2,
       rev: 0.15,
       pan: -0.25,
     });
-    k.d.t(midiToFreq(chord[1] + 36), c.barSec * 1.05, "sine", 0.005, {
-      lp: 6000,
-      attack: 0.22,
+    k.d.t(midiToFreq(chord[1] + 36), c.barSec * 1.05, "sine", 0.004, {
+      lp: 5500,
+      attack: 0.24,
       rev: 0.1,
       pan: 0.3,
     });
   }
-  // the mountain inhales: a slow two-note pressure on the "and" of one every other bar
-  if (L > 0.45 && b === 2 && (bar & 1) === 0 && R(c, 30) < 0.7)
-    VOICE.cinder(k.d, midiToFreq(chord[2] + 12), 0.014, { lite: true, pan: -0.3 });
-  // brushes of ash on 2 and 4, light
-  if (L > 0.35 && (b === 4 || b === 12))
-    k.m.n(0.2, 0.005, { type: "bandpass", f: 1700, to: 1100, q: 1.2, attack: 0.07, pan: 0.25, rev: 0.3 });
-  // the horn up the slope: every fourth bar a brassy line opens over the chord and sighs down
+  if (L > 0.4 && b === 6 && (bar & 1) === 0 && R(c, 30) < 0.55)
+    VOICE.cinder(k.d, midiToFreq(chord[2] + 12), 0.008, { lite: true, pan: -0.3 });
   if ((bar & 3) === 2 && b === 0) {
     const n = chord[[0, 2, 1][(bar >> 3) % 3]] + 12;
-    k.d.t(midiToFreq(n), c.barSec * 1.1, "sawtooth", 0.013, {
+    k.d.t(midiToFreq(n), c.barSec * 1.1, "triangle", 0.01, {
       to: midiToFreq(n - 2),
-      lp: 1600,
-      attack: 0.22,
+      lp: 1400,
+      attack: 0.24,
       rev: 0.3,
       pan: -0.5,
       opt: true,

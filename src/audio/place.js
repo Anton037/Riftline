@@ -78,94 +78,88 @@ const PLACE = Object.fromEntries(
 );
 
 const SCAPE = {
-  // 3.45.5: the steady beds got a level up (the g in each row): with the fight theme sitting lower in the mix
-  // (see MUSIC_SCALE in audio/sound.js) the rain, the wind and the crickets stay audible under
-  // it. Each bed keeps its margin under the deep-test cap (under 60 % of a Pulse shot at full level).
   city: {
     bed: [
-      ["rainDrop", 0.12, 0.3, 1, 0],
-      ["gutter", 1.6, 4, 0.9],
-      ["rainMetal", 2.5, 6, 0.8],
+      ["rainDrop", 2.0, 4.8, 0.35, 0],
+      ["gutter", 5.5, 11, 0.32],
+      ["rainMetal", 9, 18, 0.28],
     ],
     far: [
-      { id: "thunder", every: [25, 50], big: true, light: "lightning" },
-      { id: "siren", every: [60, 120], big: true, light: "siren" },
-      { id: "helicopter", every: [70, 140], big: true },
-      { id: "horn", every: [30, 70] },
-      { id: "dog", every: [30, 60] },
-      { id: "carAlarm", every: [50, 100] },
-      { id: "carPass", every: [20, 45] },
-      { id: "radio", every: [35, 80] },
-      { id: "sparks", every: [25, 55] },
+      { id: "thunder", every: [28, 56], big: true, light: "lightning" },
+      { id: "siren", every: [65, 130], big: true, light: "siren" },
+      { id: "helicopter", every: [75, 150], big: true },
+      { id: "horn", every: [35, 75] },
+      { id: "dog", every: [35, 70] },
+      { id: "carAlarm", every: [55, 110] },
+      { id: "carPass", every: [24, 50] },
+      { id: "radio", every: [40, 85] },
+      { id: "sparks", every: [30, 65] },
     ],
   },
   shelf: {
-    bed: [["wind", 1.5, 2.6, 1]],
+    bed: [["wind", 4.5, 9.0, 0.45]],
     far: [
-      { id: "howl", every: [25, 50] },
-      { id: "groan", every: [30, 60] },
-      { id: "icicles", every: [20, 45] },
-      { id: "avalanche", every: [80, 160], big: true },
-      { id: "crystals", every: [25, 50] },
-      { id: "bigCrack", every: [35, 70], big: true },
-      { id: "gust", every: [20, 40] },
+      { id: "howl", every: [28, 56] },
+      { id: "groan", every: [32, 64] },
+      { id: "icicles", every: [24, 50] },
+      { id: "avalanche", every: [85, 165], big: true },
+      { id: "crystals", every: [28, 56] },
+      { id: "bigCrack", every: [38, 76], big: true },
+      { id: "gust", every: [24, 48] },
     ],
   },
   marsh: {
-    bed: [["cricket", 0.4, 1.1, 1, 0]],
+    bed: [["cricket", 3.5, 7.5, 0.36, 0]],
     far: [
-      { id: "drip", every: [12, 26] },
-      { id: "frogChorus", every: [20, 40] },
-      { id: "cicada", every: [25, 50] },
-      { id: "insect", every: [20, 45] },
-      { id: "splash", every: [25, 50] },
-      { id: "owl", every: [40, 80] },
-      { id: "heron", every: [45, 90], big: true },
-      { id: "frogs", every: [15, 35] },
-      { id: "bird", every: [25, 50] },
-      { id: "mud", every: [20, 40] },
+      { id: "drip", every: [20, 40] },
+      { id: "frogChorus", every: [26, 52] },
+      { id: "cicada", every: [28, 56] },
+      { id: "insect", every: [24, 50] },
+      { id: "splash", every: [28, 56] },
+      { id: "owl", every: [45, 90] },
+      { id: "heron", every: [50, 95], big: true },
+      { id: "frogs", every: [22, 46] },
+      { id: "bird", every: [28, 56] },
+      { id: "mud", every: [24, 48] },
     ],
   },
   flats: {
-    bed: [["heatHiss", 3.2, 6.4, 0.8, 0]],
+    bed: [["heatHiss", 5.0, 10.0, 0.38, 0]],
     far: [
-      { id: "glassPing", every: [14, 30] },
-      { id: "devilMoan", every: [22, 46] },
-      { id: "dustRush", every: [16, 34] },
-      { id: "cicada", every: [22, 45] },
-      { id: "crystals", every: [26, 52] },
-      { id: "gust", every: [30, 60] },
-      { id: "howl", every: [45, 90], big: true },
+      { id: "glassPing", every: [22, 44] },
+      { id: "devilMoan", every: [26, 54] },
+      { id: "dustRush", every: [22, 46] },
+      { id: "cicada", every: [26, 54] },
+      { id: "crystals", every: [28, 58] },
+      { id: "gust", every: [32, 64] },
+      { id: "howl", every: [48, 96], big: true },
     ],
   },
   core: {
-    bed: [["heartbeat", 1.1, 1.3, 0.8, 0.5]],
+    bed: [["heartbeat", 5.0, 9.5, 0.38, 0.5]],
     far: [
-      { id: "reversed", every: [25, 50] },
-      { id: "metal", every: [30, 60] },
-      { id: "chirp", every: [20, 40] },
-      { id: "swell", every: [30, 60], big: true },
-      { id: "shimmer", every: [25, 50] },
-      { id: "breath", every: [30, 55] },
-      { id: "glitch", every: [20, 45] },
+      { id: "reversed", every: [28, 56] },
+      { id: "metal", every: [32, 64] },
+      { id: "chirp", every: [24, 48] },
+      { id: "swell", every: [34, 68], big: true },
+      { id: "shimmer", every: [28, 56] },
+      { id: "breath", every: [32, 60] },
+      { id: "glitch", every: [26, 52] },
     ],
   },
-  // 3.49.0: the Ashfall Caldera: the rumble and the pressure pulse are the steady bed (the mountain
-  // breathes through the fight); the far sounds live on the slope around the arena (none of them is a
-  // bed id: the scape rules count a far sound against its own rate, and a bed would break it)
   caldera: {
     bed: [
-      ["calderaRumble", 1.4, 2.6, 0.9],
-      ["ventPulse", 0.9, 1.5, 0.7, 0],
+      ["calderaRumble", 4.5, 9.0, 0.42],
+      ["ventPulse", 4.0, 8.5, 0.34, 0],
     ],
     far: [
-      { id: "emberPop", every: [12, 26] },
-      { id: "fumarole", every: [16, 34] },
-      { id: "rockFall", every: [18, 40] },
-      { id: "farBoom", every: [22, 48] },
-      { id: "steamBlast", every: [24, 50] },
-      { id: "cinderGust", every: [30, 60] },
-      { id: "fumaroleRush", every: [45, 90], big: true },
+      { id: "emberPop", every: [20, 40] },
+      { id: "fumarole", every: [24, 48] },
+      { id: "rockFall", every: [24, 48] },
+      { id: "farBoom", every: [28, 56] },
+      { id: "steamBlast", every: [28, 56] },
+      { id: "cinderGust", every: [34, 68] },
+      { id: "fumaroleRush", every: [48, 96], big: true },
     ],
   },
 };
@@ -199,11 +193,11 @@ function nearestProp(arena, player) {
         step = (len * 2) / n,
         i = Math.max(0, Math.min(n, Math.round((along + len) / step))),
         s = -len + i * step;
-      if (alongX) take(s, fixed, "lampBuzz", 0.55, 0.62);
-      else take(fixed, s, "lampBuzz", 0.55, 0.62);
+      if (alongX) take(s, fixed, "lampBuzz", 4.5, 8.5);
+      else take(fixed, s, "lampBuzz", 4.5, 8.5);
     }
   } else if (biome === "core") {
-    for (const ob of arena.obs) if (ob.t === "c") take(ob.x, ob.y, "gravityHum", 1.05, 1.2);
+    for (const ob of arena.obs) if (ob.t === "c") take(ob.x, ob.y, "gravityHum", 4.5, 8.5);
   }
   return best;
 }
@@ -243,35 +237,35 @@ function placeTick(e, world, dt) {
     st.vents.set(vent, state);
     const a = at(vent.x, vent.y);
     if (state === "warn" && last !== "warn") play(city ? "charge" : "lavaWarn", a);
-    else if (state === "idle" && (city ? a.d < 6 : true) && due(vent, city ? 0.85 : 0.7, city ? 1.0 : 2.2))
-      play(city ? "hum" : "lavaBlub", a);
+    else if (state === "idle" && (city ? a.d < 6 : true) && due(vent, city ? 4.2 : 3.2, city ? 8.0 : 6.5))
+      play(city ? "hum" : "lavaBlub", { ...a, g: a.g * (city ? 0.4 : 0.55) });
   }
   // ice: cracks and creaks under the moving drone, a sheet tinkles now and then
   if (arena.ice.length) {
     const speed = Math.hypot(player.vx, player.vy);
-    if (player.onIce && player.alive && speed > 2.5 && due("skate", 0.35, 1.1))
-      play(Math.random() < 0.55 ? "iceCrack" : "iceCreak", { g: 0.7, pan: 0 });
-    for (const patch of arena.ice) if (due(patch, 3, 8)) play("iceTink", at(patch.x, patch.y));
+    if (player.onIce && player.alive && speed > 2.5 && due("skate", 0.5, 1.2))
+      play(Math.random() < 0.55 ? "iceCrack" : "iceCreak", { g: 0.45, pan: 0 });
+    for (const patch of arena.ice) if (due(patch, 5, 12)) play("iceTink", at(patch.x, patch.y, 0.5));
   }
   // acid: bubbles in the pools near the drone, a sizzle while it stands in one
   if (arena.acid.length) {
-    for (const pool of arena.acid) if (!pool.mine && due(pool, 0.5, 1.6)) play("acidBubble", at(pool.x, pool.y, 0.8));
-    if (player.inAcid && fight && due("sizzle", 0.45, 0.6)) play("acidSizzle", { g: 0.8, pan: 0 });
+    for (const pool of arena.acid) if (!pool.mine && due(pool, 2.8, 6.0)) play("acidBubble", at(pool.x, pool.y, 0.45));
+    if (player.inAcid && fight && due("sizzle", 0.55, 0.8)) play("acidSizzle", { g: 0.65, pan: 0 });
   }
   // 3.53.0: the dust devils of the Flats: each hisses where it wanders (they move, so their sound
   // follows them), and inside one the wind roars past the drone
   if (arena.devils && arena.devils.length) {
-    for (const devil of arena.devils) if (due(devil, 0.7, 1.9)) play("devilHiss", at(devil.x, devil.y, 0.9));
-    if (player.inDevil && fight && due("devilWind", 0.5, 0.7)) play("devilHiss", { g: 0.95, pan: 0 });
+    for (const devil of arena.devils) if (due(devil, 2.6, 5.5)) play("devilHiss", at(devil.x, devil.y, 0.45));
+    if (player.inDevil && fight && due("devilWind", 0.6, 0.9)) play("devilHiss", { g: 0.7, pan: 0 });
   }
   // portals: both ends hum, sometimes one whispers
   arena.portals.forEach((portal, i) => {
-    if (due("pa" + i, 1.05, 1.3)) play("portalHum", at(portal.ax, portal.ay, 0.8));
-    if (due("pb" + i, 1.05, 1.3)) play("portalHum", at(portal.bx, portal.by, 0.8));
+    if (due("pa" + i, 4.5, 8.5)) play("portalHum", at(portal.ax, portal.ay, 0.4));
+    if (due("pb" + i, 4.5, 8.5)) play("portalHum", at(portal.bx, portal.by, 0.4));
   });
-  if (arena.portals.length && due("whisper", 6, 14)) {
+  if (arena.portals.length && due("whisper", 9, 18)) {
     const portal = arena.portals[Math.floor(Math.random() * arena.portals.length)];
-    play("portalWhisper", at(portal.ax, portal.ay));
+    play("portalWhisper", at(portal.ax, portal.ay, 0.5));
   }
   // 3.17.0: the props near the drone: the street lamps along the edges of Blackout City, the machine blocks of the Ember
   // Works, the obelisks of the Shattered Core (all where the renderer draws them), the nearest one within PROP_HEAR
@@ -279,7 +273,7 @@ function placeTick(e, world, dt) {
   if (prop && due("prop:" + prop.id, prop.lo, prop.hi)) {
     const d = Math.hypot(prop.x - player.x, prop.y - player.y);
     play(prop.id, {
-      g: Math.pow(Math.max(0, 1 - d / PROP_HEAR), 2) * (world.boss ? 0.6 : 1),
+      g: Math.pow(Math.max(0, 1 - d / PROP_HEAR), 2) * (world.boss ? 0.3 : 0.45),
       pan: Math.max(-0.85, Math.min(0.85, (prop.x - player.x) / 10)),
     });
   }
@@ -295,7 +289,7 @@ function placeTick(e, world, dt) {
   for (const [id, lo, hi, g, inMusic] of scape.bed)
     if (due("bed:" + id, lo / thin, hi / thin)) {
       const carried = calm && inMusic != null && (inMusic === 0 || (e.intensity || 0) > inMusic);
-      play(id, { g: g * (world.boss ? 0.6 : 1) * (carried ? 0.5 : 1), pan: rand(-0.5, 0.5) });
+      play(id, { g: g * (world.boss ? 0.5 : 1) * (carried ? 0.5 : 1), pan: rand(-0.5, 0.5) });
     }
   if (!st.far || st.far.biome !== arena.biome.id) {
     // the first far sounds come soon (2 s up to the shortest rate), then each keeps its own rate
@@ -319,7 +313,7 @@ function placeTick(e, world, dt) {
     far.lastAt = t;
     if (f.big) far.bigUntil = t + 4;
     const pan = (Math.random() < 0.5 ? -1 : 1) * rand(0.35, 0.9);
-    play(f.id, { g: rand(0.55, 1), pan });
+    play(f.id, { g: rand(0.28, 0.55), pan });
     if (f.light && e.onScape) e.onScape(f.light, pan);
     break;
   }

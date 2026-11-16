@@ -297,19 +297,19 @@ const P = {
   reward: { dur: 0.55, sample: "glass", body: 810, air: 0.04, grain: 0.02, gain: 0.22, gate: 0.09 },
   step: { dur: 0.22, sample: "concrete", body: 125, air: 0.06, grain: 0.03, gain: 0.23, gate: 0.045 },
   room: { dur: 0.8, sample: "soft", body: 76, air: 0.4, grain: 0.09, gain: 0.16, gate: 0.08 },
-  rain: { dur: 0.3, model: "rain", body: 1600, gain: 0.24, gate: 0 },
-  water: { dur: 0.42, model: "water", body: 260, gain: 0.24, gate: 0 },
-  air: { dur: 0.95, model: "air", body: 45, gain: 0.3, gate: 0, hold: true },
-  bird: { dur: 0.55, model: "bird", body: 2100, gain: 0.23, gate: 0 },
-  insect: { dur: 0.36, model: "insect", body: 3800, gain: 0.2, gate: 0 },
-  frog: { dur: 0.46, model: "frog", body: 330, gain: 0.25, gate: 0 },
-  mammal: { dur: 0.65, model: "mammal", body: 210, gain: 0.24, gate: 0 },
-  engine: { dur: 1.2, model: "engine", body: 65, gain: 0.24, gate: 0 },
-  rotor: { dur: 1.2, model: "rotor", body: 26, gain: 0.25, gate: 0 },
-  horn: { dur: 0.65, model: "horn", body: 390, gain: 0.22, gate: 0 },
-  siren: { dur: 1.2, model: "siren", body: 640, gain: 0.2, gate: 0 },
-  radio: { dur: 0.55, model: "radio", body: 560, gain: 0.24, gate: 0 },
-  buzz: { dur: 0.7, model: "buzz", body: 60, gain: 0.22, gate: 0 },
+  rain: { dur: 0.24, model: "rain", body: 1200, gain: 0.16, gate: 0 },
+  water: { dur: 0.42, model: "water", body: 260, gain: 0.18, gate: 0 },
+  air: { dur: 0.95, model: "air", body: 45, gain: 0.24, gate: 0, hold: true },
+  bird: { dur: 0.55, model: "bird", body: 2100, gain: 0.18, gate: 0 },
+  insect: { dur: 0.36, model: "insect", body: 3800, gain: 0.14, gate: 0 },
+  frog: { dur: 0.46, model: "frog", body: 330, gain: 0.17, gate: 0 },
+  mammal: { dur: 0.65, model: "mammal", body: 210, gain: 0.19, gate: 0 },
+  engine: { dur: 1.2, model: "engine", body: 65, gain: 0.2, gate: 0 },
+  rotor: { dur: 1.2, model: "rotor", body: 26, gain: 0.2, gate: 0 },
+  horn: { dur: 0.65, model: "horn", body: 390, gain: 0.16, gate: 0 },
+  siren: { dur: 1.2, model: "siren", body: 640, gain: 0.15, gate: 0 },
+  radio: { dur: 0.55, model: "radio", body: 560, gain: 0.15, gate: 0 },
+  buzz: { dur: 0.65, model: "buzz", body: 60, gain: 0.14, gate: 0 },
 };
 const BOSS_TIMBRE = {
   warden: ["plate", 245, 3000],
@@ -464,6 +464,8 @@ export function physicalProfile(id, arg, place = false) {
       recordGain: 0.18,
       gain: 0.22,
     });
+  if (place && id === "heartbeat") p.gain = 0.24;
+  if (place && id === "rainMetal") p.gain = 0.16;
   if (place && id === "emberPop")
     Object.assign(p, P.impact, { family: "emberPop", sample: "wood", body: 170, lowpass: 1800, dur: 0.17, gain: 0.15 });
   if (place && /owl/i.test(id)) p.body = 470;
@@ -568,7 +570,7 @@ export class PhysicalVoices {
         phase += (Math.PI * 2 * p.body * pitch) / rate;
         let value = 0;
         if (p.model === "air") value = (low * 0.6 + band * 0.4) * bell * 0.9;
-        else if (p.model === "rain") value = (noise * 0.22 + Math.sin(phase) * 0.12) * Math.exp(-t * 23);
+        else if (p.model === "rain") value = (band * 0.24 + low * 0.12 + Math.sin(phase) * 0.04) * Math.exp(-t * 24);
         else if (p.model === "water")
           value = (Math.sin(phase) * 0.23 + band * 0.08) * Math.exp(-t * 12) * (0.7 + 0.3 * Math.sin(t * 71) ** 2);
         else if (p.model === "insect")
@@ -586,7 +588,7 @@ export class PhysicalVoices {
         else if (p.model === "siren") value = (Math.sin(phase) + 0.15 * Math.sin(phase * 3)) * bell * 0.22;
         else if (p.model === "radio")
           value = (band * Math.sin(phase) * 0.7 + (noise - band) * 0.06) * bell * (0.55 + 0.45 * Math.sin(t * 31));
-        else if (p.model === "buzz") value = (Math.sin(phase) + 0.2 * Math.sin(phase * 3)) * bell * 0.13;
+        else if (p.model === "buzz") value = (Math.sin(phase) + 0.08 * Math.sin(phase * 3)) * bell * 0.13;
         else value = (Math.sin(phase) + 0.08 * Math.sin(phase * 2)) * bell * (0.6 + 0.4 * Math.cos(t * 22)) * 0.23;
         data[i] = value * Math.min(1, t / 0.008, (p.dur - t) / 0.018);
         continue;
