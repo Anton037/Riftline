@@ -1,6 +1,6 @@
 # Riftline
 
-A touch-only 3D arena roguelite for phones and tablets in landscape.
+A 3D arena roguelite for desktop (mouse and keyboard) and phones/tablets in landscape.
 
 [Play Riftline](https://anton037.github.io/Riftline/)
 
@@ -10,16 +10,19 @@ Endless. Saves and installed game assets work offline after the first successful
 
 ## Controls
 
-| Action | Touch control |
-|---|---|
-| Move | Drag the left stick |
-| Aim / fire | Drag the right stick; auto-fire is enabled by default |
-| Dash, Nova, Singularity | Tap the action buttons |
-| Pause | Tap the pause button |
+| Action | Touch control | Mouse + Keyboard |
+|---|---|---|
+| Move | Drag the left stick | `WASD` or Arrow keys |
+| Aim / fire | Drag the right stick | Hold left mouse button to aim/fire; auto-fire by default |
+| Dash | Tap `DASH` | `Space` / `Shift` |
+| Nova | Tap `NOVA` | `E` / `Q` / `F` |
+| Singularity | Tap `GADGET` | `G` |
+| Pause / Back | Tap Pause | `Esc` / `P` |
+| Upgrades / End | Tap card or button | `1`–`4` pick, `B` banish, `R` reroll / retry |
 
-Hold the device in landscape. Controls can be moved and resized in Settings. High detail is standard;
-choose a 30, 60 or 120 FPS cap, with 60 FPS as the default. Gameplay uses touch input; menus support
-normal browser navigation and text entry.
+Touch controls work in landscape and can be moved and resized in Settings. High detail is standard;
+choose a 30, 60 or 120 FPS cap, with 60 FPS as the default. Input switches automatically between touch
+and mouse/keyboard as you use them.
 
 ## Development
 
@@ -39,7 +42,7 @@ worker behave correctly.
 |---|---|
 | `npm run check` | Formatting, lint, build and the standard tests |
 | `npm run test:unit` | Simulation, saves, data and geometry contracts |
-| `npm run e2e` | Touch, onboarding, progression and offline update flows |
+| `npm run e2e` | Desktop, touch, onboarding, progression and offline update flows |
 | `npm run test:render` | Browser flows with actual WebGL drawing |
 | `npm run audit:visual` | All six biomes and bosses on phone and tablet |
 | `npm run verify:abilities` | Power phases and scenery on phone and tablet |
@@ -58,7 +61,7 @@ Generated verification output belongs in the ignored `verification-output/` dire
 | `src/data/` | Weapons, actors, biomes, upgrades and progression |
 | `src/render/` | Three.js models, materials, scenery and effects |
 | `src/audio/` | Recorded material voices, music and environmental sound |
-| `src/ui/` | Touch input, screens, HUD and haptics |
+| `src/ui/` | Touch and keyboard/mouse input, screens, HUD and haptics |
 | `public/` | Fonts, textures, sound bank, app icons and asset notices |
 | `tests/` | Simulation, geometry, browser and worker tests |
 | `tools/`, `scripts/` | Build support, verification and asset generation |

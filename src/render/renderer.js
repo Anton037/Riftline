@@ -33,11 +33,13 @@ import {
   PlaneGeometry,
   PointLight,
   Quaternion,
+  Raycaster,
   RingGeometry,
   Scene,
   SphereGeometry,
   SRGBColorSpace,
   NeutralToneMapping,
+  Vector2,
   Vector3,
   WebGLRenderer,
 } from "three";
@@ -2896,10 +2898,33 @@ const MAX_PARTICLES = 1400,
       out.ny = ndc.y;
       return out;
     }
+    groundAt(sx, sy) {
+      if (!Number.isFinite(sx) || !Number.isFinite(sy)) return null;
+      let rect = this.canvas?.getBoundingClientRect ? this.canvas.getBoundingClientRect() : null,
+        w = rect && rect.width > 0 ? rect.width : this.w,
+        h = rect && rect.height > 0 ? rect.height : this.h,
+        left = rect ? rect.left : 0,
+        top = rect ? rect.top : 0;
+      if (!(w > 0 && h > 0)) return null;
+      let ndc = this._ndc || (this._ndc = new Vector2()),
+        rc = this._rc || (this._rc = new Raycaster());
+      ndc.set(((sx - left) / w) * 2 - 1, -(((sy - top) / h) * 2 - 1));
+      rc.setFromCamera(ndc, this.camera);
+      let dir = rc.ray.direction;
+      if (Math.abs(dir.y) < 1e-4) return null;
+      let t = (0.75 - rc.ray.origin.y) / dir.y;
+      if (!(t > 0)) return null;
+      let out = this._ground || (this._ground = { x: 0, y: 0 });
+      out.x = rc.ray.origin.x + dir.x * t;
+      out.y = rc.ray.origin.z + dir.z * t;
+      return out;
+    }
     resetCamera() {
       this.smokeView.clear();
       this.camInit = false;
       this.shake = 0;
+      this._rlViewKey = "";
+      this.camera.clearViewOffset();
     }
     focusOn(x, z) {
       this.focus = x == null ? null : { x, z };
@@ -2907,10 +2932,8 @@ const MAX_PARTICLES = 1400,
     }
   };
 // 2.3.6: on landscape phones and tablets the home screen has two columns (title left, weapon
-// card right). The drone preview is drawn at the screen centre, which is where the title ends,
-// so the drone sat on the last letters of RIFTLINE. With two columns the view is now shifted so
-// the drone shows in the larger free band of the title column, above or below the title
-// (Renderer.updateCamera). `dirty` asks for a new measurement.
+// card right), while desktop stacks title above dock. Shift the menu view into whichever open
+// showcase band sits free of UI chrome (`dirty` asks for a new measurement).
 let homeViewSpot = null,
   dirty = true;
 const measureHomeViewSpot = () => {
@@ -2922,7 +2945,12 @@ const measureHomeViewSpot = () => {
   if (!brand || !panel || !top || !nav) return null;
   const brandBox = brand.getBoundingClientRect(),
     panelBox = panel.getBoundingClientRect();
-  if (brandBox.width < 1 || panelBox.width < 1 || brandBox.right > panelBox.left) return null; // stacked: the centre is free
+  if (brandBox.width < 1 || panelBox.width < 1) return null;
+  if (brandBox.right > panelBox.left) {
+    const gap = panelBox.top - brandBox.bottom;
+    if (gap < 28) return null;
+    return { x: (brandBox.left + brandBox.right) / 2, y: brandBox.bottom + gap * 0.5 };
+  }
   const topEdge = top.getBoundingClientRect().bottom,
     navEdge = nav.getBoundingClientRect().top,
     above = brandBox.top - topEdge,

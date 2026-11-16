@@ -1,14 +1,14 @@
 # Testing Riftline
 
-Keep the routine gate short. Focused Node contracts and five browser checks cover the critical paths;
+Keep the routine gate short. Focused Node contracts and seven browser checks cover the critical paths;
 there is no historical release assertion catalog, always-on soak or hidden extended test chain.
 
 | Command | Coverage | Deadline |
 |---|---|---|
 | `npm run check` | Formatting, lint, build and standard tests | Test subprocess 75 s |
-| `npm test` | Node contracts, tablet/phone flows, onboarding, progression and worker update | Build 30 s; tests 75 s |
+| `npm test` | Node contracts, desktop & tablet/phone flows, onboarding, progression and worker update | Build 30 s; tests 75 s |
 | `npm run test:unit` | Saves, deterministic simulation, data and render geometry | 75 s |
-| `npm run e2e` | Touch, onboarding/audio, progression and worker update | Game flows 25–30 s; worker 20 s; process 75 s |
+| `npm run e2e` | Desktop KB/mouse, touch, onboarding/audio, progression and worker update | Game flows 25–35 s; worker 20 s; process 75 s |
 | `npm run test:render` | Same browser checks with actual drawing | Game flows 180 s each; process 600 s |
 | `npm run audit:visual` | Six biomes and bosses on tablet and landscape phone, High | 240 s per layout |
 | `node tools/verify.js equipment <tag>` | Seven weapons, all 25 enemies, smoke/rockets and FPS controls | 240 s |
@@ -40,16 +40,19 @@ For centre/edge/corner screenshots use `node tools/verify.js visual <tag> tablet
 - Save checks cover round-trip persistence, migration, unknown future fields and corrupt-save recovery
   when storage is full. Failed explicit imports/resets retain old progress; successful ones recover held saves.
 - Choice snapshots keep the RNG through rerolls, banishes and repeated resumes.
+- The desktop keyboard/mouse flow verifies desktop layout audit, Vibration row controls and Settings/HUD editor
+  `Esc` handling, modifier passthrough (`Control+KeyP`/`Control+Space`), WASD/Arrow movement, LMB raycast aim/fire,
+  `Space`/`E`/`G` actions, `P`/`Esc` pause/resume, card shortcuts (`1`–`4`, `B`, `R`), and `R` retry.
 - The tablet flow uses touch for settings, movement, dash, pause/resume, card choice, offline reload,
   saved-run continuation, death recap and returning home. Death/wave completion are arranged through
   the simulation interface rather than waiting through whole fights. An import dialog survives a pending
-  update during a simulated visibility change, and mouse/pen action events are ignored.
+  update during a simulated visibility change, and secondary mouse button action events (`button: 2`) are ignored.
   Startup health checks must report no failures. Settings and repeated viewport notifications must retain
   an unchanged drawing buffer; actual viewport changes must resize it.
 - The landscape phone flow holds both sticks and taps dash with a third finger, cancels the touches,
   then pauses/resumes. A gamepad API counter must stay at zero.
-- A fresh profile uses real touch through all four tutorial coaches and real WebAudio through pause,
-  simulated backgrounding and resume. Kills are arranged through the simulation interface.
+- Fresh profiles verify both real touch (with real WebAudio pause/backgrounding/resume) and desktop keyboard/mouse
+  onboarding coaches (including live hybrid switching between touch and keyboard prompts).
 - The simplified menu buys a workshop level, claims an achievement once, persists both across reload and
   starts a run with the purchased benefit. Removed modes/Codex have no DOM or navigation targets.
   Old challenge checkpoints resume as normal runs; discovery flags and mode configuration are discarded.

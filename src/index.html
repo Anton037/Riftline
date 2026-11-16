@@ -6,7 +6,7 @@
 <meta name="riftline-build" content="__RL_BUILD__">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Riftline</title>
-<meta name="description" content="Riftline – a 3D arena roguelite shooter with twin-stick touch controls.">
+<meta name="description" content="Riftline – a 3D arena roguelite shooter with twin-stick touch, mouse and keyboard controls.">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
@@ -188,8 +188,8 @@ h2 { font-size: 22px; letter-spacing: 0.06em; text-transform: uppercase; }
 .act-btn.gadget .pips { position: absolute; z-index: 2; left: 0; right: 0; bottom: 7px; display: flex; justify-content: center; gap: 3px; }
 .act-btn.gadget .pips i { width: 6px; height: 6px; border-radius: 50%; background: rgba(255, 255, 255, 0.16); }
 .act-btn.gadget .pips i.on { background: #b57bff; box-shadow: 0 0 5px rgba(181, 123, 255, 0.9); }
-.act-btn.gadget .key { display: none; position: absolute; z-index: 3; top: -4px; right: -4px; min-width: 16px; padding: 2px 4px; border-radius: 5px; background: rgba(10, 16, 30, 0.92); border: 1px solid var(--line2); font: 700 10px/1 var(--display); color: var(--dim); text-align: center; }
-body:not(.device-touch) .act-btn.gadget .key { display: block; }
+.act-btn .key { display: none; position: absolute; z-index: 3; top: -4px; right: -4px; min-width: 16px; padding: 2px 4px; border-radius: 5px; background: rgba(10, 16, 30, 0.92); border: 1px solid var(--line2); font: 700 10px/1 var(--display); color: var(--dim); text-align: center; white-space: nowrap; pointer-events: none; }
+body:not(.input-touch) .act-btn .key { display: block; }
 .act-btn.gadget.empty { color: rgba(181, 123, 255, 0.4); border-color: rgba(181, 123, 255, 0.22); }
 .act-btn.gadget.pop { animation: gadgetPop 0.38s ease-out; }
 .act-btn.gadget.deny { animation: deny 0.28s ease-out; }
@@ -317,7 +317,7 @@ body:not(.device-touch) .act-btn.gadget .key { display: block; }
 
 /* ---------------------------------------------------------------- lists */
 .page-intro { margin: 0; color: var(--dim); font-size: 15px; }
-.checkpoint-note { margin: 0; text-align: center; font-size: 12px; line-height: 1.2; }
+.checkpoint-note { margin: 0; max-width: none; text-align: center; font-size: 12px; line-height: 1.2; }
 .list { display: flex; flex-direction: column; gap: 8px; }
 .row { display: grid; grid-template-columns: 40px 1fr auto; gap: 12px; align-items: center; padding: 10px 12px; }
 .row .rico { width: 40px; height: 40px; display: grid; place-items: center; color: var(--cyan); background: rgba(73, 242, 255, 0.08); clip-path: var(--notch); --n: 6px; }
@@ -343,7 +343,7 @@ body:not(.device-touch) .act-btn.gadget .key { display: block; }
 .settings-body { max-width: 640px; width: 100%; align-self: center; }
 .set-group { display: flex; flex-direction: column; gap: 10px; padding: 12px; background: var(--panel); border: 1px solid var(--line); clip-path: var(--notch); }
 .set-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 40px; }
-.set-row > span { display: flex; flex-direction: column; min-width: 0; }
+.set-row > span:not(.row-ctl) { display: flex; flex-direction: column; min-width: 0; }
 .set-row b { font: 600 16px/1.2 var(--body); }
 .set-row small { color: var(--dim); font-size: 13px; }
 .toggle { appearance: none; -webkit-appearance: none; width: 50px; height: 28px; flex: none; margin: 0; border-radius: 14px; background: rgba(255, 255, 255, 0.12); position: relative; transition: background 0.15s; cursor: pointer; }
@@ -351,6 +351,7 @@ body:not(.device-touch) .act-btn.gadget .key { display: block; }
 .toggle:checked { background: var(--cyan-d); }
 .toggle:checked::after { transform: translateX(22px); background: #fff; }
 .row-ctl { display: flex; align-items: center; gap: 10px; flex: none; }
+.row-ctl label { display: flex; align-items: center; }
 input[type=range] { -webkit-appearance: none; appearance: none; width: min(180px, 45vw); height: 28px; background: transparent; margin: 0; touch-action: pan-x; }
 input[type=range]::-webkit-slider-runnable-track { height: 4px; background: rgba(255, 255, 255, 0.15); }
 input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; margin-top: -9px; background: var(--cyan); clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
@@ -425,6 +426,10 @@ button.bi.sel { background: color-mix(in srgb, var(--rc, var(--r1)) 22%, transpa
 .up-info b { font: 700 14px/1.2 var(--display); letter-spacing: 0.03em; }
 .up-info .lv { font: 600 11px/1 var(--display); letter-spacing: 0.14em; color: var(--dim); }
 .up-info p { margin: 4px 0 0; color: var(--dim); font-size: 14px; }
+.card-key { position: absolute; right: 10px; bottom: 8px; font: 700 11px/1 var(--display); color: var(--dim); padding: 3px 6px; border: 1px solid var(--line2); background: rgba(255, 255, 255, 0.04); pointer-events: none; }
+.card-key.inline { position: static; margin-left: 8px; }
+#choose .card.has-key { padding-bottom: 32px; }
+#choose .card.r6 .card-key { right: 40px; }
 #settings.in-run .menu-only { display: none; }
 
 /* ---------------------------------------------------------------- pause / over */
@@ -474,9 +479,11 @@ button.bi.sel { background: color-mix(in srgb, var(--rc, var(--r1)) 22%, transpa
 .stat-rows .sr-d.up { color: #6dffb0; }
 .stat-rows .sr-d.down { color: #6dffb0; }
 .stat-rows .sr-d.worse { color: #ff9ab0; }
+body:not(.input-touch) #touch { cursor: crosshair; }
 /* 3.25.0: Banish Protocol: a card to be banished */
 .cards.banishing .card { outline: 2px dashed #ff5a82; outline-offset: -4px; cursor: crosshair; }
 .cards.banishing .card::after { content: "TAP TO BANISH"; position: absolute; left: 0; right: 0; bottom: 8px; text-align: center; font: 700 11px/1 var(--display); letter-spacing: 0.2em; color: #ff8aa6; }
+body:not(.input-touch) .cards.banishing .card::after { content: "CLICK TO BANISH"; }
 #banishBtn.on { border-color: #ff5a82; color: #ff8aa6; }
 .recap .hits { display: flex; flex-direction: column; gap: 3px; }
 .recap .hit { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: baseline; font-size: 13px; color: var(--text); }
@@ -606,7 +613,7 @@ button:focus-visible, input:focus-visible {
 .btn.primary.alt { box-shadow: 0 8px 28px rgba(255, 200, 74, 0.10); }
 .set-group { overflow: hidden; }
 .set-row { flex-wrap: wrap; }
-.set-row > span { flex: 1 1 230px; }
+.set-row > span:not(.row-ctl) { flex: 1 1 230px; }
 .seg { max-width: 100%; overflow: hidden; }
 .seg button { flex: 1 1 auto; min-height: 36px; white-space: nowrap; }
 
@@ -642,7 +649,7 @@ button:focus-visible, input:focus-visible {
   .stat-grid.compact { gap: 6px; }
   .set-group { padding: 10px; }
   .set-row { gap: 10px; }
-  .set-row > span { flex-basis: 180px; }
+  .set-row > span:not(.row-ctl) { flex-basis: 180px; }
   .seg button { padding-inline: 8px; }
 }
 
@@ -834,15 +841,40 @@ body.device-desktop #home .bottom-nav button {
   body.device-desktop #home .home-panel { width: min(680px, 100%); }
   body.device-desktop #home .bottom-nav { width: min(680px, 100%); }
 }
-@media (min-width: 760px) and (max-height: 700px) {
+@media (min-width: 760px) and (max-height: 820px) {
+  body.device-desktop #home {
+    gap: 8px;
+    padding-top: calc(var(--st) + 8px);
+    padding-bottom: calc(var(--sb) + 10px);
+  }
   body.device-desktop #home .home-grid { gap: 10px; }
-  body.device-desktop #home .logo { font-size: clamp(54px, 8vw, 88px); }
+  body.device-desktop #home .brand { align-self: start; padding-top: 2px; }
+  body.device-desktop #home .logo { font-size: clamp(54px, 7.5vw, 90px); }
   body.device-desktop #home .tagline { margin-top: 7px; }
   body.device-desktop #home .best-line { margin-top: 5px; }
-  body.device-desktop #home .weapon-card { padding: 9px 11px 10px; gap: 6px; }
+  body.device-desktop #home .weapon-card { padding: 10px 12px 11px; gap: 7px; }
+}
+@media (min-width: 760px) and (max-height: 700px) {
+  body.device-desktop #home .home-grid { gap: 8px; }
+  body.device-desktop #home .logo { font-size: clamp(46px, 7vw, 76px); }
+  body.device-desktop #home .tagline { margin-top: 5px; }
+  body.device-desktop #home .best-line { margin-top: 4px; }
+  body.device-desktop #home .weapon-card { padding: 8px 11px 9px; gap: 5px; }
   body.device-desktop #home .wc-blurb { display: none; }
-  body.device-desktop #home .btn.primary { min-height: 50px; }
-  body.device-desktop #home .bottom-nav button { min-height: 46px; }
+  body.device-desktop #home .btn.primary { min-height: 46px; }
+  body.device-desktop #home .bottom-nav button { min-height: 44px; padding-block: 7px; }
+}
+@media (min-width: 760px) and (max-height: 660px) {
+  body.device-desktop #home { gap: 6px; padding-top: calc(var(--st) + 6px); padding-bottom: calc(var(--sb) + 8px); }
+  body.device-desktop #home .logo { font-size: clamp(42px, 6.2vw, 64px); }
+  body.device-desktop #home .home-panel { gap: 6px; }
+  body.device-desktop #home .wc-head { grid-template-columns: 36px 1fr 36px; }
+  body.device-desktop #home .wc-head .arrow { width: 34px; height: 34px; }
+  body.device-desktop #home .wc-name { font-size: 19px; }
+  body.device-desktop #home .threat-row { padding: 4px; min-height: 36px; }
+  body.device-desktop #home .threat-row .arrow { width: 32px; height: 32px; }
+  body.device-desktop #home .btn.primary { min-height: 42px; font-size: 16px; }
+  body.device-desktop #home .bottom-nav button { min-height: 40px; padding-block: 6px; }
 }
 
 
@@ -1063,14 +1095,14 @@ html, body { min-width: 0; min-height: 100%; }
 
 /* Settings: text gets the flexible column; controls never force horizontal
    overflow. On tiny portrait phones, rows become two-line control rows. */
-.set-row > span { flex: 1 1 auto; min-width: 0; }
-.set-row > span b, .set-row > span small { overflow-wrap: anywhere; }
+.set-row > span:not(.row-ctl) { flex: 1 1 auto; min-width: 0; }
+.set-row > span:not(.row-ctl) b, .set-row > span:not(.row-ctl) small { overflow-wrap: anywhere; }
 .seg { flex: 0 0 auto; max-width: 100%; }
 input[type=range] { flex: 0 1 180px; max-width: 45vw; }
 @media (max-width: 380px) {
   .set-row { align-items: flex-start; flex-wrap: wrap; }
-  .set-row > span { flex: 1 1 100%; }
-  .set-row > .seg, .set-row > .toggle, .set-row > input[type=range] { margin-left: auto; }
+  .set-row > span:not(.row-ctl) { flex: 1 1 100%; }
+  .set-row > .seg, .set-row > .toggle, .set-row > .row-ctl, .set-row > input[type=range] { margin-left: auto; }
   .seg button { padding-inline: 7px; }
 }
 
@@ -1377,7 +1409,9 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
     const vv = window.visualViewport;
     const w = Math.max(1, Math.round(vv?.width || window.innerWidth || 1));
     const h = Math.max(1, Math.round(vv?.height || window.innerHeight || 1));
-    const coarse = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
+    const coarse =
+      matchMedia('(pointer: coarse)').matches ||
+      (matchMedia('(any-pointer: coarse)').matches && !matchMedia('(pointer: fine)').matches);
     const phone = coarse && Math.min(w, h) <= 480 && Math.max(w, h) <= 1000;
     const tablet = coarse && !phone && Math.max(w, h) <= 1400;
     const device = phone ? 'phone' : tablet ? 'tablet' : 'desktop';
@@ -1526,9 +1560,9 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
     <div class="act">
       <div class="act-row">
         <button id="gadgetBtn" class="act-btn gadget" aria-label="Throw Singularity"><span class="ring"></span><svg class="gico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="currentColor"/><path d="M12 3.5a8.5 8.5 0 0 1 8.5 8.5M20.5 12a8.5 8.5 0 0 1-8.5 8.5M12 20.5A8.5 8.5 0 0 1 3.5 12M3.5 12A8.5 8.5 0 0 1 12 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="7 6"/><path d="M12 7.2a4.8 4.8 0 0 1 4.8 4.8M12 16.8A4.8 4.8 0 0 1 7.2 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span id="gadgetPips" class="pips" aria-hidden="true"></span><span id="gadgetKey" class="key" aria-hidden="true">G</span></button>
-        <button id="novaBtn" class="act-btn nova" aria-label="Nova blast"><span class="ring"></span><span class="lbl">NOVA</span></button>
+        <button id="novaBtn" class="act-btn nova" aria-label="Nova blast"><span class="ring"></span><span class="lbl">NOVA</span><span class="key" aria-hidden="true">E</span></button>
       </div>
-      <button id="dashBtn" class="act-btn dash" aria-label="Dash"><span class="ring"></span><span class="lbl">DASH</span></button>
+      <button id="dashBtn" class="act-btn dash" aria-label="Dash"><span class="ring"></span><span class="lbl">DASH</span><span class="key" aria-hidden="true">SPACE</span></button>
     </div>
   </div>
   <div id="banner" aria-live="polite"></div>

@@ -67,6 +67,45 @@ test(
   },
 );
 
+test("first-run desktop onboarding uses keyboard/mouse prompts and adapts on hybrid input", { timeout }, async (t) => {
+  const { page, press, errors } = await openGame(t, "desktop", { fresh: true });
+  await press("#playBtn");
+  await page.waitForFunction(() => window.__riftTest.game.tut?.step === 0);
+  assert.match(await page.locator("#coachText").textContent(), /W A S D or the arrow keys/);
+  assert.equal(await page.evaluate(() => window.__riftTest.game.world.hold), true);
+  await page.evaluate(() => {
+    window.__riftTest.game.world.god = true;
+  });
+  await page.keyboard.down("KeyD");
+  await page.waitForFunction(() => window.__riftTest.game.tut?.step === 1);
+  await page.keyboard.up("KeyD");
+  assert.equal(await page.evaluate(() => window.__riftTest.game.world.hold), false);
+  assert.match(await page.locator("#coachText").textContent(), /hold the left mouse button to aim yourself/);
+
+  await page.evaluate(() => {
+    const w = window.__riftTest.game.world;
+    for (let i = 0; i < 4; i++) {
+      const e = w.spawnEnemy("grunt", 5 + i, -3, {});
+      w.killEnemy(e);
+    }
+  });
+  await page.waitForFunction(() => window.__riftTest.game.tut?.step === 2);
+  assert.match(await page.locator("#coachText").textContent(), /Press SPACE to dash/);
+
+  // Switching to touch on a hybrid laptop updates coach text immediately; keyboard restores PC prompts.
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: 160, y: 260, id: 1 }] });
+  await page.waitForFunction(() => /Tap DASH/.test(document.getElementById("coachText").textContent));
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchCancel", touchPoints: [] });
+  await page.keyboard.press("KeyD");
+  await page.waitForFunction(() => /Press SPACE to dash/.test(document.getElementById("coachText").textContent));
+
+  await page.keyboard.press("Space");
+  await page.waitForFunction(() => window.__riftTest.game.tut?.step === 3);
+  await page.waitForFunction(() => window.__riftTest.store.data.seen.tutorial === true);
+  assert.deepEqual(errors, []);
+});
+
 test("the focused menu keeps workshop upgrades and achievement rewards working", { timeout }, async (t) => {
   const { page, press, errors } = await openGame(t, false);
   assert.deepEqual(await page.locator(".bottom-nav [data-go]").evaluateAll((nodes) => nodes.map((n) => n.dataset.go)), [

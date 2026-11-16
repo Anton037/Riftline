@@ -1,12 +1,38 @@
-// Touch sticks and action buttons. Keyboard, mouse and gamepads do not control a run.
+// Keyboard, mouse, and touch input (Input).
 
 import { RL_RT } from "../core/diagnostics.js";
 import { clamp } from "../core/util.js";
+import { game } from "../main.js";
+import { getById } from "./ui.js";
+
+function initialTouchInput() {
+  if (typeof matchMedia !== "function") return false;
+  return (
+    matchMedia("(pointer: coarse)").matches ||
+    (matchMedia("(any-pointer: coarse)").matches && !matchMedia("(pointer: fine)").matches)
+  );
+}
+
+// The active input mode (touch vs keyboard/mouse), used for hints and PC badges.
+const RL_INPUT = { touch: initialTouchInput() };
+
+function setTouchInput(touch) {
+  RL_INPUT.touch = !!touch;
+  if (typeof document !== "undefined" && document.body) {
+    document.body.classList.toggle("input-touch", RL_INPUT.touch);
+  }
+}
+
+setTouchInput(RL_INPUT.touch);
+
 const Input = class {
-  constructor(layer) {
+  constructor(layer, renderer) {
     this.layer = layer;
+    this.r = renderer;
     this.move = newStick();
     this.aim = newStick();
+    this.keys = new Set();
+    this.mouse = { x: 0, y: 0, down: false, active: false, t: 0 };
     this.pending = { dash: false, nova: false, gadget: false };
     this.R = 56;
     // the stick size of the player (times the default radius) and, with a fixed move stick, where it sits
@@ -14,8 +40,12 @@ const Input = class {
     this.stickScale = 1;
     this.fixedMove = null;
     this.enabled = true;
+    this.onPause = null;
+    this.onBlur = null;
+    this.isPlaying = null;
     this.usedMove = false;
     this.usedAim = false;
+    setTouchInput(RL_INPUT.touch);
     this.bind();
   }
   bind() {
@@ -28,14 +58,29 @@ const Input = class {
     layer.addEventListener("pointercancel", (ev) => this.cancel(ev));
     layer.addEventListener("lostpointercapture", (ev) => this.cancel(ev));
     layer.addEventListener("contextmenu", (ev) => ev.preventDefault());
+    window.addEventListener("keydown", (ev) => this.key(ev, true));
+    window.addEventListener("keyup", (ev) => this.key(ev, false));
     window.addEventListener("blur", () => {
-      this.reset();
+      this.reset(true);
       if (this.onBlur) {
         this.onBlur();
       }
     });
+    window.addEventListener("mousemove", (ev) => {
+      if (Number.isFinite(ev.clientX)) {
+        this.mouse.x = ev.clientX;
+      }
+      if (Number.isFinite(ev.clientY)) {
+        this.mouse.y = ev.clientY;
+      }
+      this.mouse.t = performance.now();
+    });
+    window.addEventListener("mouseup", (ev) => {
+      if (ev.button === 0 || (ev.buttons & 1) === 0) {
+        this.mouse.down = false;
+      }
+    });
   }
-
   zoneIsMove(x) {
     let rect = this.layer.getBoundingClientRect(),
       middle = rect.left + (rect.width || this.layer.clientWidth || window.innerWidth) * 0.5;
@@ -43,8 +88,19 @@ const Input = class {
   }
   down(ev) {
     RL_RT.pointerdown++;
-    if (!this.enabled || ev.pointerType !== "touch") return;
+    if (ev.isTrusted && (ev.pointerType !== "mouse" || ev.button === 0)) setTouchInput(ev.pointerType !== "mouse");
+    if (!this.enabled) return;
     ev.preventDefault();
+    if (ev.pointerType === "mouse") {
+      if (ev.button === 0) {
+        this.mouse.down = true;
+        this.mouse.active = true;
+      }
+      if (Number.isFinite(ev.clientX)) this.mouse.x = ev.clientX;
+      if (Number.isFinite(ev.clientY)) this.mouse.y = ev.clientY;
+      this.mouse.t = performance.now();
+      return;
+    }
     let isMove = this.zoneIsMove(ev.clientX),
       stick = isMove ? this.move : this.aim;
     if (stick.active && stick.id !== ev.pointerId) {
@@ -54,7 +110,7 @@ const Input = class {
         this.layer.releasePointerCapture(stick.id);
       } catch {}
     }
-    // Dash belongs to its button, not a second tap on the movement stick.
+    // Dash belongs to its button/keys, not a second tap on the movement stick.
     let now = performance.now();
     stick.active = true;
     stick.id = ev.pointerId;
@@ -75,7 +131,18 @@ const Input = class {
   }
   moveEv(ev) {
     RL_RT.pointermove++;
-    if (ev.pointerType !== "touch") return;
+    if (ev.pointerType === "mouse") {
+      if (Number.isFinite(ev.clientX)) {
+        this.mouse.x = ev.clientX;
+      }
+      if (Number.isFinite(ev.clientY)) {
+        this.mouse.y = ev.clientY;
+      }
+      this.mouse.active = true;
+      this.mouse.t = performance.now();
+      if (ev.isTrusted) setTouchInput(false);
+      return;
+    }
     let coalesced = ev.getCoalescedEvents ? ev.getCoalescedEvents() : null,
       last = coalesced && coalesced.length ? coalesced[coalesced.length - 1] : ev,
       x = Number.isFinite(last.clientX) ? last.clientX : ev.clientX,
@@ -94,7 +161,12 @@ const Input = class {
   }
   up(ev) {
     RL_RT.pointerup++;
-    if (ev.pointerType !== "touch") return;
+    if (ev.pointerType === "mouse") {
+      if (ev.button === 0 || (ev.buttons & 1) === 0) {
+        this.mouse.down = false;
+      }
+      return;
+    }
     for (let stick of [this.move, this.aim]) {
       if (!(!stick.active || stick.id !== ev.pointerId)) {
         stick.active = false;
@@ -103,10 +175,87 @@ const Input = class {
   }
   cancel(ev) {
     RL_RT.pointercancel++;
-    if (ev.pointerType !== "touch") return;
+    if (ev.pointerType === "mouse") {
+      this.mouse.down = false;
+      this.mouse.active = false;
+      return;
+    }
     for (let stick of [this.move, this.aim]) {
       if (!(!stick.active || stick.id !== ev.pointerId)) {
         stick.active = false;
+      }
+    }
+  }
+  key(ev, down) {
+    if (down && (ev.ctrlKey || ev.metaKey || ev.altKey)) return;
+    // Letters are read by their physical position (ev.code), so WASD, E, Q, F and G stay consistent across layouts.
+    const code = String(ev.code || ""),
+      key = /^Key[A-Z]$/.test(code) ? code.slice(3).toLowerCase() : String(ev.key || ""),
+      name = key.toLowerCase();
+    this._rlKey = name;
+    const tag = ev.target && ev.target.tagName;
+    if (down && !ev.repeat && tag !== "INPUT" && tag !== "TEXTAREA" && (chooseKey(code, name) || overKey(code, name))) {
+      ev.preventDefault();
+      return;
+    }
+    const dialogOpen = typeof document !== "undefined" && document.getElementById("dialog")?.hidden === false;
+    if (
+      down &&
+      !ev.repeat &&
+      name === "escape" &&
+      ((tag === "INPUT" && /^(checkbox|range|radio)$/.test(ev.target.type)) ||
+        (dialogOpen && (tag === "INPUT" || tag === "TEXTAREA")))
+    ) {
+      ev.target.blur();
+      if (this.onPause) {
+        this.onPause();
+      }
+      return;
+    }
+    if (down) {
+      RL_RT.keydown++;
+    } else {
+      RL_RT.keyup++;
+    }
+    if (!name) return;
+    // Released keys always clear, even when a text field holds focus.
+    if (!down) {
+      this.keys.delete(name);
+    }
+    if (!(tag === "INPUT" || tag === "TEXTAREA")) {
+      if (down && ev.isTrusted) {
+        setTouchInput(false);
+      }
+      if (down && (name === "escape" || name === "p")) {
+        if (!ev.repeat && this.onPause) {
+          ev.preventDefault();
+          this.onPause();
+        }
+        return;
+      }
+      if (name === " " && this.isPlaying && this.isPlaying()) {
+        ev.preventDefault();
+      }
+      if (down && !ev.repeat && (name === " " || name === "shift")) {
+        this.pending.dash = true;
+      }
+      if (down && !ev.repeat && (name === "e" || name === "q" || name === "f")) {
+        this.pending.nova = true;
+        ev.preventDefault();
+      }
+      if (down && !ev.repeat && name === "g") {
+        this.pending.gadget = true;
+        ev.preventDefault();
+      }
+      if (["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(name)) {
+        if (down) {
+          this.keys.add(name);
+        } else {
+          this.keys.delete(name);
+        }
+        if (down && !(ev.target && ev.target.closest && ev.target.closest(".scroll, .cards, .center-col"))) {
+          ev.preventDefault();
+        }
       }
     }
   }
@@ -115,8 +264,8 @@ const Input = class {
       this.pending[action] = true;
     }
   }
-  // Release each touch owner on pause, orientation changes and backgrounding.
-  reset() {
+  // Held keyboard movement survives soft resets (pause, upgrade choice, resize); pass `all` when focus/visibility drops.
+  reset(all) {
     RL_RT.reset++;
     for (let stick of [this.move, this.aim])
       if (stick.active && stick.id >= 0)
@@ -125,11 +274,16 @@ const Input = class {
         } catch {}
     this.move.active = false;
     this.aim.active = false;
+    if (all) {
+      this.keys.clear();
+    }
+    this.mouse.down = false;
+    this.mouse.active = false;
     this.pending.dash = false;
     this.pending.nova = false;
     this.pending.gadget = false;
   }
-  // Drop one-shot actions during a boss camera pan, but keep held sticks.
+  // Drop one-shot actions during a boss camera pan, but keep held sticks and keys.
   settle() {
     this.pending.dash = false;
     this.pending.nova = false;
@@ -155,6 +309,23 @@ const Input = class {
         this.usedMove = true;
       }
     }
+    let keys = this.keys;
+    if (keys.has("a") || keys.has("arrowleft")) {
+      mx -= 1;
+      this.usedMove = true;
+    }
+    if (keys.has("d") || keys.has("arrowright")) {
+      mx += 1;
+      this.usedMove = true;
+    }
+    if (keys.has("w") || keys.has("arrowup")) {
+      my -= 1;
+      this.usedMove = true;
+    }
+    if (keys.has("s") || keys.has("arrowdown")) {
+      my += 1;
+      this.usedMove = true;
+    }
     let ax = 0,
       ay = 0,
       aim = false,
@@ -169,6 +340,31 @@ const Input = class {
         ay = dy / dist;
         aim = true;
         this.usedAim = true;
+      }
+    }
+    let mouseRecent = performance.now() - this.mouse.t < 2500;
+    if (
+      !aim &&
+      world &&
+      this.r &&
+      (this.mouse.down ||
+        (mouseRecent && this.mouse.active && !this.move.active && !this.aim.active && !settings.autoFire))
+    ) {
+      let ground = this.r.groundAt(this.mouse.x, this.mouse.y);
+      if (ground) {
+        let dx = ground.x - world.player.x,
+          dy = ground.y - world.player.y,
+          dist = Math.hypot(dx, dy);
+        if (dist > 0.3) {
+          ax = dx / dist;
+          ay = dy / dist;
+          aim = true;
+          if (this.mouse.down) this.usedAim = true;
+        }
+      }
+      fire = this.mouse.down;
+      if (!fire) {
+        aim = false;
       }
     }
     let out = {
@@ -190,8 +386,40 @@ const Input = class {
     return out;
   }
 };
+function chooseKey(code, key) {
+  if (!game.chooseShown || game.overShown || !getById("dialog").hidden || getById("choose").hidden) return false;
+  const match = /^(?:Digit|Numpad)([1-4])$/.exec(code) || /^([1-4])$/.exec(key);
+  if (match) {
+    const card = getById("cards").querySelectorAll("[data-pick]")[+match[1] - 1];
+    if (card && !getById("cards").classList.contains("locked")) {
+      if (getById("cards").classList.contains("banishing")) game.banish(card.dataset.pick);
+      else game.choose(card.dataset.pick);
+    }
+    return true;
+  }
+  if (key === "b") {
+    const btn = getById("banishBtn");
+    if (btn && !btn.hidden && !btn.disabled) btn.click();
+    return true;
+  }
+  if (key === "r") {
+    if (!getById("rerollBtn").disabled) {
+      game.reroll();
+    }
+    return true;
+  }
+  return false;
+}
+function overKey(code, key) {
+  if (key !== "r") return false;
+  if (!game.overShown || getById("over").hidden || !getById("dialog").hidden) return false;
+  const endless = getById("endlessBtn"),
+    btn = !endless.hidden ? endless : getById("retryBtn");
+  if (btn && !btn.hidden && !btn.disabled) btn.click();
+  return true;
+}
 function newStick() {
   return { active: false, id: -1, ox: 0, oy: 0, x: 0, y: 0, t: 0 };
 }
 
-export { Input };
+export { Input, RL_INPUT, setTouchInput };

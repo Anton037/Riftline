@@ -22,7 +22,7 @@ import {
   logError,
 } from "./core/diagnostics.js";
 import { GameUI, RL_TOUCH_CLICK_GUARD, getById, rlBiomeTitle, escapeHtml } from "./ui/ui.js";
-import { Input } from "./ui/input.js";
+import { Input, RL_INPUT } from "./ui/input.js";
 import { HudEditor, applyHudLayout, fitHudLayout, fixedStickCenter } from "./ui/hud-layout.js";
 import { SoundEngine } from "./audio/sound.js";
 import {
@@ -283,7 +283,7 @@ if (window.visualViewport) {
   );
 }
 const overlay = new Overlay(elementById("ov")),
-  input = new Input(elementById("touch")),
+  input = new Input(elementById("touch"), renderer),
   game = {
     store: store,
     sound: sound,
@@ -324,6 +324,7 @@ const overlay = new Overlay(elementById("ov")),
         started = false;
       }
       if (started) {
+        document.activeElement?.blur?.();
         this.mode = "game";
         this.paused = false;
         this.chooseShown = false;
@@ -379,6 +380,7 @@ const overlay = new Overlay(elementById("ov")),
     choose(index) {
       let world = this.world;
       if (!(!world || !world.choose(index))) {
+        document.activeElement?.blur?.();
         this.chooseShown = false;
         ui.hideChoose();
         input.reset();
@@ -424,6 +426,7 @@ const overlay = new Overlay(elementById("ov")),
     resume() {
       // Do not resume behind the portrait rotation prompt.
       if (this.paused && !needsRotate()) {
+        document.activeElement?.blur?.();
         this.paused = false;
         ui.hidePause();
         input.reset();
@@ -453,6 +456,7 @@ const overlay = new Overlay(elementById("ov")),
     endless() {
       let world = this.world;
       if (!(!world || world.state !== "victory")) {
+        document.activeElement?.blur?.();
         ui.hideOver();
         this.overShown = false;
         // the counters and the clock of the Endless part start again (World.enterEndless, shared with the tests)
@@ -741,6 +745,33 @@ input.onBlur = () => {
     game.pause();
   }
 };
+input.isPlaying = () => game.mode === "game" && !game.paused && !game.chooseShown && !game.overShown;
+input.onPause = () => {
+  if (!getById("dialog").hidden) {
+    ui.closeDialog(null);
+    return;
+  }
+  // Esc leaves the button layout editor without saving (P, the other pause key, must not throw the edits away)
+  if (hudEditor.isOpen) {
+    if (input._rlKey === "escape") hudEditor.close(false);
+    return;
+  }
+  // 2.4.2 Esc: back in menu pages; from settings opened in the pause menu back to the pause menu
+  if (ui.rlFromPause) return ui.back();
+  if (game.mode === "menu") {
+    if (input._rlKey === "escape" && ["workshop", "records", "news", "settings"].includes(ui.screen)) {
+      ui.back();
+    }
+    return;
+  }
+  if (game.mode === "game") {
+    if (game.paused) {
+      game.resume();
+    } else {
+      game.pause();
+    }
+  }
+};
 /* 3.58.0: the motion preference of the device. index.html already stops the CSS animations; the camera shake
    and the weapon recoil are three.js, so they read the flag here. 3.57.0's note promised this and the code
    never asked, so a reduced-motion player still got a shaking camera. */
@@ -764,9 +795,7 @@ function applySettings() {
   }
 }
 let loopFrameId = 0,
-  frameErrorCount = 0,
-  dimFrameCounter = 0,
-  menuFrame = 0;
+  frameErrorCount = 0;
 /* 3.11.0: Riftline plays in landscape on phones and tablets. index.html sets needs-rotate on <body> while such a
    device is held upright (the rotate screen). Where the browser allows it (an installed app, Android in full screen)
    the screen is also locked to landscape when a run starts; elsewhere the lock is refused and nothing happens. */
@@ -888,15 +917,10 @@ function runFrame(dt) {
     // (game.noInterp: the full-QA section smooth compares with and without)
     if (game.interpWorld === world && !game.noInterp) interpApply(game.acc / rlStep);
     try {
-      if (renderer) {
-        let dimmed = game.chooseShown || game.overShown;
-        if (!dimmed || (dimFrameCounter = (dimFrameCounter + 1) % 3) === 0) {
-          renderer.frame(dimmed ? dt * 3 : dt, world);
-        }
-      }
+      if (renderer) renderer.frame(dt, world);
       if (renderer && !(game.chooseShown || game.overShown)) {
-        // Touch hints are shown only during the opening tutorial.
-        let hints = !!game.tut && game.tut.step <= 1;
+        // Touch hints are shown only during the opening tutorial for touch input.
+        let hints = !!game.tut && game.tut.step <= 1 && RL_INPUT.touch;
         overlay.draw(renderer, world, input, { hints: hints, dt: dt, safe: safeAreaInsets() });
       } else overlay.clear();
     } finally {
@@ -919,7 +943,7 @@ function runFrame(dt) {
       game.endRun(true);
     }
   } else {
-    if (renderer && (menuFrame = (menuFrame + 1) & 1) === 0) {
+    if (renderer) {
       renderer.frame(dt, null, { menu: true, weapon: game.previewW, biome: biomeList[menuBiomeIndex()] });
     }
     overlay.clear();
@@ -1045,16 +1069,28 @@ function handleWorldEvents(world) {
         // 3.1.0: the boss track starts when the boss appears (case "boss"), until then the calm theme plays
         sound.setMusic("fight", biome.id);
         if (ev.n === 2) {
-          showTipOnce("dash", "Tip: DASH makes you untouchable for a moment.");
+          showTipOnce(
+            "dash",
+            rlKeys()
+              ? "Tip: SPACE dashes \u2014 it makes you untouchable for a moment."
+              : "Tip: DASH makes you untouchable for a moment.",
+          );
         }
         if (ev.n === 4) {
           showTipOnce(
             "singularity",
-            "Tip: tap the gadget button to throw a Singularity at the thickest crowd. Hold the aim side to pick the spot.",
+            rlKeys()
+              ? "Tip: G throws a Singularity at the thickest crowd: it pulls them together, then collapses. Charges refill."
+              : "Tip: tap the gadget button to throw a Singularity at the thickest crowd. Hold the aim side to pick the spot.",
           );
         }
         if (ev.n === 3) {
-          showTipOnce("aim", "Tip: drag the right side to aim yourself. Holding it fires at the nearest enemy.");
+          showTipOnce(
+            "aim",
+            rlKeys()
+              ? "Tip: hold the left mouse button to aim and fire at the cursor."
+              : "Tip: drag the right side to aim yourself. Holding it fires at the nearest enemy.",
+          );
         }
         break;
       }
@@ -1087,7 +1123,12 @@ function handleWorldEvents(world) {
         }
         break;
       case "novaReady":
-        showTipOnce("nova", "NOVA is charged \u2014 tap it to blast everything around you.");
+        showTipOnce(
+          "nova",
+          rlKeys()
+            ? "NOVA is charged \u2014 press E to blast everything around you."
+            : "NOVA is charged \u2014 tap it to blast everything around you.",
+        );
         break;
       case "cleared":
         ui.banner(ev.boss ? "BOSS DOWN" : "CLEARED", ev.flawless ? "Flawless" : `Wave ${ev.n}`, "good", 1500);
@@ -1281,12 +1322,19 @@ function updateHeartbeat(dt, world) {
     sound.play("heart");
   }
 }
-const tutorialTexts = [
-  () => "Drag anywhere on the left side to move.",
-  () => "Enemies! Your drone fires on its own \u2014 drag the right side to aim yourself.",
-  () => "Tap DASH to dodge through danger.",
-  () => "Grab the shards \u2014 they buy permanent upgrades in the Workshop.",
-];
+const // 2.3.4: keyboard/mouse players got the touch texts ("drag the left side"), which do nothing
+  // with a mouse, and the keys were explained nowhere. Every step now has both wordings and
+  // follows the input in use (the coach re-reads the text every frame).
+  rlKeys = () => !RL_INPUT.touch,
+  tutorialTexts = [
+    () => (rlKeys() ? "Move with W A S D or the arrow keys." : "Drag anywhere on the left side to move."),
+    () =>
+      rlKeys()
+        ? "Enemies! Your drone fires on its own \u2014 hold the left mouse button to aim yourself."
+        : "Enemies! Your drone fires on its own \u2014 drag the right side to aim yourself.",
+    () => (rlKeys() ? "Press SPACE to dash through danger." : "Tap DASH to dodge through danger."),
+    () => "Grab the shards \u2014 they buy permanent upgrades in the Workshop.",
+  ];
 function updateTutorial(dt, world) {
   let tut = game.tut;
   if (tut) {
@@ -1364,8 +1412,8 @@ document.addEventListener("visibilitychange", () => {
     if (game.mode === "game") {
       game.pause();
     }
-    // Backgrounding can lose pointer cancellation events on mobile browsers.
-    input.reset();
+    // 3.46.0: keyups can be lost on backgrounding, so reset(true) forgets held keys.
+    input.reset(true);
     store.save("hidden");
     sound.suspend();
   } else {
@@ -1374,11 +1422,11 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 window.addEventListener("pagehide", () => {
-  input.reset();
+  input.reset(true);
   store.save("pagehide");
 });
 window.addEventListener("pageshow", () => {
-  input.reset();
+  input.reset(true);
   _scheduleResize("pageshow");
 });
 const unlockAudio = () => {

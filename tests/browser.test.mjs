@@ -1,8 +1,20 @@
-// Full tablet touch flow and a focused landscape phone multitouch check.
+// Desktop (keyboard + mouse), tablet touch, and landscape phone multitouch E2E flows.
 // Pixels are optional (--draw); the real simulation, renderer/shader setup, DOM and input handlers run.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { openGame } from "./support/game.mjs";
+
+const visible = (page, id) =>
+  page.waitForFunction((id) => {
+    const e = document.getElementById(id);
+    return e && !e.hidden;
+  }, id);
+
+const hidden = (page, id) =>
+  page.waitForFunction((id) => {
+    const e = document.getElementById(id);
+    return !e || e.hidden;
+  }, id);
 
 for (const tablet of [true, false])
   test(
@@ -12,11 +24,6 @@ for (const tablet of [true, false])
       const started = performance.now();
       const { page, press, errors, stopServer } = await openGame(t, tablet);
       const phase = (name) => t.diagnostic(`${name}: ${((performance.now() - started) / 1000).toFixed(1)} s`);
-      const visible = (id) =>
-        page.waitForFunction((id) => {
-          const e = document.getElementById(id);
-          return e && !e.hidden;
-        }, id);
       if (tablet) {
         const health = await page.evaluate(() => window.__riftTest.health({ context: "browser-test" }));
         assert.deepEqual(
@@ -25,7 +32,7 @@ for (const tablet of [true, false])
           "Startup health checks must pass",
         );
         await press('[data-go="settings"]');
-        await visible("settings");
+        await visible(page, "settings");
         await page.evaluate(() => {
           const renderer = window.__riftTest.renderer.renderer,
             original = renderer.setSize;
@@ -91,12 +98,12 @@ for (const tablet of [true, false])
         assert.equal(updateState.text, '{"game":"riftline","v":1,"shards":123}');
         await press("#dlgBtns button");
         await press("#settings [data-back]");
-        await visible("home");
+        await visible(page, "home");
         phase("boot and settings");
       }
 
       await press("#playBtn");
-      await visible("hud");
+      await visible(page, "hud");
       await page.waitForFunction(() => window.__riftTest.game.world?.time > 0.1);
       const start = await page.evaluate(() => {
         const w = window.__riftTest.game.world;
@@ -107,11 +114,12 @@ for (const tablet of [true, false])
       const ignored = await page.evaluate(() => {
         const input = window.__riftTest.game.input;
         for (const id of ["dashBtn", "novaBtn", "gadgetBtn"])
-          for (const pointerType of ["mouse", "pen"])
-            document.getElementById(id).dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerType }));
-        return { ...input.pending };
+          document
+            .getElementById(id)
+            .dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerType: "mouse", button: 2 }));
+        return { ...input.pending, touch: document.body.classList.contains("input-touch") };
       });
-      assert.deepEqual(ignored, { dash: false, nova: false, gadget: false });
+      assert.deepEqual(ignored, { dash: false, nova: false, gadget: false, touch: true });
       await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: 160, y: 260, id: 1 }] });
       await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: 220, y: 230, id: 1 }] });
       try {
@@ -145,7 +153,7 @@ for (const tablet of [true, false])
       if (tablet) await press("#dashBtn");
       await page.waitForFunction((p) => window.__riftTest.game.world.runStats.dashes > p.dashes, start);
       await press("#pauseBtn");
-      await visible("pause");
+      await visible(page, "pause");
       assert.equal(await page.evaluate(() => window.__riftTest.game.paused), true);
       await press("#resumeBtn");
       await page.waitForFunction(() => !window.__riftTest.game.paused);
@@ -166,8 +174,8 @@ for (const tablet of [true, false])
         w.championPending = null;
         for (const e of [...w.enemies]) w.killEnemy(e);
       });
-      await visible("choose");
-      await visible("chooseFirstHint");
+      await visible(page, "choose");
+      await visible(page, "chooseFirstHint");
       await press("#cards:not(.locked) .card");
       await page.waitForFunction(
         () => window.__riftTest.game.world.wave === 2 && document.getElementById("choose").hidden,
@@ -181,7 +189,7 @@ for (const tablet of [true, false])
       await page.context().setOffline(true);
       const offlinePage = await page.reload();
       assert.ok(offlinePage?.fromServiceWorker(), "Offline navigation should come from the service worker");
-      await visible("continueBtn");
+      await visible(page, "continueBtn");
       await press("#continueBtn");
       await page.waitForFunction(
         () => window.__riftTest.game.world?.wave === 2 && !document.getElementById("hud").hidden,
@@ -200,16 +208,233 @@ for (const tablet of [true, false])
         w.hurtPlayer(99999, null, null, "devil", true);
         return hull;
       });
-      await visible("over");
-      await visible("overCause");
+      await visible(page, "over");
+      await visible(page, "overCause");
       assert.equal(await page.locator("#overCause").textContent(), "Final hit · Dust devil");
       assert.equal(await page.locator("#overRecap .hit.final .hd").textContent(), `−${hullBeforeFinalHit}`);
       assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("riftline.save.v1")).run), null);
       await press("#homeBtn");
-      await visible("home");
+      await visible(page, "home");
       assert.equal(await page.evaluate(() => !!window.__riftTest.game.crashed), false);
       assert.equal(await page.evaluate(() => window.__gamepadReads), 0);
       assert.deepEqual(errors, []);
       phase("death, summary and return home");
     },
   );
+
+test(
+  "desktop player flow (keyboard + mouse)",
+  { timeout: process.env.TEST_DRAW === "1" ? 180000 : 35000 },
+  async (t) => {
+    const { page, press, errors } = await openGame(t, "desktop");
+    const health = await page.evaluate(() => window.__riftTest.health({ context: "browser-desktop" }));
+    assert.deepEqual(
+      health.filter((check) => check.status === "FAIL"),
+      [],
+      "Startup health checks must pass on desktop",
+    );
+    const homeState = await page.evaluate(() => ({
+      desktop: document.body.classList.contains("device-desktop"),
+      touchInput: document.body.classList.contains("input-touch"),
+      audit: window.__riftLayoutAudit(),
+    }));
+    assert.equal(homeState.desktop, true);
+    assert.equal(homeState.touchInput, false);
+    assert.equal(homeState.audit.ok, true, JSON.stringify(homeState.audit.findings));
+
+    await press('[data-go="settings"]');
+    await visible(page, "settings");
+    const settingsCheck = await page.evaluate(() => {
+      const vibTest = document.getElementById("setVibTest").getBoundingClientRect();
+      const vibToggle = document.getElementById("setVibration").getBoundingClientRect();
+      return {
+        vibNote: document.getElementById("vibNote").textContent,
+        sameRow: Math.abs(vibTest.y + vibTest.height / 2 - (vibToggle.y + vibToggle.height / 2)) < 12,
+        sideBySide: vibTest.right <= vibToggle.left + 2,
+        audit: window.__riftLayoutAudit(),
+      };
+    });
+    assert.match(settingsCheck.vibNote, /Vibration is unavailable on this device/i);
+    assert.equal(settingsCheck.sameRow, true);
+    assert.equal(settingsCheck.sideBySide, true);
+    assert.equal(settingsCheck.audit.ok, true, JSON.stringify(settingsCheck.audit.findings));
+
+    await press("#setVibTest");
+    await page.waitForFunction(() => /Nothing here/i.test(document.getElementById("toasts").textContent));
+    await press("#hudEditBtn");
+    await visible(page, "hudEdit");
+    await page.keyboard.press("KeyP");
+    assert.equal(await page.evaluate(() => document.getElementById("hudEdit").hidden), false);
+    await page.keyboard.press("Escape");
+    await hidden(page, "hudEdit");
+    await visible(page, "settings");
+    await page.keyboard.press("Escape");
+    await visible(page, "home");
+
+    await press("#playBtn");
+    await visible(page, "hud");
+    await page.waitForFunction(() => window.__riftTest.game.world?.time > 0.1);
+    const hudDesktop = await page.evaluate(() => ({
+      activeTag: document.activeElement?.tagName,
+      dashKey: getComputedStyle(document.querySelector("#dashBtn .key")).display !== "none",
+      novaKey: getComputedStyle(document.querySelector("#novaBtn .key")).display !== "none",
+      gadgetKey: getComputedStyle(document.getElementById("gadgetKey")).display !== "none",
+      cursor: getComputedStyle(document.getElementById("touch")).cursor,
+      touchInput: document.body.classList.contains("input-touch"),
+      audit: window.__riftLayoutAudit(),
+    }));
+    assert.equal(hudDesktop.activeTag, "BODY");
+    assert.equal(hudDesktop.dashKey, true);
+    assert.equal(hudDesktop.novaKey, true);
+    assert.equal(hudDesktop.gadgetKey, true);
+    assert.equal(hudDesktop.cursor, "crosshair");
+    assert.equal(hudDesktop.touchInput, false);
+    assert.equal(hudDesktop.audit.ok, true, JSON.stringify(hudDesktop.audit.findings));
+
+    // Modifier combos must pass through to browser shortcuts cleanly.
+    await page.keyboard.press("Control+KeyP");
+    await page.keyboard.press("Control+Space");
+    const modCheck = await page.evaluate(() => ({
+      paused: window.__riftTest.game.paused,
+      dash: window.__riftTest.game.input.pending.dash,
+    }));
+    assert.deepEqual(modCheck, { paused: false, dash: false });
+
+    const start = await page.evaluate(() => {
+      const w = window.__riftTest.game.world;
+      w.god = true;
+      return { x: w.player.x, y: w.player.y, dashes: w.runStats.dashes };
+    });
+
+    // WASD + Arrow keys movement
+    await page.keyboard.down("KeyD");
+    await page.waitForFunction((p) => window.__riftTest.game.world.player.x > p.x + 1.2, start);
+    await page.keyboard.up("KeyD");
+    const afterRight = await page.evaluate(() => window.__riftTest.game.world.player.x);
+    await page.keyboard.down("ArrowLeft");
+    await page.waitForFunction((x) => window.__riftTest.game.world.player.x < x - 0.8, afterRight);
+    await page.keyboard.up("ArrowLeft");
+
+    // Mouse LMB raycast aim & fire, plus right-click ignored
+    await page.evaluate(() => {
+      window.__riftTest.store.data.settings.autoFire = false;
+    });
+    const aimPoint = await page.evaluate(() => ({
+      x: Math.round(innerWidth * 0.8),
+      y: Math.round(innerHeight * 0.45),
+    }));
+    await page.mouse.move(aimPoint.x, aimPoint.y);
+    await page.mouse.down({ button: "left" });
+    await page.waitForFunction(() => {
+      const p = window.__riftTest.game.world.player;
+      return p.manual && p.firing && Math.abs(Math.atan2(Math.sin(p.aim), Math.cos(p.aim))) < 0.35;
+    });
+    await page.mouse.up({ button: "left" });
+    await page.mouse.click(aimPoint.x, aimPoint.y, { button: "right" });
+    const afterMouse = await page.evaluate(() => {
+      window.__riftTest.store.data.settings.autoFire = true;
+      const g = window.__riftTest.game;
+      return { down: g.input.mouse.down, dash: g.input.pending.dash };
+    });
+    assert.deepEqual(afterMouse, { down: false, dash: false });
+
+    // Left-click #dashBtn blurs focus so Space works right after; then test E nova and G singularity.
+    await press("#dashBtn");
+    await page.waitForFunction((d) => window.__riftTest.game.world.runStats.dashes > d, start.dashes);
+    assert.equal(await page.evaluate(() => document.activeElement?.id || "BODY"), "BODY");
+    const dashCount = await page.evaluate(() => {
+      const w = window.__riftTest.game.world;
+      w.player.dashT = 0;
+      w.player.dashCdT = 0;
+      return w.runStats.dashes;
+    });
+    await page.keyboard.press("Space");
+    await page.waitForFunction((d) => window.__riftTest.game.world.runStats.dashes > d, dashCount);
+
+    await page.evaluate(() => {
+      const w = window.__riftTest.game.world;
+      w.player.nova = 100;
+      if (w.player.gadgetN < 1) w.player.gadgetN = 1;
+      w.spawnEnemy("grunt", w.player.x + 4, w.player.y, {});
+    });
+    await page.keyboard.press("KeyE");
+    await page.waitForFunction(() => window.__riftTest.game.world.player.nova < 100);
+    const preGadget = await page.evaluate(() => window.__riftTest.game.world.player.gadgetN);
+    await page.keyboard.press("KeyG");
+    await page.waitForFunction((n) => window.__riftTest.game.world.player.gadgetN < n, preGadget);
+
+    // Esc pauses, Pause -> Settings -> Esc returns to Pause, P resumes
+    await page.keyboard.press("Escape");
+    await visible(page, "pause");
+    await press("#pauseSetBtn");
+    await visible(page, "settings");
+    assert.equal(await page.evaluate(() => document.getElementById("settings").classList.contains("in-run")), true);
+    await page.keyboard.press("Escape");
+    await hidden(page, "settings");
+    await visible(page, "pause");
+    await page.keyboard.press("KeyP");
+    await hidden(page, "pause");
+    assert.equal(await page.evaluate(() => window.__riftTest.game.paused), false);
+
+    // Wave clear -> key badges, R reroll, B banish + 1 banish pick, 2 upgrade pick
+    await page.evaluate(() => {
+      const w = window.__riftTest.game.world;
+      w.rerolls = 2;
+      w.banishes = 1;
+      w.ws.banish = 1;
+      w.planIdx = w.plan.length;
+      w.markers.length = 0;
+      w.bossPending = null;
+      w.championPending = null;
+      for (const e of [...w.enemies]) w.killEnemy(e);
+    });
+    await visible(page, "choose");
+    await page.locator("#cards:not(.locked)").waitFor();
+    const chooseBadges = await page.evaluate(() => ({
+      cards: [...document.querySelectorAll("#cards .card-key")].map((el) => el.textContent),
+      banish: document.querySelector("#banishBtn .card-key")?.textContent,
+      reroll: document.querySelector("#rerollBtn .card-key")?.textContent,
+      audit: window.__riftLayoutAudit(),
+    }));
+    assert.deepEqual(chooseBadges.cards, ["1", "2", "3"]);
+    assert.equal(chooseBadges.banish, "B");
+    assert.equal(chooseBadges.reroll, "R");
+    assert.equal(chooseBadges.audit.ok, true, JSON.stringify(chooseBadges.audit.findings));
+
+    await page.keyboard.press("KeyR");
+    await page.waitForFunction(() => window.__riftTest.game.world.rerolls === 1);
+    await page.keyboard.press("KeyB");
+    await page.waitForFunction(() => document.getElementById("cards").classList.contains("banishing"));
+    await page.locator("#cards:not(.locked)").waitFor();
+    await page.keyboard.press("Digit1");
+    await page.waitForFunction(
+      () =>
+        window.__riftTest.game.world.banishes === 0 &&
+        !document.getElementById("cards").classList.contains("banishing"),
+    );
+    await page.locator("#cards:not(.locked)").waitFor();
+    await page.keyboard.press("Digit2");
+    await page.waitForFunction(
+      () => window.__riftTest.game.world.wave === 2 && document.getElementById("choose").hidden,
+    );
+
+    // End screen R badge & R retry
+    await page.evaluate(() => {
+      const w = window.__riftTest.game.world;
+      w.god = false;
+      w.player.iT = 0;
+      w.player.dashT = 0;
+      w.player.shield = false;
+      w.hurtPlayer(99999, null, null, "devil", true);
+    });
+    await visible(page, "over");
+    assert.equal(await page.locator("#retryBtn .card-key").textContent(), "R");
+    await page.keyboard.press("KeyR");
+    await hidden(page, "over");
+    await visible(page, "hud");
+    await page.waitForFunction(() => window.__riftTest.game.world?.wave === 1);
+
+    assert.equal(await page.evaluate(() => window.__gamepadReads), 0);
+    assert.deepEqual(errors, []);
+  },
+);

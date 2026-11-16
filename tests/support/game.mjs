@@ -3,7 +3,15 @@ import { chromium } from "playwright";
 import { serve } from "../../tools/serve.js";
 import { launchArgs } from "../../tools/browser.js";
 import { fileURLToPath } from "node:url";
-export async function openGame(t, tablet, { fresh = false, audio = false } = {}) {
+export async function openGame(t, mode, { fresh = false, audio = false, dpr = 1, viewport } = {}) {
+  const profile = mode === true ? "tablet" : mode === false ? "phone" : mode || "phone";
+  const isDesktop = profile === "desktop";
+  const defaultViewport =
+    profile === "desktop"
+      ? { width: 1280, height: 720 }
+      : profile === "tablet"
+        ? { width: 1024, height: 768 }
+        : { width: 844, height: 390 };
   const draw = process.env.TEST_DRAW === "1";
   const { server, url } = await serve(fileURLToPath(new URL("../../dist/", import.meta.url)), 0);
   const stopServer = () => {
@@ -25,9 +33,10 @@ export async function openGame(t, tablet, { fresh = false, audio = false } = {})
     { once: true },
   );
   const context = await browser.newContext({
-    viewport: tablet ? { width: 1024, height: 768 } : { width: 844, height: 390 },
-    hasTouch: true,
-    isMobile: true,
+    viewport: viewport || defaultViewport,
+    deviceScaleFactor: dpr,
+    hasTouch: !isDesktop,
+    isMobile: !isDesktop,
   });
   await context.addInitScript(
     ({ draw, fresh, audio }) => {
@@ -86,6 +95,6 @@ export async function openGame(t, tablet, { fresh = false, audio = false } = {})
     page,
     errors,
     stopServer,
-    press: (selector) => page.locator(selector).first().tap(),
+    press: (selector) => (isDesktop ? page.locator(selector).first().click() : page.locator(selector).first().tap()),
   };
 }
