@@ -11,7 +11,8 @@ import { waveEvents } from "../core/waves.js";
 import { milestones, workshopModules, threatLevels } from "../data/progression.js";
 import { upgradeList, rarityNames, upgradesById } from "../data/upgrades.js";
 import { computeStats, weaponRange, buildStatRows } from "../core/stats.js";
-import { rumble, hapticMode } from "./haptics.js";
+import { RL_INPUT, setTouchInput } from "./input.js";
+import { hapticMode, rumble } from "./haptics.js";
 import { WHATS_NEW } from "../data/whatsnew.js";
 import { MUTATORS } from "../core/mutators.js";
 import { markHomeViewDirty } from "../render/renderer.js";
@@ -250,6 +251,10 @@ const getById = (id) => document.getElementById(id),
       el.addEventListener(
         "pointerdown",
         (ev) => {
+          if (ev.pointerType === "mouse") {
+            if (ev.button === 0 && ev.isTrusted) setTouchInput(false);
+            return;
+          }
           // 3.31.0: a second finger may tap a button when no other touch is on it (pause while a thumb holds a stick;
           // browsers send no click for such a tap). A second finger on a button already pressed does not take it over.
           if ((ev.pointerType === "touch" || ev.pointerType === "pen") && (ev.isPrimary !== false || !touchDown)) {
@@ -270,6 +275,7 @@ const getById = (id) => document.getElementById(id),
             dy = ev.clientY - startY;
           touchDown = 0;
           if (Math.hypot(dx, dy) > 14 || !activate()) return;
+          if (ev.isTrusted) setTouchInput(true);
           ev.preventDefault();
           ev.stopPropagation();
           const now = performance.now();
@@ -322,9 +328,11 @@ const getById = (id) => document.getElementById(id),
       this.click(getById("continueBtn"), () => this.g.startRun({ resume: true }));
       let onPress = (el, action) =>
         el.addEventListener("pointerdown", (ev) => {
-          if (ev.pointerType !== "touch") return;
+          if (ev.pointerType === "mouse" && ev.button !== 0) return;
+          if (ev.isTrusted) setTouchInput(ev.pointerType !== "mouse");
           ev.preventDefault();
           ev.stopPropagation();
+          el.blur?.();
           action();
         });
       onPress(getById("dashBtn"), () => {
@@ -353,7 +361,10 @@ const getById = (id) => document.getElementById(id),
         // the deny flash comes from the simulation's gadgetDeny event (no charge, or outside a fight)
         this.g.input.press("gadget");
       });
-      this.click(getById("pauseBtn"), () => this.g.pause());
+      this.click(getById("pauseBtn"), () => {
+        getById("pauseBtn").blur?.();
+        this.g.pause();
+      });
       this.click(getById("resumeBtn"), () => this.g.resume());
       this.click(getById("abandonBtn"), async () => {
         if (
@@ -530,6 +541,7 @@ const getById = (id) => document.getElementById(id),
           `Best wave ${stats.bestWave}` +
           (stats.clears ? ` \xB7 ${stats.clears} clear${stats.clears > 1 ? "s" : ""}` : "");
       }
+      markHomeViewDirty();
     }
     renderWeapon() {
       let save = this.save,
@@ -576,6 +588,7 @@ const getById = (id) => document.getElementById(id),
       getById("wNext").disabled = this.viewWeapon >= weaponOrder.length - 1;
       this.updatePlayState();
       this.g.previewWeapon(owned ? id : save.weapon);
+      markHomeViewDirty();
     }
     renderThreat() {
       let save = this.save,
@@ -928,6 +941,7 @@ const getById = (id) => document.getElementById(id),
       }
     }
     showHud(on) {
+      if (on) document.activeElement?.blur?.();
       getById("hud").hidden = !on;
       getById("hud").style.visibility = "";
       getById("vignette").classList.remove("low");
@@ -1271,10 +1285,11 @@ const getById = (id) => document.getElementById(id),
       box.innerHTML = chips.map(([text, cls]) => `<span class="nw ${cls}">${escapeHtml(text)}</span>`).join("");
     }
     renderCards(world) {
-      // 2.4.2: the reroll label survives a re-render (reroll), so drop its old key hint first
-      getById("rerollBtn")
-        .querySelectorAll(".card-key")
-        .forEach((el) => el.remove());
+      // 2.4.2: the reroll/banish labels survive a re-render, so drop their old key hints first
+      for (const id of ["rerollBtn", "banishBtn"])
+        getById(id)
+          .querySelectorAll(".card-key")
+          .forEach((el) => el.remove());
       let cards = getById("cards");
       cards.innerHTML = world.offer
         .map((id, i) => {
@@ -1307,6 +1322,10 @@ const getById = (id) => document.getElementById(id),
             else this.g.choose(card.dataset.pick);
           }
         });
+        // 2.7.0: a soft tick when the mouse moves over a card (touch has no hover)
+        card.addEventListener("pointerenter", (ev) => {
+          if (ev.pointerType === "mouse" && !cards.classList.contains("locked")) this.g.sound.play("hover");
+        });
       }
       // 3.25.0: Banish Protocol: shown when the module is owned (or a banish is left in a resumed run)
       {
@@ -1322,6 +1341,20 @@ const getById = (id) => document.getElementById(id),
       getById("rerollTxt").textContent = `Reroll (${world.rerolls})`;
       getById("rerollBtn").disabled = world.rerolls <= 0;
       getById("buildStrip").innerHTML = this.buildHtml(world);
+      // 2.4.2: keys 1-4 pick/banish a card, B banishes, R rerolls (keyboard players only)
+      if (!RL_INPUT.touch) {
+        cards.querySelectorAll("[data-pick]").forEach((card, i) => {
+          card.classList.add("has-key");
+          card.insertAdjacentHTML("beforeend", `<kbd class="card-key" aria-hidden="true">${i + 1}</kbd>`);
+        });
+        if (!getById("banishBtn").hidden) {
+          getById("banishTxt").insertAdjacentHTML(
+            "afterend",
+            '<kbd class="card-key inline" aria-hidden="true">B</kbd>',
+          );
+        }
+        getById("rerollTxt").insertAdjacentHTML("afterend", '<kbd class="card-key inline" aria-hidden="true">R</kbd>');
+      }
     }
     statDelta(id, world) {
       let player = world.player,
@@ -1488,8 +1521,17 @@ const getById = (id) => document.getElementById(id),
           .map((text) => `<span class="chip">${iconSvg("trophy")} Milestone ready: ${escapeHtml(text)}</span>`)
           .join("");
       this.renderDamage(result);
+      for (const id of ["endlessBtn", "retryBtn"])
+        getById(id)
+          .querySelectorAll(".card-key")
+          .forEach((el) => el.remove());
       getById("endlessBtn").hidden = !result.canEndless;
       getById("retryBtn").hidden = result.canEndless;
+      // 3.45.4: R runs again from the end screen (keyboard players only)
+      if (!RL_INPUT.touch) {
+        const targetBtn = getById(result.canEndless ? "endlessBtn" : "retryBtn");
+        targetBtn.insertAdjacentHTML("beforeend", '<kbd class="card-key inline" aria-hidden="true">R</kbd>');
+      }
       getById("over").hidden = false;
       this.countUp(getById("payTotal"), result.total);
       this.renderRunExtra();

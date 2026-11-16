@@ -2,6 +2,7 @@
 
 import { enemyDefs, bossDefs } from "../data/enemies.js";
 import { clamp } from "../core/util.js";
+import { RL_INPUT } from "../ui/input.js";
 
 const healthBarTypes = {
     brute: 1,
@@ -329,7 +330,7 @@ const healthBarTypes = {
     drawSticks(input, opts) {
       let ctx = this.g;
       // a fixed move stick shows where it waits while no thumb is on it (only for touch play)
-      if (input.fixedMove && !input.move.active) {
+      if (input.fixedMove && !input.move.active && RL_INPUT.touch) {
         let radius = input.radius(),
           center = input.fixedMove(radius);
         ctx.globalAlpha = 0.5;
@@ -346,7 +347,7 @@ const healthBarTypes = {
         ctx.fill();
       }
       for (let stick of [input.move, input.aim]) {
-        if (!stick.active) continue;
+        if (!stick.active || stick.mouse) continue;
         let radius = input.R,
           isAim = stick === input.aim;
         ctx.globalAlpha = 0.9;
