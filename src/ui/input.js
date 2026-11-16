@@ -32,7 +32,7 @@ const Input = class {
     this.move = newStick();
     this.aim = newStick();
     this.keys = new Set();
-    this.mouse = { x: 0, y: 0, down: false, active: false, t: 0 };
+    this.mouse = { x: 0, y: 0, down: false };
     this.pending = { dash: false, nova: false, gadget: false };
     this.R = 56;
     // the stick size of the player (times the default radius) and, with a fixed move stick, where it sits
@@ -73,7 +73,6 @@ const Input = class {
       if (Number.isFinite(ev.clientY)) {
         this.mouse.y = ev.clientY;
       }
-      this.mouse.t = performance.now();
     });
     window.addEventListener("mouseup", (ev) => {
       if (ev.button === 0 || (ev.buttons & 1) === 0) {
@@ -94,11 +93,9 @@ const Input = class {
     if (ev.pointerType === "mouse") {
       if (ev.button === 0) {
         this.mouse.down = true;
-        this.mouse.active = true;
       }
       if (Number.isFinite(ev.clientX)) this.mouse.x = ev.clientX;
       if (Number.isFinite(ev.clientY)) this.mouse.y = ev.clientY;
-      this.mouse.t = performance.now();
       return;
     }
     let isMove = this.zoneIsMove(ev.clientX),
@@ -111,11 +108,9 @@ const Input = class {
       } catch {}
     }
     // Dash belongs to its button/keys, not a second tap on the movement stick.
-    let now = performance.now();
     stick.active = true;
     stick.id = ev.pointerId;
-    stick.moved = 0;
-    stick.lastEv = now;
+    stick.lastEv = performance.now();
     stick.ox = stick.x = ev.clientX;
     stick.oy = stick.y = ev.clientY;
     // a fixed move stick keeps its place; a touch anywhere on the move side steers from its centre
@@ -124,7 +119,6 @@ const Input = class {
       stick.ox = center.x;
       stick.oy = center.y;
     }
-    stick.t = performance.now();
     try {
       this.layer.setPointerCapture(ev.pointerId);
     } catch {}
@@ -138,8 +132,6 @@ const Input = class {
       if (Number.isFinite(ev.clientY)) {
         this.mouse.y = ev.clientY;
       }
-      this.mouse.active = true;
-      this.mouse.t = performance.now();
       if (ev.isTrusted) setTouchInput(false);
       return;
     }
@@ -153,7 +145,6 @@ const Input = class {
       stick.lastEv = performance.now();
       stick.x = x;
       stick.y = y;
-      stick.moved = Math.max(stick.moved || 0, Math.hypot(stick.x - stick.ox, stick.y - stick.oy));
       // 2.6.0: the stick stays where the finger touched down. Before, its centre followed the
       // finger once it was dragged further than 1.25 radii; the knob is clamped when drawn and
       // sample() caps the strength at 1.
@@ -168,7 +159,7 @@ const Input = class {
       return;
     }
     for (let stick of [this.move, this.aim]) {
-      if (!(!stick.active || stick.id !== ev.pointerId)) {
+      if (stick.active && stick.id === ev.pointerId) {
         stick.active = false;
       }
     }
@@ -177,11 +168,10 @@ const Input = class {
     RL_RT.pointercancel++;
     if (ev.pointerType === "mouse") {
       this.mouse.down = false;
-      this.mouse.active = false;
       return;
     }
     for (let stick of [this.move, this.aim]) {
-      if (!(!stick.active || stick.id !== ev.pointerId)) {
+      if (stick.active && stick.id === ev.pointerId) {
         stick.active = false;
       }
     }
@@ -233,19 +223,22 @@ const Input = class {
         }
         return;
       }
-      if (name === " " && this.isPlaying && this.isPlaying()) {
+      const playing = this.enabled && (!this.isPlaying || this.isPlaying());
+      if (name === " " && playing) {
         ev.preventDefault();
       }
-      if (down && !ev.repeat && (name === " " || name === "shift")) {
-        this.pending.dash = true;
-      }
-      if (down && !ev.repeat && (name === "e" || name === "q" || name === "f")) {
-        this.pending.nova = true;
-        ev.preventDefault();
-      }
-      if (down && !ev.repeat && name === "g") {
-        this.pending.gadget = true;
-        ev.preventDefault();
+      if (playing && down && !ev.repeat) {
+        if (name === " " || name === "shift") {
+          this.pending.dash = true;
+        }
+        if (name === "e" || name === "q" || name === "f") {
+          this.pending.nova = true;
+          ev.preventDefault();
+        }
+        if (name === "g") {
+          this.pending.gadget = true;
+          ev.preventDefault();
+        }
       }
       if (["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(name)) {
         if (down) {
@@ -278,7 +271,6 @@ const Input = class {
       this.keys.clear();
     }
     this.mouse.down = false;
-    this.mouse.active = false;
     this.pending.dash = false;
     this.pending.nova = false;
     this.pending.gadget = false;
@@ -342,14 +334,7 @@ const Input = class {
         this.usedAim = true;
       }
     }
-    let mouseRecent = performance.now() - this.mouse.t < 2500;
-    if (
-      !aim &&
-      world &&
-      this.r &&
-      (this.mouse.down ||
-        (mouseRecent && this.mouse.active && !this.move.active && !this.aim.active && !settings.autoFire))
-    ) {
+    if (!aim && world && this.r && this.mouse.down) {
       let ground = this.r.groundAt(this.mouse.x, this.mouse.y);
       if (ground) {
         let dx = ground.x - world.player.x,
@@ -359,13 +344,10 @@ const Input = class {
           ax = dx / dist;
           ay = dy / dist;
           aim = true;
-          if (this.mouse.down) this.usedAim = true;
+          this.usedAim = true;
         }
       }
-      fire = this.mouse.down;
-      if (!fire) {
-        aim = false;
-      }
+      fire = true;
     }
     let out = {
       mx,
@@ -419,7 +401,7 @@ function overKey(code, key) {
   return true;
 }
 function newStick() {
-  return { active: false, id: -1, ox: 0, oy: 0, x: 0, y: 0, t: 0 };
+  return { active: false, id: -1, ox: 0, oy: 0, x: 0, y: 0, lastEv: 0 };
 }
 
 export { Input, RL_INPUT, setTouchInput };

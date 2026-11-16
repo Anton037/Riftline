@@ -347,7 +347,7 @@ const healthBarTypes = {
         ctx.fill();
       }
       for (let stick of [input.move, input.aim]) {
-        if (!stick.active || stick.mouse) continue;
+        if (!stick.active) continue;
         let radius = input.R,
           isAim = stick === input.aim;
         ctx.globalAlpha = 0.9;

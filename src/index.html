@@ -52,7 +52,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--cyan); outl
 .num { font-family: var(--display); font-variant-numeric: tabular-nums; }
 .ico { width: 1.25em; height: 1.25em; flex: none; display: block; }
 
-#app { position: fixed; inset: 0; overflow: hidden; background: var(--ink); }
+#app { position: fixed; inset: 0; overflow: hidden; background: var(--ink); overscroll-behavior: none; }
 #gl, #ov { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 #ov { pointer-events: none; }
 #touch { position: absolute; inset: 0; touch-action: none; z-index: 10; pointer-events: auto; }
@@ -417,7 +417,7 @@ input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border: 0; back
 .build-strip, .build-list { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; max-width: 460px; }
 .bi { display: inline-flex; align-items: center; gap: 4px; padding: 4px 7px; font: 600 12px/1 var(--display); color: var(--text); background: rgba(255, 255, 255, 0.05); border-left: 2px solid var(--rc, var(--r1)); }
 .bi .ico { width: 14px; height: 14px; color: var(--rc, var(--r1)); }
-.bi.r2 { --rc: var(--r2); } .bi.r3 { --rc: var(--r3); } .bi.r4 { --rc: var(--r4); } .bi.r5 { --rc: #ffffff; } .bi.r6 { --rc: #ff4a5a; }
+.bi.r2 { --rc: var(--r2); } .bi.r3 { --rc: var(--r3); } .bi.r4 { --rc: var(--r4); } .bi.r6 { --rc: #ff4a5a; }
 /* 2.4.2: the pause build explains each upgrade; key hints on the upgrade cards; HUD readouts;
    settings opened from the pause menu leave out backup and reset */
 button.bi { border-top: 0; border-right: 0; border-bottom: 0; cursor: pointer; pointer-events: auto; }
@@ -1090,8 +1090,7 @@ html, body { min-width: 0; min-height: 100%; }
 
 /* Run summaries: readable without wasting width, and always scrollable when
    a short landscape device cannot fit every metric at once. */
-#over .center-col, #pause .center-col, #crash .center-col { scrollbar-gutter: stable; }
-#over .center-col, #pause .center-col, #crash .center-col { padding-block: 2px; }
+#over .center-col, #pause .center-col, #crash .center-col { scrollbar-gutter: stable; padding-block: 2px; }
 
 /* Settings: text gets the flexible column; controls never force horizontal
    overflow. On tiny portrait phones, rows become two-line control rows. */
@@ -1478,10 +1477,6 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
 })();
 </script>
 
-<style>
-  html,body,#app{overscroll-behavior:none;}
-  .screen button,.screen .btn{touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;}
-</style>
 <style>
 /* 2.5.0 D: biome title card, boss intro card (#titleCard, filled by ui.js). The cards take no input and fade out on their own. */
 #titleCard { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }

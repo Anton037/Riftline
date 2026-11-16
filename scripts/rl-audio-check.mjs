@@ -30,8 +30,7 @@ const result = await page.evaluate(async () => {
   await wait(500);
   if (!sound.timer) out.fail.push("scheduler not running after unlock");
   const sched0 = sound.musicScheduled;
-  await wait(300);
-  if (sound.musicScheduled <= sched0) out.fail.push("scheduler not stepping notes");
+  if (!(await until(() => sound.musicScheduled > sched0))) out.fail.push("scheduler not stepping notes");
 
   // H1 chaos 1: a throw inside the note path is contained per step (the tick keeps advancing)
   const realNote = sound.note.bind(sound);
