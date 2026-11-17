@@ -352,7 +352,7 @@ const SURFACE_DEFS = {
   armor: (t, rng) => {
     // layered plate: broad bevelled slabs with rivet rows along every seam
     const rows = [];
-    for (let y = 0; y < 64; ) {
+    for (let y = 0; y < 64;) {
       const h = 6 + ((rng() * 5) | 0);
       rows.push([y, h]);
       y += h + 1;
@@ -398,7 +398,7 @@ const SURFACE_DEFS = {
   wood: (t, rng) => {
     // carved planks / basalt strata: long horizontal grain, knots, deep joints
     const rows = [];
-    for (let y = 0; y < 64; ) {
+    for (let y = 0; y < 64;) {
       const h = 5 + ((rng() * 6) | 0);
       rows.push([y, h]);
       y += h + 1;
@@ -423,7 +423,7 @@ const SURFACE_DEFS = {
     // crystal facets: bright angular sheets with dark splits
     for (let y = 0; y < 64; y++)
       for (let x = 0; x < 64; x++) {
-        const d = Math.abs((x * 0.9 + y * 1.3) % 18 - 9);
+        const d = Math.abs(((x * 0.9 + y * 1.3) % 18) - 9);
         const f = 0.85 + (d < 3 ? -0.3 : 0.15) + rng() * 0.14;
         t.set(x, y, shade(0xb4c4cc, f));
       }
