@@ -194,31 +194,30 @@ const RL_BIOME_LOOK = {
   // the faceted models their form), a richer floor (vivid: saturation, gain: brightness)
   city: {
     style: 5,
-    skyFill: 0x7d8fa4,
-    groundFill: 0x303744,
-    hemi: 1.1,
+    // Phase 4D: Dead Cells night - a colder moon key, a stronger cyan sky bounce, deeper fog so
+    // the moonlit plates pop against a darker distance.
+    skyFill: 0x6f86a8,
+    groundFill: 0x272e3c,
+    hemi: 1.05,
     sun: 0xb4c4ff,
-    sunI: 2.0,
-    fill: [0xa1b8ca, 0.7],
-    vivid: 1.45,
+    sunI: 2.05,
+    fill: [0x8fb4d6, 0.85],
+    vivid: 1.6,
     gain: 1.12,
-    // 3.44.0: the fog bites - the far edge of every place dissolves softly instead of running
-    // to a hard horizon (the old windows sat far outside the arena, so the fog never showed)
-    fog: [1.15, 2.7],
+    fog: [1.05, 2.4],
   },
   shelf: {
     style: 2,
-    skyFill: 0x9ebcd5,
-    groundFill: 0x34495d,
-    // 3.54.0: the Shelf at night: a cold moon key, an aurora-lit fill (the curtains' green bounces
-    // off the snow), and the aurora's own light lives in the curtains and the sheen on the ice
-    hemi: 0.85,
+    skyFill: 0x8ca8c4,
+    groundFill: 0x2c4054,
+    // Phase 4D: the aurora bounce is the hero light here - teal-green, saturated, cold key above.
+    hemi: 0.8,
     sun: 0xcfe2ff,
-    sunI: 1.55,
-    fill: [0x7ad8a8, 0.5],
-    vivid: 1.15,
-    gain: 0.8,
-    fog: [0.98, 2.3],
+    sunI: 1.4,
+    fill: [0x66e8b0, 0.7],
+    vivid: 1.35,
+    gain: 0.82,
+    fog: [0.95, 2.2],
   },
   // 3.53.0: the Glass Flats: the one daylight place - a hard white sun over pale glass, a
   // sand-bounce fill, pale hot haze at the horizon (the fog hex stays dark for the luma rule;
@@ -230,51 +229,55 @@ const RL_BIOME_LOOK = {
     groundFill: 0x78634b,
     hemi: 1.15,
     sun: 0xfff2d8,
-    sunI: 2.2,
-    fill: [0xffd8a0, 0.65],
-    vivid: 1.3,
+    sunI: 2.3,
+    fill: [0xffd8a0, 0.7],
+    vivid: 1.45,
     gain: 1.05,
-    fog: [1.2, 3.05],
+    fog: [1.25, 3.2],
   },
   // 3.50.0: the Glowmarsh: a pale teal moon low over the water, the bioluminescence bounces
   // from below (the fill), everything else stays dark so the glow carries the scene
   marsh: {
     style: 3,
-    skyFill: 0x829fa0,
-    groundFill: 0x263b36,
-    hemi: 1.15,
+    skyFill: 0x6e8c8d,
+    groundFill: 0x1c312c,
+    // Phase 4D: the Glowmarsh leans fully into its bioluminescence - the water bounce is now the
+    // saturated hero light, the moon stays pale above.
+    hemi: 1.05,
     sun: 0xd5e6de,
-    sunI: 1.9,
-    fill: [0x698d8b, 0.65],
-    vivid: 1.0,
-    gain: 0.85,
-    fog: [0.95, 2.25],
+    sunI: 1.75,
+    fill: [0x4fe8a8, 0.75],
+    vivid: 1.25,
+    gain: 0.9,
+    fog: [0.9, 2.1],
   },
   core: {
     style: 4,
-    skyFill: 0x9d99b4,
-    groundFill: 0x272237,
-    hemi: 1.05,
+    skyFill: 0x8e88ac,
+    groundFill: 0x211c30,
+    // Phase 4D: violet cathedral - the fill goes liturgical (violet bounce), everything else dark.
+    hemi: 1.0,
     sun: 0xe7e1f5,
-    sunI: 2.1,
-    fill: [0x899dc5, 0.6],
-    vivid: 1.1,
+    sunI: 2.0,
+    fill: [0x9a7fe8, 0.7],
+    vivid: 1.3,
     gain: 1.0,
-    fog: [1.25, 3.0],
+    fog: [1.2, 2.8],
   },
   // 3.54.0: the Ashfall Caldera: a low ember key, a molten bounce from below, ash in the air -
   // the fog sits a shade clearer so the volcano reads past the wall
   caldera: {
     style: 6,
-    skyFill: 0x8a94a3,
-    groundFill: 0x302725,
-    hemi: 1.15,
+    skyFill: 0x847e7a,
+    groundFill: 0x2b211e,
+    // Phase 4D: the forge - a warm ember bounce from below instead of a neutral sky fill.
+    hemi: 1.1,
     sun: 0xf3e6d4,
-    sunI: 2.2,
-    fill: [0xa5bccb, 0.7],
-    vivid: 1.12,
-    gain: 0.98,
-    fog: [1.18, 2.65],
+    sunI: 2.15,
+    fill: [0xff9a5c, 0.75],
+    vivid: 1.3,
+    gain: 1.02,
+    fog: [1.1, 2.45],
   },
 };
 // 3.41.0: the tone the flying debris of a kill calms into. The style guide of the owner (Viridi, Penguin's

@@ -419,7 +419,7 @@ const MAX_PARTICLES = 1400,
       this.terrainAtlas.minFilter = this.terrainAtlas.magFilter = NearestFilter;
       this.terrainAtlas.generateMipmaps = false;
       this.finishAtlasReady = false;
-      this.finishAtlas = new TextureLoader().load("textures/surface-atlas.webp", (texture) => {
+      this.finishAtlas = new TextureLoader().load("textures/surface-atlas.png", (texture) => {
         WORLD_SURFACES.finishMap.value = texture;
         WORLD_SURFACES.finishReady.value = 1;
         this.finishAtlasReady = true;
