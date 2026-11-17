@@ -2227,10 +2227,10 @@ const musicChords = Object.fromEntries(Object.entries(MUSIC_BIOME_PARAMS).map(([
             half: 30 / track.bpm / 4,
           };
         track.play(this, c);
-        // 4.4.0: the modern electronic texture of the pixel-art pass: a dark detuned synth bed that
-        // breathes on every chord change and a pulse-wave chiptune arp that walks the biome's scale.
-        // The calm themes let it bloom softly under the intensity, the boss tracks drive it with the
-        // heat (electronicTextureLayer; this.electronic = false switches it off for tests).
+        // 4.4.0: the texture of the pixel-art pass: a dark detuned synth bed that breathes on every chord
+        // change and a low torch-lit pluck that walks the biome's scale. The calm themes let it bloom
+        // softly under the intensity, the boss tracks drive it with the heat (electronicTextureLayer;
+        // this.electronic = false switches it off for tests).
         if (this.electronic !== false) electronicTextureLayer(this, c);
         // 3.19.0: the ambient bloom lies on every calm theme (this.bloom = false switches it off for a test)
         if (kind === "fight" && this.bloom !== false) calmBloom(kit(this, c), c, biome);
@@ -3744,18 +3744,19 @@ function electronicTextureLayer(e, c) {
     const scale = c.scale || [0, 2, 3, 5, 7, 8, 10],
       idx = (c.bar * 5 + Math.floor(c.b / chipStep)) % (scale.length + 2),
       lift = idx >= scale.length ? 12 : 0,
-      midi = c.root + 24 + scale[idx % scale.length] + lift,
-      level = (c.kind === "boss" ? 0.028 : 0.012 + 0.018 * c.L) * (1 + 0.25 * (c.heat || 0));
-    k.d.t(midiToFreq(midi), chipStep * c.half * 1.7, "square", level, {
-      lp: style.chipDuty <= 0.5 ? 3400 : 2400,
-      attack: 0.002,
+      // Phase 6: one octave down and heavily darkened — a low torch-lit pluck instead of a bright chip lead
+      midi = c.root + 12 + scale[idx % scale.length] + lift,
+      level = (c.kind === "boss" ? 0.026 : 0.01 + 0.014 * c.L) * (1 + 0.25 * (c.heat || 0));
+    k.d.t(midiToFreq(midi), chipStep * c.half * 1.7, "triangle", level, {
+      lp: 1500,
+      attack: 0.003,
       pan: P(c, 9, 0.5),
       rev: 0.3,
       opt: true,
     });
     if (c.b % (chipStep * 4) === 0)
-      k.d.t(midiToFreq(midi - 12), c.half * 2.4, "sawtooth", 0.02, {
-        lp: 1600,
+      k.d.t(midiToFreq(midi - 12), c.half * 2.4, "sawtooth", 0.018, {
+        lp: 900,
         attack: 0.004,
         pan: -P(c, 9, 0.5),
         rev: 0.2,
