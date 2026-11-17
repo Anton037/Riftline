@@ -175,3 +175,41 @@ while preserving every DOM id/class, layout geometry, touch hit target and test 
 - `npm run test:render` — 7/7 pass (after adding the pixel font to the SW precache; the offline
   reload phase 504'd the uncached font before).
 - `npm run e2e` — 7/7 pass.
+
+## Phase 4 — Full Art Redesign: new assets in the Dead Cells × Inscryption language — IN PROGRESS
+
+### Research basis (studied from the official store key art of both games)
+- **Dead Cells** (store capsule): warm-vs-cool complementary scheme — blazing orange/ember accents against
+  deep teal/indigo shadow masses; backlit silhouettes with strong rim light; atmospheric haze layers; near-black
+  foreground shapes; tiny emissive details (glowing hand, eyes) carry enormous visual weight on a desaturated
+  stone/metal base.
+- **Inscryption** (store capsule): oppressive near-black green darkness; bone-cream, ember-amber and deep
+  blood-red as the only bright notes; carved/woodcut texture; light is scarce and candle-local — pools of warm
+  light surrounded by encroaching dark.
+- Shared lessons for Riftline: **value structure first** (~70% dark, ~20% mid, ~10% bright), one saturated hero
+  accent per biome, emissive economy, hard rim light, and surfaces that read as *carved/hand-made* rather than
+  airbrushed.
+
+### Self-improvement prompt (what "FULL redesign" means here)
+"Rebuild the game's visual identity from the asset up. Not a filter pass: new floor plates, a re-imagined
+player walker, re-imagined enemy skins and bosses, and per-biome color scripts aligned to the two references.
+Keep gameplay, saves, and every test green."
+
+### Scope & sequence
+- **4A — Floors (this phase)**: generate a brand-new 3x2 terrain atlas (`tools/gen-atlas.mjs` -> `public/textures/`)
+  of hand-authored pixel dungeon plates — Dead Cells slab construction (bold grout, slab shading, cracks,
+  per-biome overlays) in Inscryption-dark values. Drop-in same tile layout (city 0,0 / shelf 1,0 / marsh 2,0 /
+  core 0,1 / caldera 1,1 / flats 2,1), retuned procedural overlay colors in `surface-shader.js` so the shader
+  finishing matches the new plates instead of fighting them.
+- **4B — Player**: rebuild `buildPlayerModel` palette + silhouette details: deep indigo armor, teal trim, ember
+  core glow (Dead Cells hero read), chunkier bevels, emissive eye/visor; weapon housings restyled to match.
+- **4C — Enemies & bosses**: re-skin the 25 enemy palettes + 6 bosses toward biome-accent carapaces with
+  emissive eyes/cores (per-instance glow tint already exists), darker mid-tones, stronger rim.
+- **4D — Biome color scripts**: retune `RL_BIOME_LOOK` lights/fog + `BIOME_PALETTES` grades so each biome hits a
+  reference mood (city: moonlit noir; shelf: cold teal night; marsh: bioluminescent dark; core: violet cathedral;
+  caldera: ember forge; flats: hard noon glass).
+- **4E — UI + capture verification**: screenshots per biome/phase into `verification-output/`, full test suite.
+
+### Deliberately preserved (as in Phases 1-3)
+Gameplay, progression, saves, all DOM ids/classes, HUD readability at native DPR, test selectors,
+`computePixelResolution` tuning, and the Phase 3 pixel UI.
