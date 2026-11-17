@@ -2010,7 +2010,7 @@ const MAX_PARTICLES = 1400,
               -player.vy * 0.1,
               0.25,
               0.7,
-              hexColor(8386303),
+              hexColor(0x4a5158),
               { drag: 4 },
             );
 
@@ -2020,9 +2020,10 @@ const MAX_PARTICLES = 1400,
             bx = player.x + Math.cos(angle) * world.stats.orbitR,
             bz = player.y + Math.sin(angle) * world.stats.orbitR,
             blade = this.blades.y(bx, 0, bz, angle + Math.PI / 2, 1.2 * world.stats.bladeScale);
-          this.blades.colHex(blade, 10483967);
+          // Phase 5A: dark iron blades with one warm ember rim (no more arcade mint/cyan glow)
+          this.blades.colHex(blade, 0x37434c);
           let halo = this.sprites.bb(bx, 0.62, bz, 1.1, basis);
-          this.sprites.colHex(halo, 4846335, 0.55);
+          this.sprites.colHex(halo, 0xdd7a2e, 0.3);
         }
         for (let wing of player.wings) {
           this.wing.y(wing.x, Math.sin(time * 4 + wing.x) * 0.1, wing.y, player.aim, 1.3);
