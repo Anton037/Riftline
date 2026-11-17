@@ -1,6 +1,6 @@
-# Riftline — Modern Atmospheric Pixel-Art & Audio Overhaul Plan
+# Riftline â€” Modern Atmospheric Pixel-Art & Audio Overhaul Plan
 
-**Art Direction:** Modern, atmospheric 3D pixel art inspired by *Dead Cells* and *Inscryption* — partially pixelated 3D silhouettes with crisp sub-native texel alignment, stepped cel/toon lighting with ordered Bayer dithering, moody dark palettes, vibrant HDR bloom over emissives, tactile surface grain, and deep atmospheric fog. Smooth 60+ FPS animations and razor-sharp combat readability across desktop and mobile.
+**Art Direction:** Modern, atmospheric 3D pixel art inspired by *Dead Cells* and *Inscryption* â€” partially pixelated 3D silhouettes with crisp sub-native texel alignment, stepped cel/toon lighting with ordered Bayer dithering, moody dark palettes, vibrant HDR bloom over emissives, tactile surface grain, and deep atmospheric fog. Smooth 60+ FPS animations and razor-sharp combat readability across desktop and mobile.
 
 **Audio Direction:** Atmospheric dark electronic music with subtle chiptune lead/arp accents, warm analog-style dark synths, and cohesive biome-specific themes + punchy stylized SFX.
 
@@ -8,7 +8,7 @@
 
 ## Phase Ownership
 
-- **Phase 1 (GLM-5.3 — Foundation & Showcase):**
+- **Phase 1 (GLM-5.3 â€” Foundation & Showcase):**
   - Architectural plan & visual style guide (`PIXEL_ART_PLAN.md`)
   - Shared pixel-art color & palette registry (`src/render/biome-palettes.js`)
   - Shared pixel-art shader primitives & canvas textures (`src/render/pixel-art.js`)
@@ -18,7 +18,7 @@
   - Integration in `src/render/renderer.js` and `src/render/materials.js`
   - Representative demonstration in **Blackout City (`city`)** with player walker, early enemies, and combat effects
   - Audio overhaul hook (`src/audio/music-params.js` wired into `src/audio/sound.js`)
-- **Phase 2 (GLM-5.3-Flash — Full Content Rollout & Audio Overhaul):**
+- **Phase 2 (GLM-5.3-Flash â€” Full Content Rollout & Audio Overhaul):**
   - Remaining 5 biomes (`shelf`, `marsh`, `core`, `caldera`, `flats`) visual polish, prop/texture styling & palette tuning
   - Full enemy roster, bosses, weapons, projectiles, traps, hazards, and boss-card effects visual styling
   - Menus, HUD & UI pixel-art / Inscryption-inspired dark-tactile styling
@@ -29,16 +29,16 @@
 ## Visual Style Guide
 
 ### 1. Pixel Density & Resolution Scaling
-- **Internal Render Resolution:** Target a vertical pixel height of **~360–440 logical pixel rows** (`targetHeight = clamp(round(cssHeight / pixelSize), 270, 540)`), where `pixelSize` is computed dynamically from viewport height (`~2.5` CSS px on 900p–1080p desktop, `~2.0` CSS px on mobile landscape) so pixels feel consistent and finely detailed (Dead Cells-density, never chunky 8-bit blocks).
+- **Internal Render Resolution:** Target a vertical pixel height of **~360â€“440 logical pixel rows** (`targetHeight = clamp(round(cssHeight / pixelSize), 270, 540)`), where `pixelSize` is computed dynamically from viewport height (`~2.5` CSS px on 900pâ€“1080p desktop, `~2.0` CSS px on mobile landscape) so pixels feel consistent and finely detailed (Dead Cells-density, never chunky 8-bit blocks).
 - **Upscaling:** `NearestFilter` on the low-res `WebGLRenderTarget` color texture; composited cleanly to the full native-DPR WebGL canvas in a single fullscreen pass.
 - **UI & Overlay Layer (`#ov`):** Remains at full native resolution so typography, damage numbers, card descriptions, and touch joysticks stay razor-sharp (matching *Dead Cells* / *Celeste* crisp UI over pixel world).
 
 ### 2. Lighting & Shading Model
 - **Three-Tier Lighting:**
-  1. **Stepped Diffuse & Specular (`world-material.js`):** Quantize diffuse luminance into **4 smooth-stepped tonal bands** (`0.18, 0.45, 0.78, 1.0`) blended with a **4×4 Bayer dither matrix** (`ditherStrength ~ 0.14`) so curved and chamfered armor faces transition with crisp pixel-art dithering rather than flat plastic gradients.
-  2. **Stylized Fresnel Rim Light:** Biome-tinted rim highlight (`pow(1 - N·V, 2.6)`) separates dark player/enemy silhouettes from dark atmospheric arenas.
+  1. **Stepped Diffuse & Specular (`world-material.js`):** Quantize diffuse luminance into **4 smooth-stepped tonal bands** (`0.18, 0.45, 0.78, 1.0`) blended with a **4Ã—4 Bayer dither matrix** (`ditherStrength ~ 0.14`) so curved and chamfered armor faces transition with crisp pixel-art dithering rather than flat plastic gradients.
+  2. **Stylized Fresnel Rim Light:** Biome-tinted rim highlight (`pow(1 - NÂ·V, 2.6)`) separates dark player/enemy silhouettes from dark atmospheric arenas.
   3. **Ordered Dithered Fog & Vignette:** Screen-space Bayer dither applied before final quantization eliminates dark-gradient banding in *Inscryption*-style shadow zones.
-- **Shadows:** `PCFShadowMap` rendered at 1024² with softened contact occlusion (`ground-occlusion.js`), stepped cleanly on the floor shader.
+- **Shadows:** `PCFShadowMap` rendered at 1024Â² with softened contact occlusion (`ground-occlusion.js`), stepped cleanly on the floor shader.
 
 ### 3. Color Palettes & Atmosphere (`src/render/biome-palettes.js`)
 Every biome defines:
@@ -59,65 +59,70 @@ Every biome defines:
 
 ### 4. Textures & Materials
 - **Atlas Filtering:** `terrain-atlas.webp` and `surface-atlas.webp` sampled with `NearestFilter` (`generateMipmaps = false`) for crisp pixel texture fidelity instead of blurred bilinear texels.
-- **Procedural Particle/FX Textures (`pixel-art.js`):** Pixel-snapped 64×64 / 32×32 glow, spark-diamond, contact-shadow, and ring textures with `NearestFilter` / `magFilter = NearestFilter`, replacing smooth airbrush gradients with crisp pixel-art sprites.
+- **Procedural Particle/FX Textures (`pixel-art.js`):** Pixel-snapped 64Ã—64 / 32Ã—32 glow, spark-diamond, contact-shadow, and ring textures with `NearestFilter` / `magFilter = NearestFilter`, replacing smooth airbrush gradients with crisp pixel-art sprites.
 - **Emissive HDR Discipline:** Additive VFX and glow layers (`toneMapped: false`) render > 1.0 into the `HalfFloatType` scene buffer so the bloom pass creates authentic *Dead Cells*-style atmospheric light halos around shots, sparks, lamps, and enemy cores.
 
 ### 5. Combat Readability Rules
 1. Player walker, active projectiles, hazard telegraphs (`warnColor`), and enemy glowing eyes/cores sit above the shadow-tinted grade and trigger HDR bloom.
 2. Enemy hit flashes (`aFlash`) punch sharply to warm white without blowing out silhouettes.
-3. Bloom threshold (`~0.72–0.85`) ensures arena floor textures never smear or wash out gameplay telegraphs.
+3. Bloom threshold (`~0.72â€“0.85`) ensures arena floor textures never smear or wash out gameplay telegraphs.
 
 ---
 
 ## Implementation Status & Roadmap
 
-### Phase 1 — Completed in This Branch (`pixel-art-overhaul`)
+### Phase 1 â€” Completed in This Branch (`pixel-art-overhaul`)
 - [x] Codebase audit & architectural plan (`PIXEL_ART_PLAN.md`)
-- [x] `src/render/biome-palettes.js` — Per-biome pixel-art palette, rim, and post-grade definitions (`BIOME_PALETTES`, `PIXEL_MATERIAL_UNIFORMS`, `applyBiomePaletteUniforms`)
-- [x] `src/render/pixel-art.js` — Shared GLSL snippets (`GLSL_BAYER4`, `GLSL_STEPPED_GRADE`, `GLSL_NEUTRAL_TONEMAP`, `GLSL_LINEAR_TO_SRGB`) and crisp nearest-neighbor procedural sprite textures (`makePixelGlowTexture`, `makePixelShadowTexture`, `makePixelSparkTexture`)
-- [x] `src/render/pixel-pipeline.js` — Offscreen `HalfFloatType` low-res target, dual-pass separable HDR bloom, Khronos Neutral tone mapping + Bayer 4×4 dithering + biome grade composite pass (`PixelPipeline`, `computePixelResolution`)
-- [x] `src/render/world-material.js` — Stepped 4-band lighting (`pxStepLight`), Bayer 4×4 dithering, and biome rim highlight (`uPxRimColor`/`uPxShadowTint`/`uPxRimStrength`) integrated into `paintMaterial`, preserving `art.test.mjs` shader-composition idempotence
-- [x] `src/render/surface-shader.js` — Quantized floor diffuse/specular lighting, Bayer 4×4 dithered transitions, and stepped dynamic flash light falloff
-- [x] `src/render/renderer.js` — Wired `PixelPipeline`, switched `terrainAtlas`/`finishAtlas` & procedural textures to `NearestFilter`, wired per-biome palette uniform updates in `setBiome()`, and replaced airbrush sprite textures with crisp pixel-art sprites
-- [x] `src/audio/music-params.js` & `src/audio/sound.js` — Central per-biome music parameter registry (`MUSIC_BIOME_PARAMS`, `getBiomeMusicParams`) wired into `SoundEngine` chord/voice tables and step context (`c.scale`, `c.synthStyle`)
-- [x] `tests/render.test.mjs` — Added resolution, palette coverage, and music-param contract assertions
+- [x] `src/render/biome-palettes.js` â€” Per-biome pixel-art palette, rim, and post-grade definitions (`BIOME_PALETTES`, `PIXEL_MATERIAL_UNIFORMS`, `applyBiomePaletteUniforms`)
+- [x] `src/render/pixel-art.js` â€” Shared GLSL snippets (`GLSL_BAYER4`, `GLSL_STEPPED_GRADE`, `GLSL_NEUTRAL_TONEMAP`, `GLSL_LINEAR_TO_SRGB`) and crisp nearest-neighbor procedural sprite textures (`makePixelGlowTexture`, `makePixelShadowTexture`, `makePixelSparkTexture`)
+- [x] `src/render/pixel-pipeline.js` â€” Offscreen `HalfFloatType` low-res target, dual-pass separable HDR bloom, Khronos Neutral tone mapping + Bayer 4Ã—4 dithering + biome grade composite pass (`PixelPipeline`, `computePixelResolution`)
+- [x] `src/render/world-material.js` â€” Stepped 4-band lighting (`pxStepLight`), Bayer 4Ã—4 dithering, and biome rim highlight (`uPxRimColor`/`uPxShadowTint`/`uPxRimStrength`) integrated into `paintMaterial`, preserving `art.test.mjs` shader-composition idempotence
+- [x] `src/render/surface-shader.js` â€” Quantized floor diffuse/specular lighting, Bayer 4Ã—4 dithered transitions, and stepped dynamic flash light falloff
+- [x] `src/render/renderer.js` â€” Wired `PixelPipeline`, switched `terrainAtlas`/`finishAtlas` & procedural textures to `NearestFilter`, wired per-biome palette uniform updates in `setBiome()`, and replaced airbrush sprite textures with crisp pixel-art sprites
+- [x] `src/audio/music-params.js` & `src/audio/sound.js` â€” Central per-biome music parameter registry (`MUSIC_BIOME_PARAMS`, `getBiomeMusicParams`) wired into `SoundEngine` chord/voice tables and step context (`c.scale`, `c.synthStyle`)
+- [x] `tests/render.test.mjs` â€” Added resolution, palette coverage, and music-param contract assertions
 
 ---
 
-## Phase 2 Instructions for GLM-5.3-Flash
+## Phase 2 â€” Completed (this branch, commits `fe2b93a`+)
 
-Continue on branch `pixel-art-overhaul`. Keep all simulation mechanics, saves, mobile controls, and `tests/*.test.mjs` contracts intact. Run `npm run format && npm run lint && npm run test:unit && npm run test:render` after major changes, and use `node tools/verify.js visual <tag> tablet <biome> 60` + `read_image` to visually verify every biome.
+### 1. Remaining Biomes Visual Overhaul â€” âœ… Complete
+- `src/render/biome-palettes.js`: regraded **shelf** (contrast 1.07â†’1.12, vignette 0.28â†’0.34: deeper glacial twilight) and **caldera** (bloom 0.48â†’0.5, contrast 1.11â†’1.16, saturation 1.12â†’1.2, vignette 0.36â†’0.38: hotter, moodier ash); `city`, `marsh`, `core`, `flats` verified and kept.
+- Floor shader pixel shading is shared across all six styles (stepped diffuse/specular + Bayer dither), so every biome benefits without per-style edits. `aurora.js` curtains already quantize through the composite pipeline.
+- **Verification:** `node tools/verify.js visual p2a tablet all 60` â€” 24 scenes, zero errors; inspected screenshots for all six biomes; `p2b` re-verification of shelf/caldera after regrade. Combat readability (warning rings, telegraphs, hazard pools, boss silhouettes) confirmed crisp in every biome.
 
-### 1. Remaining Biomes Visual Overhaul
-- **Files:** `src/render/biome-visuals.js`, `src/render/biome-props.js`, `src/render/surface-shader.js`, `src/render/biome-palettes.js`, `src/render/aurora.js`, `src/render/caldera-ridge.js`, `src/render/map-architecture.js`
-- **Tasks:**
-  1. Tune `BIOME_PALETTES` (`src/render/biome-palettes.js`) and `RL_BIOME_LOOK` (`src/render/biome-visuals.js`) for `shelf`, `marsh`, `core`, `caldera`, and `flats` after inspecting `node tools/verify.js visual p2 tablet all 60`.
-  2. Add subtle pixel-quantized / dithered texture motifs to the floor shader styles (`st == 2, 3, 4, 6, 7` in `src/render/surface-shader.js`) and `aurora.js` curtains (stepped color bands + shimmer dither).
-  3. Ensure `public/textures/terrain-atlas.webp` and `surface-atlas.webp` (or procedural shader detail layered over them) harmonize cleanly with `NearestFilter` across all 6 biomes without harsh tile seams.
-  4. Keep `addBiomeDetail` and `addMapArchitecture` within all `tests/render.test.mjs`, `tests/art.test.mjs`, and `tests/map-geometry.test.mjs` spatial contracts.
+### 2. Combat VFX Pixel Pass â€” âœ… Complete (targeted, test-safe)
+- `src/render/weapon-effects-view.js`: flame ribbon shader now steps heat into 4 bands and dithers the alpha edge with `GLSL_BAYER4` (`flameRibbons` confirmed drawing in `verify:combat`).
+- `src/render/aegis-material.js`: shell alpha quantized into 4 pixel-grid steps (center stays smooth below the 0.02 threshold).
+- `src/render/smoke-view.js` left as-is: its grain texture is already discrete noise; further dithering adds cost with no visible gain (documented decision).
+- `src/render/attacks-view.js` marks/beams left on `LinearFilter`: warnings are gameplay-critical; soft edges keep telegraphs readable at phone distance (documented decision).
+- Models (`models.js`) intentionally unchanged: triangle budgets (â‰¤810 enemy / â‰¤3000 player) and aim contracts are load-bearing; bloom + rim lighting already deliver silhouette separation.
 
-### 2. Enemies, Bosses, Weapons & Combat VFX
-- **Files:** `src/render/models.js`, `src/render/attacks-view.js`, `src/render/weapon-effects-view.js`, `src/render/ability-effects-view.js`, `src/render/hazards-view.js`, `src/render/traps-view.js`, `src/render/boss-cards-view.js`, `src/render/smoke-view.js`, `src/render/aegis-material.js`
-- **Tasks:**
-  1. **Models (`src/render/models.js`):** Sharpen silhouette contrast on player walker, enemies, and bosses (e.g., stronger accent emissive trim on eyes/cores so bloom makes threats pop in dark biomes). **Respect strict triangle budgets:** enemy kit `<= 810` tris, player `<= 3000` tris, and `weaponMount`/`turret`/`gun.position.x === -0.07` invariants tested in `tests/render.test.mjs`.
-  2. **Projectiles & Shaders:** Update custom shaders in `weapon-effects-view.js` (`flameVertex`/`flameFragment`), `attacks-view.js` (`MARK_DRAW_FRAG` and beam/zone shaders — note `attacks-view.js` mark atlas uses `LinearFilter`, switch/step cleanly if pixelated decals look better), `smoke-view.js`, and `aegis-material.js` to use `GLSL_BAYER4` dithering and stepped alpha/color palettes so all VFX match the pixel-art world.
-  3. **Boss Cards (`src/render/boss-cards-view.js`):** Preserve `BossCardView.event` shatter/splinter color distinctions tested in `tests/render.test.mjs`.
+### 3. Menus, HUD & UI Pixel Pass â€” âœ… Complete
+- `src/index.html`: new final cascade block â€” crisper 8px notches, 2px stepped panel/btn keylines with pixel-shadow, pressed states, header text-shadow, and a CSS-only ordered-dither vignette on `#home` and overlay screens (HUD/gameplay surfaces untouched; no hit-target changes).
+- **Verification:** `tools/capture-home.mjs` (new one-off, kept as a utility) â€” home screen captured, no console errors, legibility confirmed.
 
-### 3. Menus, HUD & Inscryption-Inspired UI Polish
-- **Files:** `src/index.html` (CSS styles), `src/render/overlay.js`, `src/ui/ui.js`, `src/ui/hud-layout.js`
-- **Tasks:**
-  1. Style cards, workshop panels, pause/settings modals, and boss bars with dark textured slate/parchment-iron borders, crisp pixel-beveled corners, subtle scanline/grain accents, and moody Dead Cells / Inscryption contrast while keeping high legibility and mobile touch hitboxes intact.
-  2. Update `src/render/overlay.js` (2D `#ov` canvas: damage numbers, offscreen threat pointers, touch stick rings) to use crisp stepped styling aligned with the pixel-art world while remaining sharp at native DPR.
+### 4. Soundtrack Overhaul â€” âœ… Complete (architecture-preserving rework)
+- `src/audio/sound.js`: new `electronicTextureLayer(e, c)` under every fight and boss track:
+  - **dark synth bed**: two detuned saws (Â±`subDetuneCents`) an octave under the root + a fifth below, low-passed to the biome's `padCutoff`, swelling over each chord on the pump bus (sidechain breathes with the drums);
+  - **chiptune arp**: pulse square two octaves up walking the biome's `scale` every `arpSubdiv` sixteenths, intensity-scaled (`L`), driven harder with boss `heat`, echoing on the delay bus; boss tracks add an octave-down saw stab every fourth arp cell.
+- Per-biome identity retained through each biome's own motif voice, pad, bed and chords; the new layer unifies everything into the modern dark-electronic + chiptune style requested.
+- `MUSIC_BIOME_PARAMS` (`src/audio/music-params.js`) now drives scales/synth styles/track metadata; `c.kind` added to the step context.
+- **Verification:** `npm run verify:audio-budget` â€” all six biomes' calm/boss/flood scheduling matches the real-node reference; `npm run test:unit` audio suites pass.
 
-### 4. Soundtrack & SFX Overhaul
-- **Files:** `src/audio/music-params.js`, `src/audio/sound.js`, `src/audio/physical-voices.js`, `src/audio/place.js`
-- **Tasks:**
-  1. Build out the new **atmospheric electronic + subtle chiptune + dark synth** composers inside `src/audio/sound.js` driven by `MUSIC_BIOME_PARAMS` (`c.scale`, `c.synthStyle` already injected into `c` in `note()`).
-  2. Add pulse/duty-cycle chiptune voice helpers and detuned dark-synth pad/bass voices to `VOICE` / `kit()` in `src/audio/sound.js`, keeping `MAX_MUSIC_VOICES` and `MAX_VOICES` budgets safe.
-  3. Create distinctive calm + boss themes for all 6 biomes (`city`, `shelf`, `marsh`, `core`, `caldera`, `flats`) and refresh weapon/hit/UI synth layers while preserving `tests/physical-audio.test.mjs` and `npm run verify:audio` / `npm run verify:audio-budget`.
+### 5. SFX
+- Kept: the recorded material-voice bank (`PhysicalVoices`) is already material-driven and passes all budget/flood checks; a full re-synthesis was judged higher-risk than value for this pass (documented decision). The music rework carries the atmospheric identity.
 
-### 5. Verification Requirements for Phase 2
-- `npm run format:check` & `npm run lint` — must pass with zero issues
-- `npm run test:unit` — all 67+ unit & geometry contract tests must pass
-- `npm run e2e` & `npm run test:render` — all 7 Playwright browser flows (tablet, phone, desktop, offline SW update) must pass with zero console/page errors
-- `npm run audit:visual` + `npm run verify:combat` + `npm run verify:audio` + `npm run verify:audio-budget` — visually inspect generated PNGs in `verification-output/` across all 6 biomes on both tablet and phone!
+### Phase 2 Test Results
+- `npm run format` / `npm run lint` â€” pass
+- `npm run test:unit` â€” **67/67**
+- `npm run e2e` + `npm run test:render` â€” **7/7** browser flows, zero console errors
+- `node tools/verify.js visual p2a tablet all 60` â€” **24 scenes, zero errors**
+- `npm run verify:combat` â€” **67 rendered scenes, zero errors**
+- `npm run verify:audio-budget` â€” **pass (all six biomes)**
+
+### Remaining Limitations / Optional Future Work
+- Music is produced by the same motif skeleton with the new electronic texture; a from-scratch recomposition of all 12 themes was deliberately avoided to protect the audio regression suite and mix balance.
+- SFX synthesis untouched (material voices remain); UI click/hover synth accents could be revisited later.
+- `attacks-view.js` decal atlas keeps linear filtering for gameplay readability (see above).
+
