@@ -1446,10 +1446,11 @@ function buildBossModel(type, color) {
   const finish = BOSS_EFFECTS[type]?.surface || "armor";
   let group = new Group(),
     hullMat = worldMaterial({
+      // Phase 4C: bosses sink into the dark like the husks; their glow lenses carry the color.
       surface: finish,
-      color: darken(color, 0.35),
+      color: darken(color, 0.26),
       emissive: 0,
-      specular: 0x53616b,
+      specular: 0x39444c,
       shininess: 28,
       flatShading: true,
     }),
@@ -1472,10 +1473,10 @@ function buildBossModel(type, color) {
     };
   if (type === "warden") {
     // Layered security armor, exposed running gear and actual cannon bores. Light stays in lenses.
-    hullMat.color.setHex(0x566b78);
-    darkMat.color.setHex(0x14232c);
-    const plate = worldMaterial({ surface: "armor", color: 0xa2aaa6, shininess: 25 }),
-      steel = worldMaterial({ surface: "steel", color: 0x738a91, shininess: 44 });
+    hullMat.color.setHex(0x31404c);
+    darkMat.color.setHex(0x0d161d);
+    const plate = worldMaterial({ surface: "armor", color: 0x59625f, shininess: 25 }),
+      steel = worldMaterial({ surface: "steel", color: 0x415158, shininess: 44 });
     addMesh(armorBox(2.55, 1.15, 2.8, 0.24), hullMat, -0.1, 1.05, 0);
     addMesh(armorBox(2.2, 0.3, 2.55, 0.12), darkMat, -0.05, 0.42, 0);
     addMesh(armorBox(1.8, 0.95, 1.8, 0.18), darkMat, -0.25, 1.95, 0);
@@ -1519,10 +1520,10 @@ function buildBossModel(type, color) {
     group.userData.mats = [plate, steel];
   } else if (type === "queen") {
     // A heavy plated insect with an abdomen, articulated legs and a crown of living glowcaps.
-    hullMat.color.setHex(0x4b7560);
-    darkMat.color.setHex(0x132c28);
-    const chitin = worldMaterial({ surface: "organic", color: 0x627c50, shininess: 18, flatShading: false }),
-      membrane = worldMaterial({ surface: "organic", color: 0x304c43, shininess: 24, flatShading: false });
+    hullMat.color.setHex(0x2c4738);
+    darkMat.color.setHex(0x0b1a14);
+    const chitin = worldMaterial({ surface: "organic", color: 0x3a4c31, shininess: 18, flatShading: false }),
+      membrane = worldMaterial({ surface: "organic", color: 0x1c2e29, shininess: 24, flatShading: false });
     addMesh(new SphereGeometry(1.25, 24, 16), membrane, -0.95, 1.65, 0).scale.set(1.55, 0.86, 0.92);
     addMesh(new SphereGeometry(0.92, 20, 14), hullMat, 0.78, 1.65, 0).scale.set(1.2, 0.9, 0.9);
     for (let i = 0; i < 5; i++) {
@@ -1745,9 +1746,9 @@ function buildBossModel(type, color) {
   } else if (type === "tyrant") {
     // A living basalt colossus, facing +x: broken volcanic armor, a molten chest and a crown of rock.
     // No inherited gun, jewelry, coin ring or manufactured chimney remains from its predecessor.
-    const basalt = worldMaterial({ surface: "basalt", color: 0x494942, shininess: 7, flatShading: false }),
-      crust = worldMaterial({ surface: "basalt", color: 0x292e31, shininess: 11, flatShading: false }),
-      cooled = worldMaterial({ surface: "basalt", color: 0x676154, shininess: 5 });
+    const basalt = worldMaterial({ surface: "basalt", color: 0x2e2b26, shininess: 7, flatShading: false }),
+      crust = worldMaterial({ surface: "basalt", color: 0x181c1f, shininess: 11, flatShading: false }),
+      cooled = worldMaterial({ surface: "basalt", color: 0x3f3b32, shininess: 5 });
     addMesh(volcanicBoulder(2.2, 2.05, 1.85, 71), basalt, -0.05, 2.0, 0);
     addMesh(basaltStrata(1.3, 0.65, 1.3, 73, true), crust, -0.2, 0.72, 0);
     for (const side of [-1, 1]) {
