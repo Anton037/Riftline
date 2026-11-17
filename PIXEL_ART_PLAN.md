@@ -213,3 +213,12 @@ Keep gameplay, saves, and every test green."
 ### Deliberately preserved (as in Phases 1-3)
 Gameplay, progression, saves, all DOM ids/classes, HUD readability at native DPR, test selectors,
 `computePixelResolution` tuning, and the Phase 3 pixel UI.
+### Phase 4F — remaining enemy kits rebuilt (this PR)
+- All 17 previously-legacy builders (swarmer, mite, leaper, hive, carrier, mender, mortar, turret, charger,
+  minebot, sapper, phantom, sentinel, drone, driller, beacon, weaver) rebuilt as Dead Cells husks at the same
+  single `RL_ENEMY_BUILDERS` choke point; their `RL_ENEMY_DETAIL` passes and the pupil/ringAround helpers removed.
+- Type silhouettes kept for gameplay readability (mound/manta/turret/rhino/crab/wraith/spider all still read),
+  re-expressed in the 4C language: dark layered mantles, bone spikes, ragged banners, riveted machine plates,
+  2-4 sparse ember glows each.
+- Triangle budgets: every type 154-744 tris (budget 810); new dev tool `tools/count-enemy-tris.mjs` reports counts.
+

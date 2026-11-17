@@ -75,38 +75,37 @@ const spike = (color, r, seg, a, b) => limb(color, (len) => new ConeGeometry(r, 
   both = (make) => [].concat(make(1), make(-1));
 const RL_ENEMY_BUILDERS = {
   swarmer: (P) => ({
-    // dart bug: teardrop body, swept membrane wings, two big eyes, mandibles, tail sting
+    // Phase 4F husk: a small chitin dart, wing blades folded flat over a dark shell, one ember eye
     body: [
-      ball(P.mid, 0.24, 8, 6, { x: 0.02, y: 0.46, sx: 1.55, sy: 0.85 }),
-      ball(P.lite, 0.15, 6, 4, { x: 0.3, y: 0.5 }),
+      ball(P.mid, 0.22, 7, 5, { x: 0.02, y: 0.42, sx: 1.5, sy: 0.85 }),
+      ball(P.dark, 0.14, 6, 4, { x: 0.24, y: 0.46 }),
+      box(P.lite, 0.3, 0.08, 0.34, { x: 0.02, y: 0.58, rz: -0.06 }),
       ...both((s) => [
-        bar(P.dark, 0.3, [0.06, 0.55, s * 0.12], [-0.3, 0.6, s * 0.66], 0.025),
-        bar(P.lite, 0.2, [0.16, 0.53, s * 0.1], [0.04, 0.56, s * 0.42], 0.025),
-        spike(P.pale, 0.035, 3, [0.4, 0.42, s * 0.08], [0.64, 0.34, s * 0.22]),
+        bar(P.dark, 0.26, [0.04, 0.52, s * 0.1], [-0.26, 0.58, s * 0.5], 0.03),
+        bar(P.dark, 0.05, [0.06, 0.3, s * 0.08], [0.14, 0.02, s * 0.16]),
+        bar(P.dark, 0.05, [-0.14, 0.32, s * 0.08], [-0.22, 0.02, s * 0.14]),
+        spike(P.pale, 0.03, 3, [0.36, 0.4, s * 0.06], [0.56, 0.32, s * 0.16]),
       ]),
-      spike(P.dark, 0.08, 4, [-0.3, 0.44, 0], [-0.66, 0.38, 0]),
+      spike(P.dark, 0.06, 4, [-0.26, 0.42, 0], [-0.52, 0.36, 0]),
     ],
-    glow: [
-      ...both((s) => [
-        ball(P.white, 0.075, 6, 4, { x: 0.38, y: 0.58, z: s * 0.1 }),
-        bar(P.white, 0.025, [-0.05, 0.575, s * 0.2], [-0.29, 0.6, s * 0.6], 0.02),
-      ]),
-    ],
+    glow: [ball(P.white, 0.06, 5, 3, { x: 0.3, y: 0.54 }), box(P.white, 0.03, 0.03, 0.18, { x: -0.04, y: 0.5 })],
   }),
   mite: (P) => ({
-    // tick: a small crystal shell on six legs with one big eye
+    // Phase 4F husk: a shard-backed tick, dark shell over a pale core, six needle legs, one ember eye
     body: [
-      meshPart(new OctahedronGeometry(0.24), P.mid, { y: 0.3, sx: 1.3, sy: 0.7 }),
-      ball(P.lite, 0.1, 6, 4, { x: 0.26, y: 0.28 }),
-      spike(P.dark, 0.05, 4, [-0.05, 0.42, 0.08], [-0.18, 0.62, 0.1]),
-      spike(P.dark, 0.05, 4, [-0.1, 0.4, -0.08], [-0.26, 0.56, -0.12]),
+      meshPart(new OctahedronGeometry(0.22), P.mid, { y: 0.3, sx: 1.3, sy: 0.7 }),
+      ball(P.dark, 0.17, 6, 4, { x: 0.2, y: 0.3 }),
+      box(P.lite, 0.28, 0.05, 0.08, { x: -0.02, y: 0.42 }),
+      spike(P.pale, 0.05, 4, [-0.06, 0.44, 0.06], [-0.2, 0.6, 0.1]),
+      spike(P.pale, 0.04, 4, [-0.1, 0.4, -0.07], [-0.24, 0.54, -0.1]),
       ...both((s) => [
-        bar(P.dark, 0.035, [0.12, 0.27, s * 0.12], [0.2, 0.02, s * 0.32]),
-        bar(P.dark, 0.035, [0, 0.27, s * 0.14], [0.02, 0.02, s * 0.36]),
-        bar(P.dark, 0.035, [-0.12, 0.27, s * 0.12], [-0.2, 0.02, s * 0.3]),
+        bar(P.metal, 0.03, [0.12, 0.26, s * 0.12], [0.2, 0.02, s * 0.3]),
+        bar(P.metal, 0.03, [0, 0.26, s * 0.14], [0.02, 0.02, s * 0.34]),
+        bar(P.metal, 0.03, [-0.12, 0.26, s * 0.12], [-0.2, 0.02, s * 0.3]),
+        spike(P.pale, 0.03, 3, [0.28, 0.3, s * 0.06], [0.44, 0.22, s * 0.1]),
       ]),
     ],
-    glow: [ball(P.white, 0.075, 6, 4, { x: 0.33, y: 0.34 }), box(P.white, 0.2, 0.03, 0.05, { x: -0.02, y: 0.44 })],
+    glow: [ball(P.white, 0.06, 5, 3, { x: 0.28, y: 0.32 }), box(P.white, 0.16, 0.03, 0.04, { x: -0.04, y: 0.44 })],
   }),
   splitter: (P) => ({
     // trefoil cell: three fused lobes of different size, each with a nucleus
@@ -125,97 +124,105 @@ const RL_ENEMY_BUILDERS = {
     ],
   }),
   leaper: (P) => ({
-    // frog: crouched body, folded hind legs, bulging eyes (one bigger), wide mouth
+    // Phase 4F husk: a crouched grave-frog, hooded eyes of different size, folded legs and bone feet
     body: [
-      ball(P.mid, 0.4, 9, 6, { x: -0.04, y: 0.46, sx: 1.25, sy: 0.75 }),
-      ball(P.lite, 0.26, 7, 5, { x: 0.34, y: 0.42, sx: 1.2, sy: 0.7 }),
+      ball(P.mid, 0.36, 8, 5, { x: -0.04, y: 0.46, sx: 1.2, sy: 0.75 }),
+      ball(P.dark, 0.28, 7, 5, { x: 0.3, y: 0.56, sx: 1.1, sy: 0.8 }),
+      box(P.lite, 0.32, 0.06, 0.36, { x: 0.26, y: 0.78, rz: -0.1 }),
       ...both((s) => [
-        bar(P.dark, 0.15, [-0.28, 0.5, s * 0.36], [-0.5, 0.4, s * 0.6], 0.14),
-        bar(P.mid, 0.12, [-0.5, 0.4, s * 0.6], [-0.08, 0.06, s * 0.6], 0.11),
-        box(P.pale, 0.3, 0.06, 0.14, { x: 0.06, y: 0.04, z: s * 0.6 }),
-        bar(P.dark, 0.1, [0.3, 0.42, s * 0.28], [0.52, 0.06, s * 0.36], 0.1),
+        bar(P.dark, 0.14, [-0.26, 0.5, s * 0.34], [-0.48, 0.42, s * 0.58], 0.13),
+        bar(P.mid, 0.11, [-0.48, 0.42, s * 0.58], [-0.06, 0.06, s * 0.58], 0.1),
+        box(P.pale, 0.26, 0.05, 0.12, { x: 0.04, y: 0.04, z: s * 0.58 }),
+        bar(P.dark, 0.09, [0.3, 0.44, s * 0.26], [0.5, 0.06, s * 0.34], 0.09),
+        spike(P.dark, 0.04, 3, [0.5, 0.08, s * 0.34], [0.64, 0.04, s * 0.4]),
       ]),
+      box(P.dark, 0.28, 0.34, 0.06, { x: -0.34, y: 0.7, rz: 0.14 }),
+      box(P.dark, 0.2, 0.26, 0.05, { x: -0.4, y: 0.44, rz: 0.2 }),
     ],
     glow: [
-      ball(P.white, 0.11, 6, 4, { x: 0.36, y: 0.7, z: 0.2 }),
-      ball(P.white, 0.075, 6, 4, { x: 0.38, y: 0.66, z: -0.18 }),
-      box(P.white, 0.06, 0.03, 0.34, { x: 0.55, y: 0.36 }),
+      ball(P.white, 0.09, 6, 4, { x: 0.42, y: 0.66, z: 0.16 }),
+      ball(P.white, 0.06, 5, 3, { x: 0.44, y: 0.62, z: -0.16 }),
+      box(P.white, 0.05, 0.03, 0.28, { x: 0.52, y: 0.36 }),
     ],
   }),
   hive: (P) => ({
-    // brood mound: a fat lumpy body with two smaller segments on top, hatch pods around the base
+    // Phase 4F husk: a bloated brood mound under stacked mantles, hatch pods lit from within
     body: [
-      ball(P.mid, 0.95, 8, 6, { y: 0.85, sy: 0.85 }),
-      ball(P.lite, 0.6, 7, 5, { x: -0.1, y: 1.6, z: 0.08 }),
-      ball(P.dark, 0.38, 6, 4, { x: -0.12, y: 2.0, z: 0.14 }),
+      ball(P.mid, 0.9, 8, 6, { y: 0.8, sy: 0.85 }),
+      box(P.lite, 1.0, 0.3, 1.05, { y: 0.62 }),
+      box(P.dark, 0.8, 0.22, 0.85, { y: 1.18, rz: 0.04 }),
+      ball(P.dark, 0.55, 7, 5, { x: -0.08, y: 1.55, z: 0.06 }),
+      box(P.lite, 0.5, 0.14, 0.55, { x: 0.04, y: 1.32 }),
+      spike(P.pale, 0.07, 4, [-0.1, 2.2, 0.08], [0.02, 2.6, 0.22]),
+      spike(P.pale, 0.05, 4, [-0.24, 2.1, 0.16], [-0.48, 2.4, 0.34]),
       ...[0.2, 2.3, 4.3].map((a, i) =>
-        ball(i === 1 ? P.lite : P.dark, 0.3 + i * 0.03, 6, 4, {
-          x: Math.cos(a) * 0.95,
-          y: 0.48 + i * 0.12,
-          z: Math.sin(a) * 0.95,
+        ball(i === 1 ? P.lite : P.dark, 0.28 + i * 0.03, 6, 4, {
+          x: Math.cos(a) * 0.92,
+          y: 0.5 + i * 0.12,
+          z: Math.sin(a) * 0.92,
         }),
       ),
-      spike(P.pale, 0.06, 4, [-0.1, 2.25, 0.1], [0.05, 2.75, 0.3]),
-      spike(P.pale, 0.05, 4, [-0.2, 2.2, 0.2], [-0.5, 2.6, 0.5]),
+      box(P.dark, 0.3, 0.5, 0.07, { x: -0.62, y: 1.0, rz: 0.12 }),
+      box(P.dark, 0.22, 0.4, 0.06, { x: -0.7, y: 0.68, rz: 0.2 }),
     ],
     glow: [
       ...[0.2, 2.3, 4.3].map((a, i) =>
-        meshPart(new IcosahedronGeometry(0.15, 0), P.white, {
-          x: Math.cos(a) * 1.16,
-          y: 0.5 + i * 0.12,
-          z: Math.sin(a) * 1.16,
+        meshPart(new OctahedronGeometry(0.13), P.white, {
+          x: Math.cos(a) * 1.12,
+          y: 0.52 + i * 0.12,
+          z: Math.sin(a) * 1.12,
         }),
       ),
-      meshPart(new OctahedronGeometry(0.16), P.white, { x: 0.05, y: 2.82, z: 0.3 }),
-      ball(P.white, 0.12, 6, 4, { x: 0.62, y: 1.05, z: -0.4 }),
+      meshPart(new OctahedronGeometry(0.15), P.white, { x: 0.04, y: 2.66, z: 0.26 }),
+      ball(P.white, 0.09, 5, 3, { x: 0.56, y: 1.0, z: -0.36 }),
     ],
   }),
   carrier: (P) => ({
-    // manta: flat body, swept wing tips, tail, three launch bays underneath
+    // Phase 4F husk: a shadow manta with bone-swept wing tips and lit launch bays under the hull
     body: [
-      ball(P.mid, 0.6, 9, 5, { y: 0.62, sx: 1.15, sy: 0.3, sz: 1.05 }),
-      ball(P.lite, 0.3, 7, 5, { x: 0.28, y: 0.72, sy: 0.7 }),
+      ball(P.mid, 0.55, 8, 5, { y: 0.6, sx: 1.1, sy: 0.32, sz: 1.0 }),
+      ball(P.dark, 0.26, 6, 4, { x: 0.3, y: 0.7, sy: 0.8 }),
+      box(P.lite, 0.44, 0.1, 0.5, { x: 0.14, y: 0.78 }),
       ...both((s) => [
-        bar(P.dark, 0.55, [0.05, 0.62, s * 0.45], [-0.45, 0.58, s * 1.1], 0.06),
-        spike(P.pale, 0.08, 4, [-0.42, 0.58, s * 1.05], [-0.7, 0.55, s * 1.3]),
-        box(P.metal, 0.3, 0.16, 0.26, { x: -0.05, y: 0.46, z: s * 0.66 }),
+        bar(P.dark, 0.5, [0.04, 0.6, s * 0.42], [-0.42, 0.56, s * 1.05], 0.06),
+        spike(P.pale, 0.07, 4, [-0.4, 0.56, s * 1.0], [-0.66, 0.52, s * 1.24]),
+        box(P.metal, 0.28, 0.16, 0.24, { x: -0.04, y: 0.44, z: s * 0.62 }),
       ]),
-      spike(P.dark, 0.11, 4, [-0.55, 0.6, 0], [-1.2, 0.5, 0]),
-      box(P.metal, 0.28, 0.16, 0.3, { x: 0.4, y: 0.46 }),
+      spike(P.dark, 0.1, 4, [-0.52, 0.58, 0], [-1.1, 0.48, 0]),
+      box(P.dark, 0.24, 0.4, 0.08, { x: -0.2, y: 0.84 }),
+      box(P.metal, 0.26, 0.16, 0.28, { x: 0.4, y: 0.44 }),
     ],
     glow: [
-      ...both((s) => [
-        ball(P.white, 0.07, 6, 4, { x: 0.52, y: 0.8, z: s * 0.14 }),
-        box(P.white, 0.14, 0.05, 0.06, { x: 0.02, y: 0.4, z: s * 0.66 }),
-      ]),
-      box(P.white, 0.12, 0.05, 0.06, { x: 0.5, y: 0.4 }),
-      meshPart(new OctahedronGeometry(0.11), P.white, { x: -0.1, y: 0.98 }),
+      ball(P.white, 0.06, 5, 3, { x: 0.46, y: 0.76, z: 0.12 }),
+      ball(P.white, 0.06, 5, 3, { x: 0.46, y: 0.76, z: -0.12 }),
+      box(P.white, 0.12, 0.04, 0.05, { x: -0.04, y: 0.4, z: 0.62 }),
+      box(P.white, 0.12, 0.04, 0.05, { x: -0.04, y: 0.4, z: -0.62 }),
+      box(P.white, 0.12, 0.04, 0.05, { x: 0.4, y: 0.4 }),
+      meshPart(new OctahedronGeometry(0.1), P.white, { x: -0.1, y: 0.94 }),
     ],
   }),
   mender: (P) => ({
-    // healing bloom: round bulb in five uneven petals, a glowing cross floating above
+    // Phase 4F husk: a hooded gravekeeper acolyte, layered robes, swinging a censer under an ember cross
     body: [
-      ball(P.mid, 0.4, 8, 6, { y: 0.52, sy: 1.15 }),
-      pipe(P.dark, 0.34, 0.16, 6, [0, 0.02, 0], [0, 0.3, 0]),
-      ...[0, 1, 2, 3, 4].map((i) => {
-        const a = 0.4 + (i / 5) * TAU_M,
-          reach = 0.62 + (i % 2) * 0.16,
-          top = 1.05 + (i % 3) * 0.14;
-        return spike(
-          i % 2 ? P.lite : P.dark,
-          0.2,
-          4,
-          [Math.cos(a) * 0.22, 0.55, Math.sin(a) * 0.22],
-          [Math.cos(a) * reach, top, Math.sin(a) * reach],
-        );
-      }),
+      ...both((s) => [
+        box(P.dark, 0.26, 0.3, 0.28, { x: 0.02, y: 0.15, z: s * 0.2 }),
+        bar(P.dark, 0.09, [0.02, 0.62, s * 0.24], [0.16, 0.5, s * 0.42]),
+      ]),
+      pipe(P.mid, 0.36, 0.3, 8, [0, 0.02, 0], [0, 0.72, 0]),
+      ball(P.mid, 0.3, 7, 5, { y: 0.84, sy: 1.05 }),
+      box(P.lite, 0.4, 0.1, 0.44, { y: 0.98 }),
+      box(P.dark, 0.32, 0.26, 0.34, { x: 0.04, y: 1.14 }),
+      spike(P.dark, 0.22, 5, [0.02, 1.2, 0], [-0.14, 1.44, 0.04]),
+      box(P.dark, 0.3, 0.44, 0.07, { x: -0.34, y: 0.9, rz: 0.1 }),
+      box(P.dark, 0.22, 0.34, 0.06, { x: -0.42, y: 0.6, rz: 0.18 }),
+      bar(P.metal, 0.03, [0.26, 0.5, 0.36], [0.28, 0.3, 0.36]),
+      pipe(P.metal, 0.12, 0.15, 6, [0.28, 0.3, 0.36], [0.28, 0.44, 0.36]),
     ],
     glow: [
-      box(P.white, 0.46, 0.11, 0.11, { y: 1.05, x: 0.03 }),
-      box(P.white, 0.11, 0.11, 0.46, { y: 1.05, x: 0.03 }),
-      meshPart(new OctahedronGeometry(0.06), P.white, { x: 0.3, y: 0.85, z: 0.3 }),
-      meshPart(new OctahedronGeometry(0.05), P.white, { x: -0.32, y: 0.95, z: -0.2 }),
-      ball(P.white, 0.09, 6, 4, { x: 0.36, y: 0.52, z: 0.12 }),
+      box(P.white, 0.4, 0.09, 0.09, { y: 1.52 }),
+      box(P.white, 0.09, 0.09, 0.4, { y: 1.52 }),
+      ball(P.white, 0.07, 5, 3, { x: 0.28, y: 0.38, z: 0.36 }),
+      box(P.white, 0.05, 0.07, 0.1, { x: 0.2, y: 1.1 }),
     ],
   }),
   grunt: (P) => ({
@@ -368,486 +375,295 @@ const RL_ENEMY_BUILDERS = {
     ],
   }),
   mortar: (P) => ({
-    // artillery crawler: low armoured base with four feet, a steep tube, shells racked at the back
+    // Phase 4F husk: a low rift-artillery crawler, riveted base plate, steep dark tube, racked shells
     body: [
-      pipe(P.dark, 0.7, 0.62, 8, [0, 0.1, 0], [0, 0.42, 0]),
+      pipe(P.dark, 0.68, 0.6, 8, [0, 0.08, 0], [0, 0.4, 0]),
       ...[0.8, 2.35, 3.95, 5.5].map((a) =>
-        box(P.metal, 0.36, 0.2, 0.28, { x: Math.cos(a) * 0.68, y: 0.1, z: Math.sin(a) * 0.68, ry: -a }),
+        box(P.metal, 0.34, 0.18, 0.26, { x: Math.cos(a) * 0.64, y: 0.1, z: Math.sin(a) * 0.64, ry: -a }),
       ),
-      meshPart(new SphereGeometry(0.46, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2), P.mid, { y: 0.42, sy: 0.9 }),
-      pipe(P.metal, 0.19, 0.15, 8, [-0.05, 0.6, 0], [0.5, 1.4, 0]),
-      pipe(P.lite, 0.23, 0.23, 8, [0.44, 1.28, 0], [0.54, 1.44, 0]),
-      box(P.dark, 0.3, 0.3, 0.5, { x: -0.36, y: 0.8, rz: 0.2 }),
-      ...[-0.16, 0, 0.16].map((z) => pipe(P.pale, 0.06, 0.06, 5, [-0.5, 0.35, z * 2.2], [-0.02, 0.35, z * 2.2])),
+      meshPart(new SphereGeometry(0.44, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2), P.mid, { y: 0.4, sy: 0.9 }),
+      box(P.lite, 0.5, 0.14, 0.56, { y: 0.62 }),
+      pipe(P.metal, 0.18, 0.14, 8, [-0.04, 0.58, 0], [0.46, 1.36, 0]),
+      pipe(P.lite, 0.22, 0.22, 8, [0.4, 1.26, 0], [0.5, 1.4, 0]),
+      box(P.dark, 0.3, 0.3, 0.48, { x: -0.34, y: 0.78, rz: 0.2 }),
+      box(P.dark, 0.24, 0.4, 0.07, { x: -0.5, y: 0.98, rz: 0.26 }),
+      ...[-0.16, 0, 0.16].map((z) => pipe(P.pale, 0.055, 0.055, 5, [-0.48, 0.34, z * 2.2], [-0.04, 0.34, z * 2.2])),
     ],
     glow: [
-      pipe(P.white, 0.25, 0.25, 8, [0.51, 1.37, 0], [0.55, 1.43, 0]),
-      ...[-0.16, 0, 0.16].map((z) => spike(P.white, 0.06, 5, [0.0, 0.35, z * 2.2], [0.14, 0.35, z * 2.2])),
-      ...both((s) => [box(P.white, 0.06, 0.03, 0.2, { x: 0.3, y: 0.5, z: s * 0.5 })]),
+      pipe(P.white, 0.24, 0.24, 8, [0.47, 1.35, 0], [0.51, 1.41, 0]),
+      ...[-0.16, 0, 0.16].map((z) => ball(P.white, 0.05, 4, 3, { x: -0.04, y: 0.34, z: z * 2.2 })),
+      ...both((s) => [box(P.white, 0.06, 0.03, 0.16, { x: 0.28, y: 0.5, z: s * 0.48 })]),
     ],
   }),
   turret: (P) => ({
-    // rift turret: hex base, column, a head with twin barrels and a roving sensor lens
+    // Phase 4F husk: a hex plinth turret, hooded barrel mantles and one roving ember lens
     body: [
-      pipe(P.dark, 0.7, 0.55, 6, [0, 0.02, 0], [0, 0.3, 0]),
-      pipe(P.metal, 0.24, 0.17, 8, [0, 0.3, 0], [0, 0.66, 0]),
-      box(P.mid, 0.6, 0.34, 0.52, { y: 0.9 }),
-      box(P.lite, 0.4, 0.14, 0.44, { x: -0.02, y: 1.1 }),
+      pipe(P.dark, 0.68, 0.52, 6, [0, 0.02, 0], [0, 0.3, 0]),
+      pipe(P.metal, 0.22, 0.16, 8, [0, 0.3, 0], [0, 0.62, 0]),
+      box(P.mid, 0.56, 0.32, 0.5, { y: 0.86 }),
+      box(P.lite, 0.38, 0.14, 0.44, { y: 1.06 }),
       ...both((s) => [
-        pipe(P.metal, 0.06, 0.06, 6, [0.25, 0.92, s * 0.14], [1.1, 0.92, s * 0.14]),
-        box(P.dark, 0.36, 0.14, 0.12, { x: 0.36, y: 0.92, z: s * 0.14 }),
-        box(P.dark, 0.22, 0.4, 0.14, { x: -0.1, y: 0.9, z: s * 0.36 }),
+        pipe(P.metal, 0.055, 0.055, 6, [0.24, 0.88, s * 0.14], [1.04, 0.88, s * 0.14]),
+        box(P.dark, 0.3, 0.14, 0.12, { x: 0.34, y: 0.88, z: s * 0.14 }),
+        box(P.dark, 0.2, 0.38, 0.14, { x: -0.1, y: 0.86, z: s * 0.34 }),
       ]),
-      spike(P.metal, 0.03, 3, [-0.3, 1.0, 0.1], [-0.4, 1.5, 0.1]),
+      box(P.dark, 0.34, 0.3, 0.44, { x: -0.24, y: 0.86 }),
+      spike(P.pale, 0.035, 3, [-0.3, 1.04, 0.1], [-0.4, 1.42, 0.1]),
+      spike(P.pale, 0.03, 3, [-0.26, 1.02, -0.12], [-0.34, 1.32, -0.14]),
     ],
     glow: [
-      ball(P.white, 0.11, 7, 5, { x: 0.16, y: 1.2 }),
-      ...both((s) => [ball(P.white, 0.05, 5, 3, { x: 1.14, y: 0.92, z: s * 0.14 })]),
-      pipe(P.white, 0.64, 0.64, 12, [0, 0.03, 0], [0, 0.06, 0]),
+      ball(P.white, 0.1, 6, 4, { x: 0.14, y: 1.14 }),
+      ball(P.white, 0.045, 5, 3, { x: 1.08, y: 0.88, z: 0.14 }),
+      ball(P.white, 0.045, 5, 3, { x: 1.08, y: 0.88, z: -0.14 }),
+      pipe(P.white, 0.6, 0.6, 12, [0, 0.03, 0], [0, 0.06, 0]),
     ],
   }),
   charger: (P) => ({
-    // rhino: low wedge with a single huge ram horn, small brow horns, stacked back armour
+    // Phase 4F husk: a plated rift rhino sunk low, one bone ram horn, ember brow
     body: [
-      box(P.mid, 0.95, 0.5, 0.75, { x: -0.05, y: 0.52 }),
-      box(P.dark, 0.5, 0.3, 0.6, { x: 0.4, y: 0.42, rz: -0.2 }),
-      ...[0, 1, 2].map((i) => box(P.lite, 0.26, 0.14, 0.7 - i * 0.08, { x: -0.36 + i * 0.26, y: 0.84 + i * 0.03 })),
+      box(P.mid, 0.9, 0.48, 0.7, { x: -0.05, y: 0.5 }),
+      box(P.dark, 0.46, 0.3, 0.55, { x: 0.4, y: 0.42, rz: -0.18 }),
+      ...[0, 1, 2].map((i) => box(P.lite, 0.24, 0.13, 0.66 - i * 0.07, { x: -0.36 + i * 0.26, y: 0.82 + i * 0.03 })),
       ...both((s) => [
-        box(P.dark, 0.3, 0.32, 0.22, { x: 0.28, y: 0.16, z: s * 0.3 }),
-        box(P.dark, 0.3, 0.32, 0.22, { x: -0.38, y: 0.16, z: s * 0.3 }),
-        spike(P.pale, 0.08, 4, [0.3, 0.8, s * 0.3], [0.62, 1.05, s * 0.44]),
+        box(P.dark, 0.28, 0.3, 0.2, { x: 0.26, y: 0.15, z: s * 0.28 }),
+        box(P.dark, 0.28, 0.3, 0.2, { x: -0.38, y: 0.15, z: s * 0.28 }),
+        spike(P.pale, 0.07, 4, [0.3, 0.78, s * 0.28], [0.56, 1.02, s * 0.4]),
+        box(P.dark, 0.26, 0.4, 0.06, { x: -0.44, y: 0.66, z: s * 0.36, rz: s * 0.1 }),
       ]),
-      spike(P.pale, 0.2, 6, [0.42, 0.55, 0], [1.2, 0.5, 0]),
+      spike(P.pale, 0.17, 6, [0.44, 0.52, 0], [1.16, 0.46, 0]),
+      spike(P.pale, 0.06, 4, [0.56, 0.66, 0.1], [0.78, 0.8, 0.14]),
+      spike(P.pale, 0.06, 4, [0.56, 0.66, -0.1], [0.78, 0.8, -0.14]),
     ],
     glow: [
-      ...both((s) => [box(P.white, 0.06, 0.05, 0.16, { x: 0.46, y: 0.74, z: s * 0.24 })]),
-      box(P.white, 0.4, 0.04, 0.05, { x: -0.3, y: 0.93, z: 0.15 }),
-      box(P.white, 0.4, 0.04, 0.05, { x: -0.3, y: 0.93, z: -0.15 }),
-      spike(P.white, 0.05, 4, [1.0, 0.51, 0], [1.24, 0.5, 0]),
+      ...both((s) => [box(P.white, 0.06, 0.05, 0.14, { x: 0.5, y: 0.68, z: s * 0.22 })]),
+      box(P.white, 0.34, 0.04, 0.04, { x: -0.3, y: 0.9 }),
+      spike(P.white, 0.04, 4, [1.06, 0.47, 0], [1.22, 0.46, 0]),
     ],
   }),
   minebot: (P) => ({
-    // crab: dome body, eye stalks, two pincers, and three glowing mines on its back
+    // Phase 4F husk: a shadow crab with needle legs, bone pincers and ember mines bedded in its shell
     body: [
-      pipe(P.dark, 0.62, 0.56, 8, [0, 0.16, 0], [0, 0.34, 0]),
-      meshPart(new SphereGeometry(0.5, 10, 4, 0, Math.PI * 2, 0, Math.PI / 2), P.mid, { y: 0.34, sy: 0.9 }),
+      pipe(P.dark, 0.58, 0.52, 8, [0, 0.14, 0], [0, 0.32, 0]),
+      meshPart(new SphereGeometry(0.48, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2), P.mid, { y: 0.32, sy: 0.9 }),
+      box(P.lite, 0.5, 0.12, 0.54, { y: 0.5 }),
       ...both((s) => [
-        bar(P.metal, 0.06, [0.2, 0.34, s * 0.4], [0.52, 0.05, s * 0.62]),
-        bar(P.metal, 0.06, [-0.2, 0.34, s * 0.4], [-0.5, 0.05, s * 0.6]),
-        bar(P.metal, 0.06, [0, 0.34, s * 0.5], [0.02, 0.05, s * 0.78]),
-        bar(P.dark, 0.13, [0.3, 0.38, s * 0.36], [0.74, 0.32, s * 0.5]),
-        spike(P.pale, 0.09, 4, [0.72, 0.32, s * 0.38], [1.02, 0.3, s * 0.3]),
-        spike(P.pale, 0.09, 4, [0.72, 0.32, s * 0.62], [1.02, 0.3, s * 0.7]),
-        bar(P.metal, 0.03, [0.4, 0.62, s * 0.14], [0.5, 0.86, s * 0.16]),
+        bar(P.metal, 0.05, [0.2, 0.32, s * 0.4], [0.5, 0.05, s * 0.6]),
+        bar(P.metal, 0.05, [-0.2, 0.32, s * 0.4], [-0.48, 0.05, s * 0.58]),
+        bar(P.metal, 0.05, [0, 0.32, s * 0.5], [0.02, 0.05, s * 0.74]),
+        bar(P.dark, 0.12, [0.28, 0.36, s * 0.36], [0.7, 0.3, s * 0.5]),
+        spike(P.pale, 0.08, 4, [0.68, 0.3, s * 0.4], [0.96, 0.28, s * 0.32]),
+        bar(P.metal, 0.03, [0.38, 0.6, s * 0.13], [0.46, 0.82, s * 0.15]),
       ]),
+      ...[0, 1, 2].map((k) => {
+        const a = Math.PI * 0.6 + k * 0.5;
+        return ball(P.dark, 0.09, 5, 3, { x: Math.cos(a) * 0.28 - 0.04, y: 0.72, z: Math.sin(a) * 0.28 - 0.06 });
+      }),
     ],
     glow: [
       ...[0, 1, 2].map((k) => {
-        const a = PI * 0.65 + k * 0.42;
-        return ball(P.white, 0.11, 6, 4, { x: Math.cos(a) * 0.3 - 0.05, y: 0.8, z: Math.sin(a) * 0.3 - 0.08 });
+        const a = Math.PI * 0.6 + k * 0.5;
+        return meshPart(new OctahedronGeometry(0.11), P.white, {
+          x: Math.cos(a) * 0.28 - 0.04,
+          y: 0.76,
+          z: Math.sin(a) * 0.28 - 0.06,
+        });
       }),
-      ...both((s) => [ball(P.white, 0.055, 5, 3, { x: 0.5, y: 0.88, z: s * 0.16 })]),
+      ...both((s) => [ball(P.white, 0.05, 5, 3, { x: 0.46, y: 0.84, z: s * 0.15 })]),
     ],
   }),
   sapper: (P) => ({
-    // engineer: round body, welding mask with goggles, a backpack of dynamite, a big wrench
+    // Phase 4F husk: a masked powder-lurker, dark robe, dynamite rack on the back, a heavy wrench
     body: [
-      ...both((s) => [bar(P.dark, 0.14, [0, 0.4, s * 0.16], [0.02, 0.02, s * 0.2])]),
-      pipe(P.mid, 0.34, 0.26, 8, [0, 0.36, 0], [0, 0.78, 0]),
-      ball(P.dark, 0.24, 8, 5, { y: 0.98 }),
-      box(P.metal, 0.16, 0.24, 0.34, { x: 0.18, y: 0.98 }),
-      box(P.lite, 0.32, 0.5, 0.5, { x: -0.36, y: 0.55 }),
-      ...[-0.13, 0, 0.13].map((z) => pipe(P.pale, 0.05, 0.05, 6, [-0.42, 0.82, z], [-0.42, 1.05, z])),
-      bar(P.dark, 0.11, [0.06, 0.7, -0.3], [0.4, 0.56, -0.36]),
-      bar(P.dark, 0.11, [0.06, 0.7, 0.3], [0.3, 0.6, 0.36]),
-      bar(P.metal, 0.06, [0.3, 0.6, 0.36], [0.62, 0.66, 0.5]),
-      box(P.metal, 0.12, 0.05, 0.22, { x: 0.66, y: 0.66, z: 0.52 }),
+      ...both((s) => [
+        bar(P.dark, 0.12, [0, 0.4, s * 0.15], [0.02, 0.02, s * 0.18]),
+        bar(P.dark, 0.1, [0.05, 0.72, s * 0.26], [0.34, 0.56, s * 0.34]),
+      ]),
+      pipe(P.mid, 0.32, 0.24, 8, [0, 0.34, 0], [0, 0.76, 0]),
+      ball(P.dark, 0.24, 7, 5, { y: 0.96 }),
+      spike(P.dark, 0.18, 5, [-0.04, 1.06, 0], [-0.22, 1.3, 0.02]),
+      box(P.lite, 0.3, 0.44, 0.42, { x: -0.32, y: 0.54 }),
+      ...[-0.13, 0, 0.13].map((z) => pipe(P.pale, 0.045, 0.045, 5, [-0.38, 0.76, z], [-0.38, 1.0, z])),
+      box(P.metal, 0.16, 0.12, 0.3, { x: 0.14, y: 0.94 }),
+      bar(P.metal, 0.05, [0.32, 0.58, 0.32], [0.6, 0.64, 0.46]),
+      box(P.metal, 0.12, 0.05, 0.2, { x: 0.64, y: 0.64, z: 0.48 }),
+      box(P.dark, 0.26, 0.4, 0.06, { x: -0.36, y: 0.2, rz: 0.1 }),
     ],
     glow: [
-      ball(P.white, 0.065, 6, 4, { x: 0.28, y: 1.02, z: 0.09 }),
-      ball(P.white, 0.065, 6, 4, { x: 0.28, y: 1.02, z: -0.09 }),
-      ...[-0.13, 0, 0.13].map((z) => ball(P.white, 0.045, 5, 3, { x: -0.42, y: 1.1, z })),
-      box(P.white, 0.05, 0.05, 0.4, { x: -0.54, y: 0.66 }),
+      box(P.white, 0.05, 0.04, 0.1, { x: 0.2, y: 0.96 }),
+      ...[-0.13, 0, 0.13].map((z) => ball(P.white, 0.04, 4, 3, { x: -0.38, y: 1.04, z })),
+      box(P.white, 0.04, 0.3, 0.04, { x: -0.5, y: 0.6 }),
     ],
   }),
   phantom: (P) => ({
-    // wraith: flared cloak with torn hem, a pointed hood, long clawed arms, eyes and drifting wisps
+    // Phase 4F husk: a torn hood wraith, flare cloak ragged to the floor, claw arms and drifting wisps
     body: [
-      spike(P.mid, 0.5, 7, [0, 0.16, 0], [0, 1.1, 0]),
+      spike(P.mid, 0.46, 7, [0, 0.14, 0], [0, 1.08, 0]),
       ...[0, 1, 2, 3, 4, 5, 6].map((i) => {
         const a = (i / 7) * TAU_M;
         return spike(
           i % 2 ? P.dark : P.mid,
-          0.1,
+          0.09,
           4,
-          [Math.cos(a) * 0.4, 0.3, Math.sin(a) * 0.4],
-          [Math.cos(a) * 0.46, 0.02 + (i % 3) * 0.06, Math.sin(a) * 0.46],
+          [Math.cos(a) * 0.38, 0.3, Math.sin(a) * 0.38],
+          [Math.cos(a) * 0.44, 0.02 + (i % 3) * 0.06, Math.sin(a) * 0.44],
         );
       }),
-      ball(P.dark, 0.26, 7, 5, { x: 0.02, y: 1.18 }),
-      spike(P.dark, 0.2, 6, [-0.06, 1.3, 0], [-0.42, 1.52, 0]),
+      ball(P.dark, 0.24, 7, 5, { x: 0.02, y: 1.16 }),
+      spike(P.dark, 0.18, 6, [-0.04, 1.3, 0], [-0.36, 1.54, 0.02]),
+      box(P.lite, 0.36, 0.08, 0.4, { y: 1.02 }),
       ...both((s) => [
-        spike(P.dark, 0.09, 5, [0.14, 0.92, s * 0.3], [0.78, 0.78, s * 0.5]),
-        spike(P.pale, 0.03, 3, [0.74, 0.78, s * 0.5], [0.98, 0.7, s * 0.6]),
+        spike(P.dark, 0.08, 5, [0.14, 0.9, s * 0.28], [0.74, 0.76, s * 0.48]),
+        spike(P.pale, 0.03, 3, [0.7, 0.78, s * 0.47], [0.94, 0.68, s * 0.56]),
       ]),
     ],
     glow: [
-      ...both((s) => [meshPart(new OctahedronGeometry(0.075), P.white, { x: 0.24, y: 1.2, z: s * 0.1, sx: 1.6 })]),
-      meshPart(new OctahedronGeometry(0.09), P.white, { x: -0.5, y: 0.7, z: 0.35 }),
-      meshPart(new OctahedronGeometry(0.07), P.white, { x: -0.3, y: 1.05, z: -0.5 }),
-      meshPart(new OctahedronGeometry(0.06), P.white, { x: 0.3, y: 0.5, z: -0.5 }),
+      ...both((s) => [meshPart(new OctahedronGeometry(0.07), P.white, { x: 0.2, y: 1.2, z: s * 0.09, sx: 1.6 })]),
+      meshPart(new OctahedronGeometry(0.08), P.white, { x: -0.46, y: 0.68, z: 0.32 }),
+      meshPart(new OctahedronGeometry(0.06), P.white, { x: -0.28, y: 1.0, z: -0.46 }),
     ],
   }),
   sentinel: (P) => ({
-    // watcher: a pylon carrying a big eye inside a tilted, spiked ring
+    // Phase 4F husk: a hooded watch-pylon, ember eye sunk in a tilted bone-spiked ring
     body: [
-      pipe(P.dark, 0.44, 0.16, 6, [0, 0.02, 0], [0, 0.6, 0]),
-      ball(P.mid, 0.46, 8, 5, { y: 1.05 }),
-      meshPart(new TorusGeometry(0.64, 0.065, 4, 14), P.metal, { y: 1.05, rx: 0.35 }),
+      pipe(P.dark, 0.42, 0.15, 6, [0, 0.02, 0], [0, 0.56, 0]),
+      pipe(P.mid, 0.2, 0.1, 6, [0, 0.56, 0], [0, 0.86, 0]),
+      ball(P.mid, 0.42, 8, 5, { y: 1.02 }),
+      meshPart(new TorusGeometry(0.6, 0.06, 4, 14), P.metal, { y: 1.02, rx: 0.35 }),
+      box(P.lite, 0.4, 0.1, 0.44, { y: 0.78 }),
+      box(P.dark, 0.3, 0.26, 0.34, { x: -0.04, y: 1.2, rz: 0.06 }),
       ...[0, 1, 2, 3].map((i) => {
         const a = (i / 4) * TAU_M;
         return spike(
-          P.lite,
-          0.07,
+          P.pale,
+          0.06,
           4,
-          [Math.cos(a) * 0.66, 1.05 + Math.sin(a) * 0.2, Math.sin(a) * 0.66],
-          [Math.cos(a) * 0.9, 1.05 + Math.sin(a) * 0.3, Math.sin(a) * 0.9],
+          [Math.cos(a) * 0.62, 1.02 + Math.sin(a) * 0.2, Math.sin(a) * 0.62],
+          [Math.cos(a) * 0.86, 1.02 + Math.sin(a) * 0.3, Math.sin(a) * 0.86],
         );
       }),
     ],
     glow: [
-      ball(P.white, 0.2, 7, 5, { x: 0.36, y: 1.07 }),
-      ball(P.dark, 0.09, 5, 3, { x: 0.53, y: 1.07 }),
-      pipe(P.white, 0.48, 0.48, 12, [0, 0.03, 0], [0, 0.06, 0]),
+      ball(P.white, 0.17, 7, 5, { x: 0.32, y: 1.04 }),
+      ball(P.dark, 0.075, 5, 3, { x: 0.48, y: 1.04 }),
+      pipe(P.white, 0.44, 0.44, 12, [0, 0.03, 0], [0, 0.06, 0]),
     ],
   }),
   drone: (P) => ({
-    // needler: small quad-rotor with a long needle nose and belly pods
+    // Phase 4F husk: a bone-arm husk needler, thin rotor blades, belly pods, one ember nose light
     body: [
-      box(P.mid, 0.4, 0.14, 0.3, { y: 0.82 }),
-      ball(P.dark, 0.13, 6, 4, { x: 0.1, y: 0.9 }),
-      spike(P.metal, 0.045, 4, [0.18, 0.8, 0], [0.78, 0.78, 0]),
-      box(P.dark, 0.08, 0.18, 0.04, { x: -0.22, y: 0.94 }),
+      box(P.mid, 0.38, 0.13, 0.28, { y: 0.82 }),
+      ball(P.dark, 0.12, 6, 4, { x: 0.1, y: 0.9 }),
+      spike(P.metal, 0.04, 4, [0.16, 0.8, 0], [0.72, 0.78, 0]),
+      box(P.dark, 0.07, 0.16, 0.04, { x: -0.2, y: 0.92 }),
+      box(P.lite, 0.3, 0.05, 0.32, { y: 0.9 }),
       ...both((s) => [
-        bar(P.metal, 0.05, [0.08, 0.82, s * 0.14], [0.36, 0.86, s * 0.36], 0.04),
-        bar(P.metal, 0.05, [-0.08, 0.82, s * 0.14], [-0.34, 0.86, s * 0.34], 0.04),
-        box(P.dark, 0.2, 0.09, 0.09, { x: 0.12, y: 0.7, z: s * 0.12 }),
+        bar(P.metal, 0.04, [0.08, 0.82, s * 0.13], [0.34, 0.85, s * 0.34], 0.04),
+        bar(P.metal, 0.04, [-0.08, 0.82, s * 0.13], [-0.32, 0.85, s * 0.32], 0.04),
+        box(P.dark, 0.18, 0.08, 0.08, { x: 0.12, y: 0.7, z: s * 0.11 }),
       ]),
     ],
     glow: [
       ...[
-        [0.38, 0.38],
-        [0.38, -0.38],
-        [-0.36, 0.36],
-        [-0.36, -0.36],
-      ].map(([x, z]) => pipe(P.white, 0.17, 0.17, 8, [x, 0.87, z], [x, 0.9, z])),
-      ball(P.white, 0.05, 5, 3, { x: 0.3, y: 0.93 }),
-      box(P.white, 0.14, 0.03, 0.05, { x: -0.08, y: 0.9 }),
+        [0.36, 0.36],
+        [0.36, -0.36],
+        [-0.34, 0.34],
+        [-0.34, -0.34],
+      ].map(([x, z]) => box(P.white, 0.26, 0.02, 0.04, { x, y: 0.86, z, rz: z * x > 0 ? 0.7 : -0.7 })),
+      ball(P.white, 0.045, 5, 3, { x: 0.26, y: 0.92 }),
+      box(P.white, 0.12, 0.03, 0.04, { x: -0.06, y: 0.88 }),
     ],
   }),
   driller: (P) => ({
-    // digger: tracked body, cab with a lit window, a stepped drill and two exhaust stacks
+    // Phase 4F husk: a dark crawler digger, riveted tracks, a lit cab slit and a stepped bone drill
     body: [
       ...both((s) => [
-        box(P.dark, 1.0, 0.26, 0.24, { y: 0.13, z: s * 0.44 }),
-        box(P.metal, 0.3, 0.18, 0.06, { x: 0.34, y: 0.13, z: s * 0.58 }),
-        box(P.lite, 0.4, 0.16, 0.5, { x: 0.02, y: 0.62, z: s * 0.05 }),
-        pipe(P.metal, 0.09, 0.08, 6, [-0.38, 0.74, s * 0.22], [-0.38, 1.2, s * 0.22]),
+        box(P.dark, 0.94, 0.24, 0.22, { y: 0.13, z: s * 0.42 }),
+        box(P.metal, 0.28, 0.16, 0.05, { x: 0.32, y: 0.13, z: s * 0.56 }),
+        pipe(P.metal, 0.08, 0.07, 6, [-0.36, 0.72, s * 0.2], [-0.36, 1.14, s * 0.2]),
       ]),
-      box(P.mid, 0.86, 0.46, 0.66, { y: 0.48 }),
-      box(P.metal, 0.44, 0.34, 0.5, { x: -0.16, y: 0.9 }),
-      pipe(P.dark, 0.3, 0.3, 8, [0.42, 0.48, 0], [0.62, 0.48, 0]),
-      spike(P.pale, 0.34, 6, [0.6, 0.48, 0], [1.0, 0.48, 0]),
-      spike(P.metal, 0.22, 6, [0.95, 0.48, 0], [1.28, 0.48, 0]),
-      spike(P.pale, 0.12, 6, [1.22, 0.48, 0], [1.52, 0.48, 0]),
+      box(P.mid, 0.8, 0.44, 0.6, { y: 0.46 }),
+      box(P.metal, 0.4, 0.32, 0.44, { x: -0.14, y: 0.86 }),
+      box(P.lite, 0.34, 0.1, 0.4, { x: -0.12, y: 1.06 }),
+      pipe(P.dark, 0.28, 0.28, 8, [0.4, 0.46, 0], [0.6, 0.46, 0]),
+      spike(P.pale, 0.3, 6, [0.56, 0.46, 0], [0.94, 0.46, 0]),
+      spike(P.metal, 0.2, 6, [0.9, 0.46, 0], [1.2, 0.46, 0]),
+      spike(P.pale, 0.1, 6, [1.16, 0.46, 0], [1.44, 0.46, 0]),
     ],
     glow: [
-      box(P.white, 0.06, 0.13, 0.36, { x: 0.08, y: 0.94 }),
-      ...both((s) => [ball(P.white, 0.06, 5, 3, { x: -0.38, y: 1.22, z: s * 0.22 })]),
-      ...[0.7, 0.96].map((x) =>
-        pipe(P.white, 0.36 - (x - 0.7) * 0.4, 0.36 - (x - 0.7) * 0.4, 8, [x, 0.48, 0], [x + 0.03, 0.48, 0]),
+      box(P.white, 0.06, 0.12, 0.32, { x: 0.08, y: 0.9 }),
+      ...both((s) => [ball(P.white, 0.05, 5, 3, { x: -0.36, y: 1.18, z: s * 0.2 })]),
+      ...[0.62, 0.94].map((x) =>
+        pipe(P.white, 0.3 - (x - 0.62) * 0.625, 0.3 - (x - 0.62) * 0.625, 8, [x, 0.46, 0], [x + 0.03, 0.46, 0]),
       ),
     ],
   }),
   beacon: (P) => ({
-    // repair spire: a hex plinth and a tall mast, three arms holding orbiting gems around a crystal
+    // Phase 4F husk: a bone-masted repair spire, dark plinth, orbiting ember gems round a rift crystal
     body: [
-      pipe(P.dark, 0.58, 0.44, 6, [0, 0.02, 0], [0, 0.24, 0]),
-      pipe(P.mid, 0.28, 0.13, 6, [0, 0.24, 0], [0, 1.2, 0]),
+      pipe(P.dark, 0.54, 0.42, 6, [0, 0.02, 0], [0, 0.24, 0]),
+      pipe(P.mid, 0.24, 0.12, 6, [0, 0.24, 0], [0, 1.18, 0]),
+      box(P.lite, 0.4, 0.12, 0.44, { y: 0.42 }),
+      box(P.dark, 0.28, 0.2, 0.32, { y: 0.94 }),
       ...[0, 1, 2].map((i) => {
         const a = 0.5 + (i / 3) * TAU_M;
-        return bar(P.metal, 0.06, [0, 0.95, 0], [Math.cos(a) * 0.55, 1.15 + (i % 2) * 0.2, Math.sin(a) * 0.55]);
+        return bar(P.metal, 0.05, [0, 0.92, 0], [Math.cos(a) * 0.52, 1.12 + (i % 2) * 0.18, Math.sin(a) * 0.52]);
       }),
       ...[0, 1, 2].map((i) => {
         const a = 0.5 + (i / 3) * TAU_M + 0.6;
         return spike(
-          P.lite,
-          0.11,
+          P.pale,
+          0.09,
           4,
-          [Math.cos(a) * 0.4, 0.26, Math.sin(a) * 0.4],
-          [Math.cos(a) * 0.62, 0.7, Math.sin(a) * 0.62],
+          [Math.cos(a) * 0.38, 0.24, Math.sin(a) * 0.38],
+          [Math.cos(a) * 0.6, 0.68, Math.sin(a) * 0.6],
         );
       }),
     ],
     glow: [
-      meshPart(new OctahedronGeometry(0.22), P.white, { y: 1.55, sy: 1.6 }),
+      meshPart(new OctahedronGeometry(0.2), P.white, { y: 1.5, sy: 1.6 }),
       ...[0, 1, 2].map((i) => {
         const a = 0.5 + (i / 3) * TAU_M;
-        return meshPart(new OctahedronGeometry(0.11), P.white, {
-          x: Math.cos(a) * 0.55,
-          y: 1.15 + (i % 2) * 0.2,
-          z: Math.sin(a) * 0.55,
+        return meshPart(new OctahedronGeometry(0.1), P.white, {
+          x: Math.cos(a) * 0.52,
+          y: 1.12 + (i % 2) * 0.18,
+          z: Math.sin(a) * 0.52,
           sy: 1.5,
         });
       }),
-      meshPart(new TorusGeometry(0.34, 0.03, 3, 12), P.white, { y: 0.55, rx: PI / 2 }),
+      meshPart(new TorusGeometry(0.3, 0.025, 3, 12), P.white, { y: 0.52, rx: PI / 2 }),
     ],
   }),
   weaver: (P) => ({
-    // rift spider: small head and body, a big round abdomen, six jointed legs, fangs and eye cluster
+    // Phase 4F husk: a ragged rift spider, dark abdomen with an ember seam, six needle legs
     body: [
-      meshPart(new OctahedronGeometry(0.28), P.mid, { x: 0.12, y: 0.62, sx: 1.2, sy: 0.85 }),
-      ball(P.dark, 0.3, 7, 5, { x: -0.3, y: 0.66, sx: 1.2, sy: 0.9 }),
-      meshPart(new OctahedronGeometry(0.16), P.lite, { x: 0.42, y: 0.64 }),
+      meshPart(new OctahedronGeometry(0.26), P.mid, { x: 0.12, y: 0.6, sx: 1.2, sy: 0.85 }),
+      ball(P.dark, 0.28, 7, 5, { x: -0.28, y: 0.64, sx: 1.2, sy: 0.9 }),
+      meshPart(new OctahedronGeometry(0.15), P.lite, { x: 0.4, y: 0.62 }),
+      box(P.lite, 0.26, 0.05, 0.3, { x: 0.1, y: 0.78 }),
       ...[0, 1, 2]
         .map((k) =>
           both((s) => {
-            const x = 0.22 - k * 0.22,
-              out = 0.5 + (k === 1 ? 0.12 : 0);
+            const x = 0.2 - k * 0.2,
+              out = 0.48 + (k === 1 ? 0.12 : 0);
             return [
-              bar(P.metal, 0.06, [x, 0.6, s * 0.16], [x + 0.14 - k * 0.1, 0.8, s * out]),
-              bar(P.metal, 0.05, [x + 0.14 - k * 0.1, 0.8, s * out], [x + 0.3 - k * 0.25, 0.02, s * (out + 0.42)]),
+              bar(P.metal, 0.05, [x, 0.58, s * 0.15], [x + 0.14 - k * 0.1, 0.78, s * out]),
+              bar(P.metal, 0.04, [x + 0.14 - k * 0.1, 0.78, s * out], [x + 0.28 - k * 0.24, 0.02, s * (out + 0.4)]),
             ];
           }),
         )
         .flat(),
-      ...both((s) => [spike(P.pale, 0.045, 3, [0.54, 0.6, s * 0.08], [0.72, 0.36, s * 0.06])]),
+      ...both((s) => [spike(P.pale, 0.04, 3, [0.52, 0.58, s * 0.07], [0.68, 0.36, s * 0.06])]),
+      box(P.dark, 0.24, 0.36, 0.06, { x: -0.4, y: 0.86, rz: 0.12 }),
     ],
     glow: [
-      meshPart(new OctahedronGeometry(0.07), P.white, { x: 0.5, y: 0.7, z: 0.07 }),
-      meshPart(new OctahedronGeometry(0.07), P.white, { x: 0.5, y: 0.7, z: -0.07 }),
-      meshPart(new OctahedronGeometry(0.05), P.white, { x: 0.46, y: 0.78 }),
-      box(P.white, 0.36, 0.04, 0.07, { x: -0.3, y: 0.94 }),
-      ball(P.white, 0.07, 6, 4, { x: -0.62, y: 0.6 }),
+      meshPart(new OctahedronGeometry(0.06), P.white, { x: 0.46, y: 0.68, z: 0.06 }),
+      meshPart(new OctahedronGeometry(0.06), P.white, { x: 0.46, y: 0.68, z: -0.06 }),
+      box(P.white, 0.3, 0.04, 0.05, { x: -0.26, y: 0.9 }),
+      ball(P.white, 0.06, 5, 3, { x: -0.58, y: 0.58 }),
     ],
   }),
 };
-/* 2.9.0: a second pass over the 25 models: panels, vents, rivets, lamps, pupils, teeth, claws, tails and
-   glowing cores. Every entry adds parts to the body and glow geometry of its type (same footprint, same
-   two draw calls; +40..+150 triangles, every type stays under ~450). Biologicals get organs and spikes,
-   machines get hard detail. */
-const pupil = (P, r, x, y, z) => ball(P.dark, r, 5, 3, { x, y, z }),
-  ringAround = (color, r, tube, y, p = {}) =>
-    meshPart(new TorusGeometry(r, tube, 3, 12), color, { y, rx: PI / 2, ...p });
-const RL_ENEMY_DETAIL = {
-  swarmer: (P) => ({
-    body: [
-      spike(P.dark, 0.04, 3, [0.16, 0.66, 0], [0.12, 0.8, 0]),
-      spike(P.dark, 0.04, 3, [0.0, 0.66, 0], [-0.06, 0.82, 0]),
-      spike(P.dark, 0.035, 3, [-0.16, 0.62, 0], [-0.24, 0.74, 0]),
-      ...both((s) => [
-        bar(P.dark, 0.03, [0.12, 0.42, s * 0.14], [0.24, 0.22, s * 0.28]),
-        bar(P.pale, 0.02, [0.42, 0.62, s * 0.06], [0.72, 0.88, s * 0.2]),
-        spike(P.pale, 0.03, 3, [-0.46, 0.4, s * 0.03], [-0.56, 0.46, s * 0.14]),
-        pupil(P, 0.04, 0.44, 0.58, s * 0.1),
-      ]),
-    ],
-    glow: [
-      box(P.white, 0.03, 0.03, 0.24, { x: 0.04, y: 0.655 }),
-      box(P.white, 0.03, 0.03, 0.2, { x: -0.1, y: 0.64 }),
-      box(P.white, 0.03, 0.03, 0.16, { x: -0.22, y: 0.6 }),
-    ],
-  }),
-  mite: (P) => ({
-    body: [
-      box(P.lite, 0.3, 0.05, 0.07, { x: 0.0, y: 0.44 }),
-      spike(P.pale, 0.05, 3, [-0.12, 0.4, 0.0], [-0.3, 0.46, 0.0]),
-      bar(P.dark, 0.04, [0.26, 0.27, 0.04], [0.42, 0.2, 0.08]),
-      bar(P.dark, 0.04, [0.26, 0.27, -0.04], [0.42, 0.2, -0.08]),
-      box(P.lite, 0.08, 0.06, 0.18, { x: 0.1, y: 0.46 }),
-      box(P.lite, 0.08, 0.06, 0.16, { x: -0.1, y: 0.44 }),
-      ...both((s) => [
-        spike(P.pale, 0.035, 3, [0.3, 0.3, s * 0.07], [0.52, 0.22, s * 0.11]),
-        spike(P.pale, 0.04, 3, [0.05, 0.4, s * 0.12], [0.1, 0.56, s * 0.2]),
-        bar(P.dark, 0.03, [0.2, 0.02, s * 0.32], [0.26, 0.0, s * 0.42]),
-        bar(P.dark, 0.03, [-0.2, 0.02, s * 0.3], [-0.26, 0.0, s * 0.4]),
-      ]),
-    ],
-    glow: [
-      ...both((s) => [ball(P.white, 0.035, 5, 3, { x: 0.27, y: 0.33, z: s * 0.14 })]),
-      meshPart(new OctahedronGeometry(0.06), P.white, { x: -0.14, y: 0.52, sy: 1.5 }),
-    ],
-  }),
-  leaper: (P) => ({
-    body: [
-      pupil(P, 0.06, 0.45, 0.72, 0.2),
-      pupil(P, 0.045, 0.45, 0.68, -0.18),
-      ...both((s) => [spike(P.pale, 0.03, 3, [0.52, 0.06, s * 0.36], [0.68, 0.04, s * 0.44])]),
-    ],
-    glow: [
-      ball(P.white, 0.03, 4, 3, { x: 0.56, y: 0.52, z: 0.08 }),
-      ball(P.white, 0.03, 4, 3, { x: 0.56, y: 0.52, z: -0.08 }),
-    ],
-  }),
-  hive: (P) => ({
-    body: [...both((s) => [spike(P.pale, 0.05, 3, [0.4, 1.55, s * 0.35], [0.6, 1.85, s * 0.5])])],
-    glow: [
-      ball(P.white, 0.07, 5, 3, { x: 0.66, y: 1.25, z: 0.47 }),
-      ball(P.white, 0.06, 5, 3, { x: -0.5, y: 1.32, z: -0.6 }),
-    ],
-  }),
-  carrier: (P) => ({
-    body: [...both((s) => [pipe(P.metal, 0.1, 0.08, 6, [-0.3, 0.6, s * 0.16], [-0.6, 0.6, s * 0.16])])],
-    glow: [...both((s) => [ball(P.white, 0.04, 5, 3, { x: -0.72, y: 0.55, z: s * 1.3 })])],
-  }),
-  mender: (P) => ({
-    body: [
-      ...[0, 1, 2].map((i) => {
-        const a = 0.3 + (i / 3) * TAU_M;
-        return spike(
-          P.dark,
-          0.05,
-          3,
-          [Math.cos(a) * 0.2, 0.15, Math.sin(a) * 0.2],
-          [Math.cos(a) * 0.5, 0.0, Math.sin(a) * 0.5],
-        );
-      }),
-      ball(P.pale, 0.05, 5, 3, { x: 0.3, y: 1.12, z: 0.22 }),
-      ball(P.pale, 0.05, 5, 3, { x: -0.3, y: 1.2, z: 0.1 }),
-    ],
-    glow: [
-      ringAround(P.white, 0.3, 0.018, 0.62),
-      ball(P.white, 0.04, 5, 3, { x: 0.02, y: 0.78, z: 0.3 }),
-      ball(P.white, 0.035, 5, 3, { x: -0.1, y: 0.9, z: -0.3 }),
-    ],
-  }),
-  mortar: (P) => ({
-    body: [
-      pipe(P.metal, 0.14, 0.14, 6, [-0.05, 0.82, 0], [-0.05, 0.9, 0]),
-      ...both((s) => [bar(P.metal, 0.05, [0.1, 0.5, s * 0.22], [0.3, 1.0, s * 0.22])]),
-    ],
-    glow: [
-      ...both((s) => [ball(P.white, 0.035, 4, 3, { x: 0.4, y: 0.16, z: s * 0.55 })]),
-      ball(P.white, 0.04, 4, 3, { x: -0.05, y: 0.93 }),
-    ],
-  }),
-  turret: (P) => ({
-    body: [
-      ...[0, 1, 2].map((i) => box(P.dark, 0.04, 0.03, 0.3, { x: -0.12 + i * 0.1, y: 1.09 })),
-      ...both((s) => [bar(P.pale, 0.05, [0.05, 0.9, s * 0.36], [0.3, 0.93, s * 0.16], 0.04)]),
-    ],
-    glow: [...both((s) => [ball(P.white, 0.035, 4, 3, { x: 0.05, y: 0.98, z: s * 0.28 })])],
-  }),
-  charger: (P) => ({
-    body: [
-      pipe(P.dark, 0.22, 0.19, 6, [0.62, 0.54, 0], [0.7, 0.54, 0]),
-      bar(P.dark, 0.08, [-0.5, 0.55, 0], [-0.86, 0.38, 0.08]),
-      spike(P.pale, 0.05, 3, [-0.85, 0.38, 0.08], [-1.05, 0.3, 0.12]),
-      ...[-0.24, 0, 0.24].map((z) => spike(P.pale, 0.04, 3, [-0.38, 0.9, z], [-0.46, 1.06, z])),
-      ...both((s) => [
-        box(P.dark, 0.12, 0.05, 0.1, { x: 0.5, y: 0.6, z: s * 0.18 }),
-        box(P.lite, 0.5, 0.26, 0.05, { x: -0.06, y: 0.56, z: s * 0.4 }),
-        box(P.metal, 0.06, 0.06, 0.06, { x: 0.12, y: 0.6, z: s * 0.44 }),
-        box(P.metal, 0.06, 0.06, 0.06, { x: -0.24, y: 0.6, z: s * 0.44 }),
-      ]),
-    ],
-    glow: [
-      ...both((s) => [
-        ball(P.white, 0.03, 4, 3, { x: 0.68, y: 0.5, z: s * 0.17 }),
-        box(P.white, 0.3, 0.03, 0.03, { x: -0.06, y: 0.56, z: s * 0.43 }),
-      ]),
-    ],
-  }),
-  minebot: (P) => ({
-    body: [pipe(P.dark, 0.54, 0.54, 8, [0, 0.33, 0], [0, 0.37, 0])],
-    glow: [],
-  }),
-  sapper: (P) => ({
-    body: [pipe(P.dark, 0.36, 0.36, 8, [0, 0.42, 0], [0, 0.48, 0])],
-    glow: [],
-  }),
-  phantom: (P) => ({
-    body: [
-      spike(P.mid, 0.07, 4, [-0.3, 0.55, 0.05], [-0.9, 0.3, 0.15]),
-      spike(P.mid, 0.06, 4, [-0.28, 0.45, -0.1], [-0.8, 0.14, -0.3]),
-      spike(P.dark, 0.05, 4, [-0.2, 0.7, 0], [-0.7, 0.62, -0.2]),
-      ...both((s) => [
-        spike(P.pale, 0.025, 3, [0.78, 0.78, s * 0.5], [0.96, 0.68, s * 0.36]),
-        spike(P.pale, 0.022, 3, [0.76, 0.78, s * 0.56], [0.98, 0.72, s * 0.7]),
-        spike(P.pale, 0.022, 3, [0.74, 0.78, s * 0.44], [0.92, 0.62, s * 0.3]),
-      ]),
-      spike(P.dark, 0.06, 4, [-0.36, 1.42, 0], [-0.62, 1.7, 0.05]),
-    ],
-    glow: [
-      meshPart(new OctahedronGeometry(0.05), P.white, { x: 0.3, y: 0.38, z: 0.4 }),
-      meshPart(new OctahedronGeometry(0.045), P.white, { x: -0.9, y: 0.32, z: 0.16 }),
-      box(P.white, 0.03, 0.22, 0.04, { x: 0.34, y: 0.6 }),
-      box(P.white, 0.03, 0.14, 0.04, { x: 0.3, y: 0.78, z: 0.16 }),
-      box(P.white, 0.03, 0.14, 0.04, { x: 0.3, y: 0.78, z: -0.16 }),
-      box(P.white, 0.03, 0.12, 0.04, { x: 0.38, y: 0.42, z: -0.12 }),
-    ],
-  }),
-  sentinel: (P) => ({
-    body: [
-      ...[0, 1, 2].map((i) => {
-        const a = (i / 3) * TAU_M + 0.4;
-        return spike(
-          P.lite,
-          0.09,
-          4,
-          [Math.cos(a) * 0.3, 0.05, Math.sin(a) * 0.3],
-          [Math.cos(a) * 0.45, 0.5, Math.sin(a) * 0.45],
-        );
-      }),
-    ],
-    glow: [pipe(P.white, 0.33, 0.33, 10, [0, 0.35, 0], [0, 0.39, 0])],
-  }),
-  drone: (P) => ({
-    body: [
-      box(P.dark, 0.14, 0.08, 0.2, { x: -0.12, y: 0.74 }),
-      ...[
-        [0.38, 0.38],
-        [0.38, -0.38],
-        [-0.36, 0.36],
-        [-0.36, -0.36],
-      ].map(([x, z]) => pipe(P.metal, 0.03, 0.03, 4, [x, 0.83, z], [x, 0.9, z])),
-      ...both((s) => [bar(P.metal, 0.025, [0.05, 0.74, s * 0.1], [0.14, 0.62, s * 0.3], 0.025)]),
-    ],
-    glow: [ball(P.white, 0.03, 4, 3, { x: 0.44, y: 0.78 }), box(P.white, 0.05, 0.03, 0.05, { x: -0.12, y: 0.79 })],
-  }),
-  driller: (P) => ({
-    body: [
-      ...both((s) => [box(P.pale, 0.05, 0.08, 0.1, { x: 0.44, y: 0.56, z: s * 0.22 })]),
-      box(P.lite, 0.3, 0.03, 0.4, { x: -0.16, y: 1.08 }),
-    ],
-    glow: [...both((s) => [box(P.white, 0.03, 0.06, 0.08, { x: 0.46, y: 0.56, z: s * 0.22 })])],
-  }),
-  beacon: (P) => ({
-    body: [
-      pipe(P.metal, 0.3, 0.3, 6, [0, 0.5, 0], [0, 0.56, 0]),
-      pipe(P.metal, 0.22, 0.22, 6, [0, 0.9, 0], [0, 0.95, 0]),
-    ],
-    glow: [ringAround(P.white, 0.23, 0.022, 0.75), ringAround(P.white, 0.19, 0.018, 1.05)],
-  }),
-  weaver: (P) => ({
-    body: [
-      spike(P.pale, 0.05, 3, [-0.6, 0.6, 0], [-0.85, 0.5, 0]),
-      spike(P.dark, 0.03, 3, [0.3, 0.75, 0.12], [0.38, 0.92, 0.14]),
-      spike(P.dark, 0.03, 3, [0.3, 0.75, -0.12], [0.38, 0.92, -0.14]),
-      ...both((s) => [
-        bar(P.dark, 0.04, [0.32, 0.6, s * 0.1], [0.5, 0.4, s * 0.18]),
-        spike(P.dark, 0.03, 3, [-0.4, 0.88, s * 0.14], [-0.44, 1.04, s * 0.18]),
-        spike(P.dark, 0.03, 3, [-0.18, 0.84, s * 0.12], [-0.2, 0.98, s * 0.16]),
-      ]),
-    ],
-    glow: [
-      box(P.white, 0.18, 0.02, 0.05, { x: -0.28, y: 0.935 }),
-      box(P.white, 0.05, 0.02, 0.14, { x: -0.28, y: 0.94 }),
-      ball(P.white, 0.03, 4, 3, { x: 0.52, y: 0.66, z: 0.05 }),
-      ball(P.white, 0.03, 4, 3, { x: 0.52, y: 0.66, z: -0.05 }),
-    ],
-  }),
-};
+
 function enemyGeometry(type, color) {
   // Phase 4C: enemies read as dark carved carapaces with one glowing accent (Dead Cells hero-vs-horde
   // read, Inscryption palette discipline). Hue identity is preserved for gameplay readability;
@@ -865,12 +681,11 @@ function enemyGeometry(type, color) {
       metal: 0x2c3a40,
       white: 16777215,
     },
-    parts = (RL_ENEMY_BUILDERS[type] || RL_ENEMY_BUILDERS.grunt)(palette),
-    extra = RL_ENEMY_DETAIL[type] ? RL_ENEMY_DETAIL[type](palette) : { body: [], glow: [] };
-  return { body: mergeParts(parts.body.concat(extra.body)), glow: mergeParts(parts.glow.concat(extra.glow)) };
+    parts = (RL_ENEMY_BUILDERS[type] || RL_ENEMY_BUILDERS.grunt)(palette);
+  return { body: mergeParts(parts.body), glow: mergeParts(parts.glow) };
 }
 
-/* enemy types with a dedicated model (original 13 + the 12 above) */
+/* every enemy type owns a full husk kit; no detail passes remain (Phase 4F) */
 const RL_MESH_TYPES = [
   "swarmer",
   "mite",
