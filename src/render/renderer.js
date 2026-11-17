@@ -408,7 +408,7 @@ const MAX_PARTICLES = 1400,
       this.scene.add(this.hemi, this.sun, this.fill);
       this.arena = new ArenaView(this.scene);
       this.smokeView = new SmokeView(this.scene);
-      this.terrainAtlas = new TextureLoader().load("textures/terrain-atlas.webp", (texture) => {
+      this.terrainAtlas = new TextureLoader().load("textures/terrain-atlas.png", (texture) => {
         WORLD_SURFACES.map.value = texture;
         WORLD_SURFACES.ready.value = 1;
         this.arena.uniforms.uTerrainMap.value = texture;

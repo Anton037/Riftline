@@ -977,14 +977,20 @@ const RL_ENEMY_DETAIL = {
   }),
 };
 function enemyGeometry(type, color) {
+  // Phase 4C: enemies read as dark carved carapaces with one glowing accent (Dead Cells hero-vs-horde
+  // read, Inscryption palette discipline). Hue identity is preserved for gameplay readability;
+  // value and saturation are deepened so the per-instance glow layer does the bright work.
   const base = new Color(color),
-    painted = base.clone().lerp(new Color(0x86938f), enemySurface(type) === "armor" ? 0.16 : 0.06),
+    hsl = { h: 0, s: 0, l: 0 };
+  base.getHSL(hsl);
+  const deep = new Color().setHSL(hsl.h, hsl.s * 0.7, Math.min(0.42, hsl.l * 0.42 + 0.09)),
+    painted = deep.clone().lerp(new Color(0x3d4a4c), enemySurface(type) === "armor" ? 0.22 : 0.08),
     palette = {
-      mid: painted.clone().multiplyScalar(0.62).getHex(),
-      dark: painted.clone().multiplyScalar(0.28).getHex(),
-      lite: painted.clone().multiplyScalar(0.9).getHex(),
-      pale: base.clone().lerp(RL_PALE_WHITE, 0.6).multiplyScalar(0.8).getHex(),
-      metal: 3818070,
+      mid: painted.clone().multiplyScalar(0.95).getHex(),
+      dark: painted.clone().multiplyScalar(0.45).getHex(),
+      lite: painted.clone().multiplyScalar(1.45).getHex(),
+      pale: deep.clone().lerp(RL_PALE_WHITE, 0.45).multiplyScalar(0.85).getHex(),
+      metal: 0x2c3a40,
       white: 16777215,
     },
     parts = (RL_ENEMY_BUILDERS[type] || RL_ENEMY_BUILDERS.grunt)(palette),
@@ -1272,11 +1278,12 @@ function debrisGeometry() {
   return new IcosahedronGeometry(0.58, 0);
 }
 function buildPlayerModel(weapon, color) {
-  // A compact industrial walker: an ivory armored shell over visible joints and a stabilized weapon bearing.
-  const hullMat = worldMaterial({ surface: "armor", color: 0xc5c9bb, shininess: 30 }),
-    trimMat = worldMaterial({ surface: "armor", color: 0x66868a, shininess: 24 }),
-    mechanismMat = worldMaterial({ surface: "rubber", color: 0x222d32, shininess: 8 }),
-    steelMat = worldMaterial({ surface: "metal", color: 0x99a6a2, shininess: 42 }),
+  // Phase 4B: a dark slate-indigo walker with teal trim and an ember plume (Dead Cells hero read):
+  // the shell is dark so the weapon glow, the visor light and the rim light carry the silhouette.
+  const hullMat = worldMaterial({ surface: "armor", color: 0x2e3745, shininess: 30 }),
+    trimMat = worldMaterial({ surface: "armor", color: 0x47a6a2, shininess: 24 }),
+    mechanismMat = worldMaterial({ surface: "rubber", color: 0x141b22, shininess: 8 }),
+    steelMat = worldMaterial({ surface: "metal", color: 0x5f6e73, shininess: 42 }),
     glowMat = new MeshBasicMaterial({ color, toneMapped: false }),
     visorMat = worldMaterial({ surface: "crystal", color: 0x142a30, shininess: 68 }),
     group = new Group(),
@@ -1346,6 +1353,10 @@ function buildPlayerModel(weapon, color) {
     glowMat,
     torso,
   );
+  // Phase 4B: the plume - a stepped antenna trail off the back of the head, the walker's one
+  // organic note (the Dead Cells scarf), tipped with the weapon's glow color.
+  addPart([box(0xffffff, 0.11, 0.06, 0.16, { x: -0.33, y: 1.25, rz: 0.16 })], trimMat, torso);
+  addPart([box(color, 0.05, 0.04, 0.07, { x: -0.4, y: 1.31, rz: 0.24 })], glowMat, torso);
   addPart([box(0xffffff, 0.31, 0.18, 0.46, { y: HIP + 0.025 })], mechanismMat, base);
   addPart([...both((s) => [pipe(0xffffff, 0.105, 0.105, 10, [0, HIP, s * 0.19], [0, HIP, s * 0.29])])], steelMat, base);
   base.add(torso);
