@@ -8,12 +8,15 @@ import { actorMaterial } from "../data/materials.js";
 import { setWorldShadows, WORLD_SURFACES, worldMaterial, enemySurface } from "./world-material.js";
 import { hexColor, additiveMaterial } from "./materials.js";
 import { AMBIENT_POOL_SHARE } from "../data/atmosphere.js";
+import { PixelPipeline } from "./pixel-pipeline.js";
+import { applyBiomePaletteUniforms } from "./biome-palettes.js";
+import { makePixelGlowTexture, makePixelShadowTexture, makePixelSparkTexture } from "./pixel-art.js";
 
 import {
   BoxGeometry,
   CanvasTexture,
   TextureLoader,
-  LinearFilter,
+  NearestFilter,
   CircleGeometry,
   Color,
   CylinderGeometry,
@@ -300,66 +303,31 @@ function makeCanvasTexture(size, draw) {
   draw(ctx, size);
   let tex = new CanvasTexture(canvas);
   tex.colorSpace = SRGBColorSpace;
+  tex.minFilter = NearestFilter;
+  tex.magFilter = NearestFilter;
+  tex.generateMipmaps = false;
   tex.needsUpdate = true;
   return tex;
 }
 function makeGlowTexture() {
-  return makeCanvasTexture(128, (ctx, size) => {
-    let half = size / 2,
-      grad = ctx.createRadialGradient(half, half, 0, half, half, half);
-    grad.addColorStop(0, "rgba(255,255,255,1)");
-    grad.addColorStop(0.18, "rgba(255,255,255,0.85)");
-    grad.addColorStop(0.45, "rgba(255,255,255,0.25)");
-    grad.addColorStop(1, "rgba(255,255,255,0)");
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, size, size);
-  });
+  return makePixelGlowTexture(32);
 }
 function makeShadowTexture() {
-  // 3.38.0: a tighter core and a faster falloff (the old rim faded so gently that the blobs read as smudges
-  // around the models instead of grounding them; no extra draw cost, the texture is shared)
-  return makeCanvasTexture(64, (ctx, size) => {
-    let half = size / 2,
-      grad = ctx.createRadialGradient(half, half, 0, half, half, half);
-    grad.addColorStop(0, "rgba(0,0,0,0.5)");
-    grad.addColorStop(0.42, "rgba(0,0,0,0.24)");
-    grad.addColorStop(0.76, "rgba(0,0,0,0.06)");
-    grad.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, size, size);
-  });
+  return makePixelShadowTexture(32);
 }
 function makeSparkTexture() {
-  return makeCanvasTexture(64, (ctx, size) => {
-    let grad = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-    grad.addColorStop(0, "rgba(255,255,255,1)");
-    grad.addColorStop(0.35, "rgba(255,255,255,0.6)");
-    grad.addColorStop(1, "rgba(255,255,255,0)");
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.moveTo(size / 2, 0);
-    ctx.lineTo(size * 0.62, size / 2);
-    ctx.lineTo(size / 2, size);
-    ctx.lineTo(size * 0.38, size / 2);
-    ctx.closePath();
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(0, size / 2);
-    ctx.lineTo(size / 2, size * 0.6);
-    ctx.lineTo(size, size / 2);
-    ctx.lineTo(size / 2, size * 0.4);
-    ctx.closePath();
-    ctx.fill();
-  });
+  return makePixelSparkTexture(24);
 }
 function makeColumnTexture() {
-  return makeCanvasTexture(64, (ctx, size) => {
-    let grad = ctx.createLinearGradient(0, size, 0, 0);
-    grad.addColorStop(0, "rgba(255,255,255,0.95)");
-    grad.addColorStop(0.25, "rgba(255,255,255,0.45)");
-    grad.addColorStop(1, "rgba(255,255,255,0)");
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, size, size);
+  return makeCanvasTexture(32, (ctx, size) => {
+    for (let y = 0; y < size; y++) {
+      const t = 1 - y / size;
+      const band = Math.floor(t * 6) / 6;
+      const alpha = band <= 0 ? 0 : Math.min(0.95, Math.pow(band, 1.45) * 1.05);
+      if (alpha <= 0) continue;
+      ctx.fillStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
+      ctx.fillRect(0, y, size, 1);
+    }
   });
 }
 const MAX_PARTICLES = 1400,
@@ -448,7 +416,7 @@ const MAX_PARTICLES = 1400,
       });
       this.terrainAtlas.colorSpace = SRGBColorSpace;
       this.terrainAtlas.flipY = false;
-      this.terrainAtlas.minFilter = this.terrainAtlas.magFilter = LinearFilter;
+      this.terrainAtlas.minFilter = this.terrainAtlas.magFilter = NearestFilter;
       this.terrainAtlas.generateMipmaps = false;
       this.finishAtlasReady = false;
       this.finishAtlas = new TextureLoader().load("textures/surface-atlas.webp", (texture) => {
@@ -458,8 +426,12 @@ const MAX_PARTICLES = 1400,
       });
       this.finishAtlas.colorSpace = SRGBColorSpace;
       this.finishAtlas.flipY = false;
-      this.finishAtlas.minFilter = this.finishAtlas.magFilter = LinearFilter;
+      this.finishAtlas.minFilter = this.finishAtlas.magFilter = NearestFilter;
       this.finishAtlas.generateMipmaps = false;
+      this.pixelPipeline = new PixelPipeline(this.renderer, {
+        enabled: opts.pixelArt !== false,
+        bloom: opts.bloom !== false,
+      });
       this.time = 0;
       this.shake = 0;
       // 3.58.0: how much the camera may move (1: as tuned, 0: still). main.js sets it from the OS motion
@@ -655,6 +627,7 @@ const MAX_PARTICLES = 1400,
         this.dpr = dpr;
         this.renderer.setPixelRatio(dpr);
         this.renderer.setSize(w, h, false);
+        this.pixelPipeline?.resize(w, h);
         this.camera.aspect = w / h;
         this.camera.fov = w / h < 1 ? 50 : 40;
         this.camera.updateProjectionMatrix();
@@ -698,6 +671,8 @@ const MAX_PARTICLES = 1400,
       this.hemi.color.setHex(biome.sky);
       this.hemi.groundColor.setHex(biome.ground);
       this.biome = biome;
+      applyBiomePaletteUniforms(biome.id);
+      this.pixelPipeline?.setBiomeGrade(biome.id);
       // 2.4.0: sun colour and fog density of the biome look
       const look = RL_BIOME_LOOK[biome.id] || RL_BIOME_LOOK.city,
         fog = this.scene.fog;
@@ -1918,7 +1893,11 @@ const MAX_PARTICLES = 1400,
         this.nums.length = w;
       }
       this.flashT = Math.max(0, this.flashT - dt);
-      this.renderer.render(this.scene, this.camera);
+      if (this.pixelPipeline) {
+        this.pixelPipeline.render(this.scene, this.camera, this.renderer.toneMappingExposure);
+      } else {
+        this.renderer.render(this.scene, this.camera);
+      }
     }
     drawMenuPlayer(dt) {
       let drone = this.player;

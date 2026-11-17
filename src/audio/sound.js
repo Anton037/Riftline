@@ -2,6 +2,7 @@
 
 import { PhysicalVoices, preloadPhysicalAudio, setNaturalWave } from "./physical-voices.js";
 import { hookLog as logError } from "../core/run-hooks.js";
+import { MUSIC_BIOME_PARAMS, getBiomeMusicParams } from "./music-params.js";
 import { BOSS_EFFECTS, WEAPON_EFFECTS, BEAM_EFFECTS, shotVoiceFor, attackSurface } from "../data/combat-effects.js";
 import { upgradesById } from "../data/upgrades.js";
 import { PLACE, PLACE_IDS, placeTick } from "./place.js";
@@ -357,55 +358,8 @@ function softClipCurve() {
   return curve;
 }
 
-const musicChords = {
-    flats: [
-      [50, "M"],
-      [45, "M"],
-      [47, "m"],
-      [43, "M"],
-    ],
-    // 3.4.0: Blackout City: Am F Dm E (the E major pulls back to A minor: film noir)
-    city: [
-      [57, "m"],
-      [53, "M"],
-      [50, "m"],
-      [52, "M"],
-    ],
-    shelf: [
-      [52, "m"],
-      [48, "M"],
-      [55, "M"],
-      [50, "M"],
-    ],
-    core: [
-      [54, "m"],
-      [50, "M"],
-      [45, "M"],
-      [52, "M"],
-    ],
-    marsh: [
-      [53, "m"],
-      [56, "M"],
-      [51, "M"],
-      [48, "m"],
-    ],
-    // 3.49.0: the Ashfall Caldera: Gm Eb F D (the D major pulls back to G minor: the mountain's
-    // own fanfare, the same trick as the City and the old Caldera)
-    caldera: [
-      [43, "m"],
-      [39, "M"],
-      [41, "M"],
-      [38, "M"],
-    ],
-  },
-  musicVoices = {
-    city: { arp: "square", bass: "sawtooth", lp: 2200, lead: "triangle" },
-    shelf: { arp: "sine", bass: "triangle", lp: 4200, lead: "sine" },
-    core: { arp: "square", bass: "sawtooth", lp: 3e3, lead: "square" },
-    marsh: { arp: "triangle", bass: "sawtooth", lp: 1200, lead: "triangle" },
-    caldera: { arp: "square", bass: "sawtooth", lp: 1500, lead: "sawtooth" },
-    flats: { arp: "sine", bass: "triangle", lp: 3800, lead: "sine" },
-  },
+const musicChords = Object.fromEntries(Object.entries(MUSIC_BIOME_PARAMS).map(([id, cfg]) => [id, cfg.chords])),
+  musicVoices = Object.fromEntries(Object.entries(MUSIC_BIOME_PARAMS).map(([id, cfg]) => [id, cfg.voices])),
   midiToFreq = (midi) => 440 * Math.pow(2, (midi - 69) / 12),
   arpPatterns = [
     [0, 1, 2, 3],
@@ -2251,6 +2205,7 @@ const musicChords = {
           [root, quality] = chords[Math.floor(bar / (track.chordBars || 1)) % 4],
           level = kind === "boss" ? 1 : this.intensity,
           s = step,
+          biomeParams = getBiomeMusicParams(biome),
           c = {
             s,
             bar,
@@ -2264,6 +2219,8 @@ const musicChords = {
             ch: Math.floor(bar / (track.chordBars || 1)) % 4,
             sec: kind === "boss" ? bossSection(bar) : bar >> 2,
             chord: [root, root + (quality === "m" ? 3 : 4), root + 7, root + 12],
+            scale: biomeParams.scale,
+            synthStyle: biomeParams.synthStyle,
             salt: biome.charCodeAt(0) * 7 + biome.charCodeAt(1),
             barSec: 240 / track.bpm,
             half: 30 / track.bpm / 4,
