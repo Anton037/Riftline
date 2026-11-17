@@ -4,6 +4,7 @@ import { weaponDefs } from "../data/weapons.js";
 import { WEAPON_EFFECTS } from "../data/combat-effects.js";
 import { clamp } from "../core/util.js";
 import { hexColor, additiveMaterial } from "./materials.js";
+import { GLSL_BAYER4 } from "./pixel-art.js";
 
 const WHITE = hexColor(0xe8f7ff),
   ARC = hexColor(0x9d86ff),
@@ -32,6 +33,7 @@ const flameFragment = `
 uniform float uTime;
 varying vec2 vUv;
 varying vec3 vState;
+${GLSL_BAYER4}
 float hash21(vec2 p) { return fract(sin(dot(p,vec2(127.1,311.7))) * 43758.5453); }
 float noise(vec2 p) {
   vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
@@ -47,8 +49,12 @@ void main() {
   if(alpha<.015) discard;
   float heatU=vState.r<0.0?1.0-u:u;
   float heat=clamp(heatU*.8+(1.0-v/width)*.4-max(0.0,vState.r)*.5+n*.15,0.0,1.0);
+  // pixel-art flame: stepped heat bands with a Bayer 4x4 edge dither on the alpha
+  heat=floor(heat*4.0+pxBayer4(gl_FragCoord.xy)*.7+.5)/4.0;
   vec3 col=mix(vec3(.64,.055,.006),vec3(1.0,.32,.025),smoothstep(0.0,.65,heat));
   col=mix(col,vec3(1.0,.88,.45),smoothstep(.65,1.0,heat));
+  alpha=floor(alpha*4.0+pxBayer4(gl_FragCoord.xy+7.0)*.9+.5)/4.0;
+  if(alpha<=.02) discard;
   gl_FragColor=vec4(col,alpha*.8);
   #include <fog_fragment>
   #include <colorspace_fragment>

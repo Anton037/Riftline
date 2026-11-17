@@ -1,6 +1,8 @@
-// Shared weathered surfaces: restrained grain, deposited dust and directional material highlights.
+// Shared weathered surfaces: pixel-art stepped shading, Bayer dithering, biome rim lighting, and crisp grain.
 import { MeshPhongMaterial } from "three";
 import { actorMaterial } from "../data/materials.js";
+import { PIXEL_MATERIAL_UNIFORMS } from "./biome-palettes.js";
+import { GLSL_BAYER4, GLSL_STEPPED_GRADE } from "./pixel-art.js";
 
 export const WORLD_SURFACES = {
   map: { value: null },
@@ -15,8 +17,8 @@ export function worldMaterial({ color = 0xffffff, surface = "stone", ...options 
   const material = new MeshPhongMaterial({
     color,
     flatShading: true,
-    specular: ice ? 0x88bbcf : metal ? 0x697b83 : 0x363d42,
-    shininess: ice ? 72 : metal ? 38 : 12,
+    specular: ice ? 0x9bd3e8 : metal ? 0x7d94a1 : 0x424c54,
+    shininess: ice ? 64 : metal ? 34 : 14,
     ...options,
   });
   return paintMaterial(material, surface);
@@ -47,10 +49,15 @@ function paintMaterial(material, surface = "armor") {
   const average = finish ? finish[2] : surface === "basalt" ? 0.07 : surface === "sandstone" ? 0.3 : 0.16;
   const scale = surface === "basalt" ? 0.65 : ["armor", "organic", "metal", "rubber"].includes(surface) ? 0.8 : 0.22;
   const relief = surface === "basalt" || surface === "stone" ? 0.055 : surface === "organic" ? 0.012 : 0.018;
+  const steps = metal ? 4.0 : ice ? 5.0 : 4.0;
+  const ditherAmp = metal ? 0.16 : 0.14;
   material.onBeforeCompile = (shader, ...args) => {
     previousCompile.call(material, shader, ...args);
     shader.uniforms.uArtMap = finish ? WORLD_SURFACES.finishMap : WORLD_SURFACES.map;
     shader.uniforms.uArtReady = finish ? WORLD_SURFACES.finishReady : WORLD_SURFACES.ready;
+    shader.uniforms.uPxRimColor = PIXEL_MATERIAL_UNIFORMS.uPxRimColor;
+    shader.uniforms.uPxShadowTint = PIXEL_MATERIAL_UNIFORMS.uPxShadowTint;
+    shader.uniforms.uPxRimStrength = PIXEL_MATERIAL_UNIFORMS.uPxRimStrength;
     shader.vertexShader = shader.vertexShader
       .replace(
         "#include <common>",
@@ -69,6 +76,11 @@ varying float vArtUp;
 varying vec3 vArtNormal;
 uniform sampler2D uArtMap;
 uniform float uArtReady;
+uniform vec3 uPxRimColor;
+uniform vec3 uPxShadowTint;
+uniform float uPxRimStrength;
+${GLSL_BAYER4}
+${GLSL_STEPPED_GRADE}
 float artGrain(vec3 p) { return fract(sin(dot(floor(p),vec3(12.9898,78.233,39.425)))*43758.5453); }
 `,
       )
@@ -111,9 +123,19 @@ if(abs(artDet)>1e-10) {
   normal=normalize(abs(artDet)*normal-sign(artDet)*artGrad*${relief.toFixed(3)});
 }
 `,
+      )
+      .replace(
+        "#include <opaque_fragment>",
+        `
+// Dead Cells-inspired stepped toon lighting + Bayer 4x4 dithering + biome rim highlight
+outgoingLight = pxStepLight(outgoingLight, uPxShadowTint, ${steps.toFixed(1)}, ${ditherAmp.toFixed(2)}, gl_FragCoord.xy);
+float pxRim = pow(1.0 - max(dot(normalize(normal), normalize(vViewPosition)), 0.0), 2.6);
+float pxRimStep = smoothstep(0.28, 0.52, pxRim + pxBayer4(gl_FragCoord.xy) * 0.16);
+outgoingLight += uPxRimColor * pxRimStep * uPxRimStrength;
+#include <opaque_fragment>`,
       );
   };
-  material.customProgramCacheKey = () => "world-weather-" + surface + ":" + previousKey;
+  material.customProgramCacheKey = () => "world-pixel-" + surface + ":" + previousKey;
   material.userData.paintedSurface = surface;
   return material;
 }

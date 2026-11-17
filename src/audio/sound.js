@@ -2,6 +2,7 @@
 
 import { PhysicalVoices, preloadPhysicalAudio, setNaturalWave } from "./physical-voices.js";
 import { hookLog as logError } from "../core/run-hooks.js";
+import { MUSIC_BIOME_PARAMS, getBiomeMusicParams } from "./music-params.js";
 import { BOSS_EFFECTS, WEAPON_EFFECTS, BEAM_EFFECTS, shotVoiceFor, attackSurface } from "../data/combat-effects.js";
 import { upgradesById } from "../data/upgrades.js";
 import { PLACE, PLACE_IDS, placeTick } from "./place.js";
@@ -357,55 +358,8 @@ function softClipCurve() {
   return curve;
 }
 
-const musicChords = {
-    flats: [
-      [50, "M"],
-      [45, "M"],
-      [47, "m"],
-      [43, "M"],
-    ],
-    // 3.4.0: Blackout City: Am F Dm E (the E major pulls back to A minor: film noir)
-    city: [
-      [57, "m"],
-      [53, "M"],
-      [50, "m"],
-      [52, "M"],
-    ],
-    shelf: [
-      [52, "m"],
-      [48, "M"],
-      [55, "M"],
-      [50, "M"],
-    ],
-    core: [
-      [54, "m"],
-      [50, "M"],
-      [45, "M"],
-      [52, "M"],
-    ],
-    marsh: [
-      [53, "m"],
-      [56, "M"],
-      [51, "M"],
-      [48, "m"],
-    ],
-    // 3.49.0: the Ashfall Caldera: Gm Eb F D (the D major pulls back to G minor: the mountain's
-    // own fanfare, the same trick as the City and the old Caldera)
-    caldera: [
-      [43, "m"],
-      [39, "M"],
-      [41, "M"],
-      [38, "M"],
-    ],
-  },
-  musicVoices = {
-    city: { arp: "square", bass: "sawtooth", lp: 2200, lead: "triangle" },
-    shelf: { arp: "sine", bass: "triangle", lp: 4200, lead: "sine" },
-    core: { arp: "square", bass: "sawtooth", lp: 3e3, lead: "square" },
-    marsh: { arp: "triangle", bass: "sawtooth", lp: 1200, lead: "triangle" },
-    caldera: { arp: "square", bass: "sawtooth", lp: 1500, lead: "sawtooth" },
-    flats: { arp: "sine", bass: "triangle", lp: 3800, lead: "sine" },
-  },
+const musicChords = Object.fromEntries(Object.entries(MUSIC_BIOME_PARAMS).map(([id, cfg]) => [id, cfg.chords])),
+  musicVoices = Object.fromEntries(Object.entries(MUSIC_BIOME_PARAMS).map(([id, cfg]) => [id, cfg.voices])),
   midiToFreq = (midi) => 440 * Math.pow(2, (midi - 69) / 12),
   arpPatterns = [
     [0, 1, 2, 3],
@@ -2251,6 +2205,7 @@ const musicChords = {
           [root, quality] = chords[Math.floor(bar / (track.chordBars || 1)) % 4],
           level = kind === "boss" ? 1 : this.intensity,
           s = step,
+          biomeParams = getBiomeMusicParams(biome),
           c = {
             s,
             bar,
@@ -2264,11 +2219,19 @@ const musicChords = {
             ch: Math.floor(bar / (track.chordBars || 1)) % 4,
             sec: kind === "boss" ? bossSection(bar) : bar >> 2,
             chord: [root, root + (quality === "m" ? 3 : 4), root + 7, root + 12],
+            scale: biomeParams.scale,
+            synthStyle: biomeParams.synthStyle,
+            kind,
             salt: biome.charCodeAt(0) * 7 + biome.charCodeAt(1),
             barSec: 240 / track.bpm,
             half: 30 / track.bpm / 4,
           };
         track.play(this, c);
+        // 4.4.0: the modern electronic texture of the pixel-art pass: a dark detuned synth bed that
+        // breathes on every chord change and a pulse-wave chiptune arp that walks the biome's scale.
+        // The calm themes let it bloom softly under the intensity, the boss tracks drive it with the
+        // heat (electronicTextureLayer; this.electronic = false switches it off for tests).
+        if (this.electronic !== false) electronicTextureLayer(this, c);
         // 3.19.0: the ambient bloom lies on every calm theme (this.bloom = false switches it off for a test)
         if (kind === "fight" && this.bloom !== false) calmBloom(kit(this, c), c, biome);
         if (kind === "boss" && this.heat > 0) bossHeatLayer(this, c);
@@ -3739,6 +3702,67 @@ function calderaBoss(e, c) {
 /* what a phase change (heat 1) and the enrage (heat 2) add to every boss track: shakers on the off sixteenths and a
    taiko on the last beat; enraged: staccato strings in sixteenths on the root, a brass stab every second beat and a
    rising line of strings every fourth bar */
+/* 4.4.0: the modern electronic texture under every fight and boss track (the sound of the pixel-art pass:
+   atmospheric dark synth with subtle chiptune). Two voices only, both on the pump bus so the sidechain
+   breathes with the drums, and both cheap for the voice budget (the arp runs on `opt` voices):
+   - the bed: on every chord change, two detuned saws an octave under the root and a fifth under that,
+     low-passed to the biome's padCutoff, swelled over the bar (dark electronic, never a wall);
+   - the chip arp: a pulse square two octaves up walking the biome's scale in the arp's own subdivision
+     (arpSubdiv sixteenths), louder as the fight swells (L) and driven harder with boss heat, echoing
+     on the delay bus. The duty of the pulse lives in the low pass (chipDuty <= .5 opens the filter). */
+function electronicTextureLayer(e, c) {
+  if (!c.synthStyle) return;
+  const style = c.synthStyle,
+    k = kit(e, c),
+    chipStep = Math.max(1, style.arpSubdiv | 0 || 2);
+  // the dark synth bed on the chord change
+  if (c.b === 0) {
+    const vol = 0.008 + 0.012 * (c.heat ? 0.7 : c.L) + (c.q === "m" ? 0.004 : 0);
+    k.p.t(midiToFreq(c.root - 12), c.barSec * 1.05, "sawtooth", vol, {
+      lp: style.padCutoff,
+      attack: c.barSec * 0.4,
+      detune: style.subDetuneCents,
+      rev: 0.25,
+      opt: true,
+    });
+    k.p.t(midiToFreq(c.root - 12), c.barSec * 1.05, "sawtooth", vol, {
+      lp: style.padCutoff,
+      attack: c.barSec * 0.4,
+      detune: -style.subDetuneCents,
+      rev: 0.25,
+      opt: true,
+    });
+    k.p.t(midiToFreq(c.root - 17), c.barSec * 0.9, "triangle", vol * 0.8, {
+      lp: Math.min(900, style.padCutoff),
+      attack: c.barSec * 0.5,
+      rev: 0.2,
+      opt: true,
+    });
+  }
+  // the chiptune arp on the biome's scale
+  if (c.b % chipStep === 0) {
+    const scale = c.scale || [0, 2, 3, 5, 7, 8, 10],
+      idx = (c.bar * 5 + Math.floor(c.b / chipStep)) % (scale.length + 2),
+      lift = idx >= scale.length ? 12 : 0,
+      midi = c.root + 24 + scale[idx % scale.length] + lift,
+      level = (c.kind === "boss" ? 0.028 : 0.012 + 0.018 * c.L) * (1 + 0.25 * (c.heat || 0));
+    k.d.t(midiToFreq(midi), chipStep * c.half * 1.7, "square", level, {
+      lp: style.chipDuty <= 0.5 ? 3400 : 2400,
+      attack: 0.002,
+      pan: P(c, 9, 0.5),
+      rev: 0.3,
+      opt: true,
+    });
+    if (c.b % (chipStep * 4) === 0)
+      k.d.t(midiToFreq(midi - 12), c.half * 2.4, "sawtooth", 0.02, {
+        lp: 1600,
+        attack: 0.004,
+        pan: -P(c, 9, 0.5),
+        rev: 0.2,
+        opt: true,
+      });
+  }
+}
 function bossHeatLayer(e, c) {
   const k = kit(e, c);
   if (c.b % 2 === 1) shaker(k, 0.025, c.b % 4 === 1 ? 0.5 : -0.5);

@@ -1,5 +1,7 @@
 // Material relief and reflected light in world units: one floor pass, no post-process targets.
 // Relief is visual only. The flat navigation surface and hazard geometry remain authoritative.
+import { GLSL_BAYER4 } from "./pixel-art.js";
+
 export const FLOOR_FRAGMENT = `
 #include <common>
 #include <fog_pars_fragment>
@@ -14,6 +16,7 @@ uniform vec2 uHalf;
 uniform float uTime, uPulse, uStyle, uDark, uVivid, uGain;
 uniform vec4 uL[6]; uniform vec3 uLC[6];
 varying vec2 vW;
+${GLSL_BAYER4}
 float hash(vec2 p) { p = fract(p * vec2(123.34,456.21)); p += dot(p,p+45.32); return fract(p.x*p.y); }
 float noise(vec2 p) {
  vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
@@ -158,20 +161,25 @@ void main() {
  vec3 N=normalize(vec3(-grad.x,1.0,-grad.y)), L=normalize(vec3(0.35,0.8,0.45));
  vec3 V=normalize(cameraPosition-vec3(p.x,0.0,p.y));
  float diffuse=max(dot(N,L),0.0), spec=pow(max(dot(N,normalize(L+V)),0.0),mix(70.0,18.0,rough));
- vec3 col=albedo*(0.55+diffuse*1.2)+key*spec*gloss*0.3+emission;
+ // Pixel-art stepped diffuse/specular quantization + Bayer 4x4 dithering across floor tiles.
+ float bayer=pxBayer4(gl_FragCoord.xy);
+ float qDiff=floor((diffuse+bayer*0.18)*4.0+0.5)/4.0;
+ float qSpec=smoothstep(0.34,0.52,spec+bayer*0.12);
+ vec3 col=albedo*(0.52+mix(diffuse,qDiff,0.68)*1.22)+key*qSpec*gloss*0.38+emission;
  // The arena edge has thickness and a quiet contact vignette rather than a neon border.
- col*=mix(0.65,1.0,smoothstep(0.0,1.0,edge));
+ col*=mix(0.62,1.0,smoothstep(0.0,1.0,edge));
  col*=texture2D(uOcclusion,p/(uHalf*2.0)+0.5).r;
- col*=mix(0.5,1.0,getShadowMask());
- col+=uGrid*uPulse*0.06*inside;
+ col*=mix(0.46,1.0,getShadowMask());
+ col+=uGrid*uPulse*0.08*inside;
  col*=1.0-uDark;
  for(int i=0;i<6;i++) {
   if(uL[i].w<=0.0) continue;
   vec2 d=p-uL[i].xy; float fall=exp(-dot(d,d)/max(0.01,uL[i].z*uL[i].z));
-  col+=uLC[i]*uL[i].w*fall*(0.35+gloss*0.55);
+  float qFall=mix(fall,floor(fall*5.0+bayer*0.4+0.5)/5.0,0.45);
+  col+=uLC[i]*uL[i].w*qFall*(0.38+gloss*0.62);
  }
  col*=mix(st==4?0.16:0.32,1.0,inside);
- col=mix(vec3(dot(col,vec3(0.299,0.587,0.114))),col,min(uVivid,1.2))*uGain;
+ col=mix(vec3(dot(col,vec3(0.299,0.587,0.114))),col,min(uVivid,1.25))*uGain;
  gl_FragColor=vec4(max(col,vec3(0.0)),1.0);
  #include <fog_fragment>
  #include <colorspace_fragment>

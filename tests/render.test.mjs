@@ -250,3 +250,28 @@ test("BossCardView distinguishes Frost Prism shatter from Glasswyrm Fang shatter
   assert.notEqual(rings[0][4].getHex(), rings[1][4].getHex());
   assert.notEqual(bursts[2][5].getHex(), bursts[3][5].getHex());
 });
+
+test("pixel-art pipeline computes crisp square pixel resolutions and biome palettes cover all biomes", async () => {
+  const { computePixelResolution } = await import("../src/render/pixel-pipeline.js");
+  const { BIOME_PALETTES, PIXEL_MATERIAL_UNIFORMS, applyBiomePaletteUniforms } =
+    await import("../src/render/biome-palettes.js");
+  const { getBiomeMusicParams } = await import("../src/audio/music-params.js");
+  const { biomeList } = await import("../src/data/biomes.js");
+
+  const tablet = computePixelResolution(1024, 768);
+  assert.ok(tablet.pxH >= 320 && tablet.pxH <= 420);
+  assert.ok(Math.abs(tablet.pxW / tablet.pxH - 1024 / 768) < 0.01);
+
+  const phone = computePixelResolution(844, 390);
+  assert.ok(phone.pxH >= 200 && phone.pxH <= 260);
+  assert.ok(Math.abs(phone.pxW / phone.pxH - 844 / 390) < 0.01);
+
+  for (const biome of biomeList) {
+    assert.ok(BIOME_PALETTES[biome.id], `missing palette for ${biome.id}`);
+    const pal = applyBiomePaletteUniforms(biome.id);
+    assert.equal(PIXEL_MATERIAL_UNIFORMS.uPxRimColor.value.getHex(), pal.rimColor);
+    const mus = getBiomeMusicParams(biome.id);
+    assert.equal(mus.chords.length, 4);
+    assert.ok(mus.scale.length >= 5);
+  }
+});
