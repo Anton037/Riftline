@@ -176,7 +176,7 @@ while preserving every DOM id/class, layout geometry, touch hit target and test 
   reload phase 504'd the uncached font before).
 - `npm run e2e` — 7/7 pass.
 
-## Phase 4 — Full Art Redesign: new assets in the Dead Cells × Inscryption language — IN PROGRESS
+## Phase 4 — Full Art Redesign: new assets in the Dead Cells × Inscryption language — IN PROGRESS (4A + 4B + first pass of 4C done)
 
 ### Research basis (studied from the official store key art of both games)
 - **Dead Cells** (store capsule): warm-vs-cool complementary scheme — blazing orange/ember accents against
