@@ -23,6 +23,7 @@
 @font-face{font-family:"Barlow Semi Condensed";font-style:normal;font-weight:500;font-display:swap;src:url(fonts/barlow-semi-condensed-latin-500-normal.woff2) format("woff2")}
 @font-face{font-family:"Barlow Semi Condensed";font-style:normal;font-weight:600;font-display:swap;src:url(fonts/barlow-semi-condensed-latin-600-normal.woff2) format("woff2")}
 @font-face{font-family:"Barlow Semi Condensed";font-style:normal;font-weight:700;font-display:swap;src:url(fonts/barlow-semi-condensed-latin-700-normal.woff2) format("woff2")}
+@font-face{font-family:"Press Start 2P";font-style:normal;font-weight:400;font-display:swap;src:url(fonts/press-start-2p-latin-400-normal.woff2) format("woff2")}
 /* Riftline — one deliberate dark look (neon arcade), painted explicitly. */
 :root {
   --ink: #05070d; --ink2: #0a0f1c;
@@ -1437,6 +1438,266 @@ h1, h2, .logo { text-shadow: 0 2px rgba(0, 0, 0, 0.6); }
     radial-gradient(120% 90% at 50% 42%, transparent 55%, rgba(4, 8, 12, 0.55) 100%);
   mix-blend-mode: multiply;
   opacity: 0.5;
+}
+
+/* ========================================================================
+   4.4.0 PHASE 3 — full pixel-art UI redesign (menus, buttons, upgrade cards)
+   One final layer that repaints the whole menu surface in the game's new
+   pixel-art language: chunky 2px bone frames with inset ink rims (clip-path
+   notches eat outer shadows, so all depth is inset), banded two-tone fills,
+   hard steps() control motion, a scanline + Bayer-dither atmosphere on the
+   menu screens, and the Press Start 2P display face on labels, titles and
+   buttons while Barlow keeps long body text readable. Geometry is untouched:
+   every id, class, grid, gap, min-height and touch hit target stays as it was.
+   ======================================================================== */
+:root {
+  --px: "Press Start 2P", "Chakra Petch", system-ui, sans-serif;
+  --px-bone: #b7c7c2;
+  --px-ink-rim: rgba(4, 8, 10, 0.55);
+  --px-face: #202c32;
+  --px-face-hi: #2c3b41;
+  --px-face-lo: #182126;
+}
+
+/* ---- pixel type: small caps/labels/titles/buttons take the pixel face ---- */
+.eyebrow, .section-h, .best-line, .tagline, .over-cause, .pay-total,
+.card .lv, .chip, .stat .k, .stat-grid .cell .k, .run-extra-grid .xk,
+.run-extra .dh, .dmg-panel .dh, .wc-name, .threat-name,
+.row b, .bottom-nav button, .btn, .up-info b, .up-info .lv {
+  font-family: var(--px);
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.eyebrow { font-size: 9px; }
+.section-h { font-size: 9px; letter-spacing: 0.08em; }
+.best-line { font-size: 9px; }
+.tagline { font-size: 9px; letter-spacing: 0.1em; }
+.over-cause { font-size: 9px; letter-spacing: 0.08em; }
+.pay-total { font-size: 11px; }
+.card .lv { font-size: 9px; letter-spacing: 0.04em; }
+.chip { font-size: 9px; letter-spacing: 0.02em; }
+.stat .k, .stat-grid .cell .k { font-size: 8px; letter-spacing: 0.08em; }
+.run-extra-grid .xk { font-size: 8px; letter-spacing: 0.06em; }
+.run-extra .dh, .dmg-panel .dh { font-size: 9px; letter-spacing: 0.1em; }
+.wc-name { font-size: 13px; letter-spacing: 0.02em; }
+.threat-name { font-size: 10px; letter-spacing: 0.04em; }
+.row b { font-size: 11px; letter-spacing: 0.01em; }
+.up-info b { font-size: 11px; }
+.up-info .lv { font-size: 9px; }
+.btn { font-size: 11px; letter-spacing: 0; }
+.btn.primary { font-size: 13px; letter-spacing: 0.02em; }
+.btn.small { font-size: 9px; }
+.bottom-nav button { font-size: 9px; letter-spacing: 0.02em; }
+h2, h3 { font-family: var(--px); font-weight: 400; letter-spacing: 0.02em; }
+h2 { font-size: 15px; }
+h3 { font-size: 11px; }
+.topbar h2 { font-size: 14px; }
+.center-col h2 { font-size: 15px; }
+.choose-head h2 { font-size: 14px; }
+.dialog h3 { font-size: 12px; }
+.over-title { font-family: var(--px); font-size: clamp(18px, 5.5vw, 26px) !important; letter-spacing: 0.04em !important; }
+.num { letter-spacing: 0.01em; }
+
+/* ---- pixel panels: bone frame + ink rim + top highlight, flat fill ---- */
+.panel, .weapon-card, .set-group, .card, .row, .payout, .dmg-panel, .run-extra,
+.up-info, .stat-grid .cell, .he-panel, .coach, .next-wave .nw {
+  background-image: linear-gradient(180deg, rgba(239, 237, 218, 0.055), rgba(239, 237, 218, 0) 3px);
+  background-color: #141a1e;
+  border: 2px solid var(--px-bone);
+  box-shadow: inset 0 0 0 2px var(--px-ink-rim);
+}
+.dialog {
+  clip-path: var(--notch);
+  background-image: linear-gradient(180deg, rgba(239, 237, 218, 0.055), rgba(239, 237, 218, 0) 3px);
+  background-color: #141a1e;
+  border: 2px solid var(--px-bone);
+  box-shadow: inset 0 0 0 2px var(--px-ink-rim);
+}
+.row.claim { border-color: #dfbd80; box-shadow: inset 0 0 0 2px rgba(26, 16, 4, 0.55); }
+.row .rico { border: 2px solid var(--px-bone); box-shadow: inset 0 0 0 2px rgba(4, 8, 10, 0.5); }
+.stat-grid .cell .v { font-family: var(--px); font-weight: 400; font-size: 15px; letter-spacing: 0; }
+.stat-grid.compact .cell .v { font-size: 12px; }
+.run-extra-grid .xv { font-family: var(--px); font-weight: 400; font-size: 13px; letter-spacing: 0; }
+.coach { border-width: 2px; border-color: rgba(135, 207, 209, 0.6); box-shadow: inset 0 0 0 2px rgba(4, 8, 10, 0.5); }
+
+/* ---- pixel buttons: banded two-tone fill, ink rim, snap-in press ---- */
+.btn:not(.ghost), .icon-btn, .bottom-nav button {
+  background-image: linear-gradient(180deg, rgba(239, 237, 218, 0.13), rgba(239, 237, 218, 0.02) 45%, rgba(0, 0, 0, 0.18) 55%);
+  background-color: var(--px-face);
+  border: 2px solid var(--px-bone);
+  box-shadow: inset 0 0 0 2px var(--px-ink-rim);
+}
+.btn:active, .icon-btn:active, .bottom-nav button:active { filter: brightness(1.25); }
+.btn.ghost { border-color: transparent; box-shadow: none; }
+.btn.ghost:not([disabled]):hover { border-color: var(--px-bone); box-shadow: inset 0 0 0 2px var(--px-ink-rim); }
+.btn.danger { color: #ff9aac; }
+.btn.danger:not([disabled]):hover { border-color: #ff8aa6; }
+.btn.primary {
+  background-image: linear-gradient(180deg, #d5f2ea, #9adbd4 45%, #6fb7b4 55%, #5da59f);
+  background-color: var(--cyan);
+  color: #0a1c1e;
+  border-color: #e2f6ef;
+  box-shadow: inset 0 0 0 2px rgba(8, 26, 28, 0.55), inset 0 -3px 0 rgba(8, 26, 28, 0.22);
+}
+.btn.primary.alt {
+  background-image: linear-gradient(180deg, #f2e2ba, #dfbd80 45%, #b98d54 55%, #a67a45);
+  color: #241a08;
+  border-color: #ecd9a8;
+  box-shadow: inset 0 0 0 2px rgba(38, 22, 4, 0.55), inset 0 -3px 0 rgba(38, 22, 4, 0.22);
+}
+.btn.buy { color: #dfbd80; }
+.btn:not([disabled]):hover { filter: brightness(1.1); }
+
+/* ---- pixel logo: hard stepped block shadow, no blur ---- */
+.logo {
+  color: #e8eee6;
+  text-shadow: 3px 0 0 #0a1116, 0 3px 0 #0a1116, 3px 3px 0 #0a1116, 6px 6px 0 rgba(10, 17, 22, 0.35);
+}
+.logo::after { box-shadow: none; background: linear-gradient(90deg, transparent, #dfbd80 20%, #f4f8f2 50%, #87cfd1 80%, transparent); }
+
+/* ---- pixel upgrade cards ---- */
+.card {
+  background-color: #161d21;
+  background-image: linear-gradient(180deg, rgba(239, 237, 218, 0.06), rgba(239, 237, 218, 0) 3px);
+  box-shadow: inset 0 0 0 2px var(--px-ink-rim);
+}
+.card::before { width: 5px; box-shadow: 2px 0 0 rgba(0, 0, 0, 0.45); }
+.card .cico { border: 2px solid color-mix(in srgb, var(--rc) 50%, transparent); box-shadow: inset 0 0 0 2px rgba(4, 8, 10, 0.5); }
+.card b { font-family: var(--px); font-weight: 400; font-size: 12px; letter-spacing: 0; line-height: 1.35; }
+.card p { font-size: 14px; }
+.card .delta, .card .evo-hint { font-size: 11px; }
+.card.r4 { border-color: #dfbd80; box-shadow: inset 0 0 0 2px rgba(26, 16, 4, 0.55), inset 0 0 0 5px rgba(223, 189, 128, 0.14); }
+.card.r5 {
+  background-image: linear-gradient(135deg, rgba(73, 242, 255, 0.14), rgba(210, 123, 255, 0.14) 50%, rgba(255, 200, 74, 0.14));
+  border-color: #f4f8f2;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.3);
+}
+.card.r6 {
+  background-image: linear-gradient(135deg, rgba(255, 74, 90, 0.2), rgba(255, 200, 74, 0.12) 60%, rgba(255, 74, 90, 0.16));
+  border-color: #dfbd80;
+  box-shadow: inset 0 0 0 2px rgba(30, 6, 10, 0.6);
+}
+.card.r6 .seal { border-radius: 0; clip-path: var(--notch); --n: 4px; }
+.card-key { font-family: var(--px); font-weight: 400; font-size: 8px; border: 2px solid var(--px-bone); box-shadow: inset 0 0 0 1px var(--px-ink-rim); }
+.cards.banishing .card { outline: 2px dashed #ff5a82; }
+.cards.banishing .card::after { font-family: var(--px); font-size: 8px; letter-spacing: 0.1em; }
+.bi { border-left-width: 3px; font-family: var(--px); font-weight: 400; font-size: 9px; letter-spacing: 0; }
+.next-wave .nw { border-width: 2px; font-family: var(--px); font-weight: 400; font-size: 8px; letter-spacing: 0.04em; }
+.choose-first-hint { font-size: 13px; }
+
+/* ---- pixel controls: square toggles, stepped sliders, hard segments ---- */
+.toggle {
+  border-radius: 0;
+  background: #0d1418;
+  border: 2px solid var(--px-bone);
+  box-shadow: inset 0 0 0 2px var(--px-ink-rim);
+  transition: background-color 0.15s steps(3), border-color 0.15s steps(3);
+}
+.toggle::after {
+  border-radius: 0;
+  width: 16px; height: 16px; top: 4px; left: 4px;
+  background: #8fa3a0;
+  box-shadow: inset 0 0 0 2px rgba(4, 8, 10, 0.45), inset 0 2px 0 rgba(255, 255, 255, 0.2);
+  transition: transform 0.15s steps(3);
+}
+.toggle:checked { background: #1b4a49; border-color: #87cfd1; }
+.toggle:checked::after { transform: translateX(22px); background: #b8efe8; }
+input[type=range]::-webkit-slider-runnable-track {
+  height: 6px;
+  background: repeating-linear-gradient(90deg, #38525a 0 2px, #10181c 2px 8px);
+}
+input[type=range]::-webkit-slider-thumb {
+  width: 14px; height: 20px; margin-top: -7px;
+  border-radius: 0; clip-path: none;
+  background: #87cfd1;
+  border: 2px solid #0a1a1e;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+}
+input[type=range]::-moz-range-track { height: 6px; background: repeating-linear-gradient(90deg, #38525a 0 2px, #10181c 2px 8px); }
+input[type=range]::-moz-range-thumb {
+  width: 12px; height: 18px; border-radius: 0;
+  background: #87cfd1; border: 2px solid #0a1a1e;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+}
+.seg {
+  background: #10181c;
+  border: 2px solid var(--px-bone);
+  box-shadow: inset 0 0 0 2px var(--px-ink-rim);
+}
+.seg button { font-family: var(--px); font-weight: 400; font-size: 9px; letter-spacing: 0; border-right: 2px solid rgba(184, 198, 193, 0.22); }
+.seg button:last-child { border-right: 0; }
+.seg button.on { background: #1b4a49; color: #b8efe8; box-shadow: inset 0 -2px 0 rgba(4, 8, 10, 0.45); }
+
+/* ---- pixel HUD bars: darker track, beveled fill (fill transforms survive) ---- */
+.bar { background: #0b1116; }
+.bar.hp i { box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.22), inset 0 -2px 0 rgba(4, 8, 10, 0.35); }
+.bar.boss i { box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.22), inset 0 -2px 0 rgba(4, 8, 10, 0.35); }
+.segs i.on { box-shadow: none; }
+.pip.ready { filter: none; }
+.badge { border-radius: 0; width: 8px; height: 8px; box-shadow: 0 0 0 2px #141a1e; }
+
+/* ---- pixel toasts, dialogs, misc ---- */
+.toast { border: 2px solid var(--px-bone); box-shadow: inset 0 0 0 2px var(--px-ink-rim); }
+.toast.gold { border-color: #dfbd80; }
+.toast.good { border-color: #7ad8a0; }
+.toast.warn { border-color: #ff8aa6; }
+.toast.intro { border-color: #87cfd1; }
+#dlgBody textarea { border: 2px solid var(--px-bone); box-shadow: inset 0 0 0 2px var(--px-ink-rim); }
+.log { border: 2px solid var(--px-bone); box-shadow: inset 0 0 0 2px var(--px-ink-rim); }
+.scroll::-webkit-scrollbar-thumb, .cards::-webkit-scrollbar-thumb, .center-col::-webkit-scrollbar-thumb { border-radius: 0; background: rgba(184, 198, 193, 0.4); }
+.shard-ico { image-rendering: pixelated; }
+
+/* ---- menu atmosphere: scanlines + Bayer dither + vignette (never over the HUD) ---- */
+#home::after, .screen.overlay::after {
+  background:
+    repeating-linear-gradient(0deg, rgba(2, 4, 6, 0.2) 0 1px, transparent 1px 3px),
+    repeating-conic-gradient(rgba(0, 0, 0, 0.16) 0% 25%, transparent 0% 50%) 0 0 / 3px 3px,
+    radial-gradient(120% 90% at 50% 42%, transparent 55%, rgba(4, 8, 12, 0.55) 100%);
+  opacity: 0.55;
+}
+.screen.page::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(0deg, rgba(2, 4, 6, 0.2) 0 1px, transparent 1px 3px),
+    repeating-conic-gradient(rgba(0, 0, 0, 0.14) 0% 25%, transparent 0% 50%) 0 0 / 3px 3px,
+    radial-gradient(120% 90% at 50% 42%, transparent 55%, rgba(4, 8, 12, 0.5) 100%);
+  mix-blend-mode: multiply;
+  opacity: 0.55;
+}
+
+/* ---- keep the pixel face legible where device layers retune Chakra sizes ---- */
+@media (max-width: 420px) {
+  .topbar h2 { font-size: 11px; }
+  .wc-name { font-size: 11px; }
+  .btn.primary { font-size: 11px; }
+  .btn { font-size: 10px; }
+  .bottom-nav button { font-size: 8px; }
+  .chip { font-size: 8px; }
+}
+body.device-phone.is-landscape #home .wc-name { font-size: 11px; }
+body.device-phone.is-landscape #home .threat-name { font-size: 8px; }
+body.device-phone.is-landscape #home .bottom-nav button { font-size: 7px; }
+body.device-phone.is-landscape #home .btn.buy { font-size: 9px; }
+body.device-phone.is-landscape #home .btn.primary { font-size: 12px; }
+body.device-phone.is-landscape #home .btn.primary.alt { font-size: 10px; }
+@media (orientation: landscape) and (max-height: 430px) {
+  #choose .card b { font-size: 10px; }
+  #choose .card p { font-size: 13px; }
+  .center-col h2 { font-size: 12px; }
+  #over .over-title { font-size: clamp(14px, 4.5vh, 20px) !important; }
+}
+@media (min-width: 900px) and (orientation: landscape) {
+  #choose .card b { font-size: 13px; }
+}
+body.device-desktop #home .wc-name { font-size: 13px; }
+@media (min-width: 760px) and (max-height: 660px) {
+  body.device-desktop #home .wc-name { font-size: 11px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toggle, .toggle::after { transition: none; }
 }
 </style>
 
