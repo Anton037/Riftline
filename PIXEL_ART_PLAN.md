@@ -126,3 +126,52 @@ Every biome defines:
 - SFX synthesis untouched (material voices remain); UI click/hover synth accents could be revisited later.
 - `attacks-view.js` decal atlas keeps linear filtering for gameplay readability (see above).
 
+
+## Phase 3 — Full Pixel-Art Menu & UI Redesign — ✅ Complete
+
+Goal: repaint every menu surface (home, workshop, achievements, news, settings, upgrade choice,
+pause, game-over, dialogs, toasts) in the same Dead Cells / Inscryption language as the 3D world,
+while preserving every DOM id/class, layout geometry, touch hit target and test selector.
+
+### What changed
+- **Pixel display font** — `Press Start 2P` (OFL, 12.5 KB woff2) vendored into `public/fonts/`
+  with its license (`OFL-Press-Start-2P.txt`), referenced by a new `@font-face` in `src/index.html`.
+  Applied via one final CSS layer to eyebrows, section headers, titles, button labels, upgrade card
+  names and levels, stat labels, chips and key numbers; Barlow keeps long body copy readable.
+  It is precached by the service worker (`src/sw.js` `FILES`), so PWA offline sessions render it.
+- **One final CSS layer** (`4.4.0 PHASE 3` block at the end of the `<style>` in `src/index.html`)
+  that supersedes all earlier paint layers:
+  - Panels, cards, rows, dialogs and toasts: flat stepped fills, chunky 2px bone frames
+    (`#b7c7c2`), inset ink rims and a 3px top highlight band (clip-path notches eat outer shadows,
+    so all depth is inset).
+  - Buttons: banded two-tone fills, 2px bone border, `steps()` press feedback; primary actions get
+    hard-banded teal (`START RUN`) and amber (continue) fills with dark inset bevels.
+  - Upgrade cards: 5px rarity spine, framed icon boxes, crisp double-rim rarity outlines for
+    rare/legendary/boss cards, pixel-face card titles and level tags, square boss seal.
+  - Controls: square toggles with pixel-knob `steps()` travel, ticked slider tracks with square
+    teal thumbs, hard-edged segmented buttons, square badges and scrollbar thumbs.
+  - HUD bars: darker tracks with beveled (inset) fills that survive the scaleX drain transform.
+  - Logo: hard stepped block shadow (no blur), amber/bone/teal rift line.
+  - Menu atmosphere: 3px scanlines + 3px Bayer dither + vignette on every menu screen (pages and
+    overlays, never over the HUD or the WebGL surface).
+- **Device-size guards** — matching-specificity overrides keep the pixel face legible where the
+  responsive layers retuned Chakra sizes (phone landscape `wc-name`, bottom nav, choose cards,
+  desktop short windows), plus a `prefers-reduced-motion` fallback for the `steps()` transitions.
+
+### Deliberately untouched
+- All DOM ids/classes, grids, gaps, min-heights, hit targets, `window.__riftLayoutAudit()` contract,
+  HUD combat readouts (native DPR), service-worker update flow, and the game bundle.
+- 3D pixel resolution (`computePixelResolution`) unchanged from Phase 2 tuning (~360-440 rows).
+
+### Phase 3 test results
+- `tools/verify-ui.mjs` — new: 22 checks across desktop (1280x800) and phone landscape (844x390):
+  pixel font loads, primary buttons and card titles use the pixel face, and the layout audit is
+  clean (0 findings) on home, workshop, achievements, news, settings, the upgrade choice and pause
+  on both viewports. All pass.
+- `tools/capture-ui.mjs` — new: 14 screenshots (both viewports x 7 screens) to
+  `verification-output/ui-redesign/`.
+- `npm run format:check` / `npm run lint` — pass.
+- `npm run test:unit` — 67/67 pass.
+- `npm run test:render` — 7/7 pass (after adding the pixel font to the SW precache; the offline
+  reload phase 504'd the uncached font before).
+- `npm run e2e` — 7/7 pass.
