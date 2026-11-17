@@ -324,6 +324,139 @@ const PROPER_ACCENTS = {
   flats: [{ color: [255, 240, 200], density: 0.0004 }], // heat shimmer
 };
 
+/* ---------------------------------------------------------------- surface atlas (4E)
+   The finish atlas (surface-atlas.png, also the UI `--painted-panel`) is a 3x2 grid sampled per
+   material surface: metal (0,0) | armor (1,0) | organic (2,0) | rubber (0,1) | wood/basalt (1,1) |
+   ice/crystal/sandstone (2,1). It multiplies the surface color, so it is painted as high-contrast
+   carved pattern (dark seams, bright rivets/facets) with near-neutral hue. */
+const SURFACE_DEFS = {
+  metal: (t, rng) => {
+    // riveted steel plates: big rectangles, dark seams, bright rivet dots
+    for (let gy = 0; gy < 4; gy++)
+      for (let gx = 0; gx < 4; gx++) {
+        const x = gx * 16,
+          y = gy * 16;
+        const c = shade(0x8d949a, 0.8 + rng() * 0.35);
+        t.fillRect(x + 1, y + 1, 15, 15, c);
+        t.set(x, y, [52, 56, 60]);
+        for (let i = 0; i < 16; i++) t.set(x + ((rng() * 16) | 0), y, [46, 50, 54]); // top seam stays dark
+      }
+    for (let gy = 0; gy < 4; gy++)
+      for (let gx = 0; gx < 4; gx++) {
+        const cx = gx * 16 + 4 + ((rng() * 7) | 0),
+          cy = gy * 16 + 4 + ((rng() * 7) | 0);
+        t.set(cx, cy, [235, 240, 244]); // rivet glint
+        t.set(cx + 1, cy, [180, 188, 194]);
+      }
+  },
+  armor: (t, rng) => {
+    // layered plate: broad bevelled slabs with rivet rows along every seam
+    const rows = [];
+    for (let y = 0; y < 64; ) {
+      const h = 6 + ((rng() * 5) | 0);
+      rows.push([y, h]);
+      y += h + 1;
+    }
+    for (const [ry, rh] of rows) {
+      for (let x = 0; x < 64; x++) {
+        const c = shade(0x9aa2a6, 0.75 + rng() * 0.4);
+        t.set(x, ry + 1, c);
+        if (rng() < 0.08) t.set(x, ry + 1, [230, 236, 240]); // rivet row on the seam
+        for (let yy = ry + 2; yy < ry + rh; yy++) t.set(x, yy, shade(0x9aa2a6, 0.6 + rng() * 0.45));
+        t.set(x, ry + rh, [40, 44, 48]);
+      }
+    }
+  },
+  organic: (t, rng) => {
+    // chitin weave: diagonal fibers with blotches and pale scar lines
+    for (let y = 0; y < 64; y++)
+      for (let x = 0; x < 64; x++) {
+        const f = 0.72 + 0.22 * Math.sin((x + y * 2) * 0.7 + Math.sin(y * 0.9) * 2.2) + rng() * 0.16;
+        t.set(x, y, shade(0x8a9488, f));
+      }
+    for (let i = 0; i < 26; i++) {
+      const x = (rng() * 64) | 0,
+        y = (rng() * 64) | 0;
+      t.set(x, y, [225, 232, 222]);
+      if (rng() < 0.5) t.set(x + 1, y + 1, [200, 210, 200]);
+    }
+  },
+  rubber: (t, rng) => {
+    // matte dark with fine cast texture and faint scratches
+    for (let y = 0; y < 64; y++)
+      for (let x = 0; x < 64; x++) {
+        const f = 0.85 + rng() * 0.2 + (rng() < 0.04 ? 0.35 : 0);
+        t.set(x, y, shade(0x4a5154, f));
+      }
+    for (let i = 0; i < 12; i++) {
+      const x = (rng() * 60) | 0,
+        y = (rng() * 64) | 0,
+        len = 2 + ((rng() * 5) | 0);
+      for (let k = 0; k < len; k++) t.set(x + k, y + ((rng() * 2) | 0), [130, 138, 142]);
+    }
+  },
+  wood: (t, rng) => {
+    // carved planks / basalt strata: long horizontal grain, knots, deep joints
+    const rows = [];
+    for (let y = 0; y < 64; ) {
+      const h = 5 + ((rng() * 6) | 0);
+      rows.push([y, h]);
+      y += h + 1;
+    }
+    for (const [ry, rh] of rows) {
+      for (let x = 0; x < 64; x++)
+        for (let yy = ry; yy < ry + rh; yy++) {
+          const g = 0.7 + 0.25 * Math.sin(x * 0.35 + Math.sin(ry * 2.1) * 1.8 + rng() * 0.3);
+          t.set(x, yy, shade(0x8d8676, g));
+        }
+      for (let x = 0; x < 64; x++) t.set(x, ry + rh, [38, 34, 30]);
+      if (rng() < 0.7) {
+        // knot
+        const kx = (rng() * 60) | 0,
+          ky = ry + 1 + ((rng() * (rh - 1)) | 0);
+        t.set(kx, ky, [40, 36, 32]);
+        t.set(kx + 1, ky, [190, 182, 166]);
+      }
+    }
+  },
+  ice: (t, rng) => {
+    // crystal facets: bright angular sheets with dark splits
+    for (let y = 0; y < 64; y++)
+      for (let x = 0; x < 64; x++) {
+        const d = Math.abs((x * 0.9 + y * 1.3) % 18 - 9);
+        const f = 0.85 + (d < 3 ? -0.3 : 0.15) + rng() * 0.14;
+        t.set(x, y, shade(0xb4c4cc, f));
+      }
+    for (let i = 0; i < 20; i++) {
+      const x = (rng() * 64) | 0,
+        y = (rng() * 64) | 0;
+      t.set(x, y, [244, 252, 255]);
+    }
+  },
+};
+
+export function buildSurfaceAtlas() {
+  const order = ["metal", "armor", "organic", "rubber", "wood", "ice"];
+  const atlas = new Uint8Array(COLS * TILE * ROWS * TILE * 4);
+  order.forEach((id, i) => {
+    const col = i % COLS;
+    const row = (i / COLS) | 0;
+    const rng = mulberry32(0xfeed + i * 104729);
+    const t = new Tile({ grout: 0x303030 }, 0);
+    SURFACE_DEFS[id](t, rng);
+    for (let y = 0; y < TILE; y++)
+      for (let x = 0; x < TILE; x++) {
+        const si = (y * TILE + x) * 4;
+        const di = ((row * TILE + y) * COLS * TILE + col * TILE + x) * 4;
+        atlas[di] = t.px[si];
+        atlas[di + 1] = t.px[si + 1];
+        atlas[di + 2] = t.px[si + 2];
+        atlas[di + 3] = 255;
+      }
+  });
+  return { rgba: atlas, width: COLS * TILE, height: ROWS * TILE };
+}
+
 /* ---------------------------------------------------------------- assemble */
 export function buildTerrainAtlas() {
   const order = ["city", "shelf", "marsh", "core", "caldera", "flats"];
@@ -349,7 +482,10 @@ export function buildTerrainAtlas() {
 
 // CLI entry (unconditional: the guard form of import.meta.url does not match Windows paths)
 {
-  const { rgba, width, height } = buildTerrainAtlas();
-  fs.writeFileSync("public/textures/terrain-atlas.png", encodePng(width, height, rgba));
-  console.log(`wrote public/textures/terrain-atlas.png (${width}x${height})`);
+  const terrain = buildTerrainAtlas();
+  fs.writeFileSync("public/textures/terrain-atlas.png", encodePng(terrain.width, terrain.height, terrain.rgba));
+  console.log(`wrote public/textures/terrain-atlas.png (${terrain.width}x${terrain.height})`);
+  const surface = buildSurfaceAtlas();
+  fs.writeFileSync("public/textures/surface-atlas.png", encodePng(surface.width, surface.height, surface.rgba));
+  console.log(`wrote public/textures/surface-atlas.png (${surface.width}x${surface.height})`);
 }
