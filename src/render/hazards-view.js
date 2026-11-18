@@ -1,17 +1,15 @@
 import {
   CircleGeometry,
   Color,
-  ConeGeometry,
   CylinderGeometry,
-  DodecahedronGeometry,
   DoubleSide,
   FrontSide,
+  IcosahedronGeometry,
   AdditiveBlending,
   NormalBlending,
   MeshBasicMaterial,
   OctahedronGeometry,
   ShaderMaterial,
-  SphereGeometry,
   TorusGeometry,
   UniformsLib,
   UniformsUtils,
@@ -67,152 +65,71 @@ const SURF_LIB = `
 uniform float uTime;
 varying vec2 vP;
 varying vec3 vI;
-float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
-vec2 h22(vec2 p) { float n = h21(p); return vec2(n, h21(p + n)); }
-float vnoise(vec2 p) {
-  vec2 i = floor(p), f = fract(p), u = f * f * (3.0 - 2.0 * f);
-  return mix(mix(h21(i), h21(i + vec2(1.0, 0.0)), u.x), mix(h21(i + vec2(0.0, 1.0)), h21(i + vec2(1.0, 1.0)), u.x), u.y);
-}
-float fbm(vec2 p) {
-  float s = 0.0, a = 0.5;
-  for (int i = 0; i < 3; i++) {
-    s += a * vnoise(p);
-    p = p * 2.03 + 17.1;
-    a *= 0.5;
-  }
-  return s / 0.875;
-}
-// x: distance to the nearest cell centre, y: distance to the cell border, z: cell id
-vec3 voro(vec2 p) {
-  vec2 n = floor(p), f = fract(p);
-  float d1 = 8.0, d2 = 8.0, id = 0.0;
-  for (int j = -1; j <= 1; j++)
-    for (int i = -1; i <= 1; i++) {
-      vec2 g = vec2(float(i), float(j)), r = g + h22(n + g) - f;
-      float d = dot(r, r);
-      if (d < d1) { d2 = d1; d1 = d; id = h21(n + g); } else if (d < d2) { d2 = d; }
-    }
-  d1 = sqrt(d1);
-  return vec3(d1, sqrt(d2) - d1, id);
+float engrave(float d,float w) {
+  float aa=max(fwidth(d),.002);
+  return 1.0-smoothstep(w-aa*.5,w+aa*.5,abs(d));
 }
 `;
+const polished = (fill) => `
+void main() {
+  float r=length(vP), a=atan(vP.y,vP.x+1e-5);
+  if(r>1.0) discard;
+  float time=uTime, seed=vI.g*6.283;
+  float strength=vI.r;
+  float rim=engrave(r-.91,.016);
+  float ticks=engrave(r-.85,.041)*smoothstep(.75,.99,cos(a*16.0+seed));
+  float inner=1.0-smoothstep(.93,1.0,r);
+  vec3 col=vec3(0.0);
+  float alpha=inner;
+  ${fill}
+  gl_FragColor=vec4(col,clamp(alpha,0.0,1.0));
+  #include <fog_fragment>
+  #include <colorspace_fragment>
+}`;
+
 const SURF_FRAG = {
-  // 3.49.0: the fumarole's molten heart: the pool where the jet stands (the Caldera's nozzles)
-  // 3.54.0: the melt burns orange under a darker crust - the pool read as a pale cookie before
-  molten: `
-void main() {
-  float r=length(vP), a=atan(vP.y,vP.x), seed=vI.g*41.0, heat=vI.r;
-  float edge=.9+.055*vnoise(vec2(a*2.2+seed,seed));
-  if(r>edge) discard;
-  vec2 q=vP*4.6+seed;
-  vec3 cell=voro(q+vec2(fbm(q*.5+uTime*.025),fbm(q*.5+7.0))*.5);
-  float activity=clamp((heat-.15)*.8,0.0,1.0);
-  float fissure=1.0-smoothstep(.012,.045+activity*.028,cell.y);
-  vec3 basalt=mix(vec3(.022,.027,.032),vec3(.055,.055,.052),fbm(q*1.7));
-  vec3 magma=mix(vec3(.44,.065,.004),vec3(1.0,.32,.025),activity);
-  float throat=(1.0-smoothstep(.055,.15,r))*(.3+activity*.7);
-  vec3 col=basalt*(.85+.2*cell.z)+magma*(fissure*(.2+activity*.65)+throat);
-  col*=mix(.6,1.0,smoothstep(edge,edge-.12,r));
-  gl_FragColor=vec4(col,1.0);
-  #include <fog_fragment>
-  #include <colorspace_fragment>
-}`,
-  // Ice blends frost, cracks and glints into the surrounding terrain without a decorative rim.
-  ice: `
-void main() {
-  float r = length(vP), seed = vI.g * 37.0;
-  float edge = 0.90 + 0.10 * vnoise(vP * 2.2 + seed);
-  if (r > edge) discard;
-  vec2 q = vP * 3.4 + seed;
-  vec3 v = voro(q);
-  // fine cracks that branch (two scales), frost in streaks along one direction, a deeper blue towards the middle
-  float crack = smoothstep(0.03, 0.0, v.y) * (0.45 + 0.55 * vnoise(q * 2.0));
-  crack = max(crack, smoothstep(0.02, 0.0, voro(q * 2.3 + 5.0).y) * 0.5 * vnoise(q + 9.0));
-  float frost = smoothstep(0.45, 0.9, fbm(vec2(q.x * 1.6 + q.y * 0.4, q.y * 0.5)));
-  // 3.55.0: the Shelf's rinks read as night ice, not white discs - the deep blue keeps more of
-  // the sheet, the frost wash and the rim lose a step (the 3.44.0 rest stays: enemies read)
-  vec3 deep = vec3(0.035, 0.12, 0.2), clear = vec3(0.12, 0.28, 0.38);
-  vec3 col = mix(deep, clear, smoothstep(0.0, edge, r) * 0.7 + 0.25 * v.z);
-  col = mix(col, vec3(0.39, 0.57, 0.65), frost * 0.35);
-  col += vec3(0.7, 0.88, 1.0) * crack * 0.18;
-  vec2 gc = floor(vP * 9.0 + seed), gf = fract(vP * 9.0 + seed) - 0.5;
-  float glint = step(0.93, h21(gc)) * smoothstep(0.12, 0.0, length(gf)) * (0.5 + 0.5 * sin(uTime * 1.5 + h21(gc + 3.0) * 30.0));
-  col += vec3(glint * 0.42);
-  col *= 0.8 + 0.35 * vI.r;
-  gl_FragColor = vec4(col, clamp(0.40 + 0.12 * frost + 0.12 * crack + glint, 0.0, 0.72) * smoothstep(edge, edge-.14, r));
-  #include <fog_fragment>
-  #include <colorspace_fragment>
-}`,
-  // acid (the Glowmarsh's bloom water, 3.50.0): near-black water lit from inside - a mint glow that drifts with the
-  // current, bubbles that rise and pop, foam at the edge (cyan stays the player's own Acid Coating);
-  // instance r fades a pool that is drying up
-  acid: `
-void main() {
-  float r = length(vP), seed = vI.g * 29.0;
-  float edge = 0.90 + 0.10 * vnoise(vP * 3.7 + seed);
-  if (r > edge) discard;
-  vec2 q = vP * 2.4 + seed;
-  vec3 deep = mix(vec3(0.002, 0.038, 0.032), vec3(0.02, 0.14, 0.18), vI.b);
-  vec3 lite = mix(vec3(0.16, 0.48, 0.26), vec3(0.3, 0.88, 1.0), vI.b);
-  float murk = fbm(q * 1.2 + vec2(uTime * 0.06, 0.0));
-  // the glow IS the warning: the bloom water carries a mint light from inside, drifting with the current
-  vec3 col = mix(deep, lite * 0.55, murk * 0.32);
-  float ripple = .5 + .5 * sin(dot(vP,vec2(12.0,7.0)) - uTime * 1.4 + fbm(q + uTime * .08) * 5.0);
-  float bloom = smoothstep(.48,.78,fbm(q * 2.8 - uTime * .025));
-  col += lite * (ripple * .035 + bloom * .12);
-  vec2 bc = floor(q * 1.7), bf = fract(q * 1.7) - 0.5 - (h22(bc) - 0.5) * 0.4;
-  float bt = fract(uTime * 0.55 + h21(bc) * 5.0);
-  float bub = step(0.55, h21(bc + 2.0)) * smoothstep(0.035, 0.0, abs(length(bf) - bt * 0.3)) * (1.0 - bt);
-  col += lite * bub * .4;
-  float foam = smoothstep(edge - 0.15, edge - 0.02, r) * (0.55 + 0.45 * fbm(q * 3.0 + uTime * 0.3));
-  col = mix(col, lite * 0.5 + 0.025, foam * 0.16);
-  gl_FragColor = vec4(col, (.78 + .16 * bloom + .06 * foam) * vI.r * (1.0-smoothstep(edge-.06,edge,r)));
-  #include <fog_fragment>
-  #include <colorspace_fragment>
-}`,
-  // portal: spiral arms that turn into a dark core, a bright rim, its colour from instance b (magenta or blue end)
-  portal: `
-void main() {
- float r=length(vP),a=atan(vP.y,vP.x);if(r>1.0)discard;
- vec3 hue=mix(vec3(.52,.15,.62),vec3(.16,.34,.68),vI.b);
- float depth=1.0/(r+.16);
- float current=pow(.5+.5*sin(a*3.0-depth*2.5+uTime*1.6+fbm(vP*4.0)*1.5),6.0);
- float edge=exp(-pow((r-.88)*38.0,2.0));
- float opening=smoothstep(.14,.82,r);
- vec3 col=vec3(.002,.003,.009)+hue*(current*.25*opening+edge*.72);
- col+=hue*.07*opening*fbm(vec2(a*3.0,depth-uTime*.3));
- gl_FragColor=vec4(col*vI.r,(1.0-smoothstep(.94,1.0,r))*.98);
- #include <fog_fragment>
- #include <colorspace_fragment>
-}`,
-  // fire: a pillar of flame on an open tube (x around, y up 0..1) that licks upward; instance r is its strength
-  dust: `
-void main() {
-  float r = length(vP), a = atan(vP.y, vP.x), seed = vI.g * 41.0, level = vI.r;
-  float edge = 0.8 + 0.2 * vnoise(vec2(a * 3.0 + seed, seed));
-  if (r > edge) discard;
-  // the spiral: arms that wind tighter as they rise, turning with the devil's own spin
-  float spin = uTime * 1.3 + seed;
-  vec2 q = vec2(cos(a + spin * (0.4 + r)), sin(a + spin * (0.4 + r))) * (r * 3.4 + 0.4) + seed;
-  float arms = smoothstep(0.25, 0.75, vnoise(q) * 0.7 + vnoise(q * 2.3 + 7.0) * 0.45);
-  float skirt = smoothstep(edge, edge * 0.35, r) * (0.35 + 0.65 * arms) * level;
-  // 3.55.0: the skirt lifts to sunlit dust (the old dark brown read as oil stains on the glass)
-  vec3 col = mix(vec3(0.55, 0.45, 0.28), vec3(0.8, 0.7, 0.48), arms * smoothstep(0.7, 0.15, r));
-  col *= 0.8 + 0.2 * sin(uTime * 2.1 + seed);
-  gl_FragColor = vec4(col, skirt);
-  #include <fog_fragment>
-  #include <colorspace_fragment>
-}`,
-  // 3.49.0: the fumarole: the same pillar, white-hot at the core (the Caldera's jets)
+  molten: polished(`
+    float ribs=engrave(sin(a*9.0+2.8*r-time*.89+seed),.089)*(1.0-r);
+    float channel=engrave(r-(.21+.06*sin(time*2.3)),.019);
+    vec3 fire=vec3(.91,.29,.075);
+    col=mix(vec3(.083,.028,.019),fire,clamp(ribs*strength+channel*.55+rim*.65+ticks*.35,0.,1.));
+    col+=vec3(.9,.69,.35)*engrave(r,.13)*strength*.7;
+  `),
+  ice: polished(`
+    vec2 grid=vec2(vP.x+vP.y,vP.y-vP.x);
+    float lines=engrave(sin(grid.x*12.0+seed),.065)+engrave(sin(grid.y*12.0),.065);
+    float facets=pow(abs(cos(a*3.0+seed)),12.0)*inner;
+    col=mix(vec3(.09,.17,.22),vec3(.65,.86,.88),min(.77,lines*.32+facets*.18+rim*.56+ticks*.43));
+    alpha*=.88;
+  `),
+  acid: polished(`
+    float rot=a+.28*sin(r*9.0-time*.8+seed);
+    float veins=engrave(sin(rot*6.0+2.8*r),.18)*smoothstep(.12,.61,r);
+    vec3 pigment=mix(vec3(.35,.44,.08),vec3(.09,.57,.45),clamp(vI.b,0.,1.));
+    col=mix(vec3(.051,.092,.048),pigment,.3+veins*.42+rim*.17+ticks*.12);
+    col+=vec3(.44,.57,.26)*engrave(sin(r*32.0-time*3.2),.14)*.13;
+    alpha*=.79;
+  `),
+  portal: polished(`
+    vec3 ribbon=mix(vec3(.63,.29,.62),vec3(.29,.52,.72),vI.b);
+    float revolutions=engrave(cos(a*3.0+log(r+.09)*5.1+time*1.8),.19);
+    float notch=engrave(r-.66,.011)*smoothstep(-.28,.62,cos(a*4.0-time*1.35));
+    col=vec3(.011,.013,.027)+ribbon*(rim*.96+ticks*.46+notch*.68+revolutions*r*.33)*strength;
+  `),
+  dust: polished(`
+    float ribbons=pow(.5+.5*sin(a*5.0+log(r+.09)*6.5-time*2.5+seed),6.0);
+    float edge=1.0-smoothstep(.51,.98,r);
+    col=mix(vec3(.29,.18,.112),vec3(.75,.54,.31),ribbons);
+    alpha=edge*(ribbons*.71+.12)*strength;
+  `),
   pyro: `
 void main() {
-  float h = vP.y;
-  vec2 q = vec2(vP.x * 7.0, h * 2.4 - uTime * 3.4);
-  float n = fbm(q) * 0.75 + fbm(q * 2.1 + 5.0) * 0.45;
-  float body = n - h * 0.95 + 0.25;
-  float flame = smoothstep(0.0, 0.32, body) * smoothstep(0.0, 0.08, h);
-  vec3 col = mix(vec3(1.0, 0.5, 0.05), vec3(1.0, 0.88, 0.42), smoothstep(0.3, 0.8, body));
-  gl_FragColor = vec4(col * flame * vI.r, 1.0);
+  float h=vP.y;
+  float lattice=pow(.5+.5*cos(vP.x*56.549-h*14.0+uTime*10.0),3.0);
+  float pulse=.6+.4*cos(h*17.0-uTime*5.1);
+  float fall=(1.0-smoothstep(.2,.99,h))*smoothstep(0.,.06,h);
+  vec3 c=mix(vec3(.77,.11,.044),vec3(.96,.76,.41),h*.43+lattice*.46);
+  gl_FragColor=vec4(c*vI.r*(.26+lattice*.74)*fall*pulse,1.0);
 }`,
 };
 function surfaceMaterial(kind) {
@@ -242,144 +159,91 @@ const tube = () => {
   geo.translate(0, 0.5, 0);
   return geo;
 };
+const fac = (color, r, p) => meshPart(new OctahedronGeometry(r), color, p);
+const inscribed = (color, r, w, y, segments = 30) =>
+  meshPart(new TorusGeometry(r, w, 5, segments), color, { y, rx: Math.PI / 2 });
+const base = (color, r, height, y, segments = 12) =>
+  meshPart(new CylinderGeometry(r * 0.91, r, height, segments), color, { y });
+
 const MODELS = {
-  nozzle: () => {
-    const rng = makeRng(0x1a7b),
-      body = [],
-      glow = [];
-    for (let i = 0; i < 15; i++) {
-      const a = (i / 15) * TAU + rng.range(-0.12, 0.12),
-        d = rng.range(0.92, 1.02),
-        size = rng.range(0.1, 0.19);
-      body.push(
-        meshPart(new DodecahedronGeometry(size), [0x59636b, 0x444c55, 0x70716a][i % 3], {
-          x: Math.cos(a) * d,
-          z: Math.sin(a) * d,
-          y: size * 0.25,
-          sx: 2.0,
-          sy: 0.5,
-          sz: 0.9,
-          ry: -a + Math.PI / 2 + rng.range(-0.2, 0.2),
-        }),
-      );
-      if (i % 4 === 0)
-        glow.push(box(0xa84c1e, 0.1, 0.018, 0.018, { x: Math.cos(a) * 0.87, z: Math.sin(a) * 0.87, y: 0.04, ry: -a }));
-    }
-    return { body, glow };
-  },
-  // the dome of lava that swells while a vent warns (a half sphere)
-  dome: () => {
-    // yellow at the top, orange at the foot
-    const part = meshPart(new SphereGeometry(1, 12, 6, 0, TAU, 0, Math.PI / 2), 0xffffff),
-      pos = part.attributes.position,
-      col = part.attributes.color,
-      foot = new Color(0xff5a10),
-      top = new Color(0xffd27a),
-      c = new Color();
-    for (let i = 0; i < pos.count; i++) {
-      c.copy(foot).lerp(top, clamp(pos.getY(i), 0, 1));
-      col.setXYZ(i, c.r, c.g, c.b);
-    }
-    return { glow: [part] };
-  },
-  // live manhole: the concrete collar (the cover is its own part, it moves)
+  nozzle: () => ({
+    body: [
+      inscribed(0x59382e, 0.91, 0.09, 0.055, 18),
+      ...Array.from({ length: 9 }, (_, i) => {
+        const a = (i * TAU) / 9;
+        return fac(0xb2734e, 0.15, {
+          x: Math.cos(a) * 0.91,
+          z: Math.sin(a) * 0.91,
+          y: 0.073,
+          ry: -a,
+          sx: 0.8,
+          sy: 0.45,
+          sz: 1.62,
+        });
+      }),
+    ],
+    glow: [inscribed(0xe88447, 0.81, 0.018, 0.079, 18)],
+  }),
+  dome: () => ({
+    glow: [
+      meshPart(new IcosahedronGeometry(0.91, 1), 0xdf7049, { y: 0.26, sy: 0.36 }),
+      meshPart(new IcosahedronGeometry(0.62, 1), 0xffbf83, { y: 0.44, sy: 0.58 }),
+    ],
+  }),
   collar: () => ({
     body: [
-      meshPart(new CylinderGeometry(1.0, 1.06, 0.06, 24), 0x77838d, { y: 0.03 }),
-      meshPart(new CylinderGeometry(0.85, 0.85, 0.064, 24), 0x0c0d10, { y: 0.032 }),
+      base(0x3c5855, 1.05, 0.086, 0.043),
+      base(0x243130, 0.87, 0.047, 0.09),
+      inscribed(0xb68a60, 0.91, 0.023, 0.12, 18),
     ],
-    // the light that leaks from under the cover
-    glow: [meshPart(new TorusGeometry(0.83, 0.025, 4, 28), 0x8fd0ff, { rx: Math.PI / 2, y: 0.07 })],
+    glow: [inscribed(0x92d2bc, 0.79, 0.044, 0.084, 18)],
   }),
-  cover: () => {
-    const body = [meshPart(new CylinderGeometry(0.8, 0.8, 0.05, 24), 0x485562, { y: 0.025 })],
-      glow = [];
-    // a raised grid, a ring of bolts and two pick holes; the slots between the bars glow
-    for (let i = -3; i <= 3; i++) {
-      const u = i * 0.19,
-        len = 2 * Math.sqrt(Math.max(0, 0.74 * 0.74 - u * u)) * 0.92;
-      if (len < 0.1) continue;
-      body.push(box(0x82919c, len, 0.022, 0.05, { z: u, y: 0.06 }), box(0x82919c, 0.05, 0.022, len, { x: u, y: 0.06 }));
-      if (i < 3) {
-        const v = u + 0.095,
-          len2 = 2 * Math.sqrt(Math.max(0, 0.7 * 0.7 - v * v)) * 0.85;
-        if (len2 > 0.1) glow.push(box(0x8fd0ff, len2, 0.006, 0.022, { z: v, y: 0.052 }));
-      }
-    }
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * TAU + 0.26;
-      body.push(
-        meshPart(new CylinderGeometry(0.035, 0.035, 0.03, 6), 0xa0abb2, {
-          x: Math.cos(a) * 0.71,
-          z: Math.sin(a) * 0.71,
-          y: 0.06,
-        }),
-      );
-    }
-    body.push(
-      box(0x101114, 0.1, 0.03, 0.04, { x: 0.5, y: 0.05 }),
-      box(0x101114, 0.1, 0.03, 0.04, { x: -0.5, y: 0.05 }),
-    );
-    return { body, glow };
-  },
-  // a thin piece of an arc (along x, centred), drawn bright and additive
-  bolt: () => ({ glow: [box(0xffffff, 1, 1, 1)] }),
-  // ice sheet: one shard of ice (a five-sided cone standing on y 0); the sheets place several on their rim
-  shard: () => {
-    const geo = new ConeGeometry(1, 1, 5);
-    geo.translate(0, 0.5, 0);
-    return { body: [meshPart(geo, 0xcfeeff)] };
-  },
-  // dust devil (the Glass Flats): two open cones of dust - a wide skirt and the funnel above it -
-  // both turning fast (the update spins them); built for radius 1 and scaled with the devil
-  // built for radius 1: a helix of flat dust sheets winding up around a hot core, so the devil's
-  // spin is real (a smooth cone reads as a dune - the look pass's lesson). The update spins the set.
-  // 3.55.0: the sheets read as DUST - pale sand tones, thinner and deeper (the old dark-brown
-  // boxes read as debris scattered over the field, not as a whirling column)
-  funnel: () => ({
-    body: [meshPart(dustRibbonGeometry(0), 0xcbbca0), meshPart(dustRibbonGeometry(Math.PI * 0.8), 0xe0d4b9)],
-    glow: [meshPart(dustRibbonGeometry(Math.PI * 1.6), 0xe8dec8)],
-  }),
-  // bloom pool: a bank of peat lumps and a few dead reeds
-  bank: () => {
-    const rng = makeRng(0xac1d),
-      body = [];
-    for (let i = 0; i < 7; i++) {
-      const a = rng.range(0, TAU),
-        d = rng.range(1.05, 1.18),
-        s = rng.range(0.08, 0.15);
-      body.push(
-        meshPart(new SphereGeometry(s, 6, 4), [0x1c221c, 0x18201a, 0x232a20][i % 3], {
-          x: Math.cos(a) * d,
-          z: Math.sin(a) * d,
-          y: 0.01,
-          sy: 0.42,
-          sx: rng.range(1, 1.6),
+  cover: () => ({
+    body: [
+      base(0x536c66, 0.81, 0.071, 0.043, 8),
+      ...Array.from({ length: 8 }, (_, i) => {
+        const a = (i * TAU) / 8;
+        return fac(0xb8946b, 0.21, {
+          x: Math.cos(a) * 0.54,
+          z: Math.sin(a) * 0.54,
+          y: 0.093,
           ry: -a,
-        }),
-      );
-    }
-    for (let i = 0; i < 4; i++) {
-      const a = rng.range(0, TAU),
-        d = rng.range(0.98, 1.08),
-        h = rng.range(0.35, 0.6);
-      body.push(
-        meshPart(new ConeGeometry(0.022, h, 4), 0x182218, {
-          x: Math.cos(a) * d,
-          z: Math.sin(a) * d,
-          y: h / 2,
-          rz: rng.range(-0.3, 0.3),
-          rx: rng.range(-0.3, 0.3),
-        }),
-      );
-    }
-    return { body };
-  },
-  bubble: () => ({ glow: [meshPart(new SphereGeometry(1, 8, 6), 0xffffff)] }),
-  // portal: a rune stone (a long dark crystal) with a glowing rune on its face
+          sx: 1.2,
+          sy: 0.13,
+          sz: 0.45,
+        });
+      }),
+    ],
+    glow: [inscribed(0xa0dbcb, 0.44, 0.016, 0.105, 24), fac(0xe3ded2, 0.11, { y: 0.12, sy: 0.19 })],
+  }),
+  bolt: () => ({ glow: [box(0xffffff, 1, 0.84, 0.84)] }),
+  shard: () => ({
+    body: [
+      fac(0xc9e0eb, 0.85, { y: 0.48, sy: 0.63, sz: 0.66, rz: -0.17 }),
+      fac(0x8097b7, 0.72, { x: 0.22, y: 0.32, sy: 0.41, sx: 0.49, ry: 0.34 }),
+    ],
+  }),
+  funnel: () => ({
+    body: [meshPart(dustRibbonGeometry(0.16), 0x946e53), meshPart(dustRibbonGeometry(Math.PI * 0.85), 0xcdac7e)],
+    glow: [meshPart(dustRibbonGeometry(Math.PI * 1.46), 0xe6c7a0)],
+  }),
+  bank: () => ({
+    body: Array.from({ length: 10 }, (_, i) => {
+      const a = (i * TAU) / 10;
+      return fac(i % 3 ? 0x526745 : 0x7d9363, 0.19, {
+        x: Math.cos(a) * 1.08,
+        z: Math.sin(a) * 1.08,
+        y: 0.034,
+        ry: -a,
+        sy: 0.26,
+        sz: 1.45,
+      });
+    }),
+  }),
+  bubble: () => ({ glow: [fac(0xffffff, 1, { sy: 0.83 })] }),
   stone: () => ({
-    body: [meshPart(new OctahedronGeometry(0.16), 0x2a1650, { sy: 2.3 })],
-    glow: [box(0xffffff, 0.03, 0.16, 0.012, { z: 0.09 }), box(0xffffff, 0.09, 0.025, 0.012, { z: 0.09, y: 0.03 })],
+    body: [base(0x403857, 0.15, 0.24, -0.06, 5), fac(0x675582, 0.18, { y: 0.06, sy: 1.58 })],
+    glow: [fac(0xffffff, 0.076, { y: 0.16, z: 0.11, sz: 0.29, sy: 1.43 })],
   }),
 };
 // the shards on the rim of an ice sheet of radius rr: where they stand, how big, how far they lean (from its seed)

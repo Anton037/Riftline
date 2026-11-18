@@ -1,7 +1,7 @@
-import { Color, MeshBasicMaterial, OctahedronGeometry } from "three";
+import { Color, CylinderGeometry, MeshBasicMaterial, OctahedronGeometry } from "three";
 import { worldMaterial } from "./world-material.js";
 import { shardGeometry } from "./strata-geometry.js";
-import { meshPart, mergeParts, box, ball, bar } from "./models.js";
+import { meshPart, mergeParts } from "./models.js";
 import { clamp, TAU } from "../core/util.js";
 import { MARK_LOOK } from "./attacks-view.js";
 import { LOCK_WARN, LOCK_TIME } from "../core/boss-cards.js";
@@ -18,42 +18,34 @@ const hex = (value) => new Color(value),
   ACID_PALE = hex(0xd9fff0),
   PYLONS = 6;
 
+const fac = (color, r, p) => meshPart(new OctahedronGeometry(r), color, p);
 const MODELS = {
-  // a squat steel pylon with a gold emitter at the top and one at knee height
   pylon: () => ({
     body: [
-      box(0x2a2f3a, 0.34, 0.08, 0.34, { y: 0.04 }),
-      box(0x3a4252, 0.16, 1.05, 0.16, { y: 0.55 }),
-      box(0x1a1e26, 0.22, 0.1, 0.22, { y: 1.1 }),
-      box(0x1a1e26, 0.2, 0.06, 0.2, { y: 0.42 }),
+      meshPart(new CylinderGeometry(0.17, 0.24, 0.11, 6), 0x303438, { y: 0.057 }),
+      fac(0xa37c65, 0.49, { y: 0.52, sy: 1.01, sx: 0.36, sz: 0.36 }),
+      fac(0xd3bc93, 0.22, { y: 1.03, sy: 1.26, sx: 0.73, sz: 0.73 }),
     ],
-    glow: [ball(0xffffff, 0.08, 6, 4, { y: 1.2 }), box(0xffffff, 0.18, 0.04, 0.18, { y: 0.46 })],
+    glow: [fac(0xffffff, 0.086, { y: 1.29, sy: 1.23 }), fac(0xffffff, 0.076, { y: 0.51, z: 0.135, sz: 0.49 })],
   }),
-  // a larva of the Brood: three body segments, two pairs of wings, a pale sting
   larva: () => ({
-    body: [
-      ball(0x1f5a42, 0.17, 7, 5, { x: 0.12, sx: 1.2 }),
-      ball(0x2a7354, 0.13, 6, 4, { x: -0.1 }),
-      ball(0x17402e, 0.1, 6, 4, { x: -0.28, sx: 1.3 }),
-      bar(0xa0e8c8, 0.03, [-0.36, 0, 0], [-0.5, -0.03, 0]),
-    ],
-    glow: [
-      ball(0xffffff, 0.04, 4, 3, { x: 0.27, y: 0.05, z: 0.07 }),
-      ball(0xffffff, 0.04, 4, 3, { x: 0.27, y: 0.05, z: -0.07 }),
-      ball(0xffffff, 0.06, 5, 3, { x: -0.28, y: 0.04 }),
-    ],
-    mover: [
-      bar(0x8fdcc0, 0.14, [0.05, 0.08, 0.06], [-0.05, 0.12, 0.42], 0.01),
-      bar(0x8fdcc0, 0.14, [0.05, 0.08, -0.06], [-0.05, 0.12, -0.42], 0.01),
-    ],
+    body: [fac(0x698c62, 0.216, { x: 0.04, sx: 1.33, sy: 0.51 }), fac(0xb4ba80, 0.17, { x: -0.19, sy: 0.49 })],
+    glow: [fac(0xffffff, 0.068, { x: 0.21, y: 0.057, sy: 0.71 }), fac(0xffffff, 0.055, { x: -0.23, y: 0.071 })],
+    mover: [-1, 1].map((s) =>
+      fac(0xacc9ab, 0.235, { x: -0.07, z: s * 0.21, y: 0.06, sx: 0.56, sy: 0.11, sz: 1.3, ry: s * 0.52 }),
+    ),
   }),
-  // an ice splinter, long and thin along x
   splinter: () => ({
-    body: [meshPart(new OctahedronGeometry(0.12, 0), 0xcff4ff, { sx: 3.2, sy: 0.6, sz: 0.6 })],
+    body: [
+      fac(0xb0d7e8, 0.132, { sx: 2.78, sy: 0.39, sz: 0.57, rx: 0.22 }),
+      fac(0xe9e2da, 0.1, { x: 0.08, sx: 2.1, sy: 0.31, sz: 0.26 }),
+    ],
   }),
-  // 3.56.0: a hot glass lance of the Glasswyrm Fang, long and thin along x
   lance: () => ({
-    body: [meshPart(shardGeometry(0.16, 0.72, 0.14), 0xffd98a, { x: -0.36, rz: -Math.PI / 2 })],
+    body: [
+      meshPart(shardGeometry(0.18, 0.75, 0.16), 0xe2ae69, { x: -0.35, rz: -Math.PI / 2 }),
+      fac(0xffe0a9, 0.117, { x: 0.1, sx: 2.48, sy: 0.29, sz: 0.53 }),
+    ],
   }),
 };
 

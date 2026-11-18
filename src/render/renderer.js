@@ -8,15 +8,12 @@ import { actorMaterial } from "../data/materials.js";
 import { setWorldShadows, WORLD_SURFACES, worldMaterial, enemySurface } from "./world-material.js";
 import { hexColor, additiveMaterial } from "./materials.js";
 import { AMBIENT_POOL_SHARE } from "../data/atmosphere.js";
-import { PixelPipeline } from "./pixel-pipeline.js";
-import { applyBiomePaletteUniforms } from "./biome-palettes.js";
-import { makePixelGlowTexture, makePixelShadowTexture, makePixelSparkTexture } from "./pixel-art.js";
 
 import {
   BoxGeometry,
   CanvasTexture,
   TextureLoader,
-  NearestFilter,
+  LinearFilter,
   CircleGeometry,
   Color,
   CylinderGeometry,
@@ -39,7 +36,7 @@ import {
   Raycaster,
   RingGeometry,
   Scene,
-  SphereGeometry,
+  OctahedronGeometry,
   SRGBColorSpace,
   NeutralToneMapping,
   Vector2,
@@ -303,32 +300,117 @@ function makeCanvasTexture(size, draw) {
   draw(ctx, size);
   let tex = new CanvasTexture(canvas);
   tex.colorSpace = SRGBColorSpace;
-  tex.minFilter = NearestFilter;
-  tex.magFilter = NearestFilter;
-  tex.generateMipmaps = false;
   tex.needsUpdate = true;
   return tex;
 }
 function makeGlowTexture() {
-  return makePixelGlowTexture(32);
+  return makeCanvasTexture(128, (ctx, size) => {
+    const half = size / 2;
+    const brush = ctx.createRadialGradient(half, half, 0, half, half, half);
+    brush.addColorStop(0, "rgba(255,255,255,.86)");
+    brush.addColorStop(0.21, "rgba(255,250,232,.61)");
+    brush.addColorStop(0.57, "rgba(240,220,187,.17)");
+    brush.addColorStop(1, "rgba(255,231,188,0)");
+    ctx.fillStyle = brush;
+    ctx.fillRect(0, 0, size, size);
+  });
 }
 function makeShadowTexture() {
-  return makePixelShadowTexture(32);
+  return makeCanvasTexture(64, (ctx, size) => {
+    const half = size / 2;
+    const ink = ctx.createRadialGradient(half, half, 0, half, half, half);
+    ink.addColorStop(0, "rgba(15,12,15,.68)");
+    ink.addColorStop(0.32, "rgba(15,12,15,.49)");
+    ink.addColorStop(0.63, "rgba(15,12,15,.17)");
+    ink.addColorStop(1, "rgba(15,12,15,0)");
+    ctx.fillStyle = ink;
+    ctx.fillRect(0, 0, size, size);
+  });
 }
 function makeSparkTexture() {
-  return makePixelSparkTexture(24);
+  return makeCanvasTexture(64, (ctx, size) => {
+    const sliver = (points, fill) => {
+      ctx.fillStyle = fill;
+      ctx.beginPath();
+      points.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x * size, y * size) : ctx.lineTo(x * size, y * size)));
+      ctx.closePath();
+      ctx.fill();
+    };
+    sliver(
+      [
+        [0.5, 0.015],
+        [0.72, 0.48],
+        [0.49, 0.98],
+        [0.32, 0.48],
+      ],
+      "rgba(253,220,170,.27)",
+    );
+    sliver(
+      [
+        [0.52, 0.09],
+        [0.65, 0.46],
+        [0.47, 0.92],
+        [0.4, 0.52],
+      ],
+      "rgba(255,250,232,1)",
+    );
+    sliver(
+      [
+        [0.15, 0.62],
+        [0.27, 0.44],
+        [0.31, 0.6],
+        [0.19, 0.76],
+      ],
+      "rgba(255,232,196,.53)",
+    );
+    sliver(
+      [
+        [0.71, 0.39],
+        [0.83, 0.19],
+        [0.87, 0.32],
+        [0.76, 0.49],
+      ],
+      "rgba(255,232,196,.46)",
+    );
+  });
 }
 function makeColumnTexture() {
-  return makeCanvasTexture(32, (ctx, size) => {
-    for (let y = 0; y < size; y++) {
-      const t = 1 - y / size;
-      const band = Math.floor(t * 6) / 6;
-      const alpha = band <= 0 ? 0 : Math.min(0.95, Math.pow(band, 1.45) * 1.05);
-      if (alpha <= 0) continue;
-      ctx.fillStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
-      ctx.fillRect(0, y, size, 1);
+  return makeCanvasTexture(128, (ctx, size) => {
+    const grad = ctx.createLinearGradient(0, size, 0, 0);
+    grad.addColorStop(0, "rgba(255,238,201,.85)");
+    grad.addColorStop(0.31, "rgba(255,250,234,.52)");
+    grad.addColorStop(1, "rgba(255,237,195,0)");
+    for (let i = 0; i < 14; i++) {
+      const x = (size * i) / 14;
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.moveTo(x, size);
+      ctx.quadraticCurveTo(x + size * 0.037, size * 0.38, x + size * 0.018, size * (i % 3) * 0.07);
+      ctx.lineTo(x + size * 0.04, size * (i % 3) * 0.07);
+      ctx.quadraticCurveTo(x + size * 0.078, size * 0.52, x + size * 0.064, size);
+      ctx.fill();
     }
   });
+}
+function effectDisc(outline) {
+  const material = additiveMaterial(null, { side: DoubleSide });
+  material.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", "#include <common>\nvarying vec2 effectXZ;")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\neffectXZ=position.xz;");
+    shader.fragmentShader = shader.fragmentShader
+      .replace("#include <common>", "#include <common>\nvarying vec2 effectXZ;")
+      .replace(
+        "#include <color_fragment>",
+        `#include <color_fragment>
+float r=length(effectXZ), a=atan(effectXZ.y,effectXZ.x+.00001);
+float tick=pow(abs(cos(a*12.0)),19.0);
+diffuseColor.rgb*=${outline ? ".25+.67*smoothstep(.951,.979,r)+tick*.49" : ".34+.21*tick*r+.33*smoothstep(.82,.98,r)"};
+`,
+      );
+  };
+  material.customProgramCacheKey = () => (outline ? "etched-ring" : "etched-disc");
+  return material;
 }
 const MAX_PARTICLES = 1400,
   goldColor = new Color(16762954),
@@ -383,8 +465,8 @@ const MAX_PARTICLES = 1400,
       // own look: every emissive material is built with toneMapped: false, the floor is a ShaderMaterial
       // (tone mapping never applies), the 2D overlay draws itself — none of them change.
       this.renderer.toneMapping = NeutralToneMapping;
-      this.renderer.toneMappingExposure = 1.12;
-      this.renderer.setClearColor(329485, 1);
+      this.renderer.toneMappingExposure = 1.04;
+      this.renderer.setClearColor(0x121c27, 1);
       this.dprCap = opts.dpr || 2;
       this.zoom = 1;
       this.scene = new Scene();
@@ -392,7 +474,7 @@ const MAX_PARTICLES = 1400,
       this.camera = new PerspectiveCamera(42, 1, 0.5, 200);
       this.hemi = new HemisphereLight(2771594, 657944, 1.9);
       this.sun = new DirectionalLight(16777215, 1.5);
-      this.sun.position.set(18, 42, 27);
+      this.sun.position.set(-16, 34, -5);
       this.sun.castShadow = true;
       this.sun.shadow.mapSize.set(1024, 1024);
       Object.assign(this.sun.shadow.camera, { left: -30, right: 30, top: 30, bottom: -30, near: 5, far: 120 });
@@ -404,34 +486,28 @@ const MAX_PARTICLES = 1400,
       this.renderer.shadowMap.enabled = true;
       // 3.29.0: a fill light from the other side, in a colour that goes against the sun's (set per biome, no shadows)
       this.fill = new DirectionalLight(0xffffff, 0);
-      this.fill.position.set(-9, 5, 8);
+      this.fill.position.set(13, 7, 9);
       this.scene.add(this.hemi, this.sun, this.fill);
       this.arena = new ArenaView(this.scene);
       this.smokeView = new SmokeView(this.scene);
-      this.terrainAtlas = new TextureLoader().load("textures/terrain-atlas.png", (texture) => {
-        WORLD_SURFACES.map.value = texture;
-        WORLD_SURFACES.ready.value = 1;
+      this.terrainAtlas = new TextureLoader().load("textures/terrain-atlas.webp", (texture) => {
         this.arena.uniforms.uTerrainMap.value = texture;
         this.arena.uniforms.uTerrainReady.value = 1;
       });
       this.terrainAtlas.colorSpace = SRGBColorSpace;
       this.terrainAtlas.flipY = false;
-      this.terrainAtlas.minFilter = this.terrainAtlas.magFilter = NearestFilter;
+      this.terrainAtlas.minFilter = this.terrainAtlas.magFilter = LinearFilter;
       this.terrainAtlas.generateMipmaps = false;
       this.finishAtlasReady = false;
-      this.finishAtlas = new TextureLoader().load("textures/surface-atlas.png", (texture) => {
+      this.finishAtlas = new TextureLoader().load("textures/surface-atlas.webp", (texture) => {
         WORLD_SURFACES.finishMap.value = texture;
         WORLD_SURFACES.finishReady.value = 1;
         this.finishAtlasReady = true;
       });
       this.finishAtlas.colorSpace = SRGBColorSpace;
       this.finishAtlas.flipY = false;
-      this.finishAtlas.minFilter = this.finishAtlas.magFilter = NearestFilter;
+      this.finishAtlas.minFilter = this.finishAtlas.magFilter = LinearFilter;
       this.finishAtlas.generateMipmaps = false;
-      this.pixelPipeline = new PixelPipeline(this.renderer, {
-        enabled: opts.pixelArt !== false,
-        bloom: opts.bloom !== false,
-      });
       this.time = 0;
       this.shake = 0;
       // 3.58.0: how much the camera may move (1: as tuned, 0: still). main.js sets it from the OS motion
@@ -482,10 +558,10 @@ const MAX_PARTICLES = 1400,
       this.sparks = new InstancePool(quad.clone(), additiveMaterial(this.texSpark), 700);
       let ringGeo = new RingGeometry(0.86, 1, 48, 1);
       ringGeo.rotateX(-Math.PI / 2);
-      this.ringPool = new InstancePool(ringGeo, additiveMaterial(null, { side: DoubleSide }), 260);
+      this.ringPool = new InstancePool(ringGeo, effectDisc(true), 260);
       let discGeo = new CircleGeometry(1, 40);
       discGeo.rotateX(-Math.PI / 2);
-      this.discs = new InstancePool(discGeo, additiveMaterial(null, { side: DoubleSide }), 120);
+      this.discs = new InstancePool(discGeo, effectDisc(false), 120);
       let beamGeo = new BoxGeometry(1, 1, 1);
       beamGeo.translate(0.5, 0, 0);
       this.beams = new InstancePool(beamGeo, additiveMaterial(null), 500);
@@ -508,7 +584,7 @@ const MAX_PARTICLES = 1400,
         320,
         { color: false },
       );
-      let sphere = new SphereGeometry(1, 10, 6);
+      let sphere = new OctahedronGeometry(1);
       this.ebCore = new InstancePool(sphere, new MeshBasicMaterial({ toneMapped: false }), 380);
       this.shardPool = new InstancePool(shardGeometry(), new MeshBasicMaterial({ toneMapped: false }), 300);
       this.healPool = new InstancePool(
@@ -543,9 +619,9 @@ const MAX_PARTICLES = 1400,
       this.enemyPools = {};
       for (let type in enemyDefs) {
         let def = enemyDefs[type],
-          geo = enemyGeometry(type, def.color),
+          geo = enemyGeometry(type),
           max = def.r > 0.9 ? 40 : 120,
-          body = new InstancePool(geo.body, makeEnemyMaterial({ vertexColors: true, flatShading: true }, type), max, {
+          body = new InstancePool(geo.body, makeEnemyMaterial({ vertexColors: true }, type), max, {
             flash: true,
           }),
           glow = new InstancePool(geo.glow, new MeshBasicMaterial({ toneMapped: false, vertexColors: true }), max);
@@ -627,7 +703,6 @@ const MAX_PARTICLES = 1400,
         this.dpr = dpr;
         this.renderer.setPixelRatio(dpr);
         this.renderer.setSize(w, h, false);
-        this.pixelPipeline?.resize(w, h);
         this.camera.aspect = w / h;
         this.camera.fov = w / h < 1 ? 50 : 40;
         this.camera.updateProjectionMatrix();
@@ -666,16 +741,12 @@ const MAX_PARTICLES = 1400,
         this.addShake(0.12);
         this.mapChanged = true;
       }
-      this.scene.fog.color.setHex(biome.fog);
-      this.renderer.setClearColor(biome.fog, 1);
-      this.hemi.color.setHex(biome.sky);
-      this.hemi.groundColor.setHex(biome.ground);
       this.biome = biome;
-      applyBiomePaletteUniforms(biome.id);
-      this.pixelPipeline?.setBiomeGrade(biome.id);
       // 2.4.0: sun colour and fog density of the biome look
       const look = RL_BIOME_LOOK[biome.id] || RL_BIOME_LOOK.city,
         fog = this.scene.fog;
+      fog.color.setHex(look.fogColor);
+      this.renderer.setClearColor(fog.color, 1);
       this.hemi.color.setHex(look.skyFill || biome.sky);
       this.hemi.groundColor.setHex(look.groundFill || biome.ground);
       this.sun.color.setHex(look.sun);
@@ -1893,11 +1964,7 @@ const MAX_PARTICLES = 1400,
         this.nums.length = w;
       }
       this.flashT = Math.max(0, this.flashT - dt);
-      if (this.pixelPipeline) {
-        this.pixelPipeline.render(this.scene, this.camera, this.renderer.toneMappingExposure);
-      } else {
-        this.renderer.render(this.scene, this.camera);
-      }
+      this.renderer.render(this.scene, this.camera);
     }
     drawMenuPlayer(dt) {
       let drone = this.player;
@@ -2010,7 +2077,7 @@ const MAX_PARTICLES = 1400,
               -player.vy * 0.1,
               0.25,
               0.7,
-              hexColor(0x4a5158),
+              hexColor(8386303),
               { drag: 4 },
             );
 
@@ -2020,10 +2087,9 @@ const MAX_PARTICLES = 1400,
             bx = player.x + Math.cos(angle) * world.stats.orbitR,
             bz = player.y + Math.sin(angle) * world.stats.orbitR,
             blade = this.blades.y(bx, 0, bz, angle + Math.PI / 2, 1.2 * world.stats.bladeScale);
-          // Phase 5A: dark iron blades with one warm ember rim (no more arcade mint/cyan glow)
-          this.blades.colHex(blade, 0x37434c);
+          this.blades.colHex(blade, 10483967);
           let halo = this.sprites.bb(bx, 0.62, bz, 1.1, basis);
-          this.sprites.colHex(halo, 0xdd7a2e, 0.3);
+          this.sprites.colHex(halo, 4846335, 0.55);
         }
         for (let wing of player.wings) {
           this.wing.y(wing.x, Math.sin(time * 4 + wing.x) * 0.1, wing.y, player.aim, 1.3);

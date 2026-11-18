@@ -251,27 +251,18 @@ test("BossCardView distinguishes Frost Prism shatter from Glasswyrm Fang shatter
   assert.notEqual(bursts[2][5].getHex(), bursts[3][5].getHex());
 });
 
-test("pixel-art pipeline computes crisp square pixel resolutions and biome palettes cover all biomes", async () => {
-  const { computePixelResolution } = await import("../src/render/pixel-pipeline.js");
-  const { BIOME_PALETTES, PIXEL_MATERIAL_UNIFORMS, applyBiomePaletteUniforms } =
-    await import("../src/render/biome-palettes.js");
-  const { getBiomeMusicParams } = await import("../src/audio/music-params.js");
-  const { biomeList } = await import("../src/data/biomes.js");
-
-  const tablet = computePixelResolution(1024, 768);
-  assert.ok(tablet.pxH >= 320 && tablet.pxH <= 420);
-  assert.ok(Math.abs(tablet.pxW / tablet.pxH - 1024 / 768) < 0.01);
-
-  const phone = computePixelResolution(844, 390);
-  assert.ok(phone.pxH >= 200 && phone.pxH <= 260);
-  assert.ok(Math.abs(phone.pxW / phone.pxH - 844 / 390) < 0.01);
-
-  for (const biome of biomeList) {
-    assert.ok(BIOME_PALETTES[biome.id], `missing palette for ${biome.id}`);
-    const pal = applyBiomePaletteUniforms(biome.id);
-    assert.equal(PIXEL_MATERIAL_UNIFORMS.uPxRimColor.value.getHex(), pal.rimColor);
-    const mus = getBiomeMusicParams(biome.id);
-    assert.equal(mus.chords.length, 4);
-    assert.ok(mus.scale.length >= 5);
+test("all biomes have a distinct glaze and a fight and boss score", async () => {
+  const { GLAZES } = await import("../src/render/palette.js");
+  const { musicTrack, scoreBiomes } = await import("../src/audio/score.js");
+  const biomeIds = biomeList.map((biome) => biome.id).sort();
+  assert.deepEqual(Object.keys(GLAZES).sort(), biomeIds);
+  assert.deepEqual([...scoreBiomes].sort(), biomeIds);
+  assert.equal(new Set(Object.values(GLAZES).map((glaze) => glaze.style)).size, biomeIds.length);
+  assert.equal(new Set(Object.values(GLAZES).map((glaze) => glaze.base)).size, biomeIds.length);
+  for (const id of biomeIds) {
+    const fight = musicTrack("fight", id);
+    const boss = musicTrack("boss", id);
+    assert.ok(fight.bpm > 0 && boss.bpm > fight.bpm, id);
+    assert.ok(fight.bars > 0 && boss.bars > 0, id);
   }
 });

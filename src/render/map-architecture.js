@@ -1,69 +1,127 @@
-// Built architecture belongs to the City, Core ruins and the Flats; natural biomes own their rock/root bases.
-// Static pieces remain within collision footprints or beyond the arena wall and batch by material.
-import { BoxGeometry, Mesh, MeshBasicMaterial } from "three";
+import { BoxGeometry, CylinderGeometry, LatheGeometry, Mesh, TorusGeometry, Vector2 } from "three";
+import { GLAZES } from "./palette.js";
 import { worldMaterial } from "./world-material.js";
 import { armorBox } from "./armor-geometry.js";
-import { strataGeometry } from "./strata-geometry.js";
-const PALETTES = {
-  city: [0x65717b, 0x35434e, 0xb7a883, 0xe6bb70],
-  core: [0x766582, 0x3b354f, 0xa6a2b8, 0xa48ed8],
-  flats: [0xb29b70, 0x716448, 0xdbd3ad, 0x9ac9c8],
+
+// Profiles are [radius, height] in local units, with the wheel mark hidden under the base.
+const PROFILES = {
+  city: [
+    [0, 0],
+    [0.79, 0],
+    [1, 0.12],
+    [0.84, 0.22],
+    [0.7, 0.35],
+    [0.73, 0.75],
+    [0.54, 1],
+    [0.28, 1.03],
+    [0, 1.03],
+  ],
+  shelf: [
+    [0, 0],
+    [0.88, 0],
+    [0.97, 0.13],
+    [0.63, 0.27],
+    [0.7, 0.38],
+    [0.98, 0.63],
+    [0.69, 0.8],
+    [0.4, 1],
+    [0, 1],
+  ],
+  marsh: [
+    [0, 0],
+    [0.64, 0],
+    [0.72, 0.12],
+    [0.43, 0.36],
+    [0.5, 0.48],
+    [0.97, 0.62],
+    [1, 0.75],
+    [0.54, 0.87],
+    [0.18, 0.96],
+    [0, 0.96],
+  ],
+  core: [
+    [0, 0],
+    [0.81, 0],
+    [0.93, 0.11],
+    [0.52, 0.21],
+    [0.3, 0.35],
+    [0.86, 0.57],
+    [0.97, 0.68],
+    [0.55, 0.83],
+    [0.26, 1],
+    [0, 1],
+  ],
+  caldera: [
+    [0, 0],
+    [0.95, 0],
+    [1, 0.2],
+    [0.89, 0.26],
+    [0.91, 0.55],
+    [0.64, 0.62],
+    [0.7, 0.85],
+    [0.5, 1],
+    [0, 1],
+  ],
+  flats: [
+    [0, 0],
+    [0.88, 0],
+    [0.96, 0.19],
+    [0.64, 0.36],
+    [0.56, 0.55],
+    [0.82, 0.73],
+    [0.94, 0.86],
+    [0.63, 0.96],
+    [0, 0.96],
+  ],
 };
+
+export function vesselGeometry(id, radius, height) {
+  return new LatheGeometry(
+    PROFILES[id].map(([r, y]) => new Vector2(r * radius, y * height)),
+    16,
+  );
+}
+
+export function placeMesh(parent, geometry, material, x, y, z) {
+  const mesh = new Mesh(geometry, material);
+  mesh.position.set(x, y, z);
+  parent.add(mesh);
+  return mesh;
+}
+
 export function addMapArchitecture(view, biome, W, H, obstacles) {
-  const colors = PALETTES[biome.id];
-  if (!colors) return;
-  const mats = [],
-    surface = biome.id === "flats" ? "sandstone" : biome.id === "city" ? "metal" : "stone",
-    mat = (m) =>
-      (mats[m] ??=
-        m < 3
-          ? worldMaterial({ color: colors[m], surface })
-          : new MeshBasicMaterial({ color: colors[3], toneMapped: false }));
-  const part = (parent, geometry, m, x, y, z, rotation = 0) => {
-    const mesh = new Mesh(geometry, mat(m));
-    mesh.position.set(x, y, z);
-    mesh.rotation.y = rotation;
-    parent.add(mesh);
-    return mesh;
-  };
-  const block = (parent, m, x, y, z, w, h, d, a = 0) =>
-    part(parent, Math.min(w, h, d) > 0.12 ? armorBox(w, h, d) : new BoxGeometry(w, h, d), m, x, y, z, a);
+  const look = GLAZES[biome.id];
+  const footing = worldMaterial({ color: look.base, surface: "stone" });
+  const band = worldMaterial({ color: look.trim, surface: "metal" });
+  const body = worldMaterial({ color: look.body, surface: "armor" });
   for (const ob of obstacles) {
-    const x = ob.x,
-      z = ob.y,
-      w = ob.t === "c" ? ob.r * 0.78 : ob.w,
-      d = ob.t === "c" ? ob.r * 0.78 : ob.h,
-      parent = view.obsGroup;
-    if (biome.id === "city") {
-      for (const side of [-1, 1]) {
-        block(parent, 0, x + side * w * 0.8, 0.09, z, w * 0.16, 0.16, d * 1.6);
-        for (const end of [-1, 1])
-          block(parent, 2, x + side * w * 0.8, 0.18, z + end * d * 0.65, w * 0.16, 0.025, d * 0.18);
-      }
-    } else if (biome.id === "core") {
-      for (let j = 0; j < 3; j++)
-        block(parent, j === 1 ? 2 : 1, x, 0.08 + j * 0.12, z, w * (1.65 - j * 0.2), 0.08, d * (1.65 - j * 0.2));
-    }
+    const base =
+      ob.t === "c" ? new CylinderGeometry(ob.r * 0.99, ob.r, 0.26, 16) : armorBox(ob.w * 2, 0.26, ob.h * 2, 0.06);
+    placeMesh(view.obsGroup, base, footing, ob.x, 0.13, ob.y);
   }
+  if (!obstacles.length) footing.dispose();
+
+  // Keep the whole northern gallery outside the collision plane.
   for (const side of [-1, 1]) {
-    const x = side * W * 0.68,
-      z = -H - 2.4,
-      parent = view.group;
-    if (biome.id === "city") {
-      block(parent, 1, x, 1.7, z, 0.24, 3.4, 0.24);
-      block(parent, 0, x - side * 0.6, 3.35, z, 1.4, 0.18, 0.4);
-      block(parent, 3, x - side * 0.6, 3.24, z, 1, 0.04, 0.32);
-      block(parent, 2, x, 1.85, z - 0.13, 0.8, 0.7, 0.05);
-    } else if (biome.id === "core") {
-      for (let j = 0; j < 3; j++) {
-        block(parent, j === 1 ? 2 : 0, x + side * j * 0.65, 0.9 + j * 0.5, z, 0.7, 0.22, 1.7, side * j * 0.17);
-        block(parent, 3, x + side * j * 0.65, 1.025 + j * 0.5, z, 0.4, 0.02, 0.06);
-      }
-    } else {
-      // Wind-eroded sandstone arches, without the old luminous lintel strips and perfect block pedestals.
-      for (const leg of [-1, 1]) part(parent, strataGeometry(0.8, 2.5, 0.9, x + leg, true), 0, x + leg * 0.95, 0.01, z);
-      const lintel = part(parent, strataGeometry(2.7, 0.42, 1, x * 3), 2, x, 2.37, z);
-      lintel.rotation.z = side * 0.07;
+    const x = side * W * 0.58;
+    const z = -H - 8.6;
+    placeMesh(view.group, new BoxGeometry(7.8, 0.64, 5), body, x, 0.18, z);
+    const pedestal = placeMesh(view.group, vesselGeometry(biome.id, 2.25, 6.6), body, x, 0.47, z);
+    pedestal.scale.z = 0.82;
+    placeMesh(view.group, new TorusGeometry(2.2, 0.13, 6, 44), band, x, 6.85, z);
+    const bezel = placeMesh(view.group, new TorusGeometry(1.53, 0.045, 5, 40), band, x, 6.85, z + 0.09);
+    bezel.rotation.z = side * 0.4;
+    for (let i = 0; i < 12; i++) {
+      const angle = (i / 12) * Math.PI * 2;
+      const tick = placeMesh(
+        view.group,
+        new BoxGeometry(0.08, 0.31, 0.1),
+        band,
+        x + Math.sin(angle) * 1.86,
+        6.85 + Math.cos(angle) * 1.86,
+        z + 0.05,
+      );
+      tick.rotation.z = -angle;
     }
   }
 }

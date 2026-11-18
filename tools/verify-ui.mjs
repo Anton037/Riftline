@@ -1,4 +1,4 @@
-// Phase-3 UI verification: pixel font loads, layout audit stays green on every menu state.
+// Verify bundled fonts and layout across desktop and phone menu states.
 import { chromium } from "playwright";
 import path from "node:path";
 import { serve } from "../tools/serve.js";
@@ -31,12 +31,23 @@ for (const [label, viewport, touch] of [
   await page.waitForFunction(() => window.__riftTest?.renderer, null, { timeout: 90000 });
   await page.waitForTimeout(1800);
 
-  check(await page.evaluate(() => document.fonts.check('16px "Press Start 2P"')), `${label}: pixel font loaded`);
+  const fonts = await page.evaluate(async () => {
+    const specs = ['400 16px "Baskervville"', '700 16px "Instrument Sans"'];
+    const loaded = await Promise.all(specs.map((spec) => document.fonts.load(spec)));
+    return loaded.every((faces) => faces.length > 0);
+  });
+  check(fonts, `${label}: bundled fonts loaded`);
+  check(
+    (await page.evaluate(() => getComputedStyle(document.querySelector("#home .logo")).fontFamily)).includes(
+      "Baskervville",
+    ),
+    `${label}: wordmark uses the serif face`,
+  );
   check(
     (await page.evaluate(() => getComputedStyle(document.querySelector("#playBtn")).fontFamily)).includes(
-      "Press Start 2P",
+      "Instrument Sans",
     ),
-    `${label}: primary button uses pixel face`,
+    `${label}: primary button uses the interface face`,
   );
   await audit(`${label} home`, page);
 
@@ -61,9 +72,9 @@ for (const [label, viewport, touch] of [
   check((await page.locator("#cards .card").count()) > 0, `${label}: upgrade cards rendered`);
   check(
     (await page.evaluate(() => getComputedStyle(document.querySelector("#cards .card b")).fontFamily)).includes(
-      "Press Start 2P",
+      "Instrument Sans",
     ),
-    `${label}: card titles use pixel face`,
+    `${label}: card titles use the interface face`,
   );
   await audit(`${label} choose`, page);
   await page.evaluate(() => window.__riftTest.ui.showPause(window.__riftTest.game.world));

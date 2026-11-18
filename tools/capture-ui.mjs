@@ -38,7 +38,7 @@ async function runViewport(label, viewport, touch) {
     await page.click("#settings section:not([hidden]) .topbar .icon-btn, [data-back]:visible");
   }
 
-  // in-run surfaces: pause + the upgrade choice over the live pixel-rendered world
+  // in-run surfaces: pause + the upgrade choice over the live arena
   await page.click("#playBtn");
   await page.waitForFunction(() => window.__riftTest?.game.world?.wave > 0, null, { timeout: 30000 }).catch(() => {});
   await page.evaluate(() => {

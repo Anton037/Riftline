@@ -13,9 +13,9 @@ import { clamp, TAU } from "../core/util.js";
 import { COLLAPSE_TIME } from "../core/boss-cards.js";
 import { hexColor } from "./materials.js";
 
-const CYAN = hexColor(0x80dce7),
-  VIOLET = hexColor(0x9b81e8),
-  GOLD = hexColor(0xe5bc7c);
+const CYAN = hexColor(0x96dec1),
+  VIOLET = hexColor(0xc3a2ec),
+  GOLD = hexColor(0xefb374);
 const vertex = `
 #include <common>
 #include <fog_pars_vertex>
@@ -46,30 +46,35 @@ ${fragment}`,
   });
 }
 const waveFragment = `void main(){
- float age=vState.r, h=vUv.y;
- float crest=exp(-pow((h-.1)*15.0,2.0));
- float fil=pow(.5+.5*sin(vUv.x*440.0+sin(vUv.x*67.0)*3.0-uTime*8.0),8.0);
- float eddy=.5+.5*sin(vUv.x*83.0+sin(h*14.0-uTime*12.0)*2.0);
- float a=(crest*1.0+pow(1.0-h,1.8)*.55+fil*.45*(1.0-h))*mix(.65,1.0,eddy)*pow(1.0-age,1.2);
- a*=smoothstep(0.0,.07,age)*vState.b;
- vec3 hue=vState.g<.5?vec3(.32,.75,.9):vState.g<1.5?vec3(.65,.4,.85):vec3(.95,.57,.2);
- gl_FragColor=vec4(mix(hue,vec3(.9,.98,1.0),crest*.5),a);
+ float age=vState.r, h=vUv.y, orbit=vUv.x*6.2831853;
+ float mainRing=exp(-pow((h-.16)*16.0,2.0));
+ float echo=exp(-pow((h-.42)*23.0,2.0))*.47;
+ float ticks=pow(max(0.,cos(orbit*24.0)),7.0)*exp(-pow((h-.28)*7.0,2.0));
+ float arcs=smoothstep(-.2,.13,cos(orbit*8.0-uTime*3.3))*exp(-pow((h-.62)*11.0,2.0));
+ float alpha=(mainRing+echo+ticks*.44+arcs*.31)*pow(1.-age,1.3);
+ alpha*=smoothstep(0.,.06,age)*vState.b;
+ vec3 hue=vState.g<.5?vec3(.32,.74,.62):vState.g<1.5?vec3(.61,.38,.78):vec3(.88,.42,.19);
+ gl_FragColor=vec4(mix(hue,vec3(1.,.92,.74),mainRing*.65),alpha);
  #include <fog_fragment>
  #include <colorspace_fragment>
 }`;
 const fieldFragment = `void main(){
- vec2 p=vUv*2.0-1.0;float r=length(p),a=atan(p.y,p.x);
+ vec2 p=vUv*2.-1.; float r=length(p), a=atan(p.y,p.x+1e-5);
  if(r>1.0||r<.055)discard;
  float target=step(2.5,vState.g);
- float twist=a+log(r+.035)*2.0+uTime*1.4;
- float arms=pow(.5+.5*sin(twist*3.0+sin(r*12.0-uTime)*.3),12.0);
- float grains=pow(.5+.5*sin(twist*23.0+sin(r*19.0-uTime*2.0)*2.0),18.0);
- float raised=step(1.5,vState.g)*(1.0-target);
- float rim=exp(-pow((r-mix(.21,.46,raised))*mix(32.0,23.0,raised),2.0));
- float fade=(1.0-smoothstep(.72,1.0,r))*smoothstep(.055,.13,r)*(1.0-vState.r*.45);
- float alpha=(arms*.28+grains*.3+rim*.9)*fade;
- vec3 col=mix(vec3(.22,.11,.45),vec3(.95,.7,.35),clamp(rim+grains*.7,0.0,1.0));
- if(target>.5){alpha=exp(-pow((r-.94)*95.0,2.0))*step(.4,fract(a*4.0/3.14159))*.22;col=vec3(.48,.75,.83);}
+ float spiral=a+log(r+.09)*1.7+uTime*.74;
+ float arcs=pow(abs(cos(spiral*3.)),15.0)*(1.-r);
+ float slits=pow(.5+.5*cos(a*12.0-uTime*1.8),6.0);
+ float frame=step(1.5,vState.g)*(1.-target);
+ float rim=exp(-pow((r-mix(.21,.46,frame))*34.,2.0));
+ float halo=exp(-pow((r-.67)*26.,2.0))*slits;
+ float alpha=(arcs*.55+halo*.57+rim*.95)*(1.-vState.r*.45);
+ vec3 col=mix(vec3(.27,.16,.44),vec3(1.,.69,.39),clamp(rim+halo+arcs*.5,0.,1.));
+ if(target>.5){
+   float border=exp(-pow((r-.94)*95.,2.0));
+   alpha=border*(.12+slits*.33);
+   col=vec3(.43,.81,.64);
+ }
  gl_FragColor=vec4(col,alpha*vState.b);
  #include <fog_fragment>
  #include <colorspace_fragment>

@@ -1,79 +1,79 @@
-// Generated CC0 source-bank regions in seconds; rebuild with tools/build-audio-bank.py.
+// Original synthesized excitation regions in seconds. Rebuild with tools/build-audio-bank.py.
 export const SOURCE_CLIPS = {
-  impactMetal_light_000: {
+  stylus_tap_000: {
     start: 0.0,
+    duration: 0.1900227,
+  },
+  stylus_tap_001: {
+    start: 0.2150113,
+    duration: 0.2099773,
+  },
+  ceramic_knock_000: {
+    start: 0.4499773,
     duration: 0.34,
   },
-  impactMetal_light_001: {
-    start: 0.3649887,
-    duration: 0.2489342,
+  ceramic_knock_001: {
+    start: 0.814966,
+    duration: 0.3900227,
   },
-  impactMetal_heavy_000: {
-    start: 0.6389116,
-    duration: 0.1647619,
+  brass_plate: {
+    start: 1.2299773,
+    duration: 0.4499773,
   },
-  impactMetal_heavy_001: {
-    start: 0.8286621,
-    duration: 0.3563719,
+  porcelain_burst_000: {
+    start: 1.7049433,
+    duration: 0.3699773,
   },
-  impactPlate_heavy_000: {
-    start: 1.2100227,
-    duration: 0.4886621,
+  porcelain_burst_001: {
+    start: 2.0999093,
+    duration: 0.42,
   },
-  impactGlass_heavy_000: {
-    start: 1.7236735,
-    duration: 0.238322,
-  },
-  impactGlass_heavy_001: {
-    start: 1.9869841,
-    duration: 0.4290249,
-  },
-  impactPunch_heavy_000: {
-    start: 2.4409977,
-    duration: 0.5499773,
-  },
-  impactSoft_heavy_000: {
-    start: 3.0159637,
-    duration: 0.5268027,
-  },
-  impactWood_medium_000: {
-    start: 3.5677551,
-    duration: 0.3297959,
-  },
-  footstep_concrete_000: {
-    start: 3.9225397,
-    duration: 0.1030385,
-  },
-  footstep_concrete_001: {
-    start: 4.0505669,
-    duration: 0.1047619,
-  },
-  footstep_snow_000: {
-    start: 4.1803175,
-    duration: 0.34,
-  },
-  footstep_grass_000: {
-    start: 4.5453061,
-    duration: 0.34,
-  },
-  footstep_wood_000: {
-    start: 4.9102948,
-    duration: 0.2713832,
-  },
-  ppsh_P_22P: {
-    start: 5.2066667,
-    duration: 0.0899773,
-  },
-  "axe-norse-sword-blade-on-blade": {
-    start: 5.3216327,
-    duration: 0.5499773,
-  },
-  rifle_fire: {
-    start: 5.8965986,
-    duration: 0.16,
-  },
-  shotgun_fire: {
-    start: 6.0815873,
+  clay_thump: {
+    start: 2.544898,
     duration: 0.24,
+  },
+  felt_tap: {
+    start: 2.8098866,
+    duration: 0.2,
+  },
+  wooden_resonator: {
+    start: 3.0348753,
+    duration: 0.2899773,
+  },
+  stone_step_000: {
+    start: 3.3498413,
+    duration: 0.1700227,
+  },
+  stone_step_001: {
+    start: 3.5448526,
+    duration: 0.18,
+  },
+  frost_step: {
+    start: 3.7498413,
+    duration: 0.26,
+  },
+  reed_step: {
+    start: 4.0348299,
+    duration: 0.24,
+  },
+  panel_step: {
+    start: 4.2998186,
+    duration: 0.2099773,
+  },
+  reed_release: {
+    start: 4.5347846,
+    duration: 0.18,
+  },
+  spindle_strike: {
+    start: 4.7397732,
+    duration: 0.36,
+  },
+  compressed_coil: {
+    start: 5.1247619,
+    duration: 0.2099773,
+  },
+  split_reed_release: {
+    start: 5.3597279,
+    duration: 0.26,
   },
 };

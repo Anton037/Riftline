@@ -4,6 +4,16 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "4.4.0",
+    title: "Glazed arenas and an original score",
+    items: [
+      "Six biomes have new glazed surfaces, engraved floors, scenery, and lighting.",
+      "The walker, all seven weapons, enemies, bosses, and combat effects have been redesigned.",
+      "An original score and new synthesized sounds accompany every arena and boss fight.",
+      "The title screen, menus, HUD, and install icons share the new ceramic and brass style.",
+    ],
+  },
+  {
     version: "4.3.1",
     title: "The Glass Flats rebuilt, clearer combat telegraphs",
     items: [
@@ -43,17 +53,6 @@ export const WHATS_NEW = [
       "Stray floor rings, volcanic lamps and block pedestals give way to natural rock, ice and glass.",
       "Enemy impacts match armor, flesh, stone, energy and crystal, including critical hits.",
       "Adjusting frame rate, sound or HUD settings no longer briefly clears the scene.",
-    ],
-  },
-  {
-    version: "4.1.0",
-    title: "Painted worlds, physical sound",
-    items: [
-      "All six worlds gain painted terrain, weathered materials, grounded shadows and sculpted volcanic rock.",
-      "Painted characters, layered walker armor, detailed weapon barrels and tactile equipment panels carry the new look through the game.",
-      "Material smoke, physical rockets and quieter sparks and glows make the action clearer.",
-      "Combat sound is rebuilt around physical recordings, weighty weapon reports and distinct material impacts, with new ambience accents.",
-      "High detail is standard; choose a 30, 60 or 120 FPS limit, with 60 FPS as the default.",
     ],
   },
 ];
