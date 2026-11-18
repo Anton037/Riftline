@@ -71,7 +71,11 @@ test("first-run desktop onboarding uses keyboard/mouse prompts and adapts on hyb
   const { page, press, errors } = await openGame(t, "desktop", { fresh: true });
   await press("#playBtn");
   await page.waitForFunction(() => window.__riftTest.game.tut?.step === 0);
-  assert.match(await page.locator("#coachText").textContent(), /W A S D or the arrow keys/);
+  // The run creates the tutorial state before the first frame draws its coach.
+  await page
+    .locator("#coachText")
+    .filter({ hasText: /W A S D or the arrow keys/ })
+    .waitFor({ state: "visible" });
   assert.equal(await page.evaluate(() => window.__riftTest.game.world.hold), true);
   await page.evaluate(() => {
     window.__riftTest.game.world.god = true;
