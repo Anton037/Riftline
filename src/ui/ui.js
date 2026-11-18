@@ -44,7 +44,7 @@ function rlRenderHistory() {
     id === "lava"
       ? "a lava vent"
       : id === "shock"
-        ? "a live manhole"
+        ? "a charged inlay"
         : id === "acid"
           ? "acid"
           : id === "devil"
@@ -172,30 +172,30 @@ const getById = (id) => document.getElementById(id),
   hitSourceName = (src) =>
     enemyDefs[src]?.name ||
     bossDefs[src]?.name ||
-    { lava: "Lava vent", shock: "Live manhole", acid: "Acid pool", trap: "Arena trap", devil: "Dust devil" }[src],
+    { lava: "Lava vent", shock: "Charged inlay", acid: "Acid pool", trap: "Arena trap", devil: "Dust devil" }[src],
   damageSources = {
-    arc: ["Arc Relay", "#c58bff"],
+    arc: ["Arc Relay", "#c0a6db"],
     burn: ["Burning", "#ff8a2a"],
     payload: ["Payload", "#ffa13d"],
-    orbit: ["Orbital Blades", "#9ff8ff"],
-    wingman: ["Wingman", "#49f2ff"],
-    dash: ["Shock Dash", "#7ff6ff"],
-    trail: ["Phantom trail", "#7ff6ff"],
-    nova: ["Nova", "#7ff6ff"],
-    pop: ["Bomber blasts", "#ffe14a"],
+    orbit: ["Orbital Blades", "#b8dace"],
+    wingman: ["Wingman", "#91c9b4"],
+    dash: ["Shock Dash", "#a7d1bf"],
+    trail: ["Phantom trail", "#a7d1bf"],
+    nova: ["Nova", "#a7d1bf"],
+    pop: ["Bomber blasts", "#e9bf89"],
     lava: ["Lava", "#ff6a2a"],
-    shock: ["Live manholes", "#8fd0ff"],
+    shock: ["Charged inlays", "#e5b878"],
     inferno: ["Inferno", "#ff5a3a"],
     overload: ["Overload", "#ffd27a"],
-    reactive: ["Reactive Plating", "#9ff8ff"],
-    surge: ["Combo Surge", "#ffe14a"],
+    reactive: ["Reactive Plating", "#b8dace"],
+    surge: ["Combo Surge", "#e9bf89"],
     grenade: ["Singularity", "#b57bff"], // 3.12.0: the old id of the gadget, kept for saved run records
     trap: ["Arena traps", "#aeb9cf"], // 3.0.0: enemies caught by a trap
     // 3.15.0: the boss cards
-    lockdown: ["Lockdown Grid", "#ff4a5a"],
-    shard: ["Shard Field", "#9ae6ff"],
+    lockdown: ["Lockdown Grid", "#f08e70"],
+    shard: ["Shard Field", "#bacfd9"],
     fang: ["Glasswyrm Fang", "#ffd98a"],
-    brood: ["Brood", "#a8f03a"],
+    brood: ["Brood", "#c1d291"],
     other: ["Other", "#93a2bf"],
   },
   escapeHtml = (text) =>
@@ -1120,22 +1120,22 @@ const getById = (id) => document.getElementById(id),
         stats = world.stats,
         chips = [];
       if (stats.bloodrush && player.rushN > 0) {
-        chips.push(["rush", `RUSH \xD7${player.rushN}`, "#ff5a7a", player.rushT / 4]);
+        chips.push(["rush", `RUSH \xD7${player.rushN}`, "#f08e70", player.rushT / 4]);
       }
       if (world.chronoT > 0) {
-        chips.push(["chrono", "SLOW-MO", "#8fe8ff", world.chronoT / 1.5]);
+        chips.push(["chrono", "SLOW-MO", "#bacfd9", world.chronoT / 1.5]);
       }
       if ((world.ws.revive || 0) > 0 && !world.revived) {
-        chips.push(["life", "2ND LIFE", "#6dff8a", -1]);
+        chips.push(["life", "2ND LIFE", "#abd397", -1]);
       }
       if (world.barrierT > 0) {
-        chips.push(["barrier", "BARRIER", "#7fd8ff", world.barrierT / Math.max(1, stats.barrierT || 1)]);
+        chips.push(["barrier", "BARRIER", "#b5dcdc", world.barrierT / Math.max(1, stats.barrierT || 1)]);
       }
       if (world.attuned && world.state === "fight") {
         chips.push(["attune", "ATTUNED", "#ffb86b", -1]);
       }
       if (world.event && world.state === "fight") {
-        chips.unshift(["event", waveEvents[world.event].name, world.event === "elite" ? "#ffc84a" : "#7ff6ff", -1]);
+        chips.unshift(["event", waveEvents[world.event].name, world.event === "elite" ? "#ffc84a" : "#a7d1bf", -1]);
       }
       // 3.3.0: the Endless mutators in play (with their level)
       for (const [id, level] of Object.entries(world.mods || {}))
@@ -1201,7 +1201,7 @@ const getById = (id) => document.getElementById(id),
         want.push(["heat", "HEAT", "#ff8a3d", player.heatT / 3]);
       }
       if (on && stats.slip && player.slipT > 0) {
-        want.push(["slip", "SLIPSTREAM", "#7ff6ff", player.slipT / 1.37]);
+        want.push(["slip", "SLIPSTREAM", "#a7d1bf", player.slipT / 1.37]);
       }
       if (on && stats.skates && player.skating) {
         want.push(["skate", "SKATES", "#bff4ff", -1]);
@@ -1722,7 +1722,7 @@ function closePauseSettings(ui) {
 
 // the hazard of each biome in a few words (the RL_BIOME_INFO tag is the fallback for new biomes)
 const RL_BIOME_CARD = {
-  city: "Live manholes arc — lure enemies onto them",
+  city: "Charged inlays discharge · lure enemies onto them",
   shelf: "Slick ice under the aurora — the blizzard breathes, so does your drift",
   marsh: "The mud clings, the glowing tide eats your hull — and marks enemies",
   core: "Portal pairs fold the arena — shots pass through",

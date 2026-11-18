@@ -118,7 +118,14 @@ void main() {
       this.obsGroup = props;
       this.rlAnim = [];
       buildCover(this, biome.id, layout.obs, makeRng(hashString(layout.key + ":cover")));
-      addBiomeDetail(this, biome, layout.W, layout.H, layout.obs, makeRng(hashString(layout.key + ":detail")));
+      this.lampLens = addBiomeDetail(
+        this,
+        biome,
+        layout.W,
+        layout.H,
+        layout.obs,
+        makeRng(hashString(layout.key + ":detail")),
+      );
       addMapArchitecture(this, biome, layout.W, layout.H, layout.obs);
       if (biome.id === "shelf") {
         const aurora = createAurora(layout.W, layout.H);
@@ -141,6 +148,11 @@ void main() {
       // 2.4.0: animated props (spinning and bobbing); 3.51.0: "u" - a material whose uniforms ride
       // the view's clock (the aurora curtains)
       const time = this.uniforms.uTime.value;
+      if (this.biomeId === "city" && this.lampLens) {
+        const dark = this.uniforms.uDark.value;
+        const ember = (0.74 + 0.16 * Math.cos(time * 0.87)) * (1 - dark * 0.64);
+        this.lampLens.color.copy(hexColor(GLAZES.city.light)).multiplyScalar(ember);
+      }
       for (const anim of this.rlAnim || []) {
         const obj = anim.o;
         if (anim.k === "spin" || anim.k === "spinbob") obj.rotation.y += dt * anim.s;

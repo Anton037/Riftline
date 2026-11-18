@@ -4,6 +4,16 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "4.4.1",
+    title: "Steady lamps and engraved combat cues",
+    items: [
+      "Blackout City now has warm gallery lamps, ceramic chimes, and rising charged inlays.",
+      "The Warden fires brass seals, and the Arc Caster traces copper paths.",
+      "Mine fuses, beams, summons, and dash effects use steady inlays and visible progress marks.",
+      "Biome titles, boss cards, and combat feedback match the glazed interface.",
+    ],
+  },
+  {
     version: "4.4.0",
     title: "Glazed arenas and an original score",
     items: [
@@ -43,16 +53,6 @@ export const WHATS_NEW = [
       "Boss attacks keep their own materials, sounds and colors, including when enraged.",
       "Painted models gain surface relief; hit flashes preserve their finish and biome traps fit their surroundings.",
       "A focused game: upgrades and achievements stay; Codex, challenges, pacts and training are removed.",
-    ],
-  },
-  {
-    version: "4.1.1",
-    title: "Grounded worlds, connected walker",
-    items: [
-      "The rebuilt walker keeps its gun attached while turning, walking and firing.",
-      "Stray floor rings, volcanic lamps and block pedestals give way to natural rock, ice and glass.",
-      "Enemy impacts match armor, flesh, stone, energy and crystal, including critical hits.",
-      "Adjusting frame rate, sound or HUD settings no longer briefly clears the scene.",
     ],
   },
 ];

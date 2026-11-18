@@ -7,6 +7,7 @@ import { ActorEffectsView } from "./actor-effects-view.js";
 import { actorMaterial } from "../data/materials.js";
 import { setWorldShadows, WORLD_SURFACES, worldMaterial, enemySurface } from "./world-material.js";
 import { hexColor, additiveMaterial } from "./materials.js";
+import { FINISH } from "./palette.js";
 import { AMBIENT_POOL_SHARE } from "../data/atmosphere.js";
 
 import {
@@ -77,11 +78,7 @@ import { STEP_LEN, DASH_TIME } from "../core/walk.js";
 import { HazardView } from "./hazards-view.js";
 import { AttackView, MARK_LOOK } from "./attacks-view.js";
 
-// 3.13.0: the colours of the light of the place (lightning, a passing police siren)
-const warningDark = new Color(0x100d18),
-  LIGHTNING_COLOR = new Color(0xcfe0ff),
-  SIREN_RED = new Color(0xff2a3a),
-  SIREN_BLUE = new Color(0x2a6bff);
+const warningDark = hexColor(FINISH.ink);
 // the first `count` values of an instance attribute go to the GPU at the next draw
 function upload(attr, count) {
   attr.clearUpdateRanges();
@@ -414,7 +411,7 @@ diffuseColor.rgb*=${outline ? ".25+.67*smoothstep(.951,.979,r)+tick*.49" : ".34+
 }
 const MAX_PARTICLES = 1400,
   goldColor = new Color(16762954),
-  shardColors = { 1: hexColor(8386303), 5: hexColor(16762954), 25: hexColor(16734936) },
+  shardColors = { 1: hexColor(FINISH.jade), 5: hexColor(FINISH.brass), 25: hexColor(FINISH.lavender) },
   // 3.17.0: what a foot kicks up on each ground (core/walk.js FLOOR): a puff of dust, snow, mud, droplets or sparks
   STEP_LOOK = {
     asphalt: { color: hexColor(0x8a93a0), size: 0.26, life: 0.35, up: 0.5, grav: 1.5 },
@@ -431,9 +428,9 @@ const MAX_PARTICLES = 1400,
     Object.entries(BOSS_EFFECTS).map(([id, effect]) => [id, [hexColor(effect.color), hexColor(effect.accent)]]),
   ),
   healColor = hexColor(7208842),
-  whiteColor = hexColor(16777215),
+  whiteColor = hexColor(FINISH.ivory),
   hurtColor = hexColor(16724048),
-  warnColor = new Color(16728160),
+  warnColor = hexColor(FINISH.vermilion),
   variantColors = {
     flareheart: hexColor(0xffb520),
     frost: hexColor(11462911),
@@ -444,7 +441,7 @@ const MAX_PARTICLES = 1400,
     // 3.53.0: the Glass Flats' Sunstruck: a hot gleam
     sunstruck: hexColor(0xffd27a),
   },
-  beamColor = new Color(16732064),
+  beamColor = hexColor(FINISH.copper),
   // 3.0.0: the grey-white of a hit that the burst cap swallowed
   resistColor = new Color(14608110),
   Renderer = class {
@@ -539,7 +536,7 @@ const MAX_PARTICLES = 1400,
       let scene = this.scene;
       // 3.0.0: traps, 3.12.0: and the Singularity (its pools are made when a skin first appears)
       this.trapView = new TrapView(this, InstancePool);
-      // 3.8.0: the map hazards (vents, manholes, ice, acid, portals) with models of their own
+      // 3.8.0: the map hazards have their own models and surface programs
       this.hazardView = new HazardView(this, InstancePool);
       // 3.10.0: the attacks of enemies and bosses (zones, mines, shells, shots) and the marks they leave
       this.attackView = new AttackView(this, InstancePool);
@@ -634,9 +631,6 @@ const MAX_PARTICLES = 1400,
       this.bLight = new PointLight(16747069, 0, 12, 2);
       scene.add(this.pLight, this.bLight);
       this.flashes = [];
-      // 3.13.0: the light of far sounds of the place (lightning, a passing siren), see scapeLight
-      this.scapeQueue = [];
-      this.siren = null;
       this.D = [];
       this.corpses = [];
       this.kick = 0;
@@ -842,9 +836,9 @@ const MAX_PARTICLES = 1400,
         );
       }
     }
-    line(x1, z1, x2, z2, color, life, width = 0.12, y = 0.7, jag = 0) {
+    line(x1, z1, x2, z2, color, life, width = 0.12, y = 0.7, bend = 0) {
       if (!(this.lines.length > 120)) {
-        this.lines.push({ x1, z1, x2, z2, col: color, life, max: life, w: width, y, jag });
+        this.lines.push({ x1, z1, x2, z2, col: color, life, max: life, w: width, y, bend });
       }
     }
     ring(x, z, r0, r1, color, life, y = 0.06) {
@@ -865,47 +859,7 @@ const MAX_PARTICLES = 1400,
       }
       this.flashes.push({ x, z, r: radius, i: intensity, col: color, decay });
     }
-    /* 3.13.0: the light that belongs to a far sound of the place (audio/place.js calls it through sound.onScape):
-       lightning lights the whole arena twice in a quick flicker; a siren passes at the side of the view (its side) as
-       red and blue glows that take turns for three seconds. Both use the floor flashes, no new lights (a new light would
-       recompile every material). */
-    scapeLight(kind, pan) {
-      if (kind === "lightning") this.scapeQueue.push({ t: 0, i: 1.1 }, { t: 0.13, i: 0.55 }, { t: 0.32, i: 0.8 });
-      else if (kind === "siren") this.siren = { t: 0, side: pan < 0 ? -1 : 1, n: -1 };
-    }
-    scapeTick(dt, world) {
-      const arena = world && world.arena;
-      if (!arena) return;
-      if (this.scapeQueue.length) {
-        for (const bolt of this.scapeQueue) {
-          bolt.t -= dt;
-          if (bolt.t <= 0) this.flash(0, 0, Math.max(arena.W, arena.H) * 2.2, bolt.i, LIGHTNING_COLOR, 9);
-        }
-        this.scapeQueue = this.scapeQueue.filter((bolt) => bolt.t > 0);
-      }
-      const siren = this.siren;
-      if (siren) {
-        siren.t += dt;
-        const n = Math.floor(siren.t / 0.32);
-        if (n !== siren.n) {
-          siren.n = n;
-          // at the side of the view (about 14 m from the drone on the siren's side), drifting past
-          const fade = Math.sin(Math.PI * Math.min(1, siren.t / 3.2)),
-            player = world.player;
-          this.flash(
-            player.x + siren.side * 14,
-            player.y - 7 + siren.t * 4,
-            11,
-            0.6 * fade,
-            n % 2 ? SIREN_BLUE : SIREN_RED,
-            7,
-          );
-        }
-        if (siren.t > 3.2) this.siren = null;
-      }
-    }
     updateLights(dt, world) {
-      this.scapeTick(dt, world);
       let flashes = this.flashes;
       for (let flash of flashes) flash.i -= flash.i * Math.min(1, flash.decay * dt) + dt * 0.05;
       if (flashes.length && flashes.some((flash) => flash.i <= 0.02)) {
@@ -1060,20 +1014,10 @@ const MAX_PARTICLES = 1400,
             );
             const muzzleKind = WEAPON_EFFECTS[ev.w].muzzle;
             if (muzzleKind === "arc") {
-              for (const side of [-1, 1]) {
-                const forkA = ev.a + side * (0.18 + Math.random() * 0.14);
-                this.line(
-                  muzzle.x,
-                  muzzle.z,
-                  muzzle.x + Math.cos(forkA) * 0.72,
-                  muzzle.z + Math.sin(forkA) * 0.72,
-                  side > 0 ? color : whiteColor,
-                  0.09,
-                  0.035,
-                  muzzle.y,
-                  0.14,
-                );
-              }
+              const tx = muzzle.x + dirX * 0.58,
+                tz = muzzle.z + dirZ * 0.58;
+              this.line(muzzle.x, muzzle.z, tx, tz, hexColor(FINISH.copper), 0.13, 0.09, muzzle.y, 0.09);
+              this.ring(tx, tz, 0.13, 0.36, hexColor(FINISH.brass), 0.17, muzzle.y);
             } else if (muzzleKind === "mechanical") {
               const perpX = -dirZ,
                 perpZ = dirX;
@@ -1465,7 +1409,7 @@ const MAX_PARTICLES = 1400,
           case "chain": {
             let pts = ev.pts;
             for (let i = 0; i + 3 < pts.length; i += 2)
-              this.line(pts[i], pts[i + 1], pts[i + 2], pts[i + 3], hexColor(13019391), 0.16, 0.09, 0.7, 0.5);
+              this.line(pts[i], pts[i + 1], pts[i + 2], pts[i + 3], hexColor(FINISH.copper), 0.24, 0.1, 0.64, 0.24);
             break;
           }
           case "zap":
@@ -1550,19 +1494,19 @@ const MAX_PARTICLES = 1400,
             this.burst(ev.x, ev.y, 1.0, 5, 2.5, goldColor, 0.32, 0.14, { up: 3.5, spark: true });
             break;
           case "shortArm":
-            this.ring(ev.x, ev.y, 0.25, ev.r || 1.4, hexColor(0x7ce8ff), 0.26);
+            this.ring(ev.x, ev.y, 0.25, ev.r || 1.4, hexColor(FINISH.brass), 0.32);
             this.burst(ev.x, ev.y, 0.6, 7, 4.0, goldColor, 0.28, 0.12, { spark: true, drag: 4 });
             break;
           case "dash": {
-            const p = world.player,
-              a = Math.atan2(p.vy, p.vx),
-              c = hexColor(8386303);
+            const p = world.player;
+            const a = Math.atan2(p.vy, p.vx);
+            const copper = hexColor(FINISH.copper);
             for (const side of [-1, 1]) {
               const x = p.x - Math.sin(a) * side * 0.3,
                 z = p.y + Math.cos(a) * side * 0.3;
-              this.line(x, z, x - Math.cos(a) * 1.6, z - Math.sin(a) * 1.6, c, 0.2, 0.065, 0.35);
+              this.line(x, z, x - Math.cos(a) * 1.15, z - Math.sin(a) * 1.15, copper, 0.25, 0.068, 0.12, side * 0.16);
             }
-            this.ring(p.x, p.y, 0.25, 1.0, c, 0.18);
+            this.ring(p.x, p.y, 0.22, 0.84, hexColor(FINISH.brass), 0.27, 0.06);
             break;
           }
           // 3.17.0: the walker: a foot comes down (a puff of the ground it stands on, at the foot), the landing after a
@@ -1707,14 +1651,11 @@ const MAX_PARTICLES = 1400,
             break;
           }
           case "erupt": {
-            // 3.4.0: a live manhole of Blackout City arcs: a white-blue burst of sparks and a cold flash
-            if (world && world.arena && world.arena.biome.id === "city") {
-              const arc = hexColor(0x8fd0ff);
-              this.burst(ev.x, ev.y, 0.3, 30, 7, whiteColor, 0.35, 0.3, { up: 8, spark: true, drag: 1 });
-              this.burst(ev.x, ev.y, 0.3, 16, 4, arc, 0.5, 0.35, { up: 4, spark: true });
-              this.ring(ev.x, ev.y, ev.r * 0.3, ev.r * 1.6, arc, 0.3);
-              this.flash(ev.x, ev.y, ev.r * 3.2, 1.6, arc, 3);
-              this.addShake(0.1 * shakeK);
+            if (world?.arena?.biome?.id === "city") {
+              const brass = hexColor(FINISH.brass);
+              this.ring(ev.x, ev.y, ev.r * 0.52, ev.r, brass, 0.46);
+              this.burst(ev.x, ev.y, 0.26, 9, 3.3, brass, 0.42, 0.16, { spark: true, grav: 4, drag: 2 });
+              this.addShake(0.035 * shakeK);
               break;
             }
             // 3.49.0: the fumaroles of the Ashfall Caldera: a molten geyser with a shower of embers
@@ -1732,12 +1673,12 @@ const MAX_PARTICLES = 1400,
             break;
           }
           case "warp": {
-            let color = hexColor(16732120),
-              count = ev.who === "player" ? 18 : 5;
+            let color = hexColor(FINISH.lavender),
+              count = ev.who === "player" ? 12 : 5;
             this.burst(ev.x, ev.y, 0.6, count, 4, color, 0.4, 0.35, { spark: true });
-            this.burst(ev.tx, ev.ty, 0.6, count, 4, hexColor(8386303), 0.4, 0.35, { spark: true });
+            this.burst(ev.tx, ev.ty, 0.6, count, 4, hexColor(FINISH.jade), 0.4, 0.21, { spark: true });
             if (ev.who === "player") {
-              this.ring(ev.tx, ev.ty, 0.3, 2, hexColor(8386303), 0.35);
+              this.ring(ev.tx, ev.ty, 0.3, 1.6, hexColor(FINISH.jade), 0.35);
               this.camInit = false;
             }
             break;
@@ -2037,49 +1978,53 @@ const MAX_PARTICLES = 1400,
         shieldUniforms.uHit.value = shieldHit;
         shieldUniforms.uFade.value = player.shield || barrierUp ? 1 : shieldHit;
         shieldUniforms.uColor.value.setHex(barrierUp ? 0xffc84a : weaponDefs[world.weapon].color);
-        let blink =
-            player.iT > 0 &&
-            player.hurtT <= 0 &&
-            player.dashT <= 0 &&
-            world.waveT > 1.05 &&
-            world.state === "fight" &&
-            Math.floor(time * 12) % 2
-              ? 0.12
-              : 0,
-          hurt = player.hurtT > 0 ? player.hurtT / 0.3 : 0;
-        for (let mat of drone.mats) mat.emissive.setRGB(hurt * 0.9 + blink * 0.35, blink * 0.85, blink);
+        const protectedHull =
+          player.iT > 0 && player.hurtT <= 0 && player.dashT <= 0 && world.waveT > 1.05 && world.state === "fight";
+        const hurt = clamp(player.hurtT / 0.3, 0, 1);
+        for (const mat of drone.mats)
+          mat.emissive.setRGB(
+            hurt * 0.45 + (protectedHull ? 0.084 : 0),
+            hurt * 0.1 + (protectedHull ? 0.071 : 0),
+            hurt * 0.042,
+          );
+        if (protectedHull) {
+          const inlay = this.ringPool.y(player.x, 0.052, player.y, player.face, 1.02);
+          this.ringPool.colC(inlay, hexColor(FINISH.brass), 0.52);
+        }
         this.shadows.y(player.x, 0.02, player.y, 0, 1.9);
         if (player.manual) {
-          let reach = world.arena.rayLen(player.x, player.y, player.aim, Math.min(world.stats.range, 16)),
-            cos = Math.cos(player.aim),
-            sin = Math.sin(player.aim),
-            aimBeam = this.beams.seg(
-              player.x + cos * Math.min(0.9, reach),
-              player.y + sin * Math.min(0.9, reach),
-              player.x + cos * reach,
-              player.y + sin * reach,
-              0.08,
-              0.07,
-              0.02,
+          const reach = world.arena.rayLen(player.x, player.y, player.aim, Math.min(world.stats.range, 16));
+          const dx = Math.cos(player.aim),
+            dz = Math.sin(player.aim);
+          for (let along = 1.0; along < reach; along += 1.2) {
+            const end = Math.min(reach, along + 0.48);
+            const trace = this.beams.seg(
+              player.x + dx * along,
+              player.y + dz * along,
+              player.x + dx * end,
+              player.y + dz * end,
+              0.083,
+              0.055,
+              0.022,
             );
-          this.beams.colC(aimBeam, hexColor(weaponDefs[world.weapon].color), 0.22);
+            this.beams.colC(trace, hexColor(FINISH.ivory), 0.37);
+          }
         }
         let glow = this.sprites.bb(player.x, 0.2, player.y, 2, basis);
         this.sprites.colC(glow, hexColor(weaponDefs[world.weapon].color), 0.3);
-        if (player.dashT > 0)
-          for (let i = 0; i < 3; i++)
-            this.emit(
-              player.x + (Math.random() - 0.5) * 0.4,
-              0.6,
-              player.y + (Math.random() - 0.5) * 0.4,
-              -player.vx * 0.1,
-              0,
-              -player.vy * 0.1,
-              0.25,
-              0.7,
-              hexColor(8386303),
-              { drag: 4 },
-            );
+        if (player.dashT > 0 && dt > 0 && Math.random() < dt * 65)
+          this.emit(
+            player.x,
+            0.29,
+            player.y,
+            -player.vx * 0.18,
+            0.23,
+            -player.vy * 0.18,
+            0.32,
+            0.14,
+            hexColor(FINISH.brass),
+            { spark: true, drag: 3, grav: 1.7 },
+          );
 
         let count = world.stats.orbit;
         for (let i = 0; i < count; i++) {
@@ -2087,9 +2032,9 @@ const MAX_PARTICLES = 1400,
             bx = player.x + Math.cos(angle) * world.stats.orbitR,
             bz = player.y + Math.sin(angle) * world.stats.orbitR,
             blade = this.blades.y(bx, 0, bz, angle + Math.PI / 2, 1.2 * world.stats.bladeScale);
-          this.blades.colHex(blade, 10483967);
-          let halo = this.sprites.bb(bx, 0.62, bz, 1.1, basis);
-          this.sprites.colHex(halo, 4846335, 0.55);
+          this.blades.colHex(blade, FINISH.brass);
+          let halo = this.sprites.bb(bx, 0.62, bz, 0.75, basis);
+          this.sprites.colHex(halo, FINISH.copper, 0.23);
         }
         for (let wing of player.wings) {
           this.wing.y(wing.x, Math.sin(time * 4 + wing.x) * 0.1, wing.y, player.aim, 1.3);
@@ -2114,7 +2059,7 @@ const MAX_PARTICLES = 1400,
           pitch = 0,
           roll = 0;
         if (enemy.type === "bomber" && enemy.st === 1) {
-          let pulse = 1 + Math.sin(time * 40) * 0.08;
+          const pulse = 1.045 + Math.sin(time * 7) * 0.035;
           scale *= pulse;
           scaleY *= pulse;
         }
@@ -2125,8 +2070,8 @@ const MAX_PARTICLES = 1400,
           scaleY *= 0.88;
         }
         if (enemy.type === "striker" && enemy.st === 1) {
-          let jitter = Math.floor(time * 30) % 2 ? 0.9 : 1.05;
-          scale *= jitter;
+          scale *= 0.96;
+          scaleY *= 0.89;
         }
         // 2.7.0: walk sway, hop and lean into the movement, hover bob, breathing, spawn pop with a half turn
         {
@@ -2199,13 +2144,13 @@ const MAX_PARTICLES = 1400,
             enemy.st === 1) ||
           enemy.sunT > 0
         ) {
-          glowK = 1.6 + Math.sin(time * 30) * 0.4;
+          glowK = 1.32 + Math.sin(time * 6) * 0.18;
         }
         if (enemy.type === "bomber" && enemy.st === 1) {
           glowK = 2;
         }
         if (enemy.type === "phantom" && enemy.ghost) {
-          glowK = 0.35 + Math.sin(time * 28) * 0.25;
+          glowK = 0.27 + Math.sin(time * 3) * 0.07;
           if (Math.random() < dt * 18)
             this.emit(enemy.x, 0.65, enemy.y, 0, 0.6, 0, 0.28, 0.24, pools.color, { drag: 2 });
         }
@@ -2280,7 +2225,7 @@ const MAX_PARTICLES = 1400,
         if (enemy.type === "bomber" && enemy.st === 1) {
           let k = 1 - enemy.t2 / 0.55,
             ring = this.ringPool.y(enemy.x, 0.05, enemy.y, 0, 2.6);
-          this.ringPool.colC(ring, warnColor, 0.6 + Math.sin(time * 40) * 0.3);
+          this.ringPool.colC(ring, warnColor, 0.85);
           let disc = this.discs.y(enemy.x, 0.04, enemy.y, 0, 2.6 * k);
           this.discs.colC(disc, warnColor, 0.25);
         }
@@ -2471,53 +2416,48 @@ const MAX_PARTICLES = 1400,
           size = marker.fake ? 2.2 : 1.2 - k * 0.5,
           ring = this.ringPool.y(marker.x, 0.05, marker.y, time * 2, size);
         this.ringPool.colC(ring, color, 0.5 + k * 0.6);
-        // 3.16.0: a portal a boss calls open wears the boss's colours: a second ring and a sigil of three spokes that
-        // turns faster as it opens (the Warden's flash red and blue like its siren)
         const call = marker.boss && BOSS_PORTAL[marker.boss];
+        const rim = call?.[0] ?? color;
+        const inlay = call?.[1] ?? whiteColor;
+        // Keep the portal marked on the floor from the first frame, and raise the seals as it opens.
         if (call) {
-          const flip = Math.sin(time * 14 + marker.x) > 0,
-            c0 = flip ? call[0] : call[1],
-            c1 = flip ? call[1] : call[0],
-            spin = time * (2 + k * 6);
-          this.ringPool.colC(this.ringPool.y(marker.x, 0.055, marker.y, -spin, size * 1.35), c0, 0.45 + k * 0.5);
-          for (let j = 0; j < 3; j++) {
-            const a = spin + (j / 3) * TAU,
-              r0 = size * 0.35,
-              r1 = size * 1.3;
-            this.beams.colC(
-              this.beams.seg(
-                marker.x + Math.cos(a) * r0,
-                marker.y + Math.sin(a) * r0,
-                marker.x + Math.cos(a + 0.5) * r1,
-                marker.y + Math.sin(a + 0.5) * r1,
-                0.07,
-                0.07,
-                0.03,
-              ),
-              c1,
-              0.4 + k * 0.6,
+          this.ringPool.colC(
+            this.ringPool.y(marker.x, 0.058, marker.y, -time * 1.4, size * 1.37),
+            rim,
+            0.55 + k * 0.24,
+          );
+          for (let j = 0; j < 4; j++) {
+            const a = (j * TAU) / 4 + time * 1.2;
+            const span = size * (0.95 + k * 0.25);
+            const tick = this.shardPool.yr(
+              marker.x + Math.cos(a) * span,
+              0.14 + k * 0.7,
+              marker.y + Math.sin(a) * span,
+              a,
+              0.54,
+              0.69,
+              0.54,
+              0,
+              0.24,
             );
+            this.shardPool.colC(tick, inlay, 0.63 + k * 0.35);
           }
         }
-        let disc = this.discs.y(marker.x, 0.04, marker.y, 0, size * 0.9);
-        this.discs.colC(disc, color, 0.12 + k * 0.2);
+        const disc = this.discs.y(marker.x, 0.041, marker.y, 0, size * 0.92);
+        this.discs.colC(disc, rim, 0.11 + k * 0.23);
         if (!marker.fake) {
-          let column = this.columns.y(marker.x, 0, marker.y, 0, 0.55 + k * 0.25, 2 + k * 5, 0.55 + k * 0.25);
-          this.columns.colC(column, color, 0.25 + k * 0.45);
-        }
-        if (Math.random() < dt * 20) {
-          this.emit(
-            marker.x + (Math.random() - 0.5) * size,
-            0.1,
-            marker.y + (Math.random() - 0.5) * size,
+          const seal = this.shardPool.yr(
+            marker.x,
+            0.27 + k * 0.64,
+            marker.y,
+            time * 0.9,
+            0.86,
+            0.55 + k * 0.75,
+            0.86,
             0,
-            3 + Math.random() * 3,
-            0,
-            0.4,
-            0.3,
-            color,
-            { drag: 0 },
+            0.26,
           );
+          this.shardPool.colC(seal, inlay, 0.62 + k * 0.34);
         }
       }
       // 3.10.0: the attack zones (world.hazards) with a look of their kind, the marks on the floor
@@ -2538,13 +2478,12 @@ const MAX_PARTICLES = 1400,
         if (beam.live && beam.skin && this.trapView.drawBeam(beam, ex, ez, len, time, dt)) continue;
         if (beam.live) {
           // 2.4.6: a beam can bring its own colour (Frost Prism: ice)
-          let flicker = 0.85 + Math.random() * 0.3,
-            outer = this.beams.seg(beam.x, beam.y, ex, ez, 1, beam.w * flicker, beam.w * 0.6),
-            beamCol = beam.color ? hexColor(beam.color) : beamColor;
-          this.beams.colC(outer, beamCol, 0.8);
-          let inner = this.beams.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.35, beam.w * 0.3);
-          this.beams.colC(inner, whiteColor, 1);
-          if (Math.random() < 0.5) {
+          const outer = this.beams.seg(beam.x, beam.y, ex, ez, 0.72, beam.w, beam.w * 0.19);
+          const beamCol = beam.color ? hexColor(beam.color) : beamColor;
+          this.beams.colC(outer, beamCol, 0.69);
+          const inner = this.beams.seg(beam.x, beam.y, ex, ez, 0.75, beam.w * 0.21, beam.w * 0.12);
+          this.beams.colC(inner, whiteColor, 0.88);
+          if (Math.random() < dt * 14) {
             let along = Math.random() * len;
             this.emit(
               beam.x + Math.cos(beam.a) * along,
@@ -2761,23 +2700,22 @@ const MAX_PARTICLES = 1400,
           { drag: 1.2, grav: -3 },
         );
       }
-      if (boss.type === "warden") {
-        const sirenBlue = Math.sin(time * 14) > 0,
-          siren = this.sprites.bb(boss.x, 3.35, boss.y, 1.9, this.B);
-        this.sprites.colHex(siren, sirenBlue ? 0x2766ff : 0xff3045, 0.32);
-        if (rushing && Math.random() < dt * 28)
-          this.emit(
-            boss.x - Math.cos(boss.face) * 1.2 + (Math.random() - 0.5) * 1.8,
-            0.25,
-            boss.y - Math.sin(boss.face) * 1.2 + (Math.random() - 0.5) * 1.8,
-            (Math.random() - 0.5) * 2.5,
-            1.4 + Math.random() * 1.5,
-            (Math.random() - 0.5) * 2.5,
-            0.28,
-            0.16,
-            hexColor(sirenBlue ? 0x5ab0ff : 0xff6b4a),
-            { spark: true, drag: 2 },
-          );
+      if (boss.type === "warden" && rushing && Math.random() < dt * 22) {
+        const backward = boss.face + Math.PI;
+        const heelX = boss.x + Math.cos(backward) * 1.16;
+        const heelZ = boss.y + Math.sin(backward) * 1.16;
+        this.emit(
+          heelX,
+          0.21,
+          heelZ,
+          Math.cos(backward) * 2.1,
+          0.8 + Math.random(),
+          Math.sin(backward) * 2.1,
+          0.43,
+          0.14,
+          hexColor(identity.accent),
+          { spark: true, drag: 2, grav: 3 },
+        );
       }
       if (boss.type === "queen" && Math.random() < dt * 10) {
         this.emit(
@@ -2891,7 +2829,7 @@ const MAX_PARTICLES = 1400,
       for (let line of this.lines) {
         line.life -= dt;
         let k = Math.max(0, line.life / line.max);
-        if (line.jag) {
+        if (line.bend) {
           let px = line.x1,
             pz = line.z1,
             dx = line.x2 - line.x1,
@@ -2900,12 +2838,12 @@ const MAX_PARTICLES = 1400,
             nx = -dz / len,
             nz = dx / len;
           for (let i = 1; i <= 4; i++) {
-            let frac = i / 4,
-              jitter = i < 4 ? (Math.random() - 0.5) * line.jag * 2 : 0,
-              qx = line.x1 + dx * frac + nx * jitter,
-              qz = line.z1 + dz * frac + nz * jitter,
-              seg = this.beams.seg(px, pz, qx, qz, line.y, line.w, line.w);
-            this.beams.colC(seg, line.col, k * 1.3);
+            const frac = i / 4,
+              sweep = Math.sin(frac * Math.PI) * line.bend,
+              qx = line.x1 + dx * frac + nx * sweep,
+              qz = line.z1 + dz * frac + nz * sweep,
+              seg = this.beams.seg(px, pz, qx, qz, line.y, line.w, line.w * 0.4);
+            this.beams.colC(seg, i % 2 ? line.col : whiteColor, k * (i % 2 ? 0.95 : 0.58));
             px = qx;
             pz = qz;
           }

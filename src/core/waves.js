@@ -263,12 +263,11 @@ Object.assign(waveEvents, {
     biome: "marsh",
     plan: {},
   },
-  // 3.4.0: Blackout City: the power fails; the arena goes dark (only blasts, muzzle flashes and the arcs light it)
-  // and the live manholes arc one after another around the arena
+  // Blackout dims the gallery, then the charged inlays fire in sequence.
   blackout: {
     id: "blackout",
     name: "BLACKOUT",
-    desc: "The lights die, the manholes arc in a chain · shards +25%",
+    desc: "The lamps dim and the charged inlays fire in sequence · shards +25%",
     shardMul: 1.25,
     biome: "city",
     plan: {},

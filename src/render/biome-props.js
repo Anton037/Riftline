@@ -73,4 +73,5 @@ export function addBiomeDetail(view, biome, W, H, obstacles, rng) {
   }
 
   mergeStaticMeshes(view.group);
+  return lens;
 }

@@ -3,18 +3,19 @@ import { worldMaterial } from "./world-material.js";
 import { shardGeometry } from "./strata-geometry.js";
 import { meshPart, mergeParts } from "./models.js";
 import { clamp, TAU } from "../core/util.js";
+import { FINISH } from "./palette.js";
 import { MARK_LOOK } from "./attacks-view.js";
 import { LOCK_WARN, LOCK_TIME } from "../core/boss-cards.js";
 
 const hex = (value) => new Color(value),
-  GOLD = hex(0xffc84a),
-  GOLD_WHITE = hex(0xfff0c0),
+  GOLD = hex(FINISH.brass),
+  GOLD_WHITE = hex(FINISH.ivory),
   EMBER = hex(0xff8a2a),
   HOT = hex(0xffd27a),
   ICE = hex(0x9ae6ff),
   ICE_WHITE = hex(0xe8fbff),
   // 3.50.0: the Glowmarsh's bloom
-  ACID = hex(0x46ffc0),
+  ACID = hex(FINISH.jade),
   ACID_PALE = hex(0xd9fff0),
   PYLONS = 6;
 
@@ -100,8 +101,7 @@ class BossCardView {
   }
   cages(dt, world, quality) {
     const r = this.r,
-      P = this.get("pylon", 6 * PYLONS),
-      time = r.time;
+      P = this.get("pylon", 6 * PYLONS);
     for (const cage of world.cages) {
       const drop = clamp(cage.t / LOCK_WARN, 0, 1),
         fall = 1 - drop * drop,
@@ -117,7 +117,7 @@ class BossCardView {
         pts.push(x, z);
         P.body.y(x, y, z, -a, 1, 1 - end * 0.5, 1);
         const g = P.glow.y(x, y, z, -a, 1, 1 - end * 0.5, 1);
-        P.glow.colC(g, GOLD, live ? 1.4 + Math.sin(time * 30 + i) * 0.3 : 0.6 + drop);
+        P.glow.colC(g, GOLD, live ? (1 - end) * 1.1 : 0.6 + drop);
         r.shadows.y(x, 0.02, z, 0, 0.5 + drop * 0.3);
       }
       if (!live) {
@@ -125,8 +125,8 @@ class BossCardView {
         r.ringPool.colC(r.ringPool.y(cage.x, 0.05, cage.y, 0, cage.r), GOLD, 0.25 + drop * 0.35);
         continue;
       }
-      // the beams between the pylons, at two heights, flickering; a faint gold floor inside
-      const k = (1 - end) * (0.9 + Math.sin(time * 40 + cage.id) * 0.1);
+      // Two continuous inlaid rails join the pylons while the cage holds.
+      const k = 1 - end;
       for (let i = 0; i < PYLONS; i++) {
         const j = (i + 1) % PYLONS,
           x0 = pts[i * 2],

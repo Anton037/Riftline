@@ -72,6 +72,15 @@ void main() {
   color=mix(color,uGrid*.66,clamp((rose*.27+scale*.35+north*.48+grid*.18+border*.52+measure*.3)*inside,0.0,.62));
   color*=mix(.52,1.0,shading)*mix(.52,1.0,getShadowMask());
   color*=1.0-uDark*.75;
+  if(style==5){
+    // Reflected pools stay next to the fixed gallery lamps, outside the main combat sightline.
+    vec2 distanceToWall=uHalf-abs(p);
+    vec2 alongLamp=8.4*(fract(p/8.4+.5)-.5);
+    vec2 fromLamp=alongLamp.yx*alongLamp.yx+pow(max(distanceToWall+.6,vec2(0.)),vec2(2.0));
+    float reflection=max(exp(-fromLamp.x*.36),exp(-fromLamp.y*.36));
+    float warm=(.74+.16*cos(uTime*.87))*(1.0-uDark*.64);
+    color+=vec3(.33,.16,.066)*reflection*warm*.33*inside;
+  }
   color+=uGrid*uPulse*.048*inside;
   for(int i=0;i<6;i++) {
     if(uL[i].w<=0.0) continue;

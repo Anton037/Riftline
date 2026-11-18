@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { PhysicalVoices, physicalProfile } from "../src/audio/physical-voices.js";
-import { PLACE_IDS } from "../src/audio/place.js";
+import { PLACE_IDS, SCAPE } from "../src/audio/place.js";
 import { SOURCE_CLIPS } from "../src/audio/source-bank.js";
 const ctx = {
   sampleRate: 22050,
@@ -67,12 +67,10 @@ test("ambient weather, wildlife and machinery stay independent of weapon and imp
     "owl",
     "cricket",
     "frogChorus",
-    "dog",
-    "carPass",
-    "helicopter",
-    "horn",
-    "siren",
-    "radio",
+    "galleryChime",
+    "kilnResonance",
+    "inlayCharge",
+    "stoneEcho",
     "lampBuzz",
   ]) {
     const p = physicalProfile(id, null, true),
@@ -142,4 +140,12 @@ test("prefix and place rules map movement, desert/volcanic cues and place accent
   for (const id of PLACE_IDS) {
     assert.notEqual(physicalProfile(id, null, true).family, "room", `place ${id} fell back to generic room`);
   }
+});
+
+test("City ambience uses resonators and leaves illumination to the arena", () => {
+  const city = SCAPE.city;
+  for (const { id } of city.far) assert.ok(PLACE_IDS.includes(id));
+  assert.equal(physicalProfile("galleryChime", null, true).model, "ceramic");
+  assert.equal(physicalProfile("kilnResonance", null, true).model, "ceramic");
+  assert.ok(city.far.every((cue) => !("light" in cue)));
 });

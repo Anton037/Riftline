@@ -16,8 +16,9 @@ import {
 } from "three";
 import { dustRibbonGeometry } from "./strata-geometry.js";
 import { worldMaterial } from "./world-material.js";
-import { meshPart, mergeParts, box } from "./models.js";
+import { meshPart, mergeParts } from "./models.js";
 import { clamp, TAU, makeRng } from "../core/util.js";
+import { FINISH } from "./palette.js";
 
 const WHITE = new Color(0xffffff),
   SAND = new Color(0xd8c8a8), // 3.53.0: the Flats' dust
@@ -27,14 +28,14 @@ const WHITE = new Color(0xffffff),
   PYRO_HOT = new Color(0xffe9b0),
   ASH_PUFF = new Color(0x4e463e),
   ASH_HOT = new Color(0x6a5c50),
-  ARC = new Color(0x8fd0ff),
-  ARC_WHITE = new Color(0xdff2ff),
+  AMBER = new Color(FINISH.brass),
+  HEAT = new Color(FINISH.vermilion),
   ICE_SHARD = new Color(0xffffff),
   ACID = new Color(0x8fd43a),
   ACID_LITE = new Color(0xc8f06a),
   COAT = new Color(0x4de8ff),
-  PORTAL_A = new Color(0xff4dd8),
-  PORTAL_B = new Color(0x7f7fff);
+  PORTAL_A = new Color(FINISH.lavender),
+  PORTAL_B = new Color(FINISH.jade);
 
 /* ---------- surfaces: one shader per kind on a flat disc (radius 1), the instance colour carries its state ----------
    instance colour: r the level (heat, brightness or fade), g a seed (0..1), b a switch (acid: 1 = Acid Coating, portal:
@@ -111,7 +112,7 @@ const SURF_FRAG = {
     alpha*=.79;
   `),
   portal: polished(`
-    vec3 ribbon=mix(vec3(.63,.29,.62),vec3(.29,.52,.72),vI.b);
+    vec3 ribbon=mix(vec3(.59,.43,.68),vec3(.30,.56,.46),vI.b);
     float revolutions=engrave(cos(a*3.0+log(r+.09)*5.1+time*1.8),.19);
     float notch=engrave(r-.66,.011)*smoothstep(-.28,.62,cos(a*4.0-time*1.35));
     col=vec3(.011,.013,.027)+ribbon*(rim*.96+ticks*.46+notch*.68+revolutions*r*.33)*strength;
@@ -216,7 +217,10 @@ const MODELS = {
     ],
     glow: [inscribed(0xa0dbcb, 0.44, 0.016, 0.105, 24), fac(0xe3ded2, 0.11, { y: 0.12, sy: 0.19 })],
   }),
-  bolt: () => ({ glow: [box(0xffffff, 1, 0.84, 0.84)] }),
+  inlayProng: () => ({
+    body: [fac(FINISH.copper, 0.26, { y: 0.34, sy: 1.7, sx: 0.64, sz: 0.6 })],
+    glow: [fac(FINISH.ivory, 0.085, { y: 0.74, sy: 1.45, sx: 0.52, sz: 0.52 })],
+  }),
   shard: () => ({
     body: [
       fac(0xc9e0eb, 0.85, { y: 0.48, sy: 0.63, sz: 0.66, rz: -0.17 }),
@@ -274,7 +278,7 @@ const seedOf = (x, y) => {
   const s = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
   return s - Math.floor(s);
 };
-const MAX = { surf: 24, part: 24, bolt: 120, bubble: 64, stone: 64 };
+const MAX = { surf: 24, part: 24, prong: 120, bubble: 64, stone: 64 };
 
 class HazardView {
   constructor(r, Pool) {
@@ -346,7 +350,7 @@ class HazardView {
     for (const mat of this.mats) mat.uniforms.uTime.value = r.time;
     const quality = Math.min(1, r.maxParticles / 1400);
     if (arena.vents.length) {
-      if (arena.biome.id === "city") this.manholes(dt, world, quality);
+      if (arena.biome.id === "city") this.chargedInlays(dt, world, quality);
       else this.vents(dt, world, quality);
     }
     if (arena.ice.length) this.ice(dt, world, quality);
@@ -413,14 +417,14 @@ class HazardView {
         seed = seedOf(x, z),
         rot = seed * TAU,
         erupt = state === "erupt",
-        heat = erupt ? 1.6 : 0.25 + 0.08 * Math.sin(time * 1.3 + seed * 9) + k * (0.9 + 0.15 * Math.sin(time * 30));
+        heat = erupt ? 1.45 : 0.25 + 0.08 * Math.sin(time * 1.3 + seed * 9) + k * 0.95;
       crater.body.y(x, 0, z, rot, rr, 1, rr);
       crater.glow.colC(crater.glow.y(x, 0, z, rot, rr, 1, rr), WHITE, 0.14 + heat * 0.42);
       this.put(lava, x, 0.045, z, rot, rr, heat, seed);
       if (state === "warn") {
         // the lava swells into a dome that trembles before it bursts
         const dome = this.get("dome");
-        const s = rr * (0.08 + 0.12 * k) * (1 + Math.sin(time * 24) * 0.05 * k);
+        const s = rr * (0.08 + 0.12 * k);
         dome.glow.colC(dome.glow.y(x, 0.03, z, 0, s, 0.08 + 0.14 * k, s), WHITE, 0.55 + 0.45 * k);
         this.ring(x, z, rr, spray, 0.35 + k * 0.6);
         if (Math.random() < dt * (4 + 18 * k) * quality)
@@ -465,92 +469,48 @@ class HazardView {
       }
     }
   }
-  // Blackout City: live manholes
-  manholes(dt, world, quality) {
-    const r = this.r,
-      time = r.time,
-      collar = this.get("collar"),
-      cover = this.get("cover"),
-      bolt = this.get("bolt", MAX.bolt).glow;
+  chargedInlays(dt, world, quality) {
+    const r = this.r;
+    const collar = this.get("collar");
+    const cover = this.get("cover");
+    const prong = this.get("inlayProng", MAX.prong);
     for (const vent of world.arena.vents) {
-      const { state, k } = this.ventState(world, vent),
-        x = vent.x,
-        z = vent.y,
-        rr = vent.r,
-        seed = seedOf(x, z),
-        rot = seed * TAU,
-        sc = Math.min(rr * 0.95, 0.92);
-      // the cover rattles while the current builds and jumps when it arcs
-      let lift = 0,
-        tilt = 0,
-        roll = 0,
-        light = 0.12 + 0.05 * Math.sin(time * 2 + seed * 9);
-      if (state === "warn") {
-        const shake = k > 0.3 ? (Math.random() - 0.5) * 0.05 * k : 0;
-        lift = Math.max(0, shake);
-        tilt = shake * 0.5;
-        light = 0.2 + k * 0.8 * (0.4 + 0.6 * Math.random());
-      } else if (state === "erupt") {
-        lift = 0.1 + Math.random() * 0.12;
-        tilt = (Math.random() - 0.5) * 0.16;
-        roll = (Math.random() - 0.5) * 0.16;
-        light = 1.1 + 0.5 * Math.random();
-      }
+      const { state, k } = this.ventState(world, vent);
+      const { x, y: z, r: radius } = vent;
+      const rot = seedOf(x, z) * TAU;
+      const sc = Math.min(radius * 0.95, 0.92);
+      const live = state === "erupt";
+      const charge = live ? 1 : k;
+      const lift = charge ** 2 * 0.31;
+      const aperture = rot + charge * 0.47;
       collar.body.y(x, 0, z, rot, sc, 1, sc);
-      collar.glow.colC(collar.glow.y(x, 0, z, rot, sc, 1, sc), WHITE, light * (state === "idle" ? 0.4 : 1));
-      cover.body.yr(x, lift, z, rot, sc, 1, sc, tilt, roll);
-      cover.glow.colC(cover.glow.yr(x, lift, z, rot, sc, 1, sc, tilt, roll), WHITE, light);
-      if (state === "erupt") {
-        // three jagged bolts out of the hole, each a chain of short segments that jumps every few frames
-        const step = Math.floor(time * 30);
-        for (let b = 0; b < 3; b++) {
-          let px = x + Math.cos(b * 2.1 + seed * 6) * rr * 0.3,
-            pz = z + Math.sin(b * 2.1 + seed * 6) * rr * 0.3,
-            py = 0.08;
-          const h = 1.6 + 1.6 * jitter(step, b, 0, seed),
-            n = 5;
-          for (let i = 0; i < n; i++) {
-            const nx = px + (jitter(step, b, i + 1, seed) - 0.5) * 0.7,
-              nz = pz + (jitter(step, b, i + 11, seed) - 0.5) * 0.7,
-              ny = py + h / n;
-            seg(bolt, px, py, pz, nx, ny, nz, 0.05, i === 0 && b === 0 ? WHITE : ARC_WHITE, 0.8 + 0.4 * Math.random());
-            px = nx;
-            py = ny;
-            pz = nz;
-          }
-        }
-        this.ring(x, z, rr, ARC, 0.6);
-        if (Math.random() < dt * 30 * quality)
-          r.emit(
-            x + (Math.random() - 0.5) * rr * 1.4,
-            0.3,
-            z + (Math.random() - 0.5) * rr * 1.4,
-            (Math.random() - 0.5) * 2,
-            4 + Math.random() * 4,
-            (Math.random() - 0.5) * 2,
-            0.25,
-            0.16,
-            ARC,
-            { drag: 1, spark: true },
-          );
-      } else if (state === "warn") {
-        this.ring(x, z, rr, ARC, 0.3 + 0.45 * k);
-        if (Math.random() < dt * 18 * quality)
-          r.emit(
-            x + (Math.random() - 0.5) * rr,
-            0.1,
-            z + (Math.random() - 0.5) * rr,
-            0,
-            2.5 + k * 3,
-            0,
-            0.2,
-            0.14,
-            ARC_WHITE,
-            {
-              drag: 1,
-              spark: true,
-            },
-          );
+      collar.glow.colC(collar.glow.y(x, 0, z, rot, sc, 1, sc), AMBER, 0.28 + charge * 0.68);
+      cover.body.y(x, lift, z, aperture, sc, 1, sc);
+      cover.glow.colC(cover.glow.y(x, lift, z, aperture, sc, 1, sc), live ? HEAT : AMBER, 0.37 + charge * 0.56);
+      if (state === "idle") continue;
+
+      const pigment = live ? HEAT : AMBER;
+      this.ring(x, z, radius, pigment, 0.6 + charge * 0.39);
+      const inlay = r.discs.y(x, 0.058, z, rot, radius * 0.95);
+      r.discs.colC(inlay, pigment, live ? 0.34 : 0.1 + charge * 0.12);
+      for (let i = 0; i < 4; i++) {
+        const angle = rot + (TAU * i) / 4;
+        const px = x + Math.cos(angle) * radius * 0.66,
+          pz = z + Math.sin(angle) * radius * 0.66;
+        const grow = 0.17 + charge * 0.72;
+        const idx = prong.body.yr(px, 0.015, pz, angle, 0.85, grow, 0.85, 0, 0.22);
+        prong.body.col(idx, 1, 1, 1);
+        prong.glow.colC(prong.glow.yr(px, 0.015, pz, angle, 0.85, grow, 0.85, 0, 0.22), pigment, 0.6 + charge * 0.32);
+      }
+      if (live && Math.random() < dt * 13 * quality) {
+        const a = TAU * Math.random(),
+          ct = Math.cos(a),
+          st = Math.sin(a);
+        r.emit(x + ct * radius * 0.62, 0.4, z + st * radius * 0.62, ct * 1.4, 1.9, st * 1.4, 0.48, 0.13, AMBER, {
+          spark: true,
+          drag: 2,
+          grav: 3,
+        });
       }
     }
   }
@@ -674,31 +634,5 @@ class HazardView {
       }
     }
   }
-}
-// a repeatable random number for the arcs: the same frame step, bolt and joint give the same kink
-function jitter(step, bolt, joint, seed) {
-  const s = Math.sin(step * 91.7 + bolt * 47.3 + joint * 13.1 + seed * 311.7) * 43758.5453;
-  return s - Math.floor(s);
-}
-// one straight piece of an arc from (x0, y0, z0) to (x1, y1, z1)
-function seg(pool, x0, y0, z0, x1, y1, z1, width, color, alpha) {
-  const dx = x1 - x0,
-    dy = y1 - y0,
-    dz = z1 - z0,
-    flat = Math.hypot(dx, dz),
-    len = Math.hypot(flat, dy);
-  if (len < 1e-4) return;
-  const idx = pool.yr(
-    (x0 + x1) / 2,
-    (y0 + y1) / 2,
-    (z0 + z1) / 2,
-    Math.atan2(dz, dx),
-    len + width * 0.5,
-    width,
-    width,
-    Math.atan2(dy, flat),
-    0,
-  );
-  pool.colC(idx, color, alpha);
 }
 export { HazardView, SURF_VERT, SURF_LIB };
