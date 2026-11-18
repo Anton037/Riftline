@@ -250,3 +250,19 @@ test("BossCardView distinguishes Frost Prism shatter from Glasswyrm Fang shatter
   assert.notEqual(rings[0][4].getHex(), rings[1][4].getHex());
   assert.notEqual(bursts[2][5].getHex(), bursts[3][5].getHex());
 });
+
+test("all biomes have a distinct glaze and a fight and boss score", async () => {
+  const { GLAZES } = await import("../src/render/palette.js");
+  const { musicTrack, scoreBiomes } = await import("../src/audio/score.js");
+  const biomeIds = biomeList.map((biome) => biome.id).sort();
+  assert.deepEqual(Object.keys(GLAZES).sort(), biomeIds);
+  assert.deepEqual([...scoreBiomes].sort(), biomeIds);
+  assert.equal(new Set(Object.values(GLAZES).map((glaze) => glaze.style)).size, biomeIds.length);
+  assert.equal(new Set(Object.values(GLAZES).map((glaze) => glaze.base)).size, biomeIds.length);
+  for (const id of biomeIds) {
+    const fight = musicTrack("fight", id);
+    const boss = musicTrack("boss", id);
+    assert.ok(fight.bpm > 0 && boss.bpm > fight.bpm, id);
+    assert.ok(fight.bars > 0 && boss.bars > 0, id);
+  }
+});
