@@ -37,7 +37,9 @@ function smokeTexture() {
         v = (y - 64) / 58,
         r = u * u + v * v;
       const grain = noise(x / 19, y / 19) * 0.65 + noise(x / 7 + 9, y / 7) * 0.35;
-      const alpha = Math.max(0, 1 - r) ** 1.7 * Math.max(0, grain - 0.18) * 1.8;
+      const angle = Math.atan2(v, u);
+      const layers = 0.63 + 0.37 * Math.cos(18 * r + 3 * Math.sin(angle * 4) + grain * 2.8);
+      const alpha = Math.max(0, 1 - r) ** 1.9 * Math.max(0, grain - 0.12) * layers * 2.25;
       const i = (y * 128 + x) * 4;
       image.data[i] = image.data[i + 1] = image.data[i + 2] = 255;
       image.data[i + 3] = Math.round(Math.min(1, alpha) * 255);
@@ -80,7 +82,7 @@ void main(){gl_FragColor=vec4(vTint.rgb,texture2D(uSmoke,vUv).a*vTint.a);
     scene.add(this.mesh);
     this.puffs = [];
   }
-  emit(x, y, z, size = 0.4, color = 0x9da8a8, life = 0.45) {
+  emit(x, y, z, size = 0.4, color = 0xba9e86, life = 0.45) {
     if (this.puffs.length >= CAPACITY) return;
     this.puffs.push({ x, y, z, size, color: new Color(color), life, max: life, angle: this.puffs.length * 2.4 });
   }

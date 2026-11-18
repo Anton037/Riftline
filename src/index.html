@@ -11,19 +11,17 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="Riftline">
-<meta name="theme-color" content="#05070d">
+<meta name="theme-color" content="#101c20">
 <meta name="format-detection" content="telephone=no">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="48x48" href="favicon-48.png">
-<link rel="preload" href="fonts/chakra-petch-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/baskervville-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
 <style>
-@font-face{font-family:"Chakra Petch";font-style:normal;font-weight:600;font-display:swap;src:url(fonts/chakra-petch-latin-600-normal.woff2) format("woff2")}
-@font-face{font-family:"Chakra Petch";font-style:normal;font-weight:700;font-display:swap;src:url(fonts/chakra-petch-latin-700-normal.woff2) format("woff2")}
-@font-face{font-family:"Barlow Semi Condensed";font-style:normal;font-weight:500;font-display:swap;src:url(fonts/barlow-semi-condensed-latin-500-normal.woff2) format("woff2")}
-@font-face{font-family:"Barlow Semi Condensed";font-style:normal;font-weight:600;font-display:swap;src:url(fonts/barlow-semi-condensed-latin-600-normal.woff2) format("woff2")}
-@font-face{font-family:"Barlow Semi Condensed";font-style:normal;font-weight:700;font-display:swap;src:url(fonts/barlow-semi-condensed-latin-700-normal.woff2) format("woff2")}
-/* Riftline — one deliberate dark look (neon arcade), painted explicitly. */
+@font-face{font-family:"Baskervville";font-style:normal;font-weight:400;font-display:swap;src:url(fonts/baskervville-latin-400-normal.woff2) format("woff2")}
+@font-face{font-family:"Instrument Sans";font-style:normal;font-weight:500;font-display:swap;src:url(fonts/instrument-sans-latin-500-normal.woff2) format("woff2")}
+@font-face{font-family:"Instrument Sans";font-style:normal;font-weight:600;font-display:swap;src:url(fonts/instrument-sans-latin-600-normal.woff2) format("woff2")}
+@font-face{font-family:"Instrument Sans";font-style:normal;font-weight:700;font-display:swap;src:url(fonts/instrument-sans-latin-700-normal.woff2) format("woff2")}
 :root {
   --ink: #05070d; --ink2: #0a0f1c;
   --panel: rgba(9, 14, 26, 0.86); --panel2: rgba(15, 23, 41, 0.94); --panel3: rgba(24, 36, 62, 0.95);
@@ -33,8 +31,8 @@
   --r1: #a9b8d6; --r2: #49f2ff; --r3: #d27bff; --r4: #ffc84a;
   --st: env(safe-area-inset-top, 0px); --sb: env(safe-area-inset-bottom, 0px);
   --sl: env(safe-area-inset-left, 0px); --sr: env(safe-area-inset-right, 0px);
-  --display: "Chakra Petch", "Barlow Semi Condensed", "Avenir Next Condensed", system-ui, sans-serif;
-  --body: "Barlow Semi Condensed", "Chakra Petch", "Avenir Next Condensed", system-ui, sans-serif;
+  --display: "Instrument Sans", system-ui, sans-serif;
+  --body: "Instrument Sans", system-ui, sans-serif;
   --n: 10px;
   --notch: polygon(var(--n) 0, 100% 0, 100% calc(100% - var(--n)), calc(100% - var(--n)) 100%, 0 100%, 0 var(--n));
   color-scheme: dark;
@@ -1361,42 +1359,122 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
   #choose .card .delta, #choose .card .evo-hint { font-size: 11px; margin-top: 2px; }
 }
 #setFrameRate button { min-height: 44px; min-width: 60px; }
-/* Painted equipment finish: quieter pigments and tactile panels, with combat cues kept crisp. */
+/* Glazed instruments, ivory lettering and brass rules. */
 :root {
-  --ink: #101619; --ink2: #172125;
-  --panel: rgba(26, 35, 39, 0.94); --panel2: rgba(34, 45, 50, 0.97); --panel3: rgba(47, 61, 66, 0.98);
-  --line: rgba(184, 198, 193, 0.2); --line2: rgba(184, 198, 193, 0.36);
-  --text: #e5e7df; --dim: #adb8b6; --mute: #768781;
-  --cyan: #87cfd1; --cyan-d: #4a979f; --amber: #dfbd80;
-  --painted-panel: url("textures/surface-atlas.webp");
+  --ink: #101c20; --ink2: #1a2729;
+  --panel: rgba(21, 34, 35, .96); --panel2: #283b38; --panel3: #374943;
+  --line: rgba(216, 181, 130, .27); --line2: rgba(216, 181, 130, .52);
+  --text: #f5e9d1; --dim: #c3b9a0; --mute: #a19883;
+  --cyan: #a7d1bf; --cyan-d: #609889; --amber: #e9bb83; --pink: #eb9c98; --green: #abd397;
+  --violet: #dbb5e8; --red: #fc8e75; --focus: #f5cb9a;
+  --r1: #cdc2a8; --r2: #a7d1bf; --r3: #dbb5e8; --r4: #e9bb83;
+  --notch: none;
+  --serif: "Baskervville", Georgia, serif;
 }
-.panel, .set-group, .stat-grid .cell {
-  background-image: linear-gradient(130deg, rgba(23, 32, 35, 0.9), rgba(15, 24, 28, 0.96)), var(--painted-panel);
-  background-size: auto, 300% 200%; background-position: 0 0, 50% 0;
-  box-shadow: inset 0 1px rgba(239, 237, 218, 0.08), inset 0 -2px rgba(0, 0, 0, 0.22);
+#home {
+  background: linear-gradient(90deg, rgba(8,18,21,.03) 28%, rgba(8,18,21,.3) 54%, rgba(8,18,21,.88)),
+    url("textures/title-chart.webp") center / cover no-repeat #132226;
 }
+#home::before { display: none; }
+#home .topbar {
+  border-bottom: 1px solid var(--line);
+  width: 100%; max-width: 1320px; padding-bottom: 8px;
+}
+#home .brand { position: relative; }
+.logo,
+body.device-desktop #home .logo {
+  font-family: var(--serif); font-weight: 400; letter-spacing: -.055em;
+  line-height: .98; color: #f9eacb; text-shadow: 0 2px 0 #6c532e, 0 5px 32px #0b1315;
+  white-space: nowrap;
+}
+.logo::before, .logo::after { display: none; }
+#home .tagline {
+  color: #e8c394; font-size: clamp(8px, 1.2vw, 13px); font-weight: 700;
+  letter-spacing: .24em; text-transform: uppercase; text-shadow: 0 2px 8px #0b1315;
+}
+#home .best-line { color: var(--text); }
+#home .home-panel { min-width: 0; }
+#home .weapon-card { padding: clamp(12px, 2.25vh, 22px); }
+#home .weapon-card, #home .threat-row { backdrop-filter: none; }
+.wc-name, .row .row-name, .dialog h3, .card h3, .screen.page h2, .center-col h2, .end-title {
+  font-family: var(--serif); font-weight: 400; letter-spacing: .01em; text-transform: none;
+}
+.wc-name { font-size: 30px; }
+.weapon-card .eyebrow { color: var(--amber); letter-spacing: .17em; }
+.wc-blurb { color: var(--dim); }
+.wc-stats { border-top: 1px solid var(--line); padding-top: 9px; }
+.stat .segs i.on { background: color-mix(in srgb, var(--wc, var(--cyan)) 36%, #d3ac7b); box-shadow: none; }
+#home .bottom-nav, body.device-desktop #home .bottom-nav { width: 100%; max-width: 1320px; }
+#home .bottom-nav button, body.device-desktop #home .bottom-nav button {
+  color: var(--text); box-shadow: none;
+}
+.panel, .weapon-card, .threat-row, .set-group, .row, .dialog, .card, .payout,
+.dmg-panel, .run-extra, .stat-grid .cell, .shard-chip.big {
+  border-radius: 3px;
+  border-color: var(--line2);
+  background-image: linear-gradient(112deg, rgba(219, 190, 146, .035), transparent 38%),
+    linear-gradient(145deg, #263a38, #152325 74%);
+  box-shadow: inset 0 1px rgba(247, 223, 183, .08), 0 12px 24px rgba(6, 13, 15, .23);
+}
+.screen.page {
+  background: linear-gradient(125deg, rgba(13,25,29,.97), rgba(20,34,34,.98));
+}
+.screen.page::before { background: none; }
+.screen.page h2, .center-col h2 { color: #f4d8aa; font-size: clamp(24px, 4.2vh, 42px); }
+.screen.overlay { background: rgba(10, 23, 26, .81); }
+.btn, .icon-btn, .bottom-nav button, .seg button, .arrow { border-radius: 3px; }
 .btn:not(.ghost), .icon-btn, .bottom-nav button {
-  background-image: linear-gradient(120deg, rgba(40, 54, 58, 0.88), rgba(25, 36, 40, 0.95)), var(--painted-panel);
-  background-size: auto, 300% 200%; background-position: 0 0, 50% 0;
-  box-shadow: inset 0 1px rgba(239, 237, 218, 0.12), inset 0 -2px rgba(0, 0, 0, 0.28);
+  background: linear-gradient(150deg, #314644, #1c2e2e);
+  border-color: var(--line2);
+  box-shadow: inset 0 1px rgba(244, 226, 192, .10);
 }
 .btn.primary {
-  background-image: linear-gradient(115deg, rgba(131, 192, 185, 0.88), rgba(98, 162, 165, 0.96)), var(--painted-panel);
-  color: #102326; border-color: #99c5bd; text-shadow: none;
-  box-shadow: inset 0 1px rgba(255, 255, 234, 0.4), inset 0 -3px rgba(18, 48, 51, 0.32);
+  color: #211b17; border-color: #e8ad7d;
+  background: linear-gradient(100deg, #e8b587, #d89069);
+  text-shadow: none; box-shadow: inset 0 1px #f7d8ad, 0 6px 20px rgba(189,113,77,.23);
 }
-.btn.primary.alt {
-  background-image: linear-gradient(115deg, rgba(221, 187, 133, 0.9), rgba(185, 146, 91, 0.96)), var(--painted-panel);
-  color: #261d10; border-color: #d6bd93;
+.btn.primary.alt { color: #162826; border-color: #add2b8; background: linear-gradient(110deg, #c4dcc3, #83b5a5); }
+.btn.primary:active { box-shadow: inset 0 1px rgba(253, 237, 192, .65); }
+.arrow { color: var(--amber); }
+.btn.ghost { border-color: var(--line2); }
+.coach, .toast, .bn-inner, .act-btn, .act-btn .key {
+  background: rgba(22, 36, 35, .92); border-color: var(--line2); color: var(--text);
 }
-.card:not(.r4):not(.r5):not(.r6) {
-  background-image: linear-gradient(120deg, rgba(32, 44, 48, 0.91), rgba(19, 28, 31, 0.97)), var(--painted-panel);
-  background-size: auto, 300% 200%; background-position: 0 0, 50% 0;
+.act-btn.dash, .act-btn.nova, .act-btn.gadget {
+  box-shadow: inset 0 0 0 3px rgba(216, 181, 130, .09);
 }
-.logo { color: #e0e6de; text-shadow: 0 2px #25383e, 0 5px 18px rgba(0, 0, 0, 0.55); }
-.logo::before { opacity: 0.16; animation: none; }
-.logo::after { opacity: 0.65; box-shadow: none; }
-.screen.overlay { background: rgba(6, 12, 15, 0.76); }
+.act-btn.gadget { color: var(--violet); }
+.act-btn.dash .ring { background: conic-gradient(from 45deg,var(--cyan) var(--q,100%), #fff2 0); }
+.bar { background: #0e1c20; border: 1px solid var(--line2); clip-path: none; border-radius: 2px; }
+.bar.hp i { background: linear-gradient(90deg,#619f8c,#b7ddaa); }
+.bar.hp.low i { background: linear-gradient(90deg,#ae4738,#fbad7d); }
+.bar.boss i { background: linear-gradient(90deg,#b95c4d,#ffc595); }
+.boss-name { color: #ffdbad; }
+.shard-ico { background: linear-gradient(120deg,#f4e5bc,#ecaa70 49%,#ab6242 50%,#d78e59); }
+.hud-top { background: linear-gradient(180deg, rgba(10,18,21,.82), transparent); }
+#banner, .wave-label { text-shadow: 0 2px 4px #101d20; }
+#banner .t, #bnTitle { font-family: var(--serif); font-weight: 400; }
+@media (min-width: 851px) and (min-height: 490px) {
+  body.device-desktop #home { padding-inline: clamp(36px, 6vw, 100px); }
+  body.device-desktop #home .home-grid {
+    display: grid; grid-template-columns: minmax(0, 1.33fr) minmax(300px, 440px);
+    grid-template-rows: auto; align-content: center; align-items: center;
+    width: 100%; max-width: 1320px; gap: clamp(26px, 6vw, 96px);
+  }
+  body.device-desktop #home .brand { align-self: center; justify-self: center; text-align: center; }
+  body.device-desktop #home .logo { font-size: clamp(66px, 9vw, 142px); }
+  body.device-desktop #home .home-panel { justify-self: end; width: 100%; max-width: 440px; }
+  body.device-desktop #home .bottom-nav { display: flex; justify-content: flex-end; border-top: 1px solid var(--line); gap: 10px; padding-top: 11px; }
+  body.device-desktop #home .bottom-nav button { min-width: 116px; padding-inline: 14px; }
+}
+@media (max-width: 850px), (max-height: 489px) {
+  #home { background-position: 41% center; }
+}
+@media (max-height: 420px) {
+  #home .weapon-card { padding: 5px 8px; }
+  #home .topbar { padding-bottom: 2px; }
+  .wc-stats { padding-top: 4px; }
+}
 </style>
 
 <script>
@@ -1518,7 +1596,7 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
   .tcard .tc-name, .tc-band::before, .tc-band::after, .tc-accent, .tc-line { animation: none; }
 }
 </style>
-<style id="RIFTLINE-PWA-FIX">html,body{margin:0!important;padding:0!important;height:100%!important;background:#05070d!important;overflow:hidden!important}*{-webkit-text-size-adjust:100%!important;text-size-adjust:100%!important}#gl{position:fixed!important;left:0!important;top:0!important;width:100vw!important;height:100vh!important;height:100dvh!important;max-width:none!important;max-height:none!important;aspect-ratio:auto!important;margin:0!important;transform:none!important;border:0!important;outline:none!important}</style><script id="RIFTLINE-RESIZE-FIX">(function(){function f(){try{window.dispatchEvent(new Event("resize"))}catch(e){}}var vv=window.visualViewport;if(vv){vv.addEventListener("resize",f)}window.addEventListener("orientationchange",function(){setTimeout(f,150);setTimeout(f,700)});[50,250,700,1500].forEach(function(t){setTimeout(f,t)})})();</script>
+<style id="RIFTLINE-PWA-FIX">html,body{margin:0!important;padding:0!important;height:100%!important;background:#101c20!important;overflow:hidden!important}*{-webkit-text-size-adjust:100%!important;text-size-adjust:100%!important}#gl{position:fixed!important;left:0!important;top:0!important;width:100vw!important;height:100vh!important;height:100dvh!important;max-width:none!important;max-height:none!important;aspect-ratio:auto!important;margin:0!important;transform:none!important;border:0!important;outline:none!important}</style><script id="RIFTLINE-RESIZE-FIX">(function(){function f(){try{window.dispatchEvent(new Event("resize"))}catch(e){}}var vv=window.visualViewport;if(vv){vv.addEventListener("resize",f)}window.addEventListener("orientationchange",function(){setTimeout(f,150);setTimeout(f,700)});[50,250,700,1500].forEach(function(t){setTimeout(f,t)})})();</script>
 </head>
 <body>
 <div id="app">
@@ -1586,8 +1664,8 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
     </header>
     <div class="home-grid">
       <div class="brand">
-        <h1 class="logo" data-text="RIFTLINE">RIFTLINE</h1>
-        <p class="tagline">Arena&nbsp;roguelite · 7&nbsp;weapons · 6&nbsp;biomes · 6&nbsp;bosses</p>
+        <h1 class="logo" data-text="Riftline">Riftline</h1>
+        <p class="tagline">Arena roguelite</p>
         <p id="bestLine" class="best-line" hidden></p>
       </div>
       <div class="home-panel">

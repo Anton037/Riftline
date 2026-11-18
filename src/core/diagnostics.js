@@ -2,7 +2,8 @@
 // crash screen's "Copy" and to the tests (window.__riftTest); 3.35.0: the Diagnostics dialog of the settings is gone.
 
 import { GameUI, RL_TOUCH_CLICK_GUARD } from "../ui/ui.js";
-import { musicChords, RL_SFX_VOICES, rlShotSfx, musicVoices } from "../audio/sound.js";
+import { RL_SFX_VOICES, rlShotSfx } from "../audio/sound.js";
+import { scoreBiomes } from "../audio/score.js";
 import { SAVE_KEY, cleanRun } from "./save.js";
 import { RL_MESH_TYPES } from "../render/models.js";
 import { enemyDefs, RL_ENEMY_TIPS, bossDefs } from "../data/enemies.js";
@@ -1428,7 +1429,7 @@ async function rlRunHealthNow({ context = "startup" } = {}) {
     const noPool = renderer ? Object.keys(enemyDefs).filter((type) => !renderer.enemyPools[type]) : [],
       noModel = Object.keys(enemyDefs).filter((type) => !RL_MESH_TYPES.includes(type)),
       noSfx = Object.keys(weaponDefs).filter((weapon) => !RL_SFX_VOICES.includes(rlShotSfx(weapon))),
-      noMusic = biomeList.filter((biome) => !musicChords[biome.id] || !musicVoices[biome.id]).map((biome) => biome.id),
+      noMusic = biomeList.filter((biome) => !scoreBiomes.includes(biome.id)).map((biome) => biome.id),
       noTip = Object.keys(enemyDefs).filter((type) => type !== "mite" && !RL_ENEMY_TIPS[type]),
       miss = [
         ...noPool.map((type) => "mesh pool " + type),
@@ -1620,13 +1621,10 @@ async function rlRunHealthNow({ context = "startup" } = {}) {
   }
   try {
     if (document.fonts && typeof document.fonts.check === "function") {
-      let chakra = document.fonts.check('16px "Chakra Petch"'),
-        barlow = document.fonts.check('16px "Barlow Semi Condensed"');
-      if (chakra && barlow) {
-        ok("fonts", true, "declared game fonts available");
-      } else {
-        warn("fonts", `font check: Chakra ${chakra ? "OK" : "WARN"}, Barlow ${barlow ? "OK" : "WARN"}`);
-      }
+      const fontSpecs = ['400 16px "Baskervville"', '600 16px "Instrument Sans"'];
+      const loaded = await Promise.all(fontSpecs.map((spec) => document.fonts.load(spec)));
+      if (loaded.every((faces) => faces.length > 0)) ok("fonts", true, "declared game fonts available");
+      else warn("fonts", "a bundled game font is unavailable");
     } else warn("fonts", "FontFaceSet API unavailable");
   } catch (err) {
     warn("fonts", err.message);

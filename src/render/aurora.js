@@ -53,17 +53,14 @@ export function createAurora(W, H) {
     fragmentShader: `
  uniform float uTime;varying vec2 vUv;varying float vLayer;
  void main(){
- float x=vUv.x*8.0+vLayer*1.7;
- float wave=sin(x*1.8+uTime*.045)*.045+sin(x*4.1-uTime*.03)*.022;
- float foot=.18+wave;
- float lower=smoothstep(foot-.025,foot+.018,vUv.y);
- float fall=exp(-max(0.0,vUv.y-foot)*3.2);
- float rays=pow(.5+.5*sin(x*26.0+sin(x*7.0)*2.0-uTime*.13),1.5);
- float edge=exp(-pow((vUv.y-foot)*36.0,2.0));
- float ends=smoothstep(0.0,.12,vUv.x)*(1.0-smoothstep(.88,1.0,vUv.x));
- float alpha=(rays*.3*fall*lower+edge*.17)*ends/(1.0+vLayer*.65);
- vec3 col=mix(vec3(.12,.72,.38),vec3(.32,.17,.52),smoothstep(.08,.62,vUv.y-foot));
- gl_FragColor=vec4(col,alpha);
+ float x=vUv.x;
+ float ribbon=vUv.y;
+ float crease=sin(x*9.5+vLayer*.85+uTime*.065)*.11;
+ float band=exp(-pow((ribbon-.51-crease)*4.2,2.0));
+ float threads=.60+.40*cos(ribbon*118.0+sin(x*24.0+vLayer)*3.2);
+ float margin=smoothstep(0.,.18,x)*smoothstep(0.,.18,1.-x);
+ vec3 col=mix(vec3(.23,.63,.65),vec3(.74,.42,.67),smoothstep(.23,.78,ribbon));
+ gl_FragColor=vec4(col,band*threads*margin*.25/(1.+vLayer*.55));
  #include <colorspace_fragment>
  }`,
     transparent: true,

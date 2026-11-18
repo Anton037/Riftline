@@ -1,4 +1,4 @@
-// Recorded material transients and damped physical bodies, shared by combat and place sounds.
+// Original modal instruments and synthesized material transients for combat, interface and ambience.
 import { SOURCE_CLIPS } from "./source-bank.js";
 import { actorMaterial } from "../data/materials.js";
 import { BOSS_EFFECTS } from "../data/combat-effects.js";
@@ -20,21 +20,21 @@ const hash = (value) => {
   return h >>> 0;
 };
 const sample = {
-  report: "ppsh_P_22P",
-  rifle: "rifle_fire",
-  shotgun: "shotgun_fire",
-  metal: "impactMetal_light_000",
-  plate: "impactPlate_heavy_000",
-  heavy: "impactMetal_heavy_000",
-  glass: "impactGlass_heavy_000",
-  flesh: "impactPunch_heavy_000",
-  soft: "impactSoft_heavy_000",
-  wood: "impactWood_medium_000",
-  blade: "axe-norse-sword-blade-on-blade",
-  concrete: "footstep_concrete_000",
-  snow: "footstep_snow_000",
-  grass: "footstep_grass_000",
-  timber: "footstep_wood_000",
+  report: "reed_release",
+  rifle: "compressed_coil",
+  shotgun: "split_reed_release",
+  metal: "stylus_tap_000",
+  plate: "brass_plate",
+  heavy: "ceramic_knock_000",
+  glass: "porcelain_burst_000",
+  flesh: "clay_thump",
+  soft: "felt_tap",
+  wood: "wooden_resonator",
+  blade: "spindle_strike",
+  concrete: "stone_step_000",
+  snow: "frost_step",
+  grass: "reed_step",
+  timber: "panel_step",
 };
 const P = {
   nova: {
@@ -550,7 +550,10 @@ export class PhysicalVoices {
       phase = 0;
     let recordedLow = 0;
     const recordedAlpha = p.lowpass ? 1 - Math.exp((-Math.PI * 2 * p.lowpass) / rate) : 1;
-    const center = p.model === "air" ? 0.08 : p.family === "tesla" ? 0.4 : p.family === "flame" ? 0.14 : 0.23;
+    const center = p.model === "air" ? 0.055 : p.family === "tesla" ? 0.48 : p.family === "flame" ? 0.18 : 0.31;
+    const mechanical = ["rotor", "engine", "siren", "horn", "radio", "buzz"].includes(p.model);
+    const liquid = p.model === "rain" || p.model === "water";
+    const airy = p.model === "air";
     for (let i = 0; i < n; i++) {
       const t = i / rate,
         x = t / p.dur;
@@ -559,38 +562,19 @@ export class PhysicalVoices {
       low += 0.035 * (noise - low);
       band += center * (noise - band);
       if (p.model) {
-        // Air, water and calls have their own excitation; a metal/weapon recording cannot leak into them.
+        // Soft, inharmonic air and resonator tones give place events their own signature.
         const bell = Math.sin(Math.PI * x) ** 2;
-        const pitch =
-          p.model === "bird"
-            ? 0.8 + 0.3 * Math.sin(Math.PI * x)
-            : p.model === "siren"
-              ? 1 + 0.22 * Math.sin(t * Math.PI * 2 * 1.3)
-              : 1 + 0.5 * Math.exp(-t * 25);
-        phase += (Math.PI * 2 * p.body * pitch) / rate;
-        let value = 0;
-        if (p.model === "air") value = (low * 0.6 + band * 0.4) * bell * 0.9;
-        else if (p.model === "rain") value = (band * 0.24 + low * 0.12 + Math.sin(phase) * 0.04) * Math.exp(-t * 24);
-        else if (p.model === "water")
-          value = (Math.sin(phase) * 0.23 + band * 0.08) * Math.exp(-t * 12) * (0.7 + 0.3 * Math.sin(t * 71) ** 2);
-        else if (p.model === "insect")
-          value = Math.sin(phase) * Math.max(0, Math.sin(t * 2 * Math.PI * 22)) ** 4 * bell * 0.22;
-        else if (p.model === "frog")
-          value = (Math.sin(phase) + 0.32 * Math.sin(phase * 2.03)) * (0.5 + 0.5 * Math.sin(t * 145)) * bell * 0.18;
-        else if (p.model === "mammal")
-          value = (Math.sin(phase) + 0.35 * Math.sin(phase * 2) + band * 0.3) * bell * 0.18;
-        else if (p.model === "engine")
-          value = (Math.sin(phase) * 0.15 + Math.sin(phase * 2.01) * 0.06 + band * 0.18) * bell;
-        else if (p.model === "rotor")
-          value = (band * (0.3 + 0.7 * Math.max(0, Math.sin(phase)) ** 4) + low * 0.3) * bell * 0.6;
-        else if (p.model === "horn")
-          value = (Math.sin(phase) + 0.5 * Math.sin(phase * 1.25) + 0.1 * Math.sin(phase * 2)) * bell * 0.17;
-        else if (p.model === "siren") value = (Math.sin(phase) + 0.15 * Math.sin(phase * 3)) * bell * 0.22;
-        else if (p.model === "radio")
-          value = (band * Math.sin(phase) * 0.7 + (noise - band) * 0.06) * bell * (0.55 + 0.45 * Math.sin(t * 31));
-        else if (p.model === "buzz") value = (Math.sin(phase) + 0.08 * Math.sin(phase * 3)) * bell * 0.13;
-        else value = (Math.sin(phase) + 0.08 * Math.sin(phase * 2)) * bell * (0.6 + 0.4 * Math.cos(t * 22)) * 0.23;
-        data[i] = value * Math.min(1, t / 0.008, (p.dur - t) / 0.018);
+        const flit = 0.5 + 0.5 * Math.sin(t * (18 + p.body * 0.013));
+        const drift = mechanical ? 0.11 * Math.cos(t * 7) : 0.075 * Math.sin(t * 11 + x * 4);
+        phase += (Math.PI * 2 * p.body * (0.84 + drift + (liquid ? 0.22 * Math.exp(-t * 28) : 0))) / rate;
+        const resonator =
+          Math.sin(phase + 0.82 * Math.sin(phase * 1.384)) * 0.22 + Math.sin(phase * 2.65 + 0.2) * 0.038;
+        const value = airy
+          ? (low * 0.47 + band * 0.49) * bell * (0.7 + 0.3 * flit)
+          : liquid
+            ? (resonator * 0.69 + band * 0.29) * Math.exp(-t * 19) * (0.65 + 0.35 * flit)
+            : (resonator * (mechanical ? 0.64 : 1) + band * (mechanical ? 0.22 : 0.063)) * bell * (0.32 + 0.68 * flit);
+        data[i] = value * Math.min(1, t / 0.009, (p.dur - t) / 0.024);
         continue;
       }
       const attack = Math.min(1, t / (p.warn ? 0.04 : p.hold ? 0.012 : 0.002));
@@ -600,8 +584,13 @@ export class PhysicalVoices {
         : p.hold
           ? Math.sin(Math.PI * x) ** 0.5
           : Math.exp(-t / (p.dur * 0.22));
-      phase += (Math.PI * 2 * p.body * (p.warn ? 0.7 + x * 0.5 : 1 + 0.45 * Math.exp(-t * 40))) / rate;
-      const modes = (Math.sin(phase) + 0.27 * Math.sin(phase * 1.593 + 0.3) + 0.13 * Math.sin(phase * 2.117)) * 0.15;
+      const sweep = p.warn ? 0.64 + 0.49 * x + Math.floor(x * 4) * 0.045 : 0.88 + 0.41 * Math.exp(-t * 31);
+      phase += (Math.PI * 2 * p.body * sweep) / rate;
+      const shimmer = Math.sin(phase * 1.73) * (0.68 + 0.32 * Math.cos(t * 21));
+      const modes =
+        Math.sin(phase + shimmer * 0.9) * 0.17 +
+        Math.sin(phase * 2.43 + 0.2) * 0.061 +
+        Math.sin(phase * 3.92) * 0.033 * Math.exp(-t * 7);
       const air = (band - low) * p.air * (p.warn ? envelope : Math.exp(-t / (p.dur * 0.38)));
       const grains = noise * (Math.sin(t * 611 + variant) > 0.7 ? 1 : 0.1) * p.grain * Math.exp(-t * 22);
       let recorded = 0;
@@ -670,7 +659,7 @@ export class PhysicalVoices {
   }
 }
 
-// Softer acoustic partials revoice the existing score without changing note timing or its voice budget.
+// The score uses original harmonic spectra for ceramic keys, bowed reeds and brass resonators.
 const waves = new WeakMap();
 export function setNaturalWave(ctx, oscillator, shape) {
   if (shape === "sine") {
@@ -682,8 +671,17 @@ export function setNaturalWave(ctx, oscillator, shape) {
   if (!cache.has(shape)) {
     const real = new Float32Array(24),
       imag = new Float32Array(24);
-    for (let n = 1; n < imag.length; n++)
-      imag[n] = (shape === "square" && n % 2 === 0 ? 0.08 : 1) / Math.pow(n, shape === "triangle" ? 2.6 : 1.8);
+    const partials = {
+      ceramic: [1, 0.05, 0.41, 0.18, 0.08, 0.046, 0.06],
+      reed: [1, 0.045, 0.23, 0.019, 0.12, 0.04, 0.064],
+      brass: [1, 0.39, 0.31, 0.19, 0.091, 0.071, 0.041],
+      bow: [1, 0.23, 0.11, 0.07, 0.036, 0.031, 0.012],
+      triangle: [1, 0, 0.115, 0, 0.037],
+      square: [1, 0, 0.29, 0, 0.147, 0, 0.076],
+      sawtooth: [1, 0.35, 0.2, 0.11, 0.08, 0.057, 0.037],
+    }[shape];
+    if (partials) imag.set(partials, 1);
+    else imag[1] = 1;
     cache.set(shape, ctx.createPeriodicWave(real, imag));
   }
   oscillator.setPeriodicWave(cache.get(shape));

@@ -1,47 +1,70 @@
-"""Build the short CC0 physical source bank; needs Python 3 and ffmpeg, never at game startup."""
+"""Synthesize Riftline's original short excitation bank at 22,050 Hz."""
 from pathlib import Path
-import argparse, array, hashlib, json, math, subprocess, urllib.request, wave
+import json
+import math
+import random
+import struct
+import wave
+
 ROOT = Path(__file__).resolve().parent.parent
-parser = argparse.ArgumentParser()
-parser.add_argument('--source-dir', type=Path)
-args = parser.parse_args()
-cache = args.source_dir or ROOT / 'node_modules/.cache/riftline/audio-sources'
-cache.mkdir(parents=True, exist_ok=True)
-rows = json.loads((ROOT / 'tools/audio-sources.json').read_text())
-rate = 22050
-bank = array.array('h')
+RATE = 22050
+TAU = math.tau
+# Clip, length, fundamental, detuned upper modes, brightness, dispersion.
+CLIPS = [
+    ("stylus_tap_000", .19, 482, (1, 2.53, 4.21), .22, .003),
+    ("stylus_tap_001", .21, 531, (1, 2.37, 4.19), .23, .007),
+    ("ceramic_knock_000", .34, 233, (1, 2.19, 3.72), .29, .014),
+    ("ceramic_knock_001", .39, 207, (1, 2.36, 4.15), .32, .012),
+    ("brass_plate", .45, 188, (1, 2.85, 4.09), .11, .007),
+    ("porcelain_burst_000", .37, 617, (1, 1.55, 2.39, 4.24), .29, .016),
+    ("porcelain_burst_001", .42, 587, (1, 1.91, 2.49, 4.53), .35, .023),
+    ("clay_thump", .24, 122, (1, 1.91, 2.57), .36, .016),
+    ("felt_tap", .20, 171, (1, 1.39, 2.18), .26, .008),
+    ("wooden_resonator", .29, 311, (1, 1.57, 3.22), .16, .012),
+    ("stone_step_000", .17, 163, (1, 2.1, 4.7), .43, .011),
+    ("stone_step_001", .18, 177, (1, 2.28, 4.85), .39, .008),
+    ("frost_step", .26, 292, (1, 2.14, 3.37), .68, .027),
+    ("reed_step", .24, 147, (1, 1.91, 3.77), .57, .019),
+    ("panel_step", .21, 196, (1, 2.75, 4.12), .28, .009),
+    ("reed_release", .18, 321, (1, 1.53, 2.74), .35, .009),
+    ("spindle_strike", .36, 361, (1, 2.94, 4.67), .15, .008),
+    ("compressed_coil", .21, 139, (1, 2.37, 4.2), .56, .005),
+    ("split_reed_release", .26, 104, (1, 2.31, 3.64), .53, .017),
+]
+
+
+def render(index, length, f, partials, hiss, scatter):
+    rnd = random.Random(2871 + index)
+    pcm = []
+    lp = 0
+    for i in range(round(RATE * length)):
+        t = i / RATE
+        lp += .17 * (rnd.uniform(-1, 1) - lp)
+        y = hiss * lp * math.exp(-t / .033)
+        for k, m in enumerate(partials):
+            d = max(0, t - scatter * k)
+            onset = min(1, d / .003)
+            swing = .016 * (1 - math.exp(-d * 66))
+            y += (math.sin(TAU * f * m * (d + swing)) * onset *
+                  math.exp(-d / (length * (.26 - k*.036))) / (1 + k * 1.1))
+        y *= min(1, t/.003, (length-t)/.021)
+        pcm.append(y)
+    peak = max(map(abs, pcm))
+    return [round(y / peak * .74 * 32767) for y in pcm]
+
+
 clips = {}
-for row in rows:
-    file = cache / row['file']
-    if not file.exists():
-        urllib.request.urlretrieve(row['url'], file)
-    assert hashlib.sha256(file.read_bytes()).hexdigest() == row['sha256'], row['file'] + ' changed'
-    raw = subprocess.check_output(['ffmpeg', '-v', 'error', '-i', str(file), '-ac', '1', '-ar', str(rate), '-f', 'f32le', '-'])
-    pcm = array.array('f')
-    pcm.frombytes(raw)
-    peak = max((abs(v) for v in pcm))
-    onset = next((i for i, v in enumerate(pcm) if abs(v) > peak * 0.035), 0)
-    start = max(0, onset - int(rate * 0.003))
-    name = Path(row['file']).stem
-    duration = 0.16 if name == 'rifle_fire' else 0.24 if name == 'shotgun_fire' else 0.09 if name.startswith('ppsh') else 0.55 if 'heavy' in name or 'axe-' in name else 0.34
-    sample = pcm[start:start + int(rate * duration)]
-    peak = max((abs(v) for v in sample)) or 1
-    offset = len(bank) / rate
-    n = len(sample)
-    for i, v in enumerate(sample):
-        fade = min(1, i / (rate * 0.002), (n - 1 - i) / (rate * 0.018))
-        bank.append(round(max(-1, min(1, v / peak * 0.78 * max(0, fade))) * 32767))
-    clips[name] = {'start': round(offset, 7), 'duration': round(n / rate, 7)}
-    bank.extend([0] * int(rate * 0.025))
-with wave.open(str(ROOT / 'public/audio/physical-bank.wav'), 'wb') as w:
-    w.setnchannels(1)
-    w.setsampwidth(2)
-    w.setframerate(rate)
-    w.writeframes(bank.tobytes())
-(ROOT / 'src/audio/source-bank.js').write_text('// Generated CC0 source-bank regions in seconds; rebuild with tools/build-audio-bank.py.\nexport const SOURCE_CLIPS = ' + json.dumps(clips, indent=2) + ';\n')
-lines = ['# Physical sound sources', '', 'The shipped WAV contains trimmed, faded and peak-normalized mono excerpts of these CC0 recordings.', 'The bank is 22,050 Hz / 16-bit PCM; playback and the new physical layers run locally, including offline.', 'Rebuild: `python tools/build-audio-bank.py` (Python 3 and ffmpeg). Pinned URLs and input hashes are in `tools/audio-sources.json`.', '', '| Original file | Creator | License and source |', '|---|---|---|']
-for row in rows:
-    lines.append('| ' + row['file'] + ' | ' + row['author'] + ' | [CC0-1.0](' + row['source'] + ') · [pinned recording](' + row['url'] + ') |')
-lines += ['', 'Kenney original pack: https://kenney.nl/assets/impact-sounds', 'Still North Media library and license: https://github.com/PanderMusubi/sound-effects-library-weapons', 'CC0 legal text: https://creativecommons.org/publicdomain/zero/1.0/', '']
-(ROOT / 'public/audio/SOURCES.md').write_text('\n'.join(lines))
-print(len(clips), 'clips;', round(len(bank) / rate, 2), 'seconds;', len(bank) * 2 + 44, 'bytes')
+bank = []
+for i, (name, *args) in enumerate(CLIPS):
+    clip = render(i, *args)
+    clips[name] = {"start": round(len(bank) / RATE, 7), "duration": round(len(clip) / RATE, 7)}
+    bank.extend(clip)
+    bank.extend([0] * round(RATE * .025))
+
+with wave.open(str(ROOT / "public/audio/physical-bank.wav"), "wb") as wav:
+    wav.setparams((1, 2, RATE, len(bank), "NONE", "not compressed"))
+    wav.writeframes(struct.pack(f"<{len(bank)}h", *bank))
+(ROOT / "src/audio/source-bank.js").write_text(
+    "// Original synthesized excitation regions in seconds. Rebuild with tools/build-audio-bank.py.\n"
+    + "export const SOURCE_CLIPS = " + json.dumps(clips, indent=2) + ";\n",
+)

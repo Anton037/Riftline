@@ -162,10 +162,10 @@ const healthBarTypes = {
           hpFrac = clamp(enemy.hp / enemy.maxHp, 0, 1);
         ctx.fillStyle = "rgba(0,0,0,0.55)";
         ctx.fillRect(pos.x - width / 2 - 1, pos.y - 1, width + 2, 5);
-        ctx.fillStyle = enemy.elite ? "#ffc84a" : "#ff5a7a";
+        ctx.fillStyle = enemy.elite ? "#efbb7f" : "#ef8e73";
         ctx.fillRect(pos.x - width / 2, pos.y, width * hpFrac, 3);
         if (enemy.shieldMax > 0 && enemy.shield > 0) {
-          ctx.fillStyle = "#8fd4ff";
+          ctx.fillStyle = "#b5dcdc";
           ctx.fillRect(pos.x - width / 2, pos.y - 4, width * (enemy.shield / enemy.shieldMax), 2);
         }
       }
@@ -178,13 +178,13 @@ const healthBarTypes = {
         let alpha = clamp(num.life / 0.35, 0, 1),
           pop = 1 + Math.max(0, 1 - (renderer.time - num.t0) / 0.12) * 0.3,
           fontSize = Math.min(24, (num.crit ? 14 : num.burn ? 9 : 11) + 3.4 * Math.log10(1 + Math.max(0, num.v))) * pop;
-        ctx.font = `700 ${fontSize}px "Chakra Petch", "Barlow Semi Condensed", system-ui, sans-serif`;
+        ctx.font = `700 ${fontSize}px "Instrument Sans", system-ui, sans-serif`;
         let text = String(Math.max(1, Math.round(num.v)));
         ctx.globalAlpha = alpha;
         ctx.lineWidth = 3;
         ctx.strokeStyle = "rgba(6,8,16,0.85)";
         ctx.strokeText(text, pos.x, pos.y);
-        ctx.fillStyle = num.crit ? "#ffd84a" : num.burn ? "#ff9a4a" : num.shield ? "#8fd4ff" : "#ffffff";
+        ctx.fillStyle = num.crit ? "#f4cb8d" : num.burn ? "#ff9a4a" : num.shield ? "#b5dcdc" : "#f9edcf";
         ctx.fillText(text, pos.x, pos.y);
       }
       ctx.globalAlpha = 1;
@@ -310,7 +310,7 @@ const healthBarTypes = {
         if (callout.life > 0 && pos.vis) {
           let alpha = Math.min(1, callout.life / 0.3);
           ctx.globalAlpha = alpha;
-          ctx.font = '700 16px "Chakra Petch", system-ui, sans-serif';
+          ctx.font = '700 16px "Instrument Sans", system-ui, sans-serif';
           ctx.textAlign = "center";
           ctx.lineWidth = 4;
           ctx.strokeStyle = "rgba(6,8,16,0.9)";
@@ -335,13 +335,13 @@ const healthBarTypes = {
           center = input.fixedMove(radius);
         ctx.globalAlpha = 0.5;
         ctx.lineWidth = 2;
-        ctx.strokeStyle = "rgba(120,240,255,0.45)";
-        ctx.fillStyle = "rgba(80,220,255,0.05)";
+        ctx.strokeStyle = "rgba(176,218,193,0.45)";
+        ctx.fillStyle = "rgba(132,186,160,0.05)";
         ctx.beginPath();
         ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
-        ctx.fillStyle = "rgba(120,240,255,0.4)";
+        ctx.fillStyle = "rgba(176,218,193,0.4)";
         ctx.beginPath();
         ctx.arc(center.x, center.y, radius * 0.42, 0, Math.PI * 2);
         ctx.fill();
@@ -352,24 +352,33 @@ const healthBarTypes = {
           isAim = stick === input.aim;
         ctx.globalAlpha = 0.9;
         ctx.lineWidth = 2;
-        ctx.strokeStyle = isAim ? "rgba(255,120,150,0.55)" : "rgba(120,240,255,0.5)";
-        ctx.fillStyle = isAim ? "rgba(255,90,130,0.08)" : "rgba(80,220,255,0.08)";
+        ctx.strokeStyle = isAim ? "rgba(248,168,127,0.55)" : "rgba(176,218,193,0.5)";
+        ctx.fillStyle = isAim ? "rgba(242,141,100,0.08)" : "rgba(132,186,160,0.08)";
         ctx.beginPath();
         ctx.arc(stick.ox, stick.oy, radius, 0, Math.PI * 2);
         ctx.fill();
+        ctx.stroke();
+        ctx.beginPath();
+        for (let i = 0; i < 8; i++) {
+          const angle = (Math.PI * i) / 4,
+            x = Math.cos(angle) * radius,
+            y = Math.sin(angle) * radius;
+          ctx.moveTo(stick.ox + x * 0.87, stick.oy + y * 0.87);
+          ctx.lineTo(stick.ox + x, stick.oy + y);
+        }
         ctx.stroke();
         let dx = stick.x - stick.ox,
           dy = stick.y - stick.oy,
           dist = Math.hypot(dx, dy),
           scale = dist > radius ? radius / dist : 1;
-        ctx.fillStyle = isAim ? "rgba(255,120,150,0.7)" : "rgba(120,240,255,0.65)";
+        ctx.fillStyle = isAim ? "rgba(248,168,127,0.7)" : "rgba(176,218,193,0.65)";
         ctx.beginPath();
         ctx.arc(stick.ox + dx * scale, stick.oy + dy * scale, radius * 0.42, 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.globalAlpha = 1;
       if (opts.hints) {
-        ctx.font = '600 14px "Barlow Semi Condensed", system-ui, sans-serif';
+        ctx.font = '600 14px "Instrument Sans", system-ui, sans-serif';
         ctx.textAlign = "center";
         ctx.fillStyle = "rgba(200,230,255,0.75)";
         let y = this.h - (opts.safe ? opts.safe.b : 0) - 58;

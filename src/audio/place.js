@@ -80,99 +80,91 @@ const PLACE = Object.fromEntries(
 const SCAPE = {
   city: {
     bed: [
-      ["rainDrop", 2.0, 4.8, 0.35, 0],
-      ["gutter", 5.5, 11, 0.32],
-      ["rainMetal", 9, 18, 0.28],
+      ["lampBuzz", 6, 12, 0.39],
+      ["rainMetal", 9, 17, 0.26, 0.34],
     ],
     far: [
-      { id: "thunder", every: [28, 56], big: true, light: "lightning" },
-      { id: "siren", every: [65, 130], big: true, light: "siren" },
-      { id: "helicopter", every: [75, 150], big: true },
-      { id: "horn", every: [35, 75] },
-      { id: "dog", every: [35, 70] },
-      { id: "carAlarm", every: [55, 110] },
-      { id: "carPass", every: [24, 50] },
-      { id: "radio", every: [40, 85] },
-      { id: "sparks", every: [30, 65] },
+      { id: "clunk", every: [18, 36] },
+      { id: "thunder", every: [41, 84], big: true, light: "lightning" },
+      { id: "shimmer", every: [24, 48] },
+      { id: "gravityHum", every: [37, 64], light: "siren" },
     ],
   },
   shelf: {
-    bed: [["wind", 4.5, 9.0, 0.45]],
+    bed: [
+      ["wind", 4.4, 8.8, 0.43],
+      ["iceTink", 9, 16, 0.24],
+    ],
     far: [
-      { id: "howl", every: [28, 56] },
-      { id: "groan", every: [32, 64] },
-      { id: "icicles", every: [24, 50] },
-      { id: "avalanche", every: [85, 165], big: true },
-      { id: "crystals", every: [28, 56] },
-      { id: "bigCrack", every: [38, 76], big: true },
-      { id: "gust", every: [24, 48] },
+      { id: "icicles", every: [16, 34] },
+      { id: "crystals", every: [28, 52] },
+      { id: "groan", every: [32, 61], big: true },
+      { id: "avalanche", every: [68, 130], big: true },
     ],
   },
   marsh: {
-    bed: [["cricket", 3.5, 7.5, 0.36, 0]],
+    bed: [
+      ["drip", 4.0, 8.0, 0.37, 0],
+      ["acidBubble", 6, 11, 0.28, 0.35],
+    ],
     far: [
-      { id: "drip", every: [20, 40] },
-      { id: "frogChorus", every: [26, 52] },
-      { id: "cicada", every: [28, 56] },
-      { id: "insect", every: [24, 50] },
-      { id: "splash", every: [28, 56] },
-      { id: "owl", every: [45, 90] },
-      { id: "heron", every: [50, 95], big: true },
-      { id: "frogs", every: [22, 46] },
-      { id: "bird", every: [28, 56] },
-      { id: "mud", every: [24, 48] },
+      { id: "frogs", every: [23, 49] },
+      { id: "bird", every: [36, 68] },
+      { id: "splash", every: [25, 60] },
+      { id: "breath", every: [40, 64], big: true },
     ],
   },
   flats: {
-    bed: [["heatHiss", 5.0, 10.0, 0.38, 0]],
+    bed: [
+      ["heatHiss", 4.8, 8.9, 0.34, 0],
+      ["devilMoan", 9, 16, 0.31],
+    ],
     far: [
-      { id: "glassPing", every: [22, 44] },
-      { id: "devilMoan", every: [26, 54] },
-      { id: "dustRush", every: [22, 46] },
-      { id: "cicada", every: [26, 54] },
-      { id: "crystals", every: [28, 58] },
-      { id: "gust", every: [32, 64] },
-      { id: "howl", every: [48, 96], big: true },
+      { id: "glassPing", every: [17, 34] },
+      { id: "gust", every: [24, 54] },
+      { id: "dustRush", every: [41, 65], big: true },
+      { id: "crystals", every: [30, 58] },
     ],
   },
   core: {
-    bed: [["heartbeat", 5.0, 9.5, 0.38, 0.5]],
+    bed: [
+      ["gravityHum", 6.5, 11.5, 0.4, 0.5],
+      ["shimmer", 9.5, 17, 0.27],
+    ],
     far: [
-      { id: "reversed", every: [28, 56] },
+      { id: "reversed", every: [20, 47] },
+      { id: "glitch", every: [24, 48] },
       { id: "metal", every: [32, 64] },
-      { id: "chirp", every: [24, 48] },
-      { id: "swell", every: [34, 68], big: true },
-      { id: "shimmer", every: [28, 56] },
-      { id: "breath", every: [32, 60] },
-      { id: "glitch", every: [26, 52] },
+      { id: "swell", every: [37, 61], big: true },
     ],
   },
   caldera: {
     bed: [
-      ["calderaRumble", 4.5, 9.0, 0.42],
-      ["ventPulse", 4.0, 8.5, 0.34, 0],
+      ["calderaRumble", 4.5, 8, 0.43],
+      ["fumarole", 8, 13, 0.34, 0],
     ],
     far: [
-      { id: "emberPop", every: [20, 40] },
-      { id: "fumarole", every: [24, 48] },
-      { id: "rockFall", every: [24, 48] },
-      { id: "farBoom", every: [28, 56] },
-      { id: "steamBlast", every: [28, 56] },
-      { id: "cinderGust", every: [34, 68] },
-      { id: "fumaroleRush", every: [48, 96], big: true },
+      { id: "emberPop", every: [16, 36] },
+      { id: "cinderGust", every: [32, 64] },
+      { id: "rockFall", every: [26, 50] },
+      { id: "farBoom", every: [41, 76], big: true },
     ],
   },
 };
 const PLACE_IDS = Object.keys(PLACE);
 
-/* 3.17.0: the sounding prop nearest to the drone (null: none within PROP_HEAR). The street lamps stand every ~7 m
-   1.6 m outside the edges (render/biome-props.js rlStreet), the machine blocks are the box obstacles of the Ember
-   Works, the obelisks the round obstacles of the Shattered Core (render/biome-visuals.js). */
 const PROP_HEAR = 7;
+const COVER_VOICE = {
+  city: "hum",
+  shelf: "iceTink",
+  marsh: "drip",
+  core: "gravityHum",
+  caldera: "ventPulse",
+  flats: "glassPing",
+};
 function nearestProp(arena, player) {
-  const biome = arena.biome.id;
-  let best = null,
-    bestD = PROP_HEAR;
+  let best = null;
+  let bestD = PROP_HEAR;
   const take = (x, y, id, lo, hi) => {
     const d = Math.hypot(x - player.x, y - player.y);
     if (d < bestD) {
@@ -180,24 +172,20 @@ function nearestProp(arena, player) {
       best = { x, y, id, lo, hi };
     }
   };
+  const biome = arena.biome.id;
+  for (const ob of arena.obs) take(ob.x, ob.y, COVER_VOICE[biome], 5, 10);
   if (biome === "city") {
-    const W = arena.W,
-      H = arena.H;
-    for (const [len, along, fixed, alongX] of [
-      [W, player.x, -H - 1.6, true],
-      [W, player.x, H + 1.6, true],
-      [H, player.y, -W - 1.6, false],
-      [H, player.y, W + 1.6, false],
-    ]) {
-      const n = Math.round((len * 2) / 7),
-        step = (len * 2) / n,
-        i = Math.max(0, Math.min(n, Math.round((along + len) / step))),
-        s = -len + i * step;
-      if (alongX) take(s, fixed, "lampBuzz", 4.5, 8.5);
-      else take(fixed, s, "lampBuzz", 4.5, 8.5);
+    // The tall lamps in biome-props occur on every third section of the exterior sill.
+    for (const alongX of [true, false]) {
+      const length = alongX ? arena.W : arena.H;
+      const edge = alongX ? arena.H : arena.W;
+      const along = Math.round((alongX ? player.x : player.y) / 8.4) * 8.4;
+      if (Math.abs(along) > length - 0.9) continue;
+      for (const side of [-1, 1]) {
+        const across = side * (edge + 1.2);
+        take(alongX ? along : across, alongX ? across : along, "lampBuzz", 6, 12);
+      }
     }
-  } else if (biome === "core") {
-    for (const ob of arena.obs) if (ob.t === "c") take(ob.x, ob.y, "gravityHum", 4.5, 8.5);
   }
   return best;
 }

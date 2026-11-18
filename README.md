@@ -60,7 +60,7 @@ Generated verification output belongs in the ignored `verification-output/` dire
 | `src/core/` | Deterministic simulation, combat, waves, maps and saves |
 | `src/data/` | Weapons, actors, biomes, upgrades and progression |
 | `src/render/` | Three.js models, materials, scenery and effects |
-| `src/audio/` | Recorded material voices, music and environmental sound |
+| `src/audio/` | Synthesized material voices, music and environmental sound |
 | `src/ui/` | Touch and keyboard/mouse input, screens, HUD and haptics |
 | `public/` | Fonts, textures, sound bank, app icons and asset notices |
 | `tests/` | Simulation, geometry, browser and worker tests |
@@ -79,4 +79,4 @@ A crash report records the release, device and relevant errors; include it when 
 ## Asset credits
 
 [Third-party notices](public/THIRD-PARTY-NOTICES.txt) contain the bundled code and font licenses.
-[Audio sources](public/audio/SOURCES.md) credit the recorded sounds and explain how to rebuild the bank.
+[Audio sources](public/audio/SOURCES.md) describe the original synthesized sounds and how to rebuild the bank.

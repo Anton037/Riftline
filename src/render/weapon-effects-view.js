@@ -6,8 +6,8 @@ import { clamp } from "../core/util.js";
 import { hexColor, additiveMaterial } from "./materials.js";
 
 const WHITE = hexColor(0xe8f7ff),
-  ARC = hexColor(0x9d86ff),
-  ARC_CORE = hexColor(0xe0edff),
+  ARC = hexColor(0xb89be6),
+  ARC_CORE = hexColor(0xf1e4cf),
   COPPER = hexColor(0xffd6a0);
 const flameVertex = `
 #include <common>
@@ -32,24 +32,19 @@ const flameFragment = `
 uniform float uTime;
 varying vec2 vUv;
 varying vec3 vState;
-float hash21(vec2 p) { return fract(sin(dot(p,vec2(127.1,311.7))) * 43758.5453); }
-float noise(vec2 p) {
-  vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
-  return mix(mix(hash21(i),hash21(i+vec2(1,0)),f.x),mix(hash21(i+vec2(0,1)),hash21(i+1.0),f.x),f.y);
-}
 void main() {
-  float u=vUv.x, v=abs(vUv.y-.5);
-  vec2 q=vec2(u*6.0-uTime*7.0+vState.g*31.0,vUv.y*5.0);
-  float n=noise(q)*.65+noise(q*2.1)*.35;
-  float width=(.05+.31*pow(max(0.0,sin(u*3.14159)),.65))*(.72+n*.45);
-  float alpha=(1.0-smoothstep(width-.10,width+.03,v))*smoothstep(0.0,.14,u)*(1.0-smoothstep(.90,1.0,u));
-  alpha *= (.5+n*.5)*(1.0-vState.r*.6)*vState.b;
-  if(alpha<.015) discard;
-  float heatU=vState.r<0.0?1.0-u:u;
-  float heat=clamp(heatU*.8+(1.0-v/width)*.4-max(0.0,vState.r)*.5+n*.15,0.0,1.0);
-  vec3 col=mix(vec3(.64,.055,.006),vec3(1.0,.32,.025),smoothstep(0.0,.65,heat));
-  col=mix(col,vec3(1.0,.88,.45),smoothstep(.65,1.0,heat));
-  gl_FragColor=vec4(col,alpha*.8);
+  float u=vUv.x;
+  float drift=sin(u*12.0-uTime*10.5+vState.g*12.0)*.12*(1.-u);
+  float edge=abs(vUv.y-.5+drift);
+  float w=.09+.29*sin(u*3.14159);
+  float ribs=.58+.42*cos(u*34.0-uTime*15.0+vState.g*29.0);
+  float alpha=(1.0-smoothstep(w-.05,w+.035,edge))*smoothstep(0.0,.13,u)*(1.0-smoothstep(.89,1.0,u));
+  alpha*=ribs*(1.0-max(0.0,vState.r)*.68)*vState.b;
+  if(alpha<.014)discard;
+  float heat=(1.0-smoothstep(.01,w,edge))*ribs;
+  vec3 col=mix(vec3(.59,.072,.05),vec3(.97,.45,.18),smoothstep(.0,.58,heat));
+  col=mix(col,vec3(1.,.89,.64),smoothstep(.62,1.0,heat));
+  gl_FragColor=vec4(col,alpha*.86);
   #include <fog_fragment>
   #include <colorspace_fragment>
 }`;

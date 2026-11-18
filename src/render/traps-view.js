@@ -4,19 +4,9 @@
 // costs a handful of draw calls and no per-frame allocations. Telegraphs keep the language of the boss hazards: a red
 // ring that fills up, never used for decoration. The look of the idle trap stays dark and quiet.
 
-import {
-  Color,
-  ConeGeometry,
-  CylinderGeometry,
-  DodecahedronGeometry,
-  MeshBasicMaterial,
-  OctahedronGeometry,
-  SphereGeometry,
-  TorusGeometry,
-} from "three";
+import { Color, CylinderGeometry, MeshBasicMaterial, OctahedronGeometry, TorusGeometry } from "three";
 import { worldMaterial } from "./world-material.js";
-import { strataGeometry, shardGeometry } from "./strata-geometry.js";
-import { meshPart, mergeParts, box, ball, bar, spike } from "./models.js";
+import { meshPart, mergeParts } from "./models.js";
 import { clamp, TAU, angleDiff } from "../core/util.js";
 
 const WHITE = new Color(16777215),
@@ -56,408 +46,94 @@ const LOOK = {
 const ARMING = hex(0x6fa0ff),
   TRIGGER = hex(0xcfd8e6);
 
-let seed = 7;
-const rnd = () => {
-  seed = (seed * 1664525 + 1013904223) >>> 0;
-  return seed / 4294967296;
-};
-const cyl = (color, rt, rb, h, seg, p = {}) =>
-    meshPart(new CylinderGeometry(rt, rb, h, seg), color, { ...p, y: (p.y || 0) + h / 2 }),
-  cone = (color, r, h, seg, p = {}) => meshPart(new ConeGeometry(r, h, seg), color, { ...p, y: (p.y || 0) + h / 2 }),
-  // a flat bar that runs radially at angle a from radius r0 to r1 (centre height y)
-  rbar = (color, a, r0, r1, w, h, y) =>
-    box(color, r1 - r0, h, w, { x: Math.cos(a) * (r0 + r1) * 0.5, y, z: Math.sin(a) * (r0 + r1) * 0.5, ry: -a }),
-  ring = (n, fn) => {
-    const out = [];
-    for (let i = 0; i < n; i++) out.push(fn((i / n) * TAU, i));
-    return out.flat();
-  },
-  easeOut = (k) => 1 - (1 - k) * (1 - k);
+const easeOut = (k) => 1 - (1 - k) * (1 - k);
+const metal = 0xcc9564,
+  plate = 0x293636;
+const facets = (n, fn) => Array.from({ length: n }, (_, i) => fn((i * TAU) / n, i));
+const disk = (r, h, color, y, n = 12) => meshPart(new CylinderGeometry(r * 0.93, r, h, n), color, { y });
+const gem = (r, color, p) => meshPart(new OctahedronGeometry(r), color, p);
+const bezel = (r, w, color, y, n = 24) => meshPart(new TorusGeometry(r, w, 5, n), color, { y, rx: Math.PI / 2 });
 
-/* ==========================================================================
- Models. Floor traps are built for radius 1 (scaled to the trap's radius), mines and emitters in world units.
- body: Lambert with vertex colours; glow: unlit, vertex colour = hue, instance colour = brightness (mines: white
- vertices, the hue comes from the instance); mover: Lambert, animated by the instance matrix (head, crystals, ...).
- ========================================================================== */
-// Rooted peat and basalt vents share a natural broken bank, without collars, button faces or lamp studs.
-function naturalVent(bloom) {
-  seed = bloom ? 5 : 13;
-  const rock = bloom ? 0x314335 : 0x424a50,
-    dark = bloom ? 0x1b2c22 : 0x252c31,
-    hot = bloom ? 0x286b53 : 0xbc4818,
-    body = [meshPart(strataGeometry(2, 0.035, 1.9, bloom ? 5 : 13, true), dark)],
-    glow = [meshPart(strataGeometry(0.95, 0.018, 0.86, bloom ? 8 : 19, true), hot, { y: 0.045 })];
-  for (let i = 0; i < 9; i++) {
-    const a = (i / 9) * TAU + rnd() * 0.35,
-      d = 0.53 + rnd() * 0.14,
-      size = 0.1 + rnd() * 0.1;
-    body.push(
-      meshPart(new DodecahedronGeometry(size), i % 3 ? rock : dark, {
-        x: Math.cos(a) * d,
-        y: size * 0.32,
-        z: Math.sin(a) * d,
-        sx: 0.8 + rnd() * 0.7,
-        sy: 0.55,
-        sz: 0.8 + rnd() * 0.4,
-        ry: a,
-      }),
-    );
-  }
-  for (let i = 0; i < 3; i++) {
-    const a = (i / 3) * TAU + 0.4;
-    glow.push(
-      bar(
-        hot,
-        0.018,
-        [Math.cos(a) * 0.32, 0.04, Math.sin(a) * 0.32],
-        [Math.cos(a + 0.2) * 0.82, 0.04, Math.sin(a + 0.2) * 0.82],
-        0.012,
-      ),
-    );
-  }
+function tile(color, glowColor, slots, shape) {
   return {
-    body,
-    glow,
-    mover: [
-      meshPart(new SphereGeometry(0.3, 10, 6, 0, TAU, 0, Math.PI / 2), bloom ? 0x26503d : 0x783718, { y: 0.055 }),
-    ],
+    body: [disk(0.97, 0.1, plate, 0.05, 12), disk(0.84, 0.085, color, 0.103, slots), bezel(0.87, 0.033, metal, 0.138)],
+    glow: facets(slots, (a) =>
+      gem(0.13, glowColor, {
+        x: Math.cos(a) * 0.68,
+        z: Math.sin(a) * 0.68,
+        y: 0.153,
+        ry: -a,
+        sx: 1.1,
+        sy: 0.18,
+        sz: 0.48,
+      }),
+    ),
+    ...(shape ? { mover: shape } : {}),
   };
 }
+
+function obelisk(color, n) {
+  return facets(n, (a, i) =>
+    gem(i === 0 ? 0.53 : 0.25, color, {
+      x: i === 0 ? 0 : Math.cos(a) * 0.36,
+      z: i === 0 ? 0 : Math.sin(a) * 0.36,
+      y: i === 0 ? 0.43 : 0.26,
+      ry: a,
+      rz: Math.cos(a) * 0.28,
+      sy: i === 0 ? 1.04 : 0.92,
+    }),
+  );
+}
+
+function emitter(color, accent, h, profile) {
+  return {
+    body: [
+      disk(0.66, 0.16, plate, 0.08, 8),
+      disk(0.52, 0.15, color, 0.21, profile),
+      disk(0.24, h, color, h * 0.5 + 0.27, profile),
+      bezel(0.31, 0.05, metal, h * 0.4 + 0.26, 16),
+    ],
+    glow: facets(4, (a) => gem(0.092, accent, { x: Math.cos(a) * 0.52, z: Math.sin(a) * 0.52, y: 0.22, sy: 0.45 })),
+    mover: [
+      disk(0.36, 0.22, plate, 0, profile),
+      gem(0.48, color, { x: 0.17, sy: 0.61, sz: 0.84, ry: TAU / profile }),
+      meshPart(new TorusGeometry(0.22, 0.041, 5, profile * 3), metal, { x: 0.43, ry: Math.PI / 2 }),
+    ],
+    moverGlow: [gem(0.159, accent, { x: 0.46, sx: 0.37 }), gem(0.071, accent, { x: 0.08, y: 0.3, sy: 1.27 })],
+  };
+}
+
+function mine(color, sides, profile) {
+  return {
+    body: [
+      disk(0.34, 0.1, plate, 0.055, sides),
+      disk(0.27, 0.15, color, 0.147, sides),
+      bezel(0.235, 0.025, metal, 0.2, 18),
+      ...facets(sides, (a) =>
+        gem(0.084, color, { y: 0.12, x: Math.cos(a) * 0.3, z: Math.sin(a) * 0.3, sy: 0.7, ry: -a }),
+      ),
+    ],
+    glow: [gem(0.1, 0xffffff, { y: 0.24, sy: 0.56 }), bezel(0.217, 0.012, 0xffffff, 0.21, 18)],
+    ...(profile ? { mover: [gem(0.12, color, { y: 0.09, sy: 1.33 }), bezel(0.16, 0.022, metal, 0.07, 12)] } : {}),
+  };
+}
+
 const MODELS = {
-  // Blackout City: an electrified steel plate with live conduits
-  plate: () => ({
-    body: [
-      cyl(0x1a2230, 0.98, 1, 0.07, 8),
-      cyl(0x252e40, 0.78, 0.8, 0.035, 8, { y: 0.07 }),
-      ...ring(8, (a) => cyl(0x3b465c, 0.05, 0.06, 0.05, 6, { x: Math.cos(a) * 0.9, z: Math.sin(a) * 0.9, y: 0.07 })),
-      ...ring(4, (a) => rbar(0x0d121b, a, 0.14, 0.8, 0.1, 0.02, 0.115)),
-      ...ring(4, (a) => rbar(0x2f394d, a + Math.PI / 4, 0.55, 0.9, 0.05, 0.03, 0.09)),
-    ],
-    glow: [
-      ...ring(4, (a) => rbar(0x8fd0ff, a, 0.2, 0.76, 0.035, 0.012, 0.128)),
-      box(0x8fd0ff, 0.2, 0.014, 0.2, { y: 0.13, ry: Math.PI / 4 }),
-      ...ring(8, (a, i) =>
-        box(i % 2 ? 0xffb347 : 0x8fd0ff, 0.07, 0.02, 0.04, {
-          x: Math.cos(a) * 0.93,
-          y: 0.075,
-          z: Math.sin(a) * 0.93,
-          ry: -a,
-        }),
-      ),
-      ...ring(4, (a) => box(0xffb347, 0.05, 0.016, 0.05, { x: Math.cos(a) * 0.78, y: 0.12, z: Math.sin(a) * 0.78 })),
-    ],
-  }),
-  // The Aurora Shelf: a fractured ice crater with frost boulders and erupting crystal shards.
-  icespike: () => {
-    seed = 11;
-    const ice = [0x9ecbe2, 0x7fb4d4, 0xc3e6f7];
-    return {
-      body: [
-        meshPart(strataGeometry(2, 0.04, 2, 11, true), 0x4b748a),
-        ...ring(9, (a, i) => {
-          const d = 0.56 + rnd() * 0.14,
-            s = 0.09 + rnd() * 0.08;
-          return meshPart(new DodecahedronGeometry(s), i % 3 ? 0x628ea4 : 0x3b6074, {
-            x: Math.cos(a) * d,
-            y: s * 0.3,
-            z: Math.sin(a) * d,
-            sx: 0.85 + rnd() * 0.6,
-            sy: 0.55,
-            sz: 0.8 + rnd() * 0.5,
-            ry: rnd() * 3,
-          });
-        }),
-        ...ring(8, (a, i) =>
-          meshPart(shardGeometry(0.22, 0.28 + rnd() * 0.22, 0.14), ice[i % 3], {
-            x: Math.cos(a) * 0.78,
-            y: 0.02,
-            z: Math.sin(a) * 0.78,
-            rx: Math.sin(a) * 0.22,
-            ry: -a,
-            rz: -Math.cos(a) * 0.22,
-          }),
-        ),
-      ],
-      glow: [
-        meshPart(strataGeometry(0.95, 0.018, 0.86, 14, true), 0x8ad8f4, { y: 0.042 }),
-        ...ring(4, (a) => rbar(0xffffff, a + 0.4, 0.22, 0.72, 0.024, 0.012, 0.052)),
-      ],
-      mover: [
-        meshPart(shardGeometry(0.32, 1.0, 0.24), 0xcdeeff),
-        meshPart(shardGeometry(0.24, 0.74, 0.18), 0x8cc9ea, { x: 0.18, z: 0.06, ry: 0.7, rz: -0.18 }),
-        meshPart(shardGeometry(0.22, 0.78, 0.18), 0xeaf8ff, { x: -0.14, z: 0.15, ry: 2.1, rx: 0.16, rz: 0.14 }),
-        meshPart(shardGeometry(0.2, 0.62, 0.16), 0x8cc9ea, { x: -0.08, z: -0.18, ry: 4.0, rx: -0.18 }),
-        meshPart(shardGeometry(0.18, 0.52, 0.14), 0xcdeeff, { x: 0.15, z: -0.14, ry: 5.2, rz: -0.2 }),
-      ],
-    };
-  },
-  // The Glass Flats: a cracked sandstone basin ringed by fused rubble; jagged sheet-glass shards erupt.
-  sunspike: () => {
-    seed = 17;
-    const glass = [0xe8dfc4, 0xd4e6e2, 0xc8b890];
-    return {
-      body: [
-        meshPart(strataGeometry(2, 0.045, 2, 17, true), 0x9c8966),
-        ...ring(9, (a, i) => {
-          const d = 0.56 + rnd() * 0.14,
-            s = 0.09 + rnd() * 0.08;
-          return meshPart(new DodecahedronGeometry(s), i % 3 ? 0xb49f79 : 0x7b6948, {
-            x: Math.cos(a) * d,
-            y: s * 0.3,
-            z: Math.sin(a) * d,
-            sx: 0.85 + rnd() * 0.6,
-            sy: 0.55,
-            sz: 0.8 + rnd() * 0.5,
-            ry: rnd() * 3,
-          });
-        }),
-        ...ring(8, (a, i) =>
-          meshPart(shardGeometry(0.24, 0.28 + rnd() * 0.24, 0.14), glass[i % 3], {
-            x: Math.cos(a) * 0.76,
-            y: 0.02,
-            z: Math.sin(a) * 0.76,
-            rx: Math.sin(a) * 0.24,
-            ry: -a,
-            rz: -Math.cos(a) * 0.24,
-          }),
-        ),
-      ],
-      glow: [
-        meshPart(strataGeometry(0.95, 0.018, 0.86, 21, true), 0xffdfa0, { y: 0.045 }),
-        ...ring(4, (a) => rbar(0xfff3d6, a + 0.5, 0.2, 0.74, 0.024, 0.012, 0.055)),
-      ],
-      mover: [
-        meshPart(shardGeometry(0.32, 1.0, 0.2), 0xfff3d6),
-        meshPart(shardGeometry(0.24, 0.72, 0.16), 0xffe9c4, { x: 0.18, z: 0.06, ry: 0.8, rz: -0.2 }),
-        meshPart(shardGeometry(0.22, 0.76, 0.16), 0xffffff, { x: -0.14, z: 0.15, ry: 2.2, rx: 0.18, rz: 0.14 }),
-        meshPart(shardGeometry(0.2, 0.6, 0.14), 0xffe9c4, { x: -0.08, z: -0.18, ry: 4.1, rx: -0.2 }),
-        meshPart(shardGeometry(0.18, 0.5, 0.14), 0xfff3d6, { x: 0.16, z: -0.14, ry: 5.3, rz: -0.22 }),
-      ],
-    };
-  },
-  geyser: () => naturalVent(true),
-  pyro: () => naturalVent(false),
-  // The Shattered Core: an obsidian disc with a rotating sigil and a hovering shard
-  riftburst: () => {
-    seed = 3;
-    return {
-      body: [
-        meshPart(strataGeometry(2, 0.05, 2, 3, true), 0x35313f),
-        cyl(0x454050, 0.7, 0.72, 0.03, 10, { y: 0.05 }),
-        ...ring(8, (a) => {
-          const h = 0.35 + rnd() * 0.25;
-          return spike(
-            0x1a1230,
-            0.06,
-            4,
-            [Math.cos(a) * 0.98, 0, Math.sin(a) * 0.98],
-            [Math.cos(a) * 1.04, h, Math.sin(a) * 1.04],
-          );
-        }),
-      ],
-      glow: [
-        ...ring(12, (a, i) =>
-          i % 3 === 2
-            ? []
-            : box(0xa56bff, 0.2, 0.02, 0.06, {
-                x: Math.cos(a) * 0.84,
-                y: 0.09,
-                z: Math.sin(a) * 0.84,
-                ry: -a - Math.PI / 2,
-              }),
-        ),
-        ...ring(3, (a) => rbar(0xff4de0, a, 0, 0.5, 0.035, 0.018, 0.1)),
-        ...ring(3, (a) =>
-          bar(
-            0xa56bff,
-            0.04,
-            [Math.cos(a) * 0.5, 0.095, Math.sin(a) * 0.5],
-            [Math.cos(a + 2.094) * 0.5, 0.095, Math.sin(a + 2.094) * 0.5],
-            0.02,
-          ),
-        ),
-        ball(0xffffff, 0.06, 5, 3, { y: 0.1 }),
-      ],
-      mover: [
-        meshPart(new OctahedronGeometry(0.22), 0x5d3bb0, { sy: 1.5 }),
-        meshPart(new OctahedronGeometry(0.12), 0x2a1650, { y: 0.34 }),
-      ],
-    };
-  },
-  // Blackout City: a security laser turret
-  magma: () => ({
-    body: [
-      meshPart(strataGeometry(1.6, 0.35, 1.35, 23, true), 0x3d4141),
-      meshPart(strataGeometry(0.65, 0.5, 0.65, 31, true), 0x4c4b43, { x: -0.25, y: 0.1, rz: 0.2 }),
-    ],
-    glow: [bar(0xff8c2e, 0.025, [-0.5, 0.3, -0.15], [0.6, 0.23, 0.35], 0.02)],
-    mover: [
-      meshPart(strataGeometry(0.8, 0.4, 0.6, 37), 0x3c4142, { x: 0.15 }),
-      meshPart(strataGeometry(0.4, 0.25, 0.48, 18), 0x61584b, { x: 0.62, y: 0.08 }),
-    ],
-    moverGlow: [meshPart(new CylinderGeometry(0.12, 0.14, 0.025, 10), 0xffa245, { x: 0.82, y: 0.13, rz: Math.PI / 2 })],
-  }),
-  laser: () => ({
-    body: [
-      cyl(0x20293a, 0.65, 0.7, 0.2, 6),
-      cyl(0x2e384c, 0.26, 0.34, 0.5, 6, { y: 0.2 }),
-      ...ring(3, (a) => cone(0x3b465c, 0.08, 0.45, 4, { x: Math.cos(a) * 0.55, z: Math.sin(a) * 0.55 })),
-    ],
-    glow: [
-      ...ring(6, (a) =>
-        box(0xff3346, 0.06, 0.02, 0.04, { x: Math.cos(a) * 0.66, y: 0.14, z: Math.sin(a) * 0.66, ry: -a }),
-      ),
-    ],
-    mover: [
-      box(0x39455c, 0.8, 0.28, 0.34, { x: 0.1 }),
-      box(0x2a3345, 0.4, 0.1, 0.2, { x: -0.1, y: 0.19 }),
-      meshPart(new CylinderGeometry(0.1, 0.12, 0.5, 8), 0x1a2230, { x: 0.65, rz: Math.PI / 2 }),
-      box(0x4a566e, 0.08, 0.34, 0.5, { x: 0.3 }),
-    ],
-    moverGlow: [
-      ball(0xff3346, 0.13, 8, 6, { x: 0.93 }),
-      box(0xffd0a0, 0.6, 0.03, 0.05, { x: 0.1, y: 0.15 }),
-      box(0xff3346, 0.12, 0.05, 0.05, { x: 0.3, y: 0, z: 0.2 }),
-      box(0xff3346, 0.12, 0.05, 0.05, { x: 0.3, y: 0, z: -0.2 }),
-    ],
-  }),
-  // The Shattered Core: two prongs around a hovering violet core
-  rift: () => {
-    seed = 9;
-    return {
-      body: [
-        cyl(0x0c0a16, 0.55, 0.62, 0.12, 8),
-        ...ring(5, (a) =>
-          spike(
-            0x1a1230,
-            0.1,
-            4,
-            [Math.cos(a) * 0.45, 0, Math.sin(a) * 0.45],
-            [Math.cos(a) * 0.3, 0.55 + rnd() * 0.5, Math.sin(a) * 0.3],
-          ),
-        ),
-      ],
-      glow: [...ring(5, (a) => ball(0xa56bff, 0.04, 4, 3, { x: Math.cos(a) * 0.5, y: 0.14, z: Math.sin(a) * 0.5 }))],
-      mover: [
-        spike(0x2a1650, 0.1, 5, [0, 0.05, 0.2], [0.8, 0.05, 0.06]),
-        spike(0x2a1650, 0.1, 5, [0, 0.05, -0.2], [0.8, 0.05, -0.06]),
-        meshPart(new OctahedronGeometry(0.2), 0x3a1f70, { x: -0.1, sx: 1.4 }),
-      ],
-      moverGlow: [
-        ball(0xa56bff, 0.17, 8, 6, { x: 0.45 }),
-        ball(0xffffff, 0.08, 6, 4, { x: 0.45 }),
-        meshPart(new TorusGeometry(0.34, 0.025, 4, 14), 0xff4de0, { x: 0.45, ry: Math.PI / 2 }),
-      ],
-    };
-  },
-  // mines: glow vertices are white, the hue comes from the instance
-  embermine: () => ({
-    body: [
-      meshPart(strataGeometry(1.25, 0.15, 1.1, 47, true), 0x363b3d),
-      meshPart(new DodecahedronGeometry(0.4), 0x4d453e, { x: 0.08, y: 0.13, sx: 1.2, sy: 0.5 }),
-    ],
-    glow: [
-      bar(0xffffff, 0.025, [-0.4, 0.15, -0.18], [0.35, 0.17, 0.24], 0.02),
-      bar(0xffffff, 0.025, [0.2, 0.16, -0.3], [-0.08, 0.2, 0.25], 0.02),
-    ],
-  }),
-  glassmine: () => ({
-    body: [
-      meshPart(strataGeometry(1.25, 0.09, 1.05, 51, true), 0x9e8c66),
-      ...[-1, 0, 1].map((i) =>
-        meshPart(new OctahedronGeometry(0.27), 0xa0b7a5, {
-          x: i * 0.23,
-          y: 0.19,
-          z: i * 0.06,
-          sx: 0.5,
-          sy: 1.3,
-          sz: 0.6,
-          rz: i * 0.35,
-        }),
-      ),
-    ],
-    glow: [bar(0xffffff, 0.018, [-0.32, 0.14, -0.2], [0.3, 0.13, 0.23], 0.018)],
-  }),
-  mine: () => ({
-    body: [
-      cyl(0x232a38, 0.5, 0.58, 0.14, 10),
-      meshPart(new SphereGeometry(0.34, 10, 5, 0, TAU, 0, Math.PI / 2), 0x2f394d, { y: 0.14, sy: 0.6 }),
-      ...ring(4, (a) =>
-        spike(
-          0x4a566e,
-          0.06,
-          4,
-          [Math.cos(a) * 0.5, 0.1, Math.sin(a) * 0.5],
-          [Math.cos(a) * 0.74, 0.1, Math.sin(a) * 0.74],
-        ),
-      ),
-      ...ring(6, (a) =>
-        cyl(0x4a566e, 0.04, 0.04, 0.05, 5, { x: Math.cos(a + 0.5) * 0.44, y: 0.14, z: Math.sin(a + 0.5) * 0.44 }),
-      ),
-    ],
-    glow: [ball(0xffffff, 0.1, 8, 6, { y: 0.3 })],
-  }),
-  frost: () => {
-    seed = 21;
-    return {
-      body: [
-        cyl(0x3d6f90, 0.5, 0.56, 0.1, 6),
-        ...ring(6, (a, i) =>
-          spike(
-            i % 2 ? 0xcdeeff : 0x8cc9ea,
-            0.09,
-            5,
-            [Math.cos(a) * 0.3, 0.05, Math.sin(a) * 0.3],
-            [Math.cos(a) * 0.38, 0.4 + rnd() * 0.25, Math.sin(a) * 0.38],
-          ),
-        ),
-      ],
-      glow: [ball(0xffffff, 0.13, 8, 6, { y: 0.3 })],
-    };
-  },
-  spore: () => ({
-    body: [
-      meshPart(new SphereGeometry(0.4, 10, 7), 0x245a44, { y: 0.3, sy: 0.8 }),
-      cyl(0x16301f, 0.3, 0.45, 0.08, 8),
-      ...ring(4, (a) =>
-        spike(
-          0x16301f,
-          0.06,
-          4,
-          [Math.cos(a) * 0.4, 0.2, Math.sin(a) * 0.4],
-          [Math.cos(a) * 0.68, 0.05, Math.sin(a) * 0.68],
-        ),
-      ),
-      spike(0x2f6a4a, 0.07, 5, [0, 0.52, 0], [0.04, 0.72, 0.02]),
-    ],
-    glow: [
-      ...ring(5, (a) =>
-        ball(0xffffff, 0.09, 5, 3, { x: Math.cos(a) * 0.34, y: 0.3 + (a > 3 ? 0.08 : 0), z: Math.sin(a) * 0.34 }),
-      ),
-      ball(0xffffff, 0.1, 5, 3, { y: 0.68 }),
-    ],
-  }),
-  riftmine: () => ({
-    body: [cyl(0x120d22, 0.3, 0.38, 0.05, 8)],
-    glow: [
-      meshPart(new TorusGeometry(0.46, 0.028, 4, 16), 0xffffff, { y: 0.75, rx: Math.PI / 2 }),
-      ball(0xffffff, 0.06, 5, 3, { x: 0.46, y: 0.75 }),
-      ball(0xffffff, 0.06, 5, 3, { x: -0.23, y: 0.75, z: 0.4 }),
-      ball(0xffffff, 0.06, 5, 3, { x: -0.23, y: 0.75, z: -0.4 }),
-    ],
-    mover: [
-      meshPart(new OctahedronGeometry(0.34), 0x2a1650, { y: 0.75, sy: 1.25 }),
-      ...ring(3, (a) =>
-        spike(
-          0x1a1230,
-          0.06,
-          4,
-          [Math.cos(a) * 0.3, 0, Math.sin(a) * 0.3],
-          [Math.cos(a) * 0.2, 0.35, Math.sin(a) * 0.2],
-        ),
-      ),
-    ],
-  }),
+  plate: () => tile(0x446466, 0xafe3cf, 8),
+  icespike: () => tile(0x72869e, 0xe0e9f5, 6, obelisk(0xbaceea, 5)),
+  geyser: () => tile(0x496545, 0xbfe69b, 5, [gem(0.65, 0x8dba69, { y: 0.38, sy: 0.65 })]),
+  riftburst: () => tile(0x5e487a, 0xd7b5ef, 6, obelisk(0xa583c5, 3)),
+  pyro: () => tile(0x89472f, 0xffb575, 5, [gem(0.62, 0xdc8252, { y: 0.33, sy: 0.62 })]),
+  sunspike: () => tile(0x8f7554, 0xffda9e, 8, obelisk(0xe1bd76, 6)),
+  laser: () => emitter(0x657a72, 0xff9a74, 0.72, 6),
+  magma: () => emitter(0x843e35, 0xffac78, 0.24, 5),
+  rift: () => emitter(0x675487, 0xe7b6eb, 0.59, 4),
+  mine: () => mine(0x8a7160, 6, false),
+  frost: () => mine(0x93abbf, 8, true),
+  spore: () => mine(0x62835f, 5, true),
+  riftmine: () => mine(0x825c94, 4, true),
+  embermine: () => mine(0xa35c4b, 5, false),
+  glassmine: () => mine(0xb49868, 7, true),
 };
 const MAX = { floor: 12, beam: 8, mine: 16 };
 

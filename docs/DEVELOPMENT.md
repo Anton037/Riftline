@@ -11,10 +11,14 @@ Keep gameplay randomness in the seeded simulation. Cosmetic randomness belongs i
 Save compatibility and stable seeded layouts have active regression fixtures in `tests/fixtures/`.
 These fixtures protect existing progress and world generation.
 
-Painted textures and the recorded sound bank are runtime assets under `public/`. Audio source URLs,
-hashes and offsets are maintained by `tools/audio-sources.json`, `tools/build-audio-bank.py` and
-`src/audio/source-bank.js`. The optional bank rebuild needs Python 3 and ffmpeg. Preserve the asset
-credits and third-party notices that ship with the game.
+The title illustration, terrain and finish atlases, and install icons are generated with
+`python tools/build-art.py` using Python 3, Pillow and NumPy. Arena, actor and effect meshes are
+assembled in `src/render/`. Their geometry follows the existing simulation footprints.
+
+The short synthesized sample bank and its clip offsets are generated with
+`python tools/build-audio-bank.py` using Python 3. `src/audio/score.js` defines the title, arena and
+boss score and `src/audio/physical-voices.js` defines material and spatial cues. Asset credits
+and third-party notices ship under `public/`.
 
 ## Verification
 

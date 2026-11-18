@@ -14,7 +14,7 @@ there is no historical release assertion catalog, always-on soak or hidden exten
 | `node tools/verify.js equipment <tag>` | Seven weapons, all 25 enemies, smoke/rockets and FPS controls | 240 s |
 | `npm run verify:combat` | Every current boss pattern/Overdrive, seven weapons and biome beam/trap skins | 300 s |
 | `npm run verify:abilities` | Power phases across all biomes, Aegis, portals and nine Shelf views on tablet/phone | 300 s per layout |
-| `npm run verify:audio` | Optional recorded/physical sound correctness | 420 s |
+| `npm run verify:audio` | Optional synthesized sound, mix and voice checks | 420 s |
 | `npm run verify:audio-budget` | Optional audio scheduler/real-node parity | 180 s |
 | `npm run probe:audio` | Audio fault recovery | 120 s |
 | `npm run probe:mix` / `probe:music` / `probe:place` | Optional sound measurements | 300 / 420 / 180 s |
@@ -127,9 +127,9 @@ The worker fixture observes registration and controller state synchronously; asy
 serialize lifecycle notifications. Failed activation includes the worker states in its error for diagnosis.
 
 `tests/physical-audio.test.mjs` checks source-bank regions, finite faded physical bodies and the 48-entry cache bound; weather and wildlife must remain independent of the material recordings.
-The full audio health suite requires the recorded bank to decode, then checks samples, tails, mixing, continuous
-fire and voice protection. Its cache includes the binary bank, so changing a recording invalidates previous results.
-Rebuild the CC0 source bank with `python tools/build-audio-bank.py` (Python 3 and ffmpeg), then run `npm run format`.
+The full audio health suite requires the synthesized bank to decode, then checks samples, tails, mixing, continuous
+fire and voice protection. Its cache includes the binary bank, so changing the bank invalidates previous results.
+Rebuild the synthesized bank with `python tools/build-audio-bank.py` (Python 3), then format `src/audio/source-bank.js`.
 
 Player geometry checks cover 1,344 combinations of weapon, body facing, aim and walking/banking/dash pose.
 The weapon bearing must stay connected and the muzzle must follow the independent aim. Material checks cover

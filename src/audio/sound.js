@@ -5,6 +5,7 @@ import { hookLog as logError } from "../core/run-hooks.js";
 import { BOSS_EFFECTS, WEAPON_EFFECTS, BEAM_EFFECTS, shotVoiceFor, attackSurface } from "../data/combat-effects.js";
 import { upgradesById } from "../data/upgrades.js";
 import { PLACE, PLACE_IDS, placeTick } from "./place.js";
+import { musicImpact, musicResolve, musicTrack, playScore, scoreBed, scoreBiomes, scoreOrigin } from "./score.js";
 
 // Every supported weapon has an explicit sound identity.
 const RL_SFX_VOICES = Object.keys(WEAPON_EFFECTS);
@@ -357,1277 +358,1408 @@ function softClipCurve() {
   return curve;
 }
 
-const musicChords = {
-    flats: [
-      [50, "M"],
-      [45, "M"],
-      [47, "m"],
-      [43, "M"],
-    ],
-    // 3.4.0: Blackout City: Am F Dm E (the E major pulls back to A minor: film noir)
-    city: [
-      [57, "m"],
-      [53, "M"],
-      [50, "m"],
-      [52, "M"],
-    ],
-    shelf: [
-      [52, "m"],
-      [48, "M"],
-      [55, "M"],
-      [50, "M"],
-    ],
-    core: [
-      [54, "m"],
-      [50, "M"],
-      [45, "M"],
-      [52, "M"],
-    ],
-    marsh: [
-      [53, "m"],
-      [56, "M"],
-      [51, "M"],
-      [48, "m"],
-    ],
-    // 3.49.0: the Ashfall Caldera: Gm Eb F D (the D major pulls back to G minor: the mountain's
-    // own fanfare, the same trick as the City and the old Caldera)
-    caldera: [
-      [43, "m"],
-      [39, "M"],
-      [41, "M"],
-      [38, "M"],
-    ],
-  },
-  musicVoices = {
-    city: { arp: "square", bass: "sawtooth", lp: 2200, lead: "triangle" },
-    shelf: { arp: "sine", bass: "triangle", lp: 4200, lead: "sine" },
-    core: { arp: "square", bass: "sawtooth", lp: 3e3, lead: "square" },
-    marsh: { arp: "triangle", bass: "sawtooth", lp: 1200, lead: "triangle" },
-    caldera: { arp: "square", bass: "sawtooth", lp: 1500, lead: "sawtooth" },
-    flats: { arp: "sine", bass: "triangle", lp: 3800, lead: "sine" },
-  },
-  midiToFreq = (midi) => 440 * Math.pow(2, (midi - 69) / 12),
-  arpPatterns = [
-    [0, 1, 2, 3],
-    [0, 2, 1, 3, 2, 1],
-    [3, 2, 1, 0],
-    [0, 2, 3, 1],
-  ],
-  SoundEngine = class {
-    constructor() {
-      preloadPhysicalAudio();
-      this.ctx = null;
-      this.ok = typeof window < "u" && !!(window.AudioContext || window.webkitAudioContext);
-      this.sfxVol = 0.8;
-      this.musVol = 0.45;
-      // 3.9.0: the sounds of the place have their own volume and bus (Settings > Ambience): the event beds, the hazards
-      // and the far sounds of the biome (audio/place.js); the atmospheres of the music follow it too (atmos)
-      this.ambVol = AMB_REF;
-      this.ambBus = null;
-      this.atmos = null;
-      this.atmosPump = null;
-      this.curBus = null;
-      this.placeSt = null;
-      this.last = Object.create(null);
-      this.mode = "off";
-      this.biome = "city";
-      this.step = 0;
-      this.nextT = 0;
-      this.timer = null;
-      this.combo = 0;
-      this.comboT = 0;
-      this.intensity = 0;
-      this.want = 0;
-      this.cycle = 0;
-      // 2.7.0: voice registry (limit), boss music mix, engine hum and event ambience
-      this.voices = [];
-      this.musicVoiceList = [];
-      this.curPri = 1;
-      this.simT = null;
-      this.maxEnd = 0;
-      this.dropped = 0;
-      this.offline = false;
-      this.bossMix = 0;
-      this.bossOver = false;
-      this.beds = Object.create(null);
-      // 3.43.1: a bed whose build threw once is not rebuilt every tick (3.46.0: the value is the
-      // audio time of the failure, so the bed gets one more try after 10 s)
-      this.deadBeds = Object.create(null);
-      // 3.46.0: same rule for the room tone (startTone)
-      this.deadTone = Object.create(null);
-      // 3.46.0: audio time of the last failed track start (syncTrack backs off 2 s before retrying)
-      this.trackFailT = 0;
-      this.schedFails = 0;
-      this.liveT = -1e9;
-      this.speed = null;
-      this.amb = null;
-      this.accentT = 0;
-      this.accentFlip = false;
-      // 2.9.0: music ducking and counters of the music notes (the tests check that none is dropped)
-      this.duckGain = null;
-      this.duckT = -1e9;
-      this.duckDepth = 0;
-      // 3.48.0: the last tick of every slider preview, per bus (see previewBus)
-      this.previewT = {};
-      this.musicScheduled = 0;
-      this.musicSkipped = 0;
-      // 3.1.0: the music tracks (see MUSIC_TRACKS): what plays now, the boss heat (0 calm, 1 after a phase change,
-      // 2 enraged), the stage buses and the counters of the voice budget
-      this.playKind = "off";
-      this.playBiome = "city";
-      this.heat = 0;
-      this.jump = false;
-      this.fade = null;
-      this.musicPeak = 0;
-      this.musicShed = 0;
-      this.musicLog = null;
-      // 3.2.0: the music processing (see buildGraph) and the place of a track kept over a pause (held)
-      this.glue = null;
-      this.makeup = null;
-      this.musLevel = null;
-      this.pump = null;
-      this.ping = null;
-      this.choir = null;
-      this.verbIn = null;
-      this.mbed = null;
-      this.held = null;
-      this.resumeWanted = false;
-      // 3.2.0: where the sounds are: the pan of the event being played (from its x relative to the listener) and
-      // its room send (SFX_ROOM)
-      this.curPan = 0;
-      this.curRev = 0;
-      this.sfxVerbIn = null;
-      this.sfxVerbOut = null;
-    }
-    setIntensity(level) {
-      this.want = Math.max(0, Math.min(1, level || 0));
-    }
-    unlock() {
-      if (this.ok)
-        try {
-          if (!this.ctx) {
-            this.init();
-          }
-          if (this.ctx.state !== "running") {
-            this.ctx.resume().catch(() => {});
-          }
-        } catch (err) {
-          this.fail(err);
+const SoundEngine = class {
+  constructor() {
+    preloadPhysicalAudio();
+    this.ctx = null;
+    this.ok = typeof window < "u" && !!(window.AudioContext || window.webkitAudioContext);
+    this.sfxVol = 0.8;
+    this.musVol = 0.45;
+    // 3.9.0: the sounds of the place have their own volume and bus (Settings > Ambience): the event beds, the hazards
+    // and the far sounds of the biome (audio/place.js); the atmospheres of the music follow it too (atmos)
+    this.ambVol = AMB_REF;
+    this.ambBus = null;
+    this.atmos = null;
+    this.atmosPump = null;
+    this.curBus = null;
+    this.placeSt = null;
+    this.last = Object.create(null);
+    this.mode = "off";
+    this.biome = "city";
+    this.step = 0;
+    this.nextT = 0;
+    this.timer = null;
+    this.combo = 0;
+    this.comboT = 0;
+    this.intensity = 0;
+    this.want = 0;
+    this.cycle = 0;
+    // 2.7.0: voice registry (limit), boss music mix, engine hum and event ambience
+    this.voices = [];
+    this.musicVoiceList = [];
+    this.curPri = 1;
+    this.simT = null;
+    this.maxEnd = 0;
+    this.dropped = 0;
+    this.offline = false;
+    this.bossMix = 0;
+    this.bossOver = false;
+    this.beds = Object.create(null);
+    // 3.43.1: a bed whose build threw once is not rebuilt every tick (3.46.0: the value is the
+    // audio time of the failure, so the bed gets one more try after 10 s)
+    this.deadBeds = Object.create(null);
+    // 3.46.0: same rule for the room tone (startTone)
+    this.deadTone = Object.create(null);
+    // 3.46.0: audio time of the last failed track start (syncTrack backs off 2 s before retrying)
+    this.trackFailT = 0;
+    this.schedFails = 0;
+    this.liveT = -1e9;
+    this.speed = null;
+    this.amb = null;
+    this.accentT = 0;
+    // 2.9.0: music ducking and counters of the music notes (the tests check that none is dropped)
+    this.duckGain = null;
+    this.duckT = -1e9;
+    this.duckDepth = 0;
+    // 3.48.0: the last tick of every slider preview, per bus (see previewBus)
+    this.previewT = {};
+    this.musicScheduled = 0;
+    this.musicSkipped = 0;
+    // 3.1.0: the music tracks (see MUSIC_TRACKS): what plays now, the boss heat (0 calm, 1 after a phase change,
+    // 2 enraged), the stage buses and the counters of the voice budget
+    this.playKind = "off";
+    this.playBiome = "city";
+    this.heat = 0;
+    this.jump = false;
+    this.fade = null;
+    this.musicPeak = 0;
+    this.musicShed = 0;
+    this.musicLog = null;
+    // 3.2.0: the music processing (see buildGraph) and the place of a track kept over a pause (held)
+    this.glue = null;
+    this.makeup = null;
+    this.musLevel = null;
+    this.pump = null;
+    this.ping = null;
+    this.choir = null;
+    this.verbIn = null;
+    this.mbed = null;
+    this.held = null;
+    this.resumeWanted = false;
+    // 3.2.0: where the sounds are: the pan of the event being played (from its x relative to the listener) and
+    // its room send (SFX_ROOM)
+    this.curPan = 0;
+    this.curRev = 0;
+    this.sfxVerbIn = null;
+    this.sfxVerbOut = null;
+  }
+  setIntensity(level) {
+    this.want = Math.max(0, Math.min(1, level || 0));
+  }
+  unlock() {
+    if (this.ok)
+      try {
+        if (!this.ctx) {
+          this.init();
         }
-    }
-    init() {
-      try {
-        if (navigator.audioSession) {
-          navigator.audioSession.type = "ambient";
-        }
-      } catch {}
-      let AudioCtx = window.AudioContext || window.webkitAudioContext,
-        ctx = new AudioCtx({ latencyHint: "interactive" });
-      try {
-        this.buildGraph(ctx);
-      } catch (err) {
-        // 3.46.0: a half-built graph is worse than none (a missing bus would make every later
-        // call throw): drop it so the next gesture retries init() from scratch, and close the
-        // context. buildGraph sets this.ctx first, so it has to be cleared again here.
-        this.ctx = null;
-        try {
-          ctx.close();
-        } catch {}
-        throw err;
-      }
-      let unlocker = ctx.createBufferSource();
-      unlocker.buffer = ctx.createBuffer(1, 1, 22050);
-      unlocker.connect(ctx.destination);
-      unlocker.start(0);
-      this.startScheduler();
-    }
-    /* The master chain: sfx and music -> compressor -> limiter -> soft clipper -> output. The soft
-     clipper keeps the signal below 0.93 whatever the mix does. */
-    /* opts.room: false leaves out the two reverbs (test engines that only count notes: every convolver holds the
-       transform of its impulse, megabytes each) */
-    buildGraph(ctx, opts = {}) {
-      this.ctx = ctx;
-      this.physical = new PhysicalVoices(ctx, { decode: !this.budgetOnly });
-      this.comp = ctx.createDynamicsCompressor();
-      this.comp.threshold.value = -14;
-      this.comp.ratio.value = 4;
-      this.comp.attack.value = 0.004;
-      this.comp.release.value = 0.2;
-      this.limiter = ctx.createDynamicsCompressor();
-      this.limiter.threshold.value = -3;
-      this.limiter.knee.value = 0;
-      this.limiter.ratio.value = 20;
-      this.limiter.attack.value = 0.001;
-      this.limiter.release.value = 0.08;
-      this.clip = ctx.createWaveShaper();
-      this.clip.curve = softClipCurve();
-      this.comp.connect(this.limiter);
-      this.master = ctx.createGain();
-      this.master.gain.value = 0.82;
-      this.limiter.connect(this.master);
-      this.master.connect(this.clip);
-      this.clip.connect(ctx.destination);
-      // 3.42.0: the muffle: a lowpass between the buses and the limiter. A Whiteout closes it so the whole
-      // world (shots, music, wind) sounds like behind a wall of snow; every other state keeps it open.
-      this.muffle = ctx.createBiquadFilter();
-      this.muffle.type = "lowpass";
-      this.muffle.frequency.value = 18000;
-      this.muffle.Q.value = 0.3;
-      this.comp.disconnect();
-      this.comp.connect(this.muffle);
-      this.muffle.connect(this.limiter);
-      this.sfx = ctx.createGain();
-      this.sfx.gain.value = this.sfxVol;
-      this.sfx.connect(this.comp);
-      this.ambBus = ctx.createGain();
-      this.ambBus.gain.value = this.ambVol;
-      // 3.43.0: the room gives way to the big hits a little deeper than the music does (duck)
-      this.ambDuck = ctx.createGain();
-      this.ambBus.connect(this.ambDuck);
-      this.ambDuck.connect(this.comp);
-      // 3.2.0: mus is the input of the music at unity; its volume is musLevel at the end of the music chain, so that
-      // the glue compressor works the same at every volume setting
-      this.mus = ctx.createGain();
-      this.musLevel = ctx.createGain();
-      this.musLevel.gain.value = this.musVol * MUSIC_SCALE;
-      // 2.9.0: the music passes a gain stage of its own that dips briefly on big hits (duck)
-      this.duckGain = ctx.createGain();
-      // 3.1.0: a fade stage between the music and the duck (the calm theme fades back in after a boss)
-      this.fade = ctx.createGain();
-      this.mus.connect(this.fade);
-      // 3.2.0: fade -> glue compressor -> make-up gain -> volume -> duck (mixFor sets the glue per track kind)
-      this.glue = ctx.createDynamicsCompressor();
-      this.makeup = ctx.createGain();
-      this.fade.connect(this.glue);
-      this.glue.connect(this.makeup);
-      this.makeup.connect(this.musLevel);
-      this.musLevel.connect(this.duckGain);
-      this.duckGain.connect(this.comp);
-      this.mixFor("fight");
-      // the pump: pads, bass, strings, brass and the choir pass it; accented kicks dip it (a sidechain feel)
-      this.pump = ctx.createGain();
-      this.pump.connect(this.mus);
-      // 3.9.0: the atmospheres of the music pass these on their way into the music (calm) or the pump (boss)
-      this.atmos = ctx.createGain();
-      this.atmosPump = ctx.createGain();
-      this.atmos.gain.value = this.atmosPump.gain.value = this.ambVol / AMB_REF;
-      this.atmos.connect(this.mus);
-      this.atmosPump.connect(this.pump);
-      if (opts.room !== false) {
-        // 3.2.0: the room of the music: a generated 2 s impulse; voices send to it with opts.rev
-        this.verbIn = ctx.createGain();
-        // 3.46.0: two rooms built once and swapped (quietOld used to build a fresh convolver —
-        // megabytes of impulse transform — on every track change). Both share one impulse.
-        let impulse = roomImpulse(ctx, 2);
-        this.verbPool = [];
-        for (let i = 0; i < 2; i++) {
-          let v = ctx.createConvolver();
-          v.buffer = impulse;
-          let vo = ctx.createGain();
-          vo.gain.value = i === 0 ? 0.5 : 0;
-          this.verbIn.connect(v);
-          v.connect(vo);
-          vo.connect(this.mus);
-          this.verbPool.push({ conv: v, out: vo });
-        }
-        // 3.18.1: kept so that a track change can swap the room for a fresh one (quietOld)
-        this.verb = this.verbPool[0].conv;
-        this.verbOut = this.verbPool[0].out;
-        // 3.2.0: the room of the big sounds (a shorter impulse); its level follows the biome (setMusic)
-        this.sfxVerbIn = ctx.createGain();
-        let sfxVerb = ctx.createConvolver();
-        sfxVerb.buffer = roomImpulse(ctx, 1.4);
-        this.sfxVerbOut = ctx.createGain();
-        this.sfxVerbOut.gain.value = SFX_ROOM_BIOME.city;
-        this.sfxVerbIn.connect(sfxVerb);
-        sfxVerb.connect(this.sfxVerbOut);
-        this.sfxVerbOut.connect(this.sfx);
-      }
-      this.delay = ctx.createDelay(1);
-      this.delay.delayTime.value = 0.28;
-      this.fb = ctx.createGain();
-      this.fb.gain.value = 0.32;
-      this.delay.connect(this.fb);
-      this.fb.connect(this.delay);
-      this.delay.connect(this.mus);
-      // 3.19.0: the ping-pong echo of the ambient bloom (BLOOM): two delays that feed each other, one heard on the left
-      // and one on the right, so that every note of the bloom wanders across the room; it ends in the music bus
-      if (ctx.createStereoPanner) {
-        this.ping = ctx.createGain();
-        const dl = ctx.createDelay(1),
-          dr = ctx.createDelay(1),
-          fl = ctx.createGain(),
-          fr = ctx.createGain(),
-          pl = ctx.createStereoPanner(),
-          pr = ctx.createStereoPanner();
-        dl.delayTime.value = 0.43;
-        dr.delayTime.value = 0.43;
-        fl.gain.value = fr.gain.value = 0.42;
-        pl.pan.value = -0.9;
-        pr.pan.value = 0.9;
-        this.ping.connect(this.mus);
-        this.ping.connect(dl);
-        dl.connect(pl);
-        pl.connect(this.mus);
-        dl.connect(fl);
-        fl.connect(dr);
-        dr.connect(pr);
-        pr.connect(this.mus);
-        dr.connect(fr);
-        fr.connect(dl);
-        // 3.28.1: the feedback of the echo, silenced for a moment when the music changes (quietOld)
-        this.pingFb = [fl, fr];
-      }
-      let len = ctx.sampleRate;
-      this.noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
-      let data = this.noiseBuf.getChannelData(0);
-      for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
-      // the music and its atmospheres take pink or brown noise (opts.color, see colorNoise)
-      this.pinkBuf = colorNoise(ctx, "pink");
-      this.brownBuf = colorNoise(ctx, "brown");
-      // the choir of the boss tracks: saw voices through the three formants of an open "ah" and a little of the
-      // voice itself (CHOIR_VOWEL); it joins the pump like the pads
-      this.choir = ctx.createGain();
-      let choirOut = ctx.createGain();
-      choirOut.gain.value = 1;
-      for (let [f, q, g] of CHOIR_VOWEL) {
-        let band = ctx.createBiquadFilter(),
-          amp = ctx.createGain();
-        band.type = f ? "bandpass" : "lowpass";
-        band.frequency.value = f || 900;
-        band.Q.value = q;
-        amp.gain.value = g;
-        this.choir.connect(band);
-        band.connect(amp);
-        amp.connect(choirOut);
-      }
-      choirOut.connect(this.pump);
-      if (this.verbIn) {
-        let send = ctx.createGain();
-        send.gain.value = 0.6;
-        choirOut.connect(send);
-        send.connect(this.verbIn);
-      }
-    }
-    /* the noise buffer of a colour ("pink", "brown"; anything else: the white noise of the sounds) */
-    noiseOf(color) {
-      return color === "pink" ? this.pinkBuf : color === "brown" ? this.brownBuf : this.noiseBuf;
-    }
-    /* a looping noise source of the beds, started somewhere in its buffer */
-    noiseLoop(rate, color, now) {
-      let node = this.ctx.createBufferSource();
-      node.buffer = this.noiseOf(color);
-      node.loop = true;
-      node.playbackRate.value = rate;
-      node.start(now, Math.random() * Math.max(0, node.buffer.duration - 0.5));
-      return node;
-    }
-    /* Test hook: run the engine on an OfflineAudioContext (no scheduler, always "running"). */
-    attach(ctx, opts) {
-      this.offline = true;
-      this.buildGraph(ctx, opts);
-    }
-    live() {
-      return !!this.ctx && (this.offline || this.ctx.state === "running");
-    }
-    nowT() {
-      return this.simT != null ? this.simT : this.ctx.currentTime;
-    }
-    fail(err) {
-      if (!this.failed) {
-        logError("audio", err);
-      }
-      this.failed = true;
-    }
-    setVolumes(sfx, music, ambience = this.ambVol) {
-      this.sfxVol = sfx;
-      this.musVol = music;
-      this.ambVol = ambience;
-      if (!this.ctx) return;
-      let now = this.ctx.currentTime;
-      this.sfx.gain.setTargetAtTime(sfx, now, 0.05);
-      this.musLevel.gain.setTargetAtTime(music * MUSIC_SCALE, now, 0.1);
-      this.ambBus.gain.setTargetAtTime(ambience, now, 0.05);
-      this.atmos.gain.setTargetAtTime(ambience / AMB_REF, now, 0.1);
-      this.atmosPump.gain.setTargetAtTime(ambience / AMB_REF, now, 0.1);
-    }
-    /* 3.9.0: one sound of the place (audio/place.js) at level a.g and pan a.pan, on the ambience bus */
-    placePlay(id, a) {
-      if (!this.live() || this.ambVol <= 0 || !PLACE[id]) return;
-      try {
-        PLACE[id](this, a);
-      } catch (err) {
-        this.fail(err);
-      }
-    }
-    /* 3.9.0: the sounds of the place of a running fight (main.js calls it every frame; see audio/place.js) */
-    place(world, dt) {
-      if (!this.live() || this.ambVol <= 0 || !world || !world.arena) return;
-      try {
-        placeTick(this, world, dt);
-      } catch (err) {
-        this.fail(err);
-      }
-    }
-    suspend() {
-      try {
-        if (this.ctx && this.ctx.state === "running") {
-          this.ctx.suspend();
-        }
-      } catch {}
-    }
-    resume() {
-      try {
-        if (this.ctx && this.ctx.state !== "running") {
+        if (this.ctx.state !== "running") {
           this.ctx.resume().catch(() => {});
         }
+      } catch (err) {
+        this.fail(err);
+      }
+  }
+  init() {
+    try {
+      if (navigator.audioSession) {
+        navigator.audioSession.type = "ambient";
+      }
+    } catch {}
+    let AudioCtx = window.AudioContext || window.webkitAudioContext,
+      ctx = new AudioCtx({ latencyHint: "interactive" });
+    try {
+      this.buildGraph(ctx);
+    } catch (err) {
+      // 3.46.0: a half-built graph is worse than none (a missing bus would make every later
+      // call throw): drop it so the next gesture retries init() from scratch, and close the
+      // context. buildGraph sets this.ctx first, so it has to be cleared again here.
+      this.ctx = null;
+      try {
+        ctx.close();
       } catch {}
+      throw err;
     }
-    /* Voice limit: at most MAX_VOICES oscillators/sources are alive. A new voice that finds the list
+    let unlocker = ctx.createBufferSource();
+    unlocker.buffer = ctx.createBuffer(1, 1, 22050);
+    unlocker.connect(ctx.destination);
+    unlocker.start(0);
+    this.startScheduler();
+  }
+  /* The master chain: sfx and music -> compressor -> limiter -> soft clipper -> output. The soft
+     clipper keeps the signal below 0.93 whatever the mix does. */
+  /* opts.room: false leaves out the two reverbs (test engines that only count notes: every convolver holds the
+       transform of its impulse, megabytes each) */
+  buildGraph(ctx, opts = {}) {
+    this.ctx = ctx;
+    this.physical = new PhysicalVoices(ctx, { decode: !this.budgetOnly });
+    this.comp = ctx.createDynamicsCompressor();
+    this.comp.threshold.value = -14;
+    this.comp.ratio.value = 4;
+    this.comp.attack.value = 0.004;
+    this.comp.release.value = 0.2;
+    this.limiter = ctx.createDynamicsCompressor();
+    this.limiter.threshold.value = -3;
+    this.limiter.knee.value = 0;
+    this.limiter.ratio.value = 20;
+    this.limiter.attack.value = 0.001;
+    this.limiter.release.value = 0.08;
+    this.clip = ctx.createWaveShaper();
+    this.clip.curve = softClipCurve();
+    this.comp.connect(this.limiter);
+    this.master = ctx.createGain();
+    this.master.gain.value = 0.82;
+    this.limiter.connect(this.master);
+    this.master.connect(this.clip);
+    this.clip.connect(ctx.destination);
+    // 3.42.0: the muffle: a lowpass between the buses and the limiter. A Whiteout closes it so the whole
+    // world (shots, music, wind) sounds like behind a wall of snow; every other state keeps it open.
+    this.muffle = ctx.createBiquadFilter();
+    this.muffle.type = "lowpass";
+    this.muffle.frequency.value = 18000;
+    this.muffle.Q.value = 0.3;
+    this.comp.disconnect();
+    this.comp.connect(this.muffle);
+    this.muffle.connect(this.limiter);
+    this.sfx = ctx.createGain();
+    this.sfx.gain.value = this.sfxVol;
+    this.sfx.connect(this.comp);
+    this.ambBus = ctx.createGain();
+    this.ambBus.gain.value = this.ambVol;
+    // 3.43.0: the room gives way to the big hits a little deeper than the music does (duck)
+    this.ambDuck = ctx.createGain();
+    this.ambBus.connect(this.ambDuck);
+    this.ambDuck.connect(this.comp);
+    // 3.2.0: mus is the input of the music at unity; its volume is musLevel at the end of the music chain, so that
+    // the glue compressor works the same at every volume setting
+    this.mus = ctx.createGain();
+    this.musLevel = ctx.createGain();
+    this.musLevel.gain.value = this.musVol * MUSIC_SCALE;
+    // 2.9.0: the music passes a gain stage of its own that dips briefly on big hits (duck)
+    this.duckGain = ctx.createGain();
+    // 3.1.0: a fade stage between the music and the duck (the calm theme fades back in after a boss)
+    this.fade = ctx.createGain();
+    this.mus.connect(this.fade);
+    // 3.2.0: fade -> glue compressor -> make-up gain -> volume -> duck (mixFor sets the glue per track kind)
+    this.glue = ctx.createDynamicsCompressor();
+    this.makeup = ctx.createGain();
+    this.fade.connect(this.glue);
+    this.glue.connect(this.makeup);
+    this.makeup.connect(this.musLevel);
+    this.musLevel.connect(this.duckGain);
+    this.duckGain.connect(this.comp);
+    this.mixFor("fight");
+    // the pump: pads, bass, strings, brass and the choir pass it; accented kicks dip it (a sidechain feel)
+    this.pump = ctx.createGain();
+    this.pump.connect(this.mus);
+    // 3.9.0: the atmospheres of the music pass these on their way into the music (calm) or the pump (boss)
+    this.atmos = ctx.createGain();
+    this.atmosPump = ctx.createGain();
+    this.atmos.gain.value = this.atmosPump.gain.value = this.ambVol / AMB_REF;
+    this.atmos.connect(this.mus);
+    this.atmosPump.connect(this.pump);
+    if (opts.room !== false) {
+      // 3.2.0: the room of the music: a generated 2 s impulse; voices send to it with opts.rev
+      this.verbIn = ctx.createGain();
+      // 3.46.0: two rooms built once and swapped (quietOld used to build a fresh convolver —
+      // megabytes of impulse transform — on every track change). Both share one impulse.
+      let impulse = roomImpulse(ctx, 2);
+      this.verbPool = [];
+      for (let i = 0; i < 2; i++) {
+        let v = ctx.createConvolver();
+        v.buffer = impulse;
+        let vo = ctx.createGain();
+        vo.gain.value = i === 0 ? 0.5 : 0;
+        this.verbIn.connect(v);
+        v.connect(vo);
+        vo.connect(this.mus);
+        this.verbPool.push({ conv: v, out: vo });
+      }
+      // 3.18.1: kept so that a track change can swap the room for a fresh one (quietOld)
+      this.verb = this.verbPool[0].conv;
+      this.verbOut = this.verbPool[0].out;
+      // 3.2.0: the room of the big sounds (a shorter impulse); its level follows the biome (setMusic)
+      this.sfxVerbIn = ctx.createGain();
+      let sfxVerb = ctx.createConvolver();
+      sfxVerb.buffer = roomImpulse(ctx, 1.4);
+      this.sfxVerbOut = ctx.createGain();
+      this.sfxVerbOut.gain.value = SFX_ROOM_BIOME.city;
+      this.sfxVerbIn.connect(sfxVerb);
+      sfxVerb.connect(this.sfxVerbOut);
+      this.sfxVerbOut.connect(this.sfx);
+    }
+    this.delay = ctx.createDelay(1);
+    this.delay.delayTime.value = 0.28;
+    this.fb = ctx.createGain();
+    this.fb.gain.value = 0.32;
+    this.delay.connect(this.fb);
+    this.fb.connect(this.delay);
+    this.delay.connect(this.mus);
+    // 3.19.0: the ping-pong echo of the ambient bloom (BLOOM): two delays that feed each other, one heard on the left
+    // and one on the right, so that every note of the bloom wanders across the room; it ends in the music bus
+    if (ctx.createStereoPanner) {
+      this.ping = ctx.createGain();
+      const dl = ctx.createDelay(1),
+        dr = ctx.createDelay(1),
+        fl = ctx.createGain(),
+        fr = ctx.createGain(),
+        pl = ctx.createStereoPanner(),
+        pr = ctx.createStereoPanner();
+      dl.delayTime.value = 0.43;
+      dr.delayTime.value = 0.43;
+      fl.gain.value = fr.gain.value = 0.42;
+      pl.pan.value = -0.9;
+      pr.pan.value = 0.9;
+      this.ping.connect(this.mus);
+      this.ping.connect(dl);
+      dl.connect(pl);
+      pl.connect(this.mus);
+      dl.connect(fl);
+      fl.connect(dr);
+      dr.connect(pr);
+      pr.connect(this.mus);
+      dr.connect(fr);
+      fr.connect(dl);
+      // 3.28.1: the feedback of the echo, silenced for a moment when the music changes (quietOld)
+      this.pingFb = [fl, fr];
+    }
+    let len = ctx.sampleRate;
+    this.noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
+    let data = this.noiseBuf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+    // the music and its atmospheres take pink or brown noise (opts.color, see colorNoise)
+    this.pinkBuf = colorNoise(ctx, "pink");
+    this.brownBuf = colorNoise(ctx, "brown");
+    // the choir of the boss tracks: saw voices through the three formants of an open "ah" and a little of the
+    // voice itself (CHOIR_VOWEL); it joins the pump like the pads
+    this.choir = ctx.createGain();
+    let choirOut = ctx.createGain();
+    choirOut.gain.value = 1;
+    for (let [f, q, g] of CHOIR_VOWEL) {
+      let band = ctx.createBiquadFilter(),
+        amp = ctx.createGain();
+      band.type = f ? "bandpass" : "lowpass";
+      band.frequency.value = f || 900;
+      band.Q.value = q;
+      amp.gain.value = g;
+      this.choir.connect(band);
+      band.connect(amp);
+      amp.connect(choirOut);
+    }
+    choirOut.connect(this.pump);
+    if (this.verbIn) {
+      let send = ctx.createGain();
+      send.gain.value = 0.6;
+      choirOut.connect(send);
+      send.connect(this.verbIn);
+    }
+  }
+  /* the noise buffer of a colour ("pink", "brown"; anything else: the white noise of the sounds) */
+  noiseOf(color) {
+    return color === "pink" ? this.pinkBuf : color === "brown" ? this.brownBuf : this.noiseBuf;
+  }
+  /* a looping noise source of the beds, started somewhere in its buffer */
+  noiseLoop(rate, color, now) {
+    let node = this.ctx.createBufferSource();
+    node.buffer = this.noiseOf(color);
+    node.loop = true;
+    node.playbackRate.value = rate;
+    node.start(now, Math.random() * Math.max(0, node.buffer.duration - 0.5));
+    return node;
+  }
+  /* Test hook: run the engine on an OfflineAudioContext (no scheduler, always "running"). */
+  attach(ctx, opts) {
+    this.offline = true;
+    this.buildGraph(ctx, opts);
+  }
+  live() {
+    return !!this.ctx && (this.offline || this.ctx.state === "running");
+  }
+  nowT() {
+    return this.simT != null ? this.simT : this.ctx.currentTime;
+  }
+  fail(err) {
+    if (!this.failed) {
+      logError("audio", err);
+    }
+    this.failed = true;
+  }
+  setVolumes(sfx, music, ambience = this.ambVol) {
+    this.sfxVol = sfx;
+    this.musVol = music;
+    this.ambVol = ambience;
+    if (!this.ctx) return;
+    let now = this.ctx.currentTime;
+    this.sfx.gain.setTargetAtTime(sfx, now, 0.05);
+    this.musLevel.gain.setTargetAtTime(music * MUSIC_SCALE, now, 0.1);
+    this.ambBus.gain.setTargetAtTime(ambience, now, 0.05);
+    this.atmos.gain.setTargetAtTime(ambience / AMB_REF, now, 0.1);
+    this.atmosPump.gain.setTargetAtTime(ambience / AMB_REF, now, 0.1);
+  }
+  /* 3.9.0: one sound of the place (audio/place.js) at level a.g and pan a.pan, on the ambience bus */
+  placePlay(id, a) {
+    if (!this.live() || this.ambVol <= 0 || !PLACE[id]) return;
+    try {
+      PLACE[id](this, a);
+    } catch (err) {
+      this.fail(err);
+    }
+  }
+  /* 3.9.0: the sounds of the place of a running fight (main.js calls it every frame; see audio/place.js) */
+  place(world, dt) {
+    if (!this.live() || this.ambVol <= 0 || !world || !world.arena) return;
+    try {
+      placeTick(this, world, dt);
+    } catch (err) {
+      this.fail(err);
+    }
+  }
+  suspend() {
+    try {
+      if (this.ctx && this.ctx.state === "running") {
+        this.ctx.suspend();
+      }
+    } catch {}
+  }
+  resume() {
+    try {
+      if (this.ctx && this.ctx.state !== "running") {
+        this.ctx.resume().catch(() => {});
+      }
+    } catch {}
+  }
+  /* Voice limit: at most MAX_VOICES oscillators/sources are alive. A new voice that finds the list
      full takes the place of the oldest voice of lower (or, for sounds, equal) priority; music (0)
      never drops anything and is skipped instead, loops (beds) are never dropped. */
-    claim(pri, start, end, opt) {
-      let now = this.nowT();
-      // 2.8.2: music (priority 0) is counted apart from the sounds. It used to share the list, and every
-      // shot or hit that found it full took the oldest music note: the music stuttered and dropped out
-      // in heavy fights. Music never takes a voice from anyone and is skipped when its own list is full.
-      // 3.1.0: the budget counts the voices that are alive at the start of the new one; a voice marked
-      // optional (texture sounds) leaves MUSIC_RESERVE places to the kick, the bass and the other essentials
-      if (pri === 0) {
-        let music = this.musicVoiceList;
-        if (music.length >= 12) {
-          for (let i = music.length - 1; i >= 0; i--)
-            if (music[i].end < now) {
-              // 3.46.0: detached now — these used to rely on GC and piled up on Safari.
-              // Never in the offline renders: there the whole graph is rendered after the
-              // scheduling pass, so a detached voice's window would never sound at all.
-              try {
-                if (!this.offline && music[i].node) music[i].node.disconnect();
-              } catch {}
-              music[i] = music[music.length - 1];
-              music.pop();
-            }
-        }
-        if (end > this.maxEnd && end < 1e8) this.maxEnd = end;
-        let live = 0;
-        for (let i = 0; i < music.length; i++) if (music[i].end > start) live++;
-        if (live >= MAX_MUSIC_VOICES - (opt ? MUSIC_RESERVE : 0)) {
-          if (opt) this.musicShed++;
-          else this.musicSkipped++;
-          return null;
-        }
-        if (live + 1 > this.musicPeak) this.musicPeak = live + 1;
-        let voice = { node: null, amp: null, pri: 0, start: start, end: end, loop: false };
-        music.push(voice);
-        this.musicScheduled++;
-        return voice;
-      }
-      let list = this.voices;
-      if (list.length >= MAX_VOICES) {
-        for (let i = list.length - 1; i >= 0; i--)
-          if (list[i].end < now) {
-            // 3.46.0: detached now — these used to rely on GC and piled up on Safari
-            // (never offline: the render happens after the scheduling pass — see claim)
+  claim(pri, start, end, opt) {
+    let now = this.nowT();
+    // 2.8.2: music (priority 0) is counted apart from the sounds. It used to share the list, and every
+    // shot or hit that found it full took the oldest music note: the music stuttered and dropped out
+    // in heavy fights. Music never takes a voice from anyone and is skipped when its own list is full.
+    // 3.1.0: the budget counts the voices that are alive at the start of the new one; a voice marked
+    // optional (texture sounds) leaves MUSIC_RESERVE places to the kick, the bass and the other essentials
+    if (pri === 0) {
+      let music = this.musicVoiceList;
+      if (music.length >= 12) {
+        for (let i = music.length - 1; i >= 0; i--)
+          if (music[i].end < now) {
+            // 3.46.0: detached now — these used to rely on GC and piled up on Safari.
+            // Never in the offline renders: there the whole graph is rendered after the
+            // scheduling pass, so a detached voice's window would never sound at all.
             try {
-              if (!this.offline && list[i].node) list[i].node.disconnect();
+              if (!this.offline && music[i].node) music[i].node.disconnect();
             } catch {}
-            list[i] = list[list.length - 1];
-            list.pop();
+            music[i] = music[music.length - 1];
+            music.pop();
           }
       }
-      let voice = { node: null, amp: null, pri: pri, start: start, end: end, loop: false };
       if (end > this.maxEnd && end < 1e8) this.maxEnd = end;
-      if (list.length < MAX_VOICES) {
-        list.push(voice);
-        return voice;
-      }
-      let victim = -1;
-      for (let i = 0; i < list.length; i++) {
-        let other = list[i];
-        if (other.loop || other.pri > pri || (other.pri === pri && pri < 1)) continue;
-        if (
-          victim < 0 ||
-          other.pri < list[victim].pri ||
-          (other.pri === list[victim].pri && other.start < list[victim].start)
-        )
-          victim = i;
-      }
-      if (victim < 0) {
-        this.dropped++;
+      let live = 0;
+      for (let i = 0; i < music.length; i++) if (music[i].end > start) live++;
+      if (live >= MAX_MUSIC_VOICES - (opt ? MUSIC_RESERVE : 0)) {
+        if (opt) this.musicShed++;
+        else this.musicSkipped++;
         return null;
       }
-      let old = list[victim];
-      try {
-        old.amp.gain.cancelScheduledValues(now);
-        old.amp.gain.setTargetAtTime(0, now, 0.004);
-        old.node.stop(now + 0.03);
-        // 3.46.0: detached now — the stolen voice used to rely on GC (piled up on Safari)
-        // (never offline: the render happens after the scheduling pass — see claim)
-        if (!this.offline) {
-          old.node.disconnect();
-          old.amp.disconnect();
-        }
-      } catch {}
-      list[victim] = voice;
-      this.dropped++;
+      if (live + 1 > this.musicPeak) this.musicPeak = live + 1;
+      let voice = { node: null, amp: null, pri: 0, start: start, end: end, loop: false };
+      music.push(voice);
+      this.musicScheduled++;
       return voice;
     }
-    /* opts: to (end pitch), detune, attack, hold (flat level after the attack), lp/q (low-pass; lpTo ends the
-     sweep), env (Float32Array, 0..1: the whole level curve replaces the exponential envelope: tremolo), dest/at/pri,
-     opt (an optional music voice) */
-    tone(freq, dur, wave, vol, opts = {}) {
-      let ctx = this.ctx,
-        start = ctx.currentTime + (opts.at || 0),
-        voice = this.claim(
-          opts.pri != null ? opts.pri : opts.dest ? 0 : this.curPri,
-          start,
-          start + dur + 0.02,
-          opts.opt,
-        );
-      if (!voice) return;
-      this.logMusic(voice, "t", freq, vol, opts);
-      if (this.budgetOnly) return;
-      let osc = ctx.createOscillator(),
-        amp = ctx.createGain();
-      voice.node = osc;
-      voice.amp = amp;
-      setNaturalWave(ctx, osc, wave);
-      osc.frequency.setValueAtTime(freq, start);
-      if (opts.to) {
-        osc.frequency.exponentialRampToValueAtTime(Math.max(20, opts.to), start + dur);
-      }
-      if (opts.detune) {
-        osc.detune.value = opts.detune;
-      }
-      this.envelope(amp, start, dur, vol, opts);
-      let out = osc;
-      if (opts.lp) {
-        let filter = ctx.createBiquadFilter();
-        filter.type = "lowpass";
-        filter.frequency.value = opts.lp;
-        filter.Q.value = opts.q || 0.7;
-        if (opts.lpTo) {
-          filter.frequency.setValueAtTime(opts.lp, start);
-          filter.frequency.exponentialRampToValueAtTime(opts.lpTo, start + dur);
-        }
-        out.connect(filter);
-        out = filter;
-      }
-      out.connect(amp);
-      this.route(amp, opts);
-      osc.start(start);
-      osc.stop(start + dur + 0.02);
-    }
-    envelope(amp, start, dur, vol, opts) {
-      let attack = opts.attack || 0.004;
-      if (opts.env) {
-        let env = opts.env,
-          curve = new Float32Array(env.length);
-        for (let i = 0; i < env.length; i++) curve[i] = env[i] * vol;
-        amp.gain.setValueCurveAtTime(curve, start, dur);
-        return;
-      }
-      amp.gain.setValueAtTime(1e-4, start);
-      amp.gain.exponentialRampToValueAtTime(vol, start + attack);
-      // 2.9.2: opts.hold keeps the level flat for that long after the attack (sustained sounds such as the
-      // flame roar; the plain exponential decay drops 50 dB in a third of a second and pumps when repeated)
-      // (never past the end: a hold that reaches beyond the note would come after its fade)
-      if (opts.hold)
-        amp.gain.setValueAtTime(vol, start + attack + Math.min(opts.hold, Math.max(0, dur * 0.95 - attack)));
-      amp.gain.exponentialRampToValueAtTime(1e-4, start + dur);
-    }
-    noise(dur, vol, opts = {}) {
-      let ctx = this.ctx,
-        start = ctx.currentTime + (opts.at || 0),
-        voice = this.claim(
-          opts.pri != null ? opts.pri : opts.dest ? 0 : this.curPri,
-          start,
-          start + dur + 0.02,
-          opts.opt,
-        );
-      if (!voice) return;
-      this.logMusic(voice, "n", opts.f || 2e3, vol, opts);
-      if (this.budgetOnly) {
-        Math.random(); // Keep the noise-source offset draw in the reference schedule.
-        return;
-      }
-      let src = ctx.createBufferSource();
-      src.buffer = this.noiseOf(opts.color);
-      // 2.9.1: the 1 s buffer is looped: a burst longer than what is left of it (it starts up to 0.5 s in)
-      // used to be cut off; white noise has no audible seam (3.7.0: nor have the six seconds of pink and brown)
-      src.loop = true;
-      src.playbackRate.value = opts.rate || 1;
-      let filter = ctx.createBiquadFilter();
-      filter.type = opts.type || "lowpass";
-      filter.frequency.setValueAtTime(opts.f || 2e3, start);
-      if (opts.to) {
-        filter.frequency.exponentialRampToValueAtTime(opts.to, start + dur);
-      }
-      filter.Q.value = opts.q || 0.8;
-      let amp = ctx.createGain();
-      voice.node = src;
-      voice.amp = amp;
-      this.envelope(amp, start, dur, vol, { ...opts, attack: opts.attack || 0.003 });
-      src.connect(filter);
-      filter.connect(amp);
-      this.route(amp, opts);
-      src.start(start, Math.random() * Math.max(0, src.buffer.duration - 0.5));
-      src.stop(start + dur + 0.02);
-    }
-    /* 3.2.0: where a voice goes: its bus (opts.dest, the sounds by default), panned with opts.pan (-1..1) and sent to
-       the music reverb with opts.rev (send level) */
-    route(amp, opts) {
-      // a sound (no bus of its own) takes the pan and the room of the event that is being played
-      // 3.9.0: the sounds of the place go to the ambience bus (opts.dest, or curBus while the accents of a biome event
-      // play) and ring out in the room of the sounds, not in that of the music
-      let dest = opts.dest || this.curBus || this.sfx,
-        pan = opts.pan != null ? opts.pan : opts.dest ? 0 : this.curPan,
-        rev = opts.rev != null ? opts.rev : opts.dest ? 0 : this.curRev,
-        room = opts.dest && opts.dest !== this.ambBus ? this.verbIn : this.sfxVerbIn;
-      if (pan && this.ctx.createStereoPanner) {
-        let panner = this.ctx.createStereoPanner();
-        panner.pan.value = Math.max(-1, Math.min(1, pan));
-        amp.connect(panner);
-        panner.connect(dest);
-      } else amp.connect(dest);
-      if (rev && room) {
-        let send = this.ctx.createGain();
-        send.gain.value = rev;
-        amp.connect(send);
-        send.connect(room);
-      }
-    }
-    /* 3.2.0: the glue of the music: gentle on the calm themes, hard and loud on the boss tracks (a dense wall) */
-    mixFor(kind) {
-      if (!this.glue) return;
-      let boss = kind === "boss",
-        g = this.glue,
-        now = this.ctx.currentTime;
-      g.threshold.setValueAtTime(boss ? -20 : -16, now);
-      g.ratio.setValueAtTime(boss ? 5 : 2, now);
-      g.knee.setValueAtTime(boss ? 3 : 10, now);
-      g.attack.setValueAtTime(boss ? 0.004 : 0.02, now);
-      g.release.setValueAtTime(boss ? 0.12 : 0.3, now);
-      this.makeup.gain.cancelScheduledValues(now);
-      this.makeup.gain.setValueAtTime(boss ? 1.3 : 1.1, now);
-    }
-    /* test hook: with musicLog set (an array) every music voice is recorded: kind, start, pitch, level, length,
-       bus (m music, d delay, p pump, c choir) */
-    logMusic(voice, kind, pitch, vol, opts) {
-      if (!this.musicLog || voice.pri !== 0) return;
-      let dest = opts.dest;
-      this.musicLog.push({
-        kind,
-        t: voice.start,
-        pitch,
-        vol,
-        dur: voice.end - voice.start,
-        bus:
-          dest === this.delay
-            ? "d"
-            : dest === this.pump
-              ? "p"
-              : dest === this.choir
-                ? "c"
-                : dest === this.ping
-                  ? "b"
-                  : "m",
-      });
-    }
-    gate(key, gap) {
-      let now = this.ctx.currentTime;
-      if (this.last[key] && now - this.last[key] < gap) return false;
-      this.last[key] = now;
-      return true;
-    }
-    play(id, arg, bossWarning = false) {
-      if (!this.live() || this.sfxVol <= 0) return;
-      const warning = bossWarning || BOSS_WARNING_VOICES.has(id) || THREAT_WARNING_VOICES.has(id);
-      this.curPri = warning || KEY_SOUNDS.has(id) ? 2 : 1;
-      this.curRev = SFX_ROOM[id] || 0;
-      try {
-        this._play(id, arg);
-        const depth = warning ? 0.15 : MUSIC_DUCK[id];
-        if (depth) this.duck(depth);
-      } catch (err) {
-        this.fail(err);
-      } finally {
-        this.curPri = 1;
-        this.curRev = 0;
-      }
-    }
-    /* 3.48.0: the volume sliders of the Settings let the ear check what they set: every bus answers with
-       one real sound of the game on that bus, at the level the slider just put in. Effects fire the shot
-       of the weapon in hand, music plays the arrival braam of the biome, the ambience sounds one far
-       voice of the place. A short throttle per bus keeps a drag from machine-gunning the sample, and the
-       usual gates apply (no live context or a muted bus: nothing sounds, nothing throws). */
-    previewBus(bus, weapon) {
-      if (!this.live()) return;
-      // the gate comes first: a muted bus answers nothing and its throttle stays clean, so turning
-      // the volume back up is heard at once
-      if (bus === "sfx" && this.sfxVol <= 0) return;
-      if (bus === "music" && this.musVol <= 0) return;
-      if (bus === "ambience" && this.ambVol <= 0) return;
-      let now = this.nowT(),
-        gap = bus === "music" ? 0.5 : 0.22;
-      if (now - (this.previewT[bus] ?? -1e9) < gap) return;
-      this.previewT[bus] = now;
-      try {
-        if (bus === "sfx") this.play(weapon || "pulse");
-        else if (bus === "music") musicImpact(this, this.wantBiome(), 0);
-        else if (bus === "ambience") this.placePlay(AMB_PREVIEW[this.wantBiome()] || "sparks", { g: 1, pan: 0 });
-      } catch (err) {
-        this.fail(err);
-      }
-    }
-    /* 2.9.0: a light sidechain: the music gain dips by `depth` (at most 15 %) for about 80 ms and comes back
-     (time constant 70 ms), so that a big hit is heard over the music. Nothing is stopped or skipped. */
-    duck(depth) {
-      let gain = this.duckGain;
-      if (!gain) return;
-      let now = this.ctx.currentTime;
-      // 3.43.1: inside the gate a deeper press still goes through (a nova right after a boom used
-      // to be swallowed whole); an equal or lighter one changes nothing, like before
-      if (now - this.duckT < 0.1 && depth <= this.duckDepth) return;
-      this.duckT = now;
-      this.duckDepth = depth;
-      try {
-        gain.gain.cancelScheduledValues(now);
-        gain.gain.setTargetAtTime(1 - Math.min(0.15, depth), now, 0.012);
-        gain.gain.setTargetAtTime(1, now + 0.08, 0.07);
-      } catch {}
-      // 3.43.0: the room is pressed down a little deeper than the music, so a blast feels like it takes
-      // the air of the place with it
-      if (this.ambDuck) {
-        let room = this.ambDuck.gain;
-        room.cancelScheduledValues(now);
-        room.setTargetAtTime(1 - Math.min(0.4, depth * 2.4), now, 0.014);
-        room.setTargetAtTime(1, now + 0.1, 0.3);
-      }
-    }
-    _play(id, arg) {
-      this.physical.play(this, id, arg);
-    }
-    consume(events, listener) {
-      if (!this.live()) return;
-      let kills = 0;
-      for (let ev of events) {
-        this.curPan = listener && ev.x != null ? Math.max(-0.8, Math.min(0.8, (ev.x - listener.x) / 20)) : 0;
-        switch (ev.k) {
-          case "shot":
-            this.play(rlShotSfx(ev.w));
-            break;
-          case "dmg":
-            if (!ev.burn) {
-              this.play(ev.crit ? "crit" : "hit", { type: ev.type, shield: !!ev.shield });
-            }
-            break;
-          case "kill":
-            if (ev.boss) {
-              this.play("bigkill", ev.type);
-            } else {
-              if (kills++ < 3) {
-                this.play(RL_DEATH_FAMILY[ev.type] || "kill", ev.elite ? 1.8 : Math.max(1, ev.r * 1.6));
-              }
-            }
-            break;
-          case "boom":
-            // 3.0.0: the traps have blasts of their own (trapFire), 3.12.0: so has the Singularity (singCollapse);
-            // 3.6.0: so has the
-            // Combo Surge ("surge")
-            if (ev.kind === "trap" || ev.kind === "surge" || ev.kind === "nova") break;
-            // 3.10.0: the attacks of enemies and bosses sound like what they are
-            if (attackVoice(ev.kind, ev.src, this.biome, ev.chill)) {
-              this.play(attackVoice(ev.kind, ev.src, this.biome, ev.chill), ev.r);
-              break;
-            }
-            if (ev.kind === "brood") {
-              this.play("bcBurst");
-              break;
-            }
-            this.play(
-              ev.kind === "singularity"
-                ? "singCollapse"
-                : ev.kind === "payload" || ev.kind === "pop"
-                  ? "smallboom"
-                  : "boom",
-            );
-            break;
-          case "nova":
-            this.play("nova");
-            break;
-          case "novaReady":
-            this.play("novaReady");
-            break;
-          case "hurt":
-            this.play("hurt");
-            break;
-          case "shieldBreak":
-            this.play("shield");
-            break;
-          case "shieldUp":
-          case "barrier":
-            this.play("shieldUp");
-            break;
-          case "dash":
-            this.play("dash");
-            break;
-          // 3.17.0: the walker: a foot comes down on the ground of the biome (or on ice or acid), the landing after a dash
-          case "step":
-            this.play("step", { ground: ev.ground, foot: ev.foot, v: ev.v });
-            break;
-          case "land":
-            this.play("land", { ground: ev.ground });
-            break;
-          case "edash":
-            this.play(RL_DASH_VOICE[ev.type] || "blink");
-            break;
-          case "mine":
-            this.play("plant");
-            break;
-          case "shard":
-            this.play("shard");
-            break;
-          case "heal":
-            this.play("heal");
-            break;
-          case "eshot":
-            this.play(shotVoiceFor(ev));
-            // 3.33.0: a Frost enemy's shot rings with a glassy chime on top (its shot slows the drone it hits)
-            if (ev.frost) this.play("eshotFrost");
-            break;
-          case "beamWarn":
-            this.play(BEAM_VOICE[ev.skin] || (ev.small ? "beamSmall" : "beam"), ev.small ? 0.6 : 1, ev.boss === true);
-            break;
-          case "aim":
-            this.play(ev.type === "turret" ? "servo" : "lock");
-            break;
-          case "charge":
-            this.play(RL_CHARGE_VOICE[ev.type] || "windHeavy", ev.type);
-            break;
-          case "fuse":
-            this.play("fuse");
-            break;
-          case "portal":
-            this.play("spawn");
-            break;
-          case "wave":
-            this.play(ev.boss ? "boss" : "wave");
-            break;
-          case "cleared":
-            this.play(ev.boss ? "bossCleared" : "cleared", ev.flawless);
-            break;
-          case "die":
-            this.play("die");
-            break;
-          case "victory":
-            this.play("victory");
-            break;
-          case "thud":
-            this.play("thud", ev.src);
-            break;
-          case "revive":
-            this.play("nova");
-            break;
-          case "pick":
-            this.play("pick", ev.evo ? 5 : (upgradesById[ev.id] && upgradesById[ev.id].rarity) || 1);
-            break;
-          // 3.15.0: the boss cards
-          case "lockdown":
-            this.play("bcCage");
-            break;
-          case "lockOn":
-            this.play("bcLock");
-            break;
-          case "shatter":
-            this.play("bcShatter");
-            break;
-          case "broodHatch":
-            this.play("bcHatch");
-            break;
-          case "implode":
-            this.play("bcImplode");
-            break;
-          case "kit":
-            this.play("pick", 2);
-            break;
-          case "reroll":
-            this.play("reroll");
-            break;
-          case "offer":
-            this.play("offer");
-            break;
-          case "maxed":
-            this.play("heal");
-            break;
-          case "singularity":
-            this.play("singThrow");
-            break;
-          case "singOpen":
-            this.play("singPull");
-            break;
-          case "gadgetReady":
-            this.play("gadgetReady");
-            break;
-          case "gadgetDeny":
-            this.play("gadgetNo");
-            break;
-          case "ping":
-            // the old ping (shield phase) stays silent; a hit the burst cap swallows tinks
-            if (ev.resist) this.play("resist");
-            break;
-          case "trapWarn": {
-            let voice = RL_TRAP_SOUND[ev.skin];
-            if (voice) this.play(voice.warn, ev.fam === "beam" ? { delay: ev.delay, dur: ev.dur } : ev.delay);
-            break;
-          }
-          case "trapFire": {
-            let voice = RL_TRAP_SOUND[ev.skin];
-            if (voice && voice.fire) this.play(voice.fire);
-            break;
-          }
-          case "trapArm":
-            this.play("tArm", ev.skin);
-            break;
-          case "block":
-            this.play("block");
-            break;
-          case "guardBreak":
-            this.play("guardBreak");
-            break;
-          case "guardUp":
-            this.play("guardUp");
-            break;
-          case "shieldPop":
-            this.play("shieldPop");
-            break;
-          case "lob":
-            this.play("lob", { src: ev.src, frost: !!ev.frost });
-            break;
-          case "blinkWarn":
-            this.play("blinkWarn", ev.src);
-            break;
-          case "blink":
-            this.play(ev.leap ? "leap" : "blink", ev.src);
-            break;
-          case "erupt":
-            this.play("erupt");
-            break;
-          case "devilNear":
-            // 3.53.0: a dust devil of the Flats bears down on the player (the consume pan carried its spot)
-            this.play("devilNear");
-            break;
-          case "warp":
-            this.play("warp");
-            break;
-          case "mend":
-          case "chill":
-          case "champion":
-            this.play(ev.k, ev.src);
-            break;
-          case "tribute":
-            this.play("tribute");
-            break;
-          case "stun":
-            this.play("stun", ev.skin);
-            break;
-          case "shortArm":
-            this.play("shortFizz");
-            break;
-          case "championDown":
-            this.play("bigkill", ev.type);
-            break;
-          case "combo":
-            this.play("combo", Math.round(Math.log2(ev.n / 10) * 3));
-            break;
-          case "surge":
-            this.play("surge", ev.i);
-            break;
-          case "comboEnd":
-            this.play("comboEnd");
-            break;
-          case "bounty":
-          case "bountyPulse":
-            this.play("bounty");
-            break;
-          case "supplyDrop":
-            this.play("supply");
-            break;
-          case "hatch":
-            this.play("hatch", { src: ev.src, big: !!ev.big });
-            break;
-          case "freeze":
-            this.play("freeze");
-            break;
-          case "chain":
-            this.play("chain");
-            break;
-          case "wingShot":
-            this.play("wing");
-            break;
-          case "bounce":
-            this.play("bounce");
-            break;
-          // bosses
-          case "boss":
-            this.play("bossIntro", ev.id);
-            break;
-          case "bossAtk": {
-            let voice = RL_BOSS_ATK[ev.atk];
-            if (RL_OVERDRIVE.has(ev.atk)) this.play("bOverdrive", ev.id);
-            if (voice) this.play(voice, ev.id);
-            break;
-          }
-          case "enrage":
-            this.play("enrage", ev.id);
-            this.bossPush(2);
-            break;
-          case "phase":
-            this.play("phase", ev.src);
-            this.bossPush(1);
-            break;
-          case "bossDown":
-            this.bossEnd();
-            this.play("bossDown", ev.id);
-            break;
-        }
-      }
-      this.curPan = 0;
-    }
-    /* 3.1.0: mode "fight" is the calm theme of the biome, "boss" its boss track. The boss track starts on the
-     spot (main.js calls this when the boss appears, at the camera pan), not with the wave. */
-    /* resume: back from the pause menu (the track goes on where it was instead of starting again) */
-    setMusic(mode, biome, resume) {
-      if (mode === "boss" && !resume) this.bossOver = false;
-      this.resumeWanted = !!resume;
-      this.mode = mode;
-      // 3.42.0: leaving the fight opens the Whiteout muffle (the storm belongs to the fight alone)
-      if (this.ctx && this.muffle && mode !== "fight" && mode !== "boss")
-        this.muffle.frequency.setTargetAtTime(18000, this.ctx.currentTime, 0.3);
-      if (biome) {
-        this.biome = biome;
-        // 3.2.0: the room of the sounds is the room of the biome
-        if (this.sfxVerbOut && SFX_ROOM_BIOME[biome])
-          this.sfxVerbOut.gain.setTargetAtTime(SFX_ROOM_BIOME[biome], this.ctx.currentTime, 0.3);
-      }
-      this.syncTrack();
-      this.resumeWanted = false;
-    }
-    /* The boss is dead: the boss track resolves (a last hit) and the calm theme fades back in. */
-    bossEnd() {
-      this.bossOver = true;
-      this.syncTrack();
-    }
-    /* the boss changes its phase or enrages: the track jumps back to its drop with more layers */
-    bossPush(level) {
-      if (this.playKind !== "boss" || level <= this.heat) return;
-      this.heat = level;
-      this.jump = true;
-    }
-    /* what should play now: "off", "menu", "fight" (calm) or "boss" */
-    wantKind() {
-      if (this.mode === "boss") return this.bossOver ? "fight" : "boss";
-      return this.mode;
-    }
-    wantBiome() {
-      return musicChords[this.biome] ? this.biome : "city";
-    }
-    /* Called when the wanted track changes: restarts the step counter on the spot, cuts the notes that were
-     already scheduled for the old track and plays the transition: an impact when the boss track starts, a last
-     hit when it resolves (the calm theme then fades back in over about 3 s). */
-    syncTrack() {
-      // 3.43.1: the guard comes first - a setMusic before init() used to commit the track state and
-      // skip the audio half, and every later sync saw "no change" and never started the track
-      let ctx = this.ctx;
-      if (!ctx || !this.fade) return;
-      let kind = this.wantKind(),
-        biome = this.wantBiome();
-      if (kind === this.playKind && biome === this.playBiome) return;
-      // 3.46.0: after a failed track start, back off 2 s before retrying (the 30 ms tick would
-      // otherwise rebuild the bed — and swap the room — over and over)
-      if (this.trackFailT && ctx.currentTime - this.trackFailT < 2) return;
-      let from = this.playKind,
-        track = kind === "fight" || kind === "boss" ? musicTrack(kind, biome) : null;
-      // 3.2.0: the pause menu keeps the place of a fight or boss track; resuming the run goes on from there
-      if ((from === "fight" || from === "boss") && kind === "menu")
-        this.held = { kind: from, biome: this.playBiome, step: this.step, cycle: this.cycle, heat: this.heat };
-      let held = this.held,
-        resumed = !!held && this.resumeWanted && held.kind === kind && held.biome === biome;
-      // 3.46.0: the old state is kept — if the change fails midway, it is put back so the next
-      // tick (after the backoff) retries the whole change instead of a committed-but-silent track
-      let prev = {
-        kind: this.playKind,
-        biome: this.playBiome,
-        step: this.step,
-        cycle: this.cycle,
-        heat: this.heat,
-        jump: this.jump,
-        held: this.held,
-      };
-      if (kind !== "menu") this.held = null;
-      this.playKind = kind;
-      this.playBiome = biome;
-      this.step = resumed ? held.step : 0;
-      this.cycle = resumed ? held.cycle : 0;
-      this.heat = resumed ? held.heat : 0;
-      this.jump = false;
-      try {
-        let now = ctx.currentTime,
-          gain = track ? track.gain : 1;
-        this.cutScheduled(now);
-        this.quietOld(now);
-        this.nextT = now + 0.03;
-        this.fade.gain.cancelScheduledValues(now);
-        this.mixFor(kind);
-        this.stopMusicBed();
-        if (track) this.startMusicBed(kind, biome);
-        if (resumed) {
-          this.fade.gain.setValueAtTime(0.0001, now);
-          this.fade.gain.linearRampToValueAtTime(gain, now + 0.6);
-        } else if (from === "boss" && kind === "fight") {
-          // resolve: the boss track ends on a last hit, then silence, then the calm theme fades in
-          this.fade.gain.setValueAtTime(1.1, now);
-          this.fade.gain.linearRampToValueAtTime(0.0001, now + 0.9);
-          this.fade.gain.linearRampToValueAtTime(gain, now + 4.1);
-          this.nextT = now + 0.9;
-          if (this.live() && this.musVol > 0) musicResolve(this, biome, 0);
-        } else {
-          this.fade.gain.setValueAtTime(gain, now);
-          if (kind === "boss" && from === "fight" && this.live() && this.musVol > 0) musicImpact(this, biome, 0);
-        }
-        this.trackFailT = 0;
-      } catch (err) {
-        // 3.46.0: roll the track state back and back off before retrying
-        this.playKind = prev.kind;
-        this.playBiome = prev.biome;
-        this.step = prev.step;
-        this.cycle = prev.cycle;
-        this.heat = prev.heat;
-        this.jump = prev.jump;
-        this.held = prev.held;
-        this.trackFailT = ctx.currentTime;
-        this.fail(err);
-      }
-    }
-    /* the notes that were scheduled ahead (the scheduler looks 0.14 s ahead) for a track that has just ended */
-    cutScheduled(now) {
-      if (this.pump) {
-        this.pump.gain.cancelScheduledValues(now);
-        this.pump.gain.setValueAtTime(1, now);
-      }
-      let list = this.musicVoiceList;
-      for (let i = list.length - 1; i >= 0; i--) {
-        let voice = list[i];
-        if (voice.start > now + 0.005 && voice.node) {
+    let list = this.voices;
+    if (list.length >= MAX_VOICES) {
+      for (let i = list.length - 1; i >= 0; i--)
+        if (list[i].end < now) {
+          // 3.46.0: detached now — these used to rely on GC and piled up on Safari
+          // (never offline: the render happens after the scheduling pass — see claim)
           try {
-            voice.amp.gain.cancelScheduledValues(now);
-            voice.amp.gain.setValueAtTime(0, now);
-            voice.node.stop(now);
-            // 3.46.0: detached now instead of relying on GC
-            // (never offline: the render happens after the scheduling pass — see claim)
-            if (!this.offline) {
-              voice.node.disconnect();
-              voice.amp.disconnect();
-            }
+            if (!this.offline && list[i].node) list[i].node.disconnect();
           } catch {}
           list[i] = list[list.length - 1];
           list.pop();
         }
+    }
+    let voice = { node: null, amp: null, pri: pri, start: start, end: end, loop: false };
+    if (end > this.maxEnd && end < 1e8) this.maxEnd = end;
+    if (list.length < MAX_VOICES) {
+      list.push(voice);
+      return voice;
+    }
+    let victim = -1;
+    for (let i = 0; i < list.length; i++) {
+      let other = list[i];
+      if (other.loop || other.pri > pri || (other.pri === pri && pri < 1)) continue;
+      if (
+        victim < 0 ||
+        other.pri < list[victim].pri ||
+        (other.pri === list[victim].pri && other.start < list[victim].start)
+      )
+        victim = i;
+    }
+    if (victim < 0) {
+      this.dropped++;
+      return null;
+    }
+    let old = list[victim];
+    try {
+      old.amp.gain.cancelScheduledValues(now);
+      old.amp.gain.setTargetAtTime(0, now, 0.004);
+      old.node.stop(now + 0.03);
+      // 3.46.0: detached now — the stolen voice used to rely on GC (piled up on Safari)
+      // (never offline: the render happens after the scheduling pass — see claim)
+      if (!this.offline) {
+        old.node.disconnect();
+        old.amp.disconnect();
+      }
+    } catch {}
+    list[victim] = voice;
+    this.dropped++;
+    return voice;
+  }
+  /* opts: to (end pitch), detune, attack, hold (flat level after the attack), lp/q (low-pass; lpTo ends the
+     sweep), env (Float32Array, 0..1: the whole level curve replaces the exponential envelope: tremolo), dest/at/pri,
+     opt (an optional music voice) */
+  tone(freq, dur, wave, vol, opts = {}) {
+    let ctx = this.ctx,
+      start = ctx.currentTime + (opts.at || 0),
+      voice = this.claim(
+        opts.pri != null ? opts.pri : opts.dest ? 0 : this.curPri,
+        start,
+        start + dur + 0.02,
+        opts.opt,
+      );
+    if (!voice) return;
+    this.logMusic(voice, "t", freq, vol, opts);
+    if (this.budgetOnly) return;
+    let osc = ctx.createOscillator(),
+      amp = ctx.createGain();
+    voice.node = osc;
+    voice.amp = amp;
+    setNaturalWave(ctx, osc, wave);
+    osc.frequency.setValueAtTime(freq, start);
+    if (opts.to) {
+      osc.frequency.exponentialRampToValueAtTime(Math.max(20, opts.to), start + dur);
+    }
+    if (opts.detune) {
+      osc.detune.value = opts.detune;
+    }
+    this.envelope(amp, start, dur, vol, opts);
+    let out = osc;
+    if (opts.lp) {
+      let filter = ctx.createBiquadFilter();
+      filter.type = "lowpass";
+      filter.frequency.value = opts.lp;
+      filter.Q.value = opts.q || 0.7;
+      if (opts.lpTo) {
+        filter.frequency.setValueAtTime(opts.lp, start);
+        filter.frequency.exponentialRampToValueAtTime(opts.lpTo, start + dur);
+      }
+      out.connect(filter);
+      out = filter;
+    }
+    out.connect(amp);
+    this.route(amp, opts);
+    osc.start(start);
+    osc.stop(start + dur + 0.02);
+  }
+  envelope(amp, start, dur, vol, opts) {
+    let attack = opts.attack || 0.004;
+    if (opts.env) {
+      let env = opts.env,
+        curve = new Float32Array(env.length);
+      for (let i = 0; i < env.length; i++) curve[i] = env[i] * vol;
+      amp.gain.setValueCurveAtTime(curve, start, dur);
+      return;
+    }
+    amp.gain.setValueAtTime(1e-4, start);
+    amp.gain.exponentialRampToValueAtTime(vol, start + attack);
+    // 2.9.2: opts.hold keeps the level flat for that long after the attack (sustained sounds such as the
+    // flame roar; the plain exponential decay drops 50 dB in a third of a second and pumps when repeated)
+    // (never past the end: a hold that reaches beyond the note would come after its fade)
+    if (opts.hold) amp.gain.setValueAtTime(vol, start + attack + Math.min(opts.hold, Math.max(0, dur * 0.95 - attack)));
+    amp.gain.exponentialRampToValueAtTime(1e-4, start + dur);
+  }
+  noise(dur, vol, opts = {}) {
+    let ctx = this.ctx,
+      start = ctx.currentTime + (opts.at || 0),
+      voice = this.claim(
+        opts.pri != null ? opts.pri : opts.dest ? 0 : this.curPri,
+        start,
+        start + dur + 0.02,
+        opts.opt,
+      );
+    if (!voice) return;
+    this.logMusic(voice, "n", opts.f || 2e3, vol, opts);
+    if (this.budgetOnly) {
+      Math.random(); // Keep the noise-source offset draw in the reference schedule.
+      return;
+    }
+    let src = ctx.createBufferSource();
+    src.buffer = this.noiseOf(opts.color);
+    // 2.9.1: the 1 s buffer is looped: a burst longer than what is left of it (it starts up to 0.5 s in)
+    // used to be cut off; white noise has no audible seam (3.7.0: nor have the six seconds of pink and brown)
+    src.loop = true;
+    src.playbackRate.value = opts.rate || 1;
+    let filter = ctx.createBiquadFilter();
+    filter.type = opts.type || "lowpass";
+    filter.frequency.setValueAtTime(opts.f || 2e3, start);
+    if (opts.to) {
+      filter.frequency.exponentialRampToValueAtTime(opts.to, start + dur);
+    }
+    filter.Q.value = opts.q || 0.8;
+    let amp = ctx.createGain();
+    voice.node = src;
+    voice.amp = amp;
+    this.envelope(amp, start, dur, vol, { ...opts, attack: opts.attack || 0.003 });
+    src.connect(filter);
+    filter.connect(amp);
+    this.route(amp, opts);
+    src.start(start, Math.random() * Math.max(0, src.buffer.duration - 0.5));
+    src.stop(start + dur + 0.02);
+  }
+  /* 3.2.0: where a voice goes: its bus (opts.dest, the sounds by default), panned with opts.pan (-1..1) and sent to
+       the music reverb with opts.rev (send level) */
+  route(amp, opts) {
+    // a sound (no bus of its own) takes the pan and the room of the event that is being played
+    // 3.9.0: the sounds of the place go to the ambience bus (opts.dest, or curBus while the accents of a biome event
+    // play) and ring out in the room of the sounds, not in that of the music
+    let dest = opts.dest || this.curBus || this.sfx,
+      pan = opts.pan != null ? opts.pan : opts.dest ? 0 : this.curPan,
+      rev = opts.rev != null ? opts.rev : opts.dest ? 0 : this.curRev,
+      room = opts.dest && opts.dest !== this.ambBus ? this.verbIn : this.sfxVerbIn;
+    if (pan && this.ctx.createStereoPanner) {
+      let panner = this.ctx.createStereoPanner();
+      panner.pan.value = Math.max(-1, Math.min(1, pan));
+      amp.connect(panner);
+      panner.connect(dest);
+    } else amp.connect(dest);
+    if (rev && room) {
+      let send = this.ctx.createGain();
+      send.gain.value = rev;
+      amp.connect(send);
+      send.connect(room);
+    }
+  }
+  /* 3.2.0: the glue of the music: gentle on the calm themes, hard and loud on the boss tracks (a dense wall) */
+  mixFor(kind) {
+    if (!this.glue) return;
+    let boss = kind === "boss",
+      g = this.glue,
+      now = this.ctx.currentTime;
+    g.threshold.setValueAtTime(boss ? -20 : -16, now);
+    g.ratio.setValueAtTime(boss ? 5 : 2, now);
+    g.knee.setValueAtTime(boss ? 3 : 10, now);
+    g.attack.setValueAtTime(boss ? 0.004 : 0.02, now);
+    g.release.setValueAtTime(boss ? 0.12 : 0.3, now);
+    this.makeup.gain.cancelScheduledValues(now);
+    this.makeup.gain.setValueAtTime(boss ? 1.3 : 1.1, now);
+  }
+  /* test hook: with musicLog set (an array) every music voice is recorded: kind, start, pitch, level, length,
+       bus (m music, d delay, p pump, c choir) */
+  logMusic(voice, kind, pitch, vol, opts) {
+    if (!this.musicLog || voice.pri !== 0) return;
+    let dest = opts.dest;
+    this.musicLog.push({
+      kind,
+      t: voice.start,
+      pitch,
+      vol,
+      dur: voice.end - voice.start,
+      bus:
+        dest === this.delay
+          ? "d"
+          : dest === this.pump
+            ? "p"
+            : dest === this.choir
+              ? "c"
+              : dest === this.ping
+                ? "b"
+                : "m",
+    });
+  }
+  gate(key, gap) {
+    let now = this.ctx.currentTime;
+    if (this.last[key] && now - this.last[key] < gap) return false;
+    this.last[key] = now;
+    return true;
+  }
+  play(id, arg, bossWarning = false) {
+    if (!this.live() || this.sfxVol <= 0) return;
+    const warning = bossWarning || BOSS_WARNING_VOICES.has(id) || THREAT_WARNING_VOICES.has(id);
+    this.curPri = warning || KEY_SOUNDS.has(id) ? 2 : 1;
+    this.curRev = SFX_ROOM[id] || 0;
+    try {
+      this._play(id, arg);
+      const depth = warning ? 0.15 : MUSIC_DUCK[id];
+      if (depth) this.duck(depth);
+    } catch (err) {
+      this.fail(err);
+    } finally {
+      this.curPri = 1;
+      this.curRev = 0;
+    }
+  }
+  /* 3.48.0: the volume sliders of the Settings let the ear check what they set: every bus answers with
+       one real sound of the game on that bus, at the level the slider just put in. Effects fire the shot
+       of the weapon in hand, music plays the arrival chord of the biome, the ambience sounds one far
+       voice of the place. A short throttle per bus keeps a drag from machine-gunning the sample, and the
+       usual gates apply (no live context or a muted bus: nothing sounds, nothing throws). */
+  previewBus(bus, weapon) {
+    if (!this.live()) return;
+    // the gate comes first: a muted bus answers nothing and its throttle stays clean, so turning
+    // the volume back up is heard at once
+    if (bus === "sfx" && this.sfxVol <= 0) return;
+    if (bus === "music" && this.musVol <= 0) return;
+    if (bus === "ambience" && this.ambVol <= 0) return;
+    let now = this.nowT(),
+      gap = bus === "music" ? 0.5 : 0.22;
+    if (now - (this.previewT[bus] ?? -1e9) < gap) return;
+    this.previewT[bus] = now;
+    try {
+      if (bus === "sfx") this.play(weapon || "pulse");
+      else if (bus === "music") musicImpact(this, this.wantBiome(), 0);
+      else if (bus === "ambience") this.placePlay(AMB_PREVIEW[this.wantBiome()] || "sparks", { g: 1, pan: 0 });
+    } catch (err) {
+      this.fail(err);
+    }
+  }
+  /* 2.9.0: a light sidechain: the music gain dips by `depth` (at most 15 %) for about 80 ms and comes back
+     (time constant 70 ms), so that a big hit is heard over the music. Nothing is stopped or skipped. */
+  duck(depth) {
+    let gain = this.duckGain;
+    if (!gain) return;
+    let now = this.ctx.currentTime;
+    // 3.43.1: inside the gate a deeper press still goes through (a nova right after a boom used
+    // to be swallowed whole); an equal or lighter one changes nothing, like before
+    if (now - this.duckT < 0.1 && depth <= this.duckDepth) return;
+    this.duckT = now;
+    this.duckDepth = depth;
+    try {
+      gain.gain.cancelScheduledValues(now);
+      gain.gain.setTargetAtTime(1 - Math.min(0.15, depth), now, 0.012);
+      gain.gain.setTargetAtTime(1, now + 0.08, 0.07);
+    } catch {}
+    // 3.43.0: the room is pressed down a little deeper than the music, so a blast feels like it takes
+    // the air of the place with it
+    if (this.ambDuck) {
+      let room = this.ambDuck.gain;
+      room.cancelScheduledValues(now);
+      room.setTargetAtTime(1 - Math.min(0.4, depth * 2.4), now, 0.014);
+      room.setTargetAtTime(1, now + 0.1, 0.3);
+    }
+  }
+  _play(id, arg) {
+    this.physical.play(this, id, arg);
+  }
+  consume(events, listener) {
+    if (!this.live()) return;
+    let kills = 0;
+    for (let ev of events) {
+      this.curPan = listener && ev.x != null ? Math.max(-0.8, Math.min(0.8, (ev.x - listener.x) / 20)) : 0;
+      switch (ev.k) {
+        case "shot":
+          this.play(rlShotSfx(ev.w));
+          break;
+        case "dmg":
+          if (!ev.burn) {
+            this.play(ev.crit ? "crit" : "hit", { type: ev.type, shield: !!ev.shield });
+          }
+          break;
+        case "kill":
+          if (ev.boss) {
+            this.play("bigkill", ev.type);
+          } else {
+            if (kills++ < 3) {
+              this.play(RL_DEATH_FAMILY[ev.type] || "kill", ev.elite ? 1.8 : Math.max(1, ev.r * 1.6));
+            }
+          }
+          break;
+        case "boom":
+          // 3.0.0: the traps have blasts of their own (trapFire), 3.12.0: so has the Singularity (singCollapse);
+          // 3.6.0: so has the
+          // Combo Surge ("surge")
+          if (ev.kind === "trap" || ev.kind === "surge" || ev.kind === "nova") break;
+          // 3.10.0: the attacks of enemies and bosses sound like what they are
+          if (attackVoice(ev.kind, ev.src, this.biome, ev.chill)) {
+            this.play(attackVoice(ev.kind, ev.src, this.biome, ev.chill), ev.r);
+            break;
+          }
+          if (ev.kind === "brood") {
+            this.play("bcBurst");
+            break;
+          }
+          this.play(
+            ev.kind === "singularity"
+              ? "singCollapse"
+              : ev.kind === "payload" || ev.kind === "pop"
+                ? "smallboom"
+                : "boom",
+          );
+          break;
+        case "nova":
+          this.play("nova");
+          break;
+        case "novaReady":
+          this.play("novaReady");
+          break;
+        case "hurt":
+          this.play("hurt");
+          break;
+        case "shieldBreak":
+          this.play("shield");
+          break;
+        case "shieldUp":
+        case "barrier":
+          this.play("shieldUp");
+          break;
+        case "dash":
+          this.play("dash");
+          break;
+        // 3.17.0: the walker: a foot comes down on the ground of the biome (or on ice or acid), the landing after a dash
+        case "step":
+          this.play("step", { ground: ev.ground, foot: ev.foot, v: ev.v });
+          break;
+        case "land":
+          this.play("land", { ground: ev.ground });
+          break;
+        case "edash":
+          this.play(RL_DASH_VOICE[ev.type] || "blink");
+          break;
+        case "mine":
+          this.play("plant");
+          break;
+        case "shard":
+          this.play("shard");
+          break;
+        case "heal":
+          this.play("heal");
+          break;
+        case "eshot":
+          this.play(shotVoiceFor(ev));
+          // 3.33.0: a Frost enemy's shot rings with a glassy chime on top (its shot slows the drone it hits)
+          if (ev.frost) this.play("eshotFrost");
+          break;
+        case "beamWarn":
+          this.play(BEAM_VOICE[ev.skin] || (ev.small ? "beamSmall" : "beam"), ev.small ? 0.6 : 1, ev.boss === true);
+          break;
+        case "aim":
+          this.play(ev.type === "turret" ? "servo" : "lock");
+          break;
+        case "charge":
+          this.play(RL_CHARGE_VOICE[ev.type] || "windHeavy", ev.type);
+          break;
+        case "fuse":
+          this.play("fuse");
+          break;
+        case "portal":
+          this.play("spawn");
+          break;
+        case "wave":
+          this.play(ev.boss ? "boss" : "wave");
+          break;
+        case "cleared":
+          this.play(ev.boss ? "bossCleared" : "cleared", ev.flawless);
+          break;
+        case "die":
+          this.play("die");
+          break;
+        case "victory":
+          this.play("victory");
+          break;
+        case "thud":
+          this.play("thud", ev.src);
+          break;
+        case "revive":
+          this.play("nova");
+          break;
+        case "pick":
+          this.play("pick", ev.evo ? 5 : (upgradesById[ev.id] && upgradesById[ev.id].rarity) || 1);
+          break;
+        // 3.15.0: the boss cards
+        case "lockdown":
+          this.play("bcCage");
+          break;
+        case "lockOn":
+          this.play("bcLock");
+          break;
+        case "shatter":
+          this.play("bcShatter");
+          break;
+        case "broodHatch":
+          this.play("bcHatch");
+          break;
+        case "implode":
+          this.play("bcImplode");
+          break;
+        case "kit":
+          this.play("pick", 2);
+          break;
+        case "reroll":
+          this.play("reroll");
+          break;
+        case "offer":
+          this.play("offer");
+          break;
+        case "maxed":
+          this.play("heal");
+          break;
+        case "singularity":
+          this.play("singThrow");
+          break;
+        case "singOpen":
+          this.play("singPull");
+          break;
+        case "gadgetReady":
+          this.play("gadgetReady");
+          break;
+        case "gadgetDeny":
+          this.play("gadgetNo");
+          break;
+        case "ping":
+          // the old ping (shield phase) stays silent; a hit the burst cap swallows tinks
+          if (ev.resist) this.play("resist");
+          break;
+        case "trapWarn": {
+          let voice = RL_TRAP_SOUND[ev.skin];
+          if (voice) this.play(voice.warn, ev.fam === "beam" ? { delay: ev.delay, dur: ev.dur } : ev.delay);
+          break;
+        }
+        case "trapFire": {
+          let voice = RL_TRAP_SOUND[ev.skin];
+          if (voice && voice.fire) this.play(voice.fire);
+          break;
+        }
+        case "trapArm":
+          this.play("tArm", ev.skin);
+          break;
+        case "block":
+          this.play("block");
+          break;
+        case "guardBreak":
+          this.play("guardBreak");
+          break;
+        case "guardUp":
+          this.play("guardUp");
+          break;
+        case "shieldPop":
+          this.play("shieldPop");
+          break;
+        case "lob":
+          this.play("lob", { src: ev.src, frost: !!ev.frost });
+          break;
+        case "blinkWarn":
+          this.play("blinkWarn", ev.src);
+          break;
+        case "blink":
+          this.play(ev.leap ? "leap" : "blink", ev.src);
+          break;
+        case "erupt":
+          this.play("erupt");
+          break;
+        case "devilNear":
+          // 3.53.0: a dust devil of the Flats bears down on the player (the consume pan carried its spot)
+          this.play("devilNear");
+          break;
+        case "warp":
+          this.play("warp");
+          break;
+        case "mend":
+        case "chill":
+        case "champion":
+          this.play(ev.k, ev.src);
+          break;
+        case "tribute":
+          this.play("tribute");
+          break;
+        case "stun":
+          this.play("stun", ev.skin);
+          break;
+        case "shortArm":
+          this.play("shortFizz");
+          break;
+        case "championDown":
+          this.play("bigkill", ev.type);
+          break;
+        case "combo":
+          this.play("combo", Math.round(Math.log2(ev.n / 10) * 3));
+          break;
+        case "surge":
+          this.play("surge", ev.i);
+          break;
+        case "comboEnd":
+          this.play("comboEnd");
+          break;
+        case "bounty":
+        case "bountyPulse":
+          this.play("bounty");
+          break;
+        case "supplyDrop":
+          this.play("supply");
+          break;
+        case "hatch":
+          this.play("hatch", { src: ev.src, big: !!ev.big });
+          break;
+        case "freeze":
+          this.play("freeze");
+          break;
+        case "chain":
+          this.play("chain");
+          break;
+        case "wingShot":
+          this.play("wing");
+          break;
+        case "bounce":
+          this.play("bounce");
+          break;
+        // bosses
+        case "boss":
+          this.play("bossIntro", ev.id);
+          break;
+        case "bossAtk": {
+          let voice = RL_BOSS_ATK[ev.atk];
+          if (RL_OVERDRIVE.has(ev.atk)) this.play("bOverdrive", ev.id);
+          if (voice) this.play(voice, ev.id);
+          break;
+        }
+        case "enrage":
+          this.play("enrage", ev.id);
+          this.bossPush(2);
+          break;
+        case "phase":
+          this.play("phase", ev.src);
+          this.bossPush(1);
+          break;
+        case "bossDown":
+          this.bossEnd();
+          this.play("bossDown", ev.id);
+          break;
       }
     }
-    /* 3.18.1: the old track does not ring on under the new one. A track change used to cut only the notes that were still
+    this.curPan = 0;
+  }
+  /* 3.1.0: mode "fight" is the calm theme of the biome, "boss" its boss track. The boss track starts on the
+     spot (main.js calls this when the boss appears, at the camera pan), not with the wave. */
+  /* resume: back from the pause menu (the track goes on where it was instead of starting again) */
+  setMusic(mode, biome, resume) {
+    if (mode === "boss" && !resume) this.bossOver = false;
+    this.resumeWanted = !!resume;
+    this.mode = mode;
+    // 3.42.0: leaving the fight opens the Whiteout muffle (the storm belongs to the fight alone)
+    if (this.ctx && this.muffle && mode !== "fight" && mode !== "boss")
+      this.muffle.frequency.setTargetAtTime(18000, this.ctx.currentTime, 0.3);
+    if (biome) {
+      this.biome = biome;
+      // 3.2.0: the room of the sounds is the room of the biome
+      if (this.sfxVerbOut && SFX_ROOM_BIOME[biome])
+        this.sfxVerbOut.gain.setTargetAtTime(SFX_ROOM_BIOME[biome], this.ctx.currentTime, 0.3);
+    }
+    this.syncTrack();
+    this.resumeWanted = false;
+  }
+  /* The boss is dead: the boss track resolves (a last hit) and the calm theme fades back in. */
+  bossEnd() {
+    this.bossOver = true;
+    this.syncTrack();
+  }
+  /* the boss changes its phase or enrages: the track jumps back to its drop with more layers */
+  bossPush(level) {
+    if (this.playKind !== "boss" || level <= this.heat) return;
+    this.heat = level;
+    this.jump = true;
+  }
+  /* what should play now: "off", "menu", "fight" (calm) or "boss" */
+  wantKind() {
+    if (this.mode === "boss") return this.bossOver ? "fight" : "boss";
+    return this.mode;
+  }
+  wantBiome() {
+    return scoreBiomes.includes(this.biome) ? this.biome : "city";
+  }
+  /* Called when the wanted track changes: restarts the step counter on the spot, cuts the notes that were
+     already scheduled for the old track and plays the transition: an impact when the boss track starts, a last
+     hit when it resolves (the calm theme then fades back in over about 3 s). */
+  syncTrack() {
+    // 3.43.1: the guard comes first - a setMusic before init() used to commit the track state and
+    // skip the audio half, and every later sync saw "no change" and never started the track
+    let ctx = this.ctx;
+    if (!ctx || !this.fade) return;
+    let kind = this.wantKind(),
+      biome = this.wantBiome();
+    if (kind === this.playKind && biome === this.playBiome) return;
+    // 3.46.0: after a failed track start, back off 2 s before retrying (the 30 ms tick would
+    // otherwise rebuild the bed — and swap the room — over and over)
+    if (this.trackFailT && ctx.currentTime - this.trackFailT < 2) return;
+    let from = this.playKind,
+      track = kind === "fight" || kind === "boss" ? musicTrack(kind, biome) : null;
+    // 3.2.0: the pause menu keeps the place of a fight or boss track; resuming the run goes on from there
+    if ((from === "fight" || from === "boss") && kind === "menu")
+      this.held = { kind: from, biome: this.playBiome, step: this.step, cycle: this.cycle, heat: this.heat };
+    let held = this.held,
+      resumed = !!held && this.resumeWanted && held.kind === kind && held.biome === biome;
+    // 3.46.0: the old state is kept — if the change fails midway, it is put back so the next
+    // tick (after the backoff) retries the whole change instead of a committed-but-silent track
+    let prev = {
+      kind: this.playKind,
+      biome: this.playBiome,
+      step: this.step,
+      cycle: this.cycle,
+      heat: this.heat,
+      jump: this.jump,
+      held: this.held,
+    };
+    if (kind !== "menu") this.held = null;
+    this.playKind = kind;
+    this.playBiome = biome;
+    this.step = resumed ? held.step : 0;
+    this.cycle = resumed ? held.cycle : 0;
+    this.heat = resumed ? held.heat : 0;
+    this.jump = false;
+    try {
+      let now = ctx.currentTime,
+        gain = track ? track.gain : 1;
+      this.cutScheduled(now);
+      this.quietOld(now);
+      this.nextT = now + 0.03;
+      this.fade.gain.cancelScheduledValues(now);
+      this.mixFor(kind);
+      this.stopMusicBed();
+      if (track) this.startMusicBed(kind, biome);
+      if (resumed) {
+        this.fade.gain.setValueAtTime(0.0001, now);
+        this.fade.gain.linearRampToValueAtTime(gain, now + 0.6);
+      } else if (from === "boss" && kind === "fight") {
+        // resolve: the boss track ends on a last hit, then silence, then the calm theme fades in
+        this.fade.gain.setValueAtTime(1.1, now);
+        this.fade.gain.linearRampToValueAtTime(0.0001, now + 0.9);
+        this.fade.gain.linearRampToValueAtTime(gain, now + 4.1);
+        this.nextT = now + 0.9;
+        if (this.live() && this.musVol > 0) musicResolve(this, biome, 0);
+      } else {
+        this.fade.gain.setValueAtTime(gain, now);
+        if (kind === "boss" && from === "fight" && this.live() && this.musVol > 0) musicImpact(this, biome, 0);
+      }
+      this.trackFailT = 0;
+    } catch (err) {
+      // 3.46.0: roll the track state back and back off before retrying
+      this.playKind = prev.kind;
+      this.playBiome = prev.biome;
+      this.step = prev.step;
+      this.cycle = prev.cycle;
+      this.heat = prev.heat;
+      this.jump = prev.jump;
+      this.held = prev.held;
+      this.trackFailT = ctx.currentTime;
+      this.fail(err);
+    }
+  }
+  /* the notes that were scheduled ahead (the scheduler looks 0.14 s ahead) for a track that has just ended */
+  cutScheduled(now) {
+    if (this.pump) {
+      this.pump.gain.cancelScheduledValues(now);
+      this.pump.gain.setValueAtTime(1, now);
+    }
+    let list = this.musicVoiceList;
+    for (let i = list.length - 1; i >= 0; i--) {
+      let voice = list[i];
+      if (voice.start > now + 0.005 && voice.node) {
+        try {
+          voice.amp.gain.cancelScheduledValues(now);
+          voice.amp.gain.setValueAtTime(0, now);
+          voice.node.stop(now);
+          // 3.46.0: detached now instead of relying on GC
+          // (never offline: the render happens after the scheduling pass — see claim)
+          if (!this.offline) {
+            voice.node.disconnect();
+            voice.amp.disconnect();
+          }
+        } catch {}
+        list[i] = list[list.length - 1];
+        list.pop();
+      }
+    }
+  }
+  /* 3.18.1: the old track does not ring on under the new one. A track change used to cut only the notes that were still
      to come: the pads and bells already sounding (some for several seconds), the echoes of the delay and the tail of the
      room played on, so the calm theme was heard under the first bars of a boss and the boss under the calm theme after it.
      Now the sounding notes fade out over QUIET_FADE, the echo line is emptied and the room is swapped for a fresh one
      (the old one fades out and goes). */
-    quietOld(now) {
-      let end = now + QUIET_FADE,
-        list = this.musicVoiceList;
-      for (let voice of list) {
-        if (!voice.node || voice.start > now + 0.005 || voice.end <= now + 0.01) continue;
-        try {
-          let gain = voice.amp.gain;
-          if (gain.cancelAndHoldAtTime) gain.cancelAndHoldAtTime(now);
-          else {
-            let at = gain.value;
-            gain.cancelScheduledValues(now);
-            gain.setValueAtTime(at, now);
-          }
-          gain.linearRampToValueAtTime(0, end);
-          voice.node.stop(end + 0.01);
-          voice.end = end;
-        } catch {}
-      }
+  quietOld(now) {
+    let end = now + QUIET_FADE,
+      list = this.musicVoiceList;
+    for (let voice of list) {
+      if (!voice.node || voice.start > now + 0.005 || voice.end <= now + 0.01) continue;
       try {
-        // the echo line: nothing is fed back while it empties (0.28 s a round), then it works again
-        this.fb.gain.cancelScheduledValues(now);
-        this.fb.gain.setValueAtTime(0, now);
-        this.fb.gain.setValueAtTime(0.32, now + 0.7);
-        // 3.28.1: the ping-pong echo of the bloom empties too (it rang about two seconds into the next track)
-        for (const g of this.pingFb || []) {
-          g.gain.cancelScheduledValues(now);
-          g.gain.setValueAtTime(0, now);
-          g.gain.setValueAtTime(0.42, now + 1);
+        let gain = voice.amp.gain;
+        if (gain.cancelAndHoldAtTime) gain.cancelAndHoldAtTime(now);
+        else {
+          let at = gain.value;
+          gain.cancelScheduledValues(now);
+          gain.setValueAtTime(at, now);
         }
-        if (this.verbIn && this.verbPool) {
-          // 3.46.0: swap between the two pre-built rooms instead of building a fresh convolver
-          // (megabytes of impulse transform) on every track change; the outgoing one fades as before
-          let old = this.verb,
-            oldOut = this.verbOut,
-            next = this.verbPool.find((v) => v.out !== oldOut) || this.verbPool[0];
-          next.out.gain.cancelScheduledValues(now);
-          next.out.gain.setValueAtTime(oldOut.gain.value, now);
-          this.verbIn.disconnect(old);
-          this.verbIn.connect(next.conv);
-          oldOut.gain.cancelScheduledValues(now);
-          oldOut.gain.setValueAtTime(oldOut.gain.value, now);
-          oldOut.gain.linearRampToValueAtTime(0, end);
-          this.verb = next.conv;
-          this.verbOut = next.out;
-        }
-      } catch (err) {
-        this.fail(err);
-      }
+        gain.linearRampToValueAtTime(0, end);
+        voice.node.stop(end + 0.01);
+        voice.end = end;
+      } catch {}
     }
-    /* Called every frame of a running world: `speed` (0..1, null: no engine hum) drives the drone
+    try {
+      // the echo line: nothing is fed back while it empties (0.28 s a round), then it works again
+      this.fb.gain.cancelScheduledValues(now);
+      this.fb.gain.setValueAtTime(0, now);
+      this.fb.gain.setValueAtTime(0.32, now + 0.7);
+      // 3.28.1: the ping-pong echo of the bloom empties too (it rang about two seconds into the next track)
+      for (const g of this.pingFb || []) {
+        g.gain.cancelScheduledValues(now);
+        g.gain.setValueAtTime(0, now);
+        g.gain.setValueAtTime(0.42, now + 1);
+      }
+      if (this.verbIn && this.verbPool) {
+        // 3.46.0: swap between the two pre-built rooms instead of building a fresh convolver
+        // (megabytes of impulse transform) on every track change; the outgoing one fades as before
+        let old = this.verb,
+          oldOut = this.verbOut,
+          next = this.verbPool.find((v) => v.out !== oldOut) || this.verbPool[0];
+        next.out.gain.cancelScheduledValues(now);
+        next.out.gain.setValueAtTime(oldOut.gain.value, now);
+        this.verbIn.disconnect(old);
+        this.verbIn.connect(next.conv);
+        oldOut.gain.cancelScheduledValues(now);
+        oldOut.gain.setValueAtTime(oldOut.gain.value, now);
+        oldOut.gain.linearRampToValueAtTime(0, end);
+        this.verb = next.conv;
+        this.verbOut = next.out;
+      }
+    } catch (err) {
+      this.fail(err);
+    }
+  }
+  /* Called every frame of a running world: `speed` (0..1, null: no engine hum) drives the drone
      hum, `ambience` is the id of the biome event that is on (or null). Everything here stops by
      itself when this is not called for 0.8 s (pause, menus) or the music mode is not a fight. */
-    setState(speed, ambience) {
-      if (!this.ctx) return;
-      this.liveT = this.ctx.currentTime;
-      this.speed = speed;
-      this.amb = AMBIENCE_LEVEL[ambience] ? ambience : null;
-      // 3.42.0: a Whiteout muffles the world behind the storm; anything else (and every non-fight state)
-      // opens the muffle again. setMusic lifts it too, so a pause or the Home never stays muffled.
-      if (this.muffle) {
-        const want = this.amb === "whiteout" && speed != null ? 850 : 18000;
-        this.muffle.frequency.setTargetAtTime(want, this.ctx.currentTime, want < 2000 ? 0.5 : 0.35);
-      }
-      let hum = this.beds.hum;
-      if (hum && speed != null) {
-        let now = this.ctx.currentTime;
-        hum.parts.a.frequency.setTargetAtTime(50 + 26 * speed, now, 0.08);
-        hum.parts.b.frequency.setTargetAtTime(100 + 60 * speed, now, 0.08);
-        hum.parts.lp.frequency.setTargetAtTime(160 + 260 * speed, now, 0.08);
-      }
+  setState(speed, ambience) {
+    if (!this.ctx) return;
+    this.liveT = this.ctx.currentTime;
+    this.speed = speed;
+    this.amb = AMBIENCE_LEVEL[ambience] ? ambience : null;
+    // 3.42.0: a Whiteout muffles the world behind the storm; anything else (and every non-fight state)
+    // opens the muffle again. setMusic lifts it too, so a pause or the Home never stays muffled.
+    if (this.muffle) {
+      const want = this.amb === "whiteout" && speed != null ? 850 : 18000;
+      this.muffle.frequency.setTargetAtTime(want, this.ctx.currentTime, want < 2000 ? 0.5 : 0.35);
     }
-    /* Beds are the quiet loops: the drone hum and the biome event ambience. */
-    startBed(name) {
-      // 3.43.1: idempotent - a bed that is already up never builds a second copy on top
-      if (this.beds[name]) return;
-      let ctx = this.ctx,
-        now = ctx.currentTime,
-        gain = ctx.createGain(),
-        nodes = [],
-        parts = {},
-        level = name === "hum" ? 0.02 : AMBIENCE_LEVEL[name] || 0.03;
+    let hum = this.beds.hum;
+    if (hum && speed != null) {
+      let now = this.ctx.currentTime;
+      hum.parts.a.frequency.setTargetAtTime(76 + 26 * speed, now, 0.08);
+      hum.parts.b.frequency.setTargetAtTime(152 + 52 * speed, now, 0.08);
+      hum.parts.lp.frequency.setTargetAtTime(270 + 190 * speed, now, 0.08);
+    }
+  }
+  /* Beds are the quiet loops: the drone hum and the biome event ambience. */
+  startBed(name) {
+    // 3.43.1: idempotent - a bed that is already up never builds a second copy on top
+    if (this.beds[name]) return;
+    let ctx = this.ctx,
+      now = ctx.currentTime,
+      gain = ctx.createGain(),
+      nodes = [],
+      parts = {},
+      level = name === "hum" ? 0.02 : AMBIENCE_LEVEL[name] || 0.03;
+    gain.gain.setValueAtTime(1e-4, now);
+    // 3.43.0: an event bed gathers (the whiteout storm builds over about three seconds), it does not snap on
+    gain.gain.setTargetAtTime(level, now, BED_ATTACK[name] || 0.35);
+    // the drone's hum is an effect; the beds of the biome events are the place (3.9.0: ambience bus)
+    gain.connect(name === "hum" ? this.sfx : this.ambBus);
+    let bed = { name, gain, nodes, parts };
+    this.beds[name] = bed;
+    let osc = (type, freq) => {
+        let node = ctx.createOscillator();
+        node.type = type;
+        node.frequency.value = freq;
+        node.start(now);
+        nodes.push(node);
+        return node;
+      },
+      loop = (rate, color) => {
+        let node = this.noiseLoop(rate, color, now);
+        nodes.push(node);
+        return node;
+      },
+      filter = (type, freq, q, from) => {
+        let node = ctx.createBiquadFilter();
+        node.type = type;
+        node.frequency.value = freq;
+        node.Q.value = q;
+        from.connect(node);
+        return node;
+      };
+    // 3.43.1: registered before the build - if the build throws midway, the catch below stops the
+    // loops that already started (they used to be orphaned forever, and the scheduler retried the
+    // build every tick, stacking a new orphan set each time)
+    try {
+      if (name === "hum") {
+        parts.a = osc("sine", 76);
+        parts.b = osc("sine", 152);
+        setNaturalWave(ctx, parts.b, "bow");
+        parts.lp = filter("lowpass", 270, 0.9, parts.a);
+        const trim = ctx.createGain();
+        trim.gain.value = 0.22;
+        parts.b.connect(trim);
+        trim.connect(gain);
+        parts.lp.connect(gain);
+      } else {
+        const beds = {
+          whiteout: [1170, 2.6, 0.15, 329, 0.65],
+          bloom: [450, 2.3, 0.32, 173, 0.59],
+          blackout: [310, 1.7, 0.11, 107, 0.73],
+          ashfall: [690, 1.6, 0.18, 71, 0.56],
+          riftstorm: [890, 3.9, 0.24, 137, 0.71],
+        };
+        const [center, q, pace, pitch, rate] = beds[name];
+        const air = filter("bandpass", center, q, loop(rate, "pink"));
+        const depth = ctx.createGain(),
+          wet = ctx.createGain(),
+          wire = ctx.createGain();
+        depth.gain.value = center * 0.24;
+        wet.gain.value = 0.72;
+        wire.gain.value = 0.21;
+        const sweep = osc("sine", pace);
+        sweep.connect(depth);
+        depth.connect(air.frequency);
+        air.connect(wet);
+        wet.connect(gain);
+        osc("sine", pitch).connect(wire);
+        osc("sine", pitch * 1.014).connect(wire);
+        wire.connect(gain);
+      }
+    } catch (err) {
+      // back out cleanly: stop what started, leave the registry (a dead bed, the
+      // scheduler will not rebuild it every tick — 3.46.0: it gets one more try after
+      // 10 s), and report like the rest of the engine
+      this.stopBed(name, 0, 0.02);
+      this.deadBeds[name] = now;
+      this.fail(err);
+      return;
+    }
+    for (let node of nodes) {
+      this.voices.push({ node: node, amp: gain, pri: 3, start: now, end: 1e9, loop: true, bed: bed });
+    }
+  }
+  stopBed(name, at = 0, rel) {
+    let bed = this.beds[name];
+    if (!bed) return;
+    let ctx = this.ctx,
+      now = ctx.currentTime + at,
+      // 3.43.0: the bed passes instead of cutting (the storm dies away over about four seconds)
+      fade = rel != null ? rel : BED_RELEASE[name] || 0.08,
+      end = now + Math.max(0.4, fade * 3);
+    try {
+      bed.gain.gain.cancelScheduledValues(now);
+      bed.gain.gain.setTargetAtTime(0, now, fade);
+      for (let node of bed.nodes) node.stop(end);
+    } catch {}
+    for (let voice of this.voices)
+      if (voice.bed === bed) {
+        voice.loop = false;
+        voice.end = end;
+      }
+    if (end > this.maxEnd) this.maxEnd = end;
+    delete this.beds[name];
+  }
+  /* 3.2.0: the atmosphere of a music track: a loop that plays under the notes for as long as the track plays (a
+       singing wind on the Aurora Shelf, murk in the Glowmarsh, soft rain and city hum
+       in Blackout City, beating drones in the Shattered Core; see MUSIC_BEDS). It goes through the music chain (volume,
+       fade, glue) and is not a voice of the budget. */
+  startMusicBed(kind, biome, fadeIn = 1.5) {
+    const ctx = this.ctx;
+    if (!ctx || (kind !== "fight" && kind !== "boss")) return;
+    // 3.43.1: same hardening as the beds - an atmosphere that is still up goes before a new one
+    if (this.mbed) this.stopMusicBed();
+    let now = ctx.currentTime,
+      out = ctx.createGain(),
+      nodes = [],
+      osc = (type, freq) => {
+        let node = ctx.createOscillator();
+        node.type = type;
+        node.frequency.value = freq;
+        node.start(now);
+        nodes.push(node);
+        return node;
+      },
+      loop = (rate, color) => {
+        let node = this.noiseLoop(rate, color, now);
+        nodes.push(node);
+        return node;
+      },
+      filt = (type, freq, q, from) => {
+        let node = ctx.createBiquadFilter();
+        node.type = type;
+        node.frequency.value = freq;
+        node.Q.value = q;
+        from.connect(node);
+        return node;
+      },
+      lfo = (freq, depth, param, type = "sine") => {
+        let gain = ctx.createGain();
+        gain.gain.value = depth;
+        osc(type, freq).connect(gain);
+        gain.connect(param);
+      },
+      level = (from, vol) => {
+        let gain = ctx.createGain();
+        gain.gain.value = vol;
+        from.connect(gain);
+        gain.connect(out);
+        return gain;
+      },
+      root = scoreOrigin(biome),
+      barRate = musicTrack(kind, biome).bpm / 240;
+    out.gain.setValueAtTime(1e-4, now);
+    out.gain.linearRampToValueAtTime(kind === "boss" ? 0.29 : 0.22, now + fadeIn);
+    out.connect(kind === "boss" ? this.atmosPump : this.atmos);
+    // 3.46.0: registered before the build — if the build throws midway, the catch below stops
+    // the loops that already started through stopMusicBed (they used to be orphaned forever,
+    // out of reach of stopMusicBed, with the track state already committed)
+    this.mbed = { out, nodes };
+    try {
+      scoreBed({ osc, loop, filt, lfo, level, root, barRate, boss: kind === "boss" }, biome);
+    } catch (err) {
+      this.stopMusicBed(0.05);
+      throw err;
+    }
+  }
+  stopMusicBed(fade = 0.8) {
+    let bed = this.mbed;
+    if (!bed) return;
+    this.mbed = null;
+    try {
+      let now = this.ctx.currentTime;
+      bed.out.gain.cancelScheduledValues(now);
+      bed.out.gain.setTargetAtTime(0, now, fade / 4);
+      for (let node of bed.nodes) node.stop(now + fade + 0.1);
+    } catch {}
+  }
+  /* 3.43.0: the room tone - the quiet, steady bed of a biome. It plays wherever the game is (home,
+       upgrade, pause, fight): the world is never dead silence. It sits on the ambience bus under the
+       place and the music and takes no voice of the budget (like the atmospheres of the music). */
+  startTone(name) {
+    let ctx = this.ctx;
+    if (!ctx || this.toneBed) return;
+    // 3.46.0: same hardening as the beds (3.43.1) — registered before the build: if the build
+    // throws midway, the catch below stops the loops that already started (they used to be
+    // orphaned forever while syncTone retried the build every 30 ms tick, stacking a new
+    // orphan set each time). A tone that failed gets one more try after 10 s.
+    let dead = this.deadTone[name];
+    if (dead != null && ctx.currentTime - dead < 10) return;
+    let now = ctx.currentTime,
+      gain = ctx.createGain(),
+      nodes = [],
+      level = ROOM_TONE_LEVEL[name] || 0.028;
+    this.toneBed = { name, gain, nodes, boss: false };
+    try {
+      // the room arrives slowly (a new biome breathes in, it does not switch on)
       gain.gain.setValueAtTime(1e-4, now);
-      // 3.43.0: an event bed gathers (the whiteout storm builds over about three seconds), it does not snap on
-      gain.gain.setTargetAtTime(level, now, BED_ATTACK[name] || 0.35);
-      // the drone's hum is an effect; the beds of the biome events are the place (3.9.0: ambience bus)
-      gain.connect(name === "hum" ? this.sfx : this.ambBus);
-      let bed = { name, gain, nodes, parts };
-      this.beds[name] = bed;
+      gain.gain.setTargetAtTime(level, now, 1.2);
+      gain.connect(this.ambBus);
       let osc = (type, freq) => {
           let node = ctx.createOscillator();
           node.type = type;
@@ -1648,2210 +1780,435 @@ const musicChords = {
           node.Q.value = q;
           from.connect(node);
           return node;
-        };
-      // 3.43.1: registered before the build - if the build throws midway, the catch below stops the
-      // loops that already started (they used to be orphaned forever, and the scheduler retried the
-      // build every tick, stacking a new orphan set each time)
-      try {
-        switch (name) {
-          case "hum": {
-            // two thruster voices, pitch follows the speed (setState)
-            parts.a = osc("sawtooth", 50);
-            parts.b = osc("sine", 100);
-            parts.lp = filter("lowpass", 160, 0.7, parts.a);
-            let mix = ctx.createGain();
-            mix.gain.value = 0.5;
-            parts.b.connect(mix);
-            mix.connect(gain);
-            parts.lp.connect(gain);
-            break;
-          }
-          // 3.7.0: the event beds take pink and brown noise (no white hiss), like the atmospheres of the music
-          case "whiteout": {
-            // wind: band-passed noise whose centre wanders slowly
-            let wind = filter("bandpass", 700, 0.7, loop(1, "pink")),
-              lfo = osc("sine", 0.13),
-              depth = ctx.createGain(),
-              windAmp = ctx.createGain();
-            depth.gain.value = 320;
-            windAmp.gain.value = 0.75;
-            lfo.connect(depth);
-            depth.connect(wind.frequency);
-            wind.connect(windAmp);
-            windAmp.connect(gain);
-            // 2.9.0: a thin second wind, higher and slower, that whistles
-            let whistle = filter("bandpass", 1700, 12, loop(1.3, "pink")),
-              lfo2 = osc("sine", 0.07),
-              depth2 = ctx.createGain(),
-              whistleAmp = ctx.createGain();
-            depth2.gain.value = 600;
-            whistleAmp.gain.value = 0.35;
-            lfo2.connect(depth2);
-            depth2.connect(whistle.frequency);
-            whistle.connect(whistleAmp);
-            whistleAmp.connect(gain);
-            break;
-          }
-          case "bloom": {
-            // low gurgle under the bubbles
-            let gurgle = filter("lowpass", 320, 1.5, loop(0.5, "brown")),
-              gurgleAmp = ctx.createGain();
-            gurgleAmp.gain.value = 0.25;
-            gurgle.connect(gurgleAmp);
-            gurgleAmp.connect(gain);
-            // 2.9.0: a burbling band of noise whose pitch wobbles about twice a second
-            let burble = filter("bandpass", 200, 3, loop(0.7, "brown")),
-              wobble = osc("sine", 0.55),
-              wobbleDepth = ctx.createGain(),
-              burbleAmp = ctx.createGain();
-            wobbleDepth.gain.value = 70;
-            burbleAmp.gain.value = 0.25;
-            wobble.connect(wobbleDepth);
-            wobbleDepth.connect(burble.frequency);
-            burble.connect(burbleAmp);
-            burbleAmp.connect(gain);
-            break;
-          }
-          case "blackout": {
-            // Soft dark rain wash with gentle slow movement instead of a harsh 5.3 Hz transformer buzz
-            let wash = filter("lowpass", 340, 0.7, loop(0.6, "brown")),
-              washAmp = ctx.createGain(),
-              swell = osc("sine", 0.09),
-              swellDepth = ctx.createGain();
-            washAmp.gain.value = 0.55;
-            swellDepth.gain.value = 0.15;
-            swell.connect(swellDepth);
-            swellDepth.connect(washAmp.gain);
-            wash.connect(washAmp);
-            washAmp.connect(gain);
-            let air = filter("bandpass", 900, 0.9, loop(1.0, "pink")),
-              airAmp = ctx.createGain();
-            airAmp.gain.value = 0.18;
-            air.connect(airAmp);
-            airAmp.connect(gain);
-            break;
-          }
-          case "ashfall": {
-            // 3.49.0: ASHFALL: the fumaroles prime (a hiss that never quite lets go) over a deep
-            // rock-rumble, and the hot wind rises and falls behind it
-            let prime = filter("bandpass", 1900, 0.9, loop(1.1, "pink")),
-              primeAmp = ctx.createGain();
-            primeAmp.gain.value = 0.22;
-            prime.connect(primeAmp);
-            primeAmp.connect(gain);
-            let rumble = filter("lowpass", 130, 0.9, loop(0.7, "brown")),
-              rumbleAmp = ctx.createGain();
-            rumbleAmp.gain.value = 0.5;
-            rumble.connect(rumbleAmp);
-            rumbleAmp.connect(gain);
-            let gust = filter("bandpass", 520, 0.9, loop(0.9, "pink")),
-              gustAmp = ctx.createGain(),
-              swell = osc("sine", 0.17),
-              swellDepth = ctx.createGain();
-            gustAmp.gain.value = 0.3;
-            swellDepth.gain.value = 0.14;
-            swell.connect(swellDepth);
-            swellDepth.connect(gustAmp.gain);
-            gust.connect(gustAmp);
-            gustAmp.connect(gain);
-            break;
-          }
-          case "riftstorm": {
-            // two close low tones that beat
-            let a = osc("sine", 55),
-              b = osc("sine", 57.5),
-              c = osc("sine", 110),
-              d = osc("sine", 113.5),
-              upper = ctx.createGain();
-            a.connect(gain);
-            b.connect(gain);
-            // 2.9.0: the same beat an octave higher
-            upper.gain.value = 0.4;
-            c.connect(upper);
-            d.connect(upper);
-            upper.connect(gain);
-            break;
-          }
-          default:
-            break;
-        }
-      } catch (err) {
-        // back out cleanly: stop what started, leave the registry (a dead bed, the
-        // scheduler will not rebuild it every tick — 3.46.0: it gets one more try after
-        // 10 s), and report like the rest of the engine
-        this.stopBed(name, 0, 0.02);
-        this.deadBeds[name] = now;
-        this.fail(err);
-        return;
-      }
-      for (let node of nodes) {
-        this.voices.push({ node: node, amp: gain, pri: 3, start: now, end: 1e9, loop: true, bed: bed });
-      }
-    }
-    stopBed(name, at = 0, rel) {
-      let bed = this.beds[name];
-      if (!bed) return;
-      let ctx = this.ctx,
-        now = ctx.currentTime + at,
-        // 3.43.0: the bed passes instead of cutting (the storm dies away over about four seconds)
-        fade = rel != null ? rel : BED_RELEASE[name] || 0.08,
-        end = now + Math.max(0.4, fade * 3);
-      try {
-        bed.gain.gain.cancelScheduledValues(now);
-        bed.gain.gain.setTargetAtTime(0, now, fade);
-        for (let node of bed.nodes) node.stop(end);
-      } catch {}
-      for (let voice of this.voices)
-        if (voice.bed === bed) {
-          voice.loop = false;
-          voice.end = end;
-        }
-      if (end > this.maxEnd) this.maxEnd = end;
-      delete this.beds[name];
-    }
-    /* 3.2.0: the atmosphere of a music track: a loop that plays under the notes for as long as the track plays (a
-       singing wind on the Aurora Shelf, murk in the Glowmarsh, soft rain and city hum
-       in Blackout City, beating drones in the Shattered Core; see MUSIC_BEDS). It goes through the music chain (volume,
-       fade, glue) and is not a voice of the budget. */
-    startMusicBed(kind, biome, fadeIn = 1.5) {
-      let ctx = this.ctx,
-        recipe = MUSIC_BEDS[biome];
-      if (!ctx || !recipe || (kind !== "fight" && kind !== "boss")) return;
-      // 3.43.1: same hardening as the beds - an atmosphere that is still up goes before a new one
-      if (this.mbed) this.stopMusicBed();
-      let now = ctx.currentTime,
-        out = ctx.createGain(),
-        nodes = [],
-        osc = (type, freq) => {
-          let node = ctx.createOscillator();
-          node.type = type;
-          node.frequency.value = freq;
-          node.start(now);
-          nodes.push(node);
-          return node;
         },
-        loop = (rate, color) => {
-          let node = this.noiseLoop(rate, color, now);
-          nodes.push(node);
-          return node;
-        },
-        filt = (type, freq, q, from) => {
-          let node = ctx.createBiquadFilter();
-          node.type = type;
-          node.frequency.value = freq;
-          node.Q.value = q;
+        amp = (from, vol) => {
+          let node = ctx.createGain();
+          node.gain.value = vol;
           from.connect(node);
+          node.connect(gain);
           return node;
         },
-        lfo = (freq, depth, param, type = "sine") => {
-          let gain = ctx.createGain();
-          gain.gain.value = depth;
-          osc(type, freq).connect(gain);
-          gain.connect(param);
-        },
-        level = (from, vol) => {
-          let gain = ctx.createGain();
-          gain.gain.value = vol;
-          from.connect(gain);
-          gain.connect(out);
-          return gain;
-        },
-        root = midiToFreq((musicChords[biome] || musicChords.city)[0][0]),
-        bpm = musicTrack(kind, biome).bpm;
-      out.gain.setValueAtTime(1e-4, now);
-      out.gain.linearRampToValueAtTime(
-        BED_LEVEL[kind] * recipe.gain * (kind === "boss" ? recipe.boss : 1),
-        now + fadeIn,
-      );
-      out.connect(kind === "boss" ? this.atmosPump : this.atmos);
-      // 3.46.0: registered before the build — if the build throws midway, the catch below stops
-      // the loops that already started through stopMusicBed (they used to be orphaned forever,
-      // out of reach of stopMusicBed, with the track state already committed)
-      this.mbed = { out, nodes };
-      try {
-        recipe.build({ osc, loop, filt, lfo, level, root, bpm, boss: kind === "boss" });
-        if (kind === "boss" && recipe.bossExtra) recipe.bossExtra({ osc, loop, filt, lfo, level, root, bpm });
-      } catch (err) {
-        this.stopMusicBed(0.05);
-        throw err;
-      }
+        // a slow wander of a filter or a level: the room never stands still, but it never moves fast
+        drift = (param, freq, depth) => {
+          let lfo = osc("sine", freq),
+            depthGain = ctx.createGain();
+          depthGain.gain.value = depth;
+          lfo.connect(depthGain);
+          depthGain.connect(param);
+        };
+      const recipes = {
+        city: [238, 2.1, 0.08, 65, 1280],
+        shelf: [940, 1.7, 0.053, 113, 2810],
+        marsh: [387, 1.3, 0.119, 83, 1460],
+        core: [510, 3.7, 0.072, 94, 1860],
+        flats: [729, 1.5, 0.103, 109, 2390],
+        caldera: [189, 1.2, 0.067, 71, 1110],
+      };
+      const [air, q, pace, low, high] = recipes[name] || recipes.city;
+      const wash = filter("bandpass", air, q, loop(0.68, "pink"));
+      drift(wash.frequency, pace, air * 0.34);
+      const washGain = amp(wash, 0.43);
+      drift(washGain.gain, pace * 0.81, 0.15);
+      const ring = amp(osc("sine", low), 0.17);
+      drift(ring.gain, pace * 1.67, 0.069);
+      amp(filter("bandpass", high, 5, loop(0.79, "brown")), 0.06);
+    } catch (err) {
+      // back out cleanly: stop what started (stopTone also detaches the nodes and the gain),
+      // mark the tone dead for 10 s, and report like the rest of the engine
+      this.stopTone(name, 0, 0.05);
+      this.deadTone[name] = ctx.currentTime;
+      this.fail(err);
+      return;
     }
-    stopMusicBed(fade = 0.8) {
-      let bed = this.mbed;
-      if (!bed) return;
-      this.mbed = null;
-      try {
-        let now = this.ctx.currentTime;
-        bed.out.gain.cancelScheduledValues(now);
-        bed.out.gain.setTargetAtTime(0, now, fade / 4);
-        for (let node of bed.nodes) node.stop(now + fade + 0.1);
-      } catch {}
-    }
-    /* 3.43.0: the room tone - the quiet, steady bed of a biome. It plays wherever the game is (home,
-       upgrade, pause, fight): the world is never dead silence. It sits on the ambience bus under the
-       place and the music and takes no voice of the budget (like the atmospheres of the music). */
-    startTone(name) {
-      let ctx = this.ctx;
-      if (!ctx || this.toneBed) return;
-      // 3.46.0: same hardening as the beds (3.43.1) — registered before the build: if the build
-      // throws midway, the catch below stops the loops that already started (they used to be
-      // orphaned forever while syncTone retried the build every 30 ms tick, stacking a new
-      // orphan set each time). A tone that failed gets one more try after 10 s.
-      let dead = this.deadTone[name];
-      if (dead != null && ctx.currentTime - dead < 10) return;
-      let now = ctx.currentTime,
-        gain = ctx.createGain(),
-        nodes = [],
-        level = ROOM_TONE_LEVEL[name] || 0.028;
-      this.toneBed = { name, gain, nodes, boss: false };
-      try {
-        // the room arrives slowly (a new biome breathes in, it does not switch on)
-        gain.gain.setValueAtTime(1e-4, now);
-        gain.gain.setTargetAtTime(level, now, 1.2);
-        gain.connect(this.ambBus);
-        let osc = (type, freq) => {
-            let node = ctx.createOscillator();
-            node.type = type;
-            node.frequency.value = freq;
-            node.start(now);
-            nodes.push(node);
-            return node;
+  }
+  stopTone(name, at = 0, fade = 1.2) {
+    let tone = this.toneBed;
+    if (!tone || (name && tone.name !== name)) return;
+    this.toneBed = null;
+    let now = this.ctx.currentTime + at,
+      end = now + Math.max(0.3, fade * 2.5);
+    try {
+      tone.gain.gain.cancelScheduledValues(now);
+      tone.gain.gain.setTargetAtTime(0, now, fade * 0.5);
+      for (let node of tone.nodes) node.stop(end);
+      // 3.46.0: the nodes are detached instead of relying on GC — after the fade (an immediate
+      // detach used to cut it), and never in the offline renders (the render happens after the
+      // scheduling pass: a detached node's window would never sound)
+      if (!this.offline)
+        setTimeout(
+          () => {
+            try {
+              for (let node of tone.nodes) node.disconnect();
+              tone.gain.disconnect();
+            } catch {}
           },
-          loop = (rate, color) => {
-            let node = this.noiseLoop(rate, color, now);
-            nodes.push(node);
-            return node;
-          },
-          filter = (type, freq, q, from) => {
-            let node = ctx.createBiquadFilter();
-            node.type = type;
-            node.frequency.value = freq;
-            node.Q.value = q;
-            from.connect(node);
-            return node;
-          },
-          amp = (from, vol) => {
-            let node = ctx.createGain();
-            node.gain.value = vol;
-            from.connect(node);
-            node.connect(gain);
-            return node;
-          },
-          // a slow wander of a filter or a level: the room never stands still, but it never moves fast
-          drift = (param, freq, depth) => {
-            let lfo = osc("sine", freq),
-              depthGain = ctx.createGain();
-            depthGain.gain.value = depth;
-            lfo.connect(depthGain);
-            depthGain.connect(param);
-          };
-        switch (name) {
-          case "city": {
-            // Blackout City: soft rain/traffic air wash without harsh transformer buzz
-            let wash = filter("lowpass", 240, 0.6, loop(0.5, "brown")),
-              washAmp = amp(wash, 0.55);
-            drift(washAmp.gain, 0.05, 0.18);
-            drift(wash.frequency, 0.031, 60);
-            let air = filter("bandpass", 820, 0.8, loop(0.8, "pink"));
-            amp(air, 0.08);
-            break;
-          }
-          case "shelf": {
-            // The Aurora Shelf: a thin high wind that wanders and the faint sheen of the ice
-            let wind = filter("bandpass", 520, 0.7, loop(1, "pink"));
-            amp(wind, 0.52);
-            drift(wind.frequency, 0.09, 180);
-            let sheen = filter("bandpass", 1900, 6, loop(1.4, "pink")),
-              sheenAmp = amp(sheen, 0.12);
-            drift(sheenAmp.gain, 0.045, 0.08);
-            let ring = osc("sine", 1320),
-              ringAmp = amp(ring, 0.012);
-            drift(ringAmp.gain, 0.037, 0.008);
-            break;
-          }
-          case "marsh": {
-            // The Glowmarsh (3.50.0): a heavy drone over water that laps against the peat, and a faint
-            // glassy sheen far above - the bioluminescence humming to itself
-            let drone = filter("lowpass", 190, 0.8, loop(0.5, "brown"));
-            amp(drone, 0.5);
-            let deep = osc("sine", 55);
-            amp(deep, 0.08);
-            let lap = filter("bandpass", 300, 2, loop(0.8, "brown")),
-              lapAmp = amp(lap, 0.25);
-            drift(lapAmp.gain, 0.12, 0.12);
-            drift(lap.frequency, 0.07, 90);
-            let sheen = filter("bandpass", 2100, 5, loop(1.2, "pink")),
-              sheenAmp = amp(sheen, 0.05);
-            drift(sheenAmp.gain, 0.09, 0.025);
-            drift(sheen.frequency, 0.04, 300);
-            break;
-          }
-          case "core": {
-            // The Shattered Core: a slow sub throb and a shimmering sheen far above it
-            let throb = amp(osc("sine", 44), 0.38),
-              fifth = amp(osc("sine", 66), 0.12);
-            drift(throb.gain, 0.1, 0.16);
-            drift(fifth.gain, 0.1, 0.06);
-            let shimmer = filter("bandpass", 2400, 6, loop(1.3, "pink")),
-              shimmerAmp = amp(shimmer, 0.06);
-            drift(shimmerAmp.gain, 0.06, 0.04);
-            drift(shimmer.frequency, 0.05, 600);
-            break;
-          }
-          case "flats": {
-            // 3.53.0: the Glass Flats: the noon hiss - hot air over the glass, a low sand drone and
-            // the far tick of the sheets settling
-            const hiss = amp(filter("bandpass", 3400, 1.4, loop(1.3, "pink")), 0.045);
-            drift(hiss.gain, 0.14, 0.01);
-            const drone = amp(filter("lowpass", 130, 0.8, osc("sine", 48)), 0.07);
-            drift(drone.gain, 0.08, 0.018);
-            const tick = amp(filter("highpass", 5200, 1, loop(1.7, "pink")), 0.008);
-            drift(tick.gain, 0.06, 0.003);
-            break;
-          }
-          case "caldera": {
-            // 3.49.0: the Ashfall Caldera: the crater breathes - the rumble under everything, the
-            // crackle of the cooling crust, the far hiss of gas.
-            const drone = amp(filter("lowpass", 130, 0.8, osc("triangle", 42)), 0.06);
-            drift(drone.gain, 0.06, 0.014);
-            const rumble = amp(filter("lowpass", 120, 0.9, loop(0.7, "brown")), 0.04);
-            drift(rumble.gain, 0.09, 0.015);
-            const crackle = amp(filter("bandpass", 2200, 6, loop(0.7, "pink")), 0.008);
-            drift(crackle.gain, 0.11, 0.004);
-            const hiss = amp(filter("highpass", 4800, 1, loop(1.1, "pink")), 0.004);
-            drift(hiss.gain, 0.05, 0.002);
-            break;
-          }
-        }
-      } catch (err) {
-        // back out cleanly: stop what started (stopTone also detaches the nodes and the gain),
-        // mark the tone dead for 10 s, and report like the rest of the engine
-        this.stopTone(name, 0, 0.05);
-        this.deadTone[name] = ctx.currentTime;
-        this.fail(err);
-        return;
-      }
-    }
-    stopTone(name, at = 0, fade = 1.2) {
-      let tone = this.toneBed;
-      if (!tone || (name && tone.name !== name)) return;
-      this.toneBed = null;
-      let now = this.ctx.currentTime + at,
-        end = now + Math.max(0.3, fade * 2.5);
-      try {
-        tone.gain.gain.cancelScheduledValues(now);
-        tone.gain.gain.setTargetAtTime(0, now, fade * 0.5);
-        for (let node of tone.nodes) node.stop(end);
-        // 3.46.0: the nodes are detached instead of relying on GC — after the fade (an immediate
-        // detach used to cut it), and never in the offline renders (the render happens after the
-        // scheduling pass: a detached node's window would never sound)
-        if (!this.offline)
-          setTimeout(
-            () => {
-              try {
-                for (let node of tone.nodes) node.disconnect();
-                tone.gain.disconnect();
-              } catch {}
-            },
-            Math.max(0, end - this.ctx.currentTime) * 1000 + 150,
-          );
-      } catch {}
-    }
-    /* Runs with the scheduler: keeps the room tone of the current biome alive (menu, upgrade, pause and
+          Math.max(0, end - this.ctx.currentTime) * 1000 + 150,
+        );
+    } catch {}
+  }
+  /* Runs with the scheduler: keeps the room tone of the current biome alive (menu, upgrade, pause and
        fight alike), crossfades it on a biome change and dips it a little while a boss carries the track. */
-    syncTone() {
-      let ctx = this.ctx;
-      if (!ctx) return;
-      let want = this.mode !== "off" && this.ambVol > 0 ? this.wantBiome() : null;
-      if (this.toneBed && (!want || this.toneBed.name !== want)) this.stopTone();
-      // 3.46.0: a tone whose build threw gets one more try after 10 s (was: dead for the session)
-      if (want && !this.toneBed) {
-        let dead = this.deadTone[want];
-        if (dead == null || ctx.currentTime - dead >= 10) this.startTone(want);
-      }
-      if (this.toneBed) {
-        let boss = this.playKind === "boss";
-        if (boss !== this.toneBed.boss) {
-          this.toneBed.boss = boss;
-          try {
-            let now = ctx.currentTime,
-              level = ROOM_TONE_LEVEL[this.toneBed.name] || 0.028;
-            this.toneBed.gain.gain.setTargetAtTime(boss ? level * 0.55 : level, now, 0.9);
-          } catch {}
-        }
+  syncTone() {
+    let ctx = this.ctx;
+    if (!ctx) return;
+    let want = this.mode !== "off" && this.ambVol > 0 ? this.wantBiome() : null;
+    if (this.toneBed && (!want || this.toneBed.name !== want)) this.stopTone();
+    // 3.46.0: a tone whose build threw gets one more try after 10 s (was: dead for the session)
+    if (want && !this.toneBed) {
+      let dead = this.deadTone[want];
+      if (dead == null || ctx.currentTime - dead >= 10) this.startTone(want);
+    }
+    if (this.toneBed) {
+      let boss = this.playKind === "boss";
+      if (boss !== this.toneBed.boss) {
+        this.toneBed.boss = boss;
+        try {
+          let now = ctx.currentTime,
+            level = ROOM_TONE_LEVEL[this.toneBed.name] || 0.028;
+          this.toneBed.gain.gain.setTargetAtTime(boss ? level * 0.55 : level, now, 0.9);
+        } catch {}
       }
     }
-    /* Runs with the scheduler: starts and stops the beds by the state set with setState and plays the
+  }
+  /* Runs with the scheduler: starts and stops the beds by the state set with setState and plays the
      periodic accents of the biome events. */
-    syncAudio() {
-      let ctx = this.ctx,
-        now = ctx.currentTime,
-        live = now - this.liveT < 0.8 && (this.mode === "fight" || this.mode === "boss"),
-        hum = live && this.sfxVol > 0 && this.speed != null,
-        amb = live && this.ambVol > 0 ? this.amb : null;
-      if (hum !== !!this.beds.hum) {
-        if (hum) this.startBed("hum");
-        else this.stopBed("hum");
-      }
-      for (let name of Object.keys(this.beds)) {
-        if (name !== "hum" && name !== amb) this.stopBed(name);
-      }
-      // 3.46.0: a bed whose build threw gets one more try after 10 s (was: dead for the session)
-      let dead = amb ? this.deadBeds[amb] : null;
-      if (amb && !this.beds[amb] && (dead == null || now - dead >= 10)) this.startBed(amb);
-      if (amb && now >= this.accentT) this.accent(amb, now);
-      if (this.voices.length > 8) {
-        for (let i = this.voices.length - 1; i >= 0; i--)
-          if (this.voices[i].end < now) {
-            this.voices[i] = this.voices[this.voices.length - 1];
-            this.voices.pop();
-          }
-      }
+  syncAudio() {
+    let ctx = this.ctx,
+      now = ctx.currentTime,
+      live = now - this.liveT < 0.8 && (this.mode === "fight" || this.mode === "boss"),
+      hum = live && this.sfxVol > 0 && this.speed != null,
+      amb = live && this.ambVol > 0 ? this.amb : null;
+    if (hum !== !!this.beds.hum) {
+      if (hum) this.startBed("hum");
+      else this.stopBed("hum");
     }
-    accent(name, now) {
-      // 3.31.1: the sounds of a biome event give way to the fight like the sounds of the place (they took voices from it)
-      this.curPri = 0.5;
-      this.curBus = this.ambBus;
-      try {
-        this.accentOf(name, now);
-      } finally {
-        this.curPri = 1;
-        this.curBus = null;
-      }
+    for (let name of Object.keys(this.beds)) {
+      if (name !== "hum" && name !== amb) this.stopBed(name);
     }
-    accentOf(name, now) {
-      switch (name) {
-        case "whiteout":
-          // a soft gust of wind and an occasional faint icy ring
-          this.accentT = now + 5.0 + Math.random() * 5.0;
-          this.noise(1.3, 0.024, { type: "bandpass", f: 500, to: 1200, q: 1, attack: 0.5, color: "pink" });
-          if (Math.random() < 0.4) this.tone(2200 + Math.random() * 700, 0.6, "sine", 0.007, { attack: 0.25 });
-          break;
-        case "bloom": {
-          // sparse gentle water bubbles
-          this.accentT = now + 3.2 + Math.random() * 3.8;
-          let f = 220 + Math.random() * 420;
-          this.tone(f, 0.09, "sine", 0.018, { to: f * 1.7 });
-          break;
+    // 3.46.0: a bed whose build threw gets one more try after 10 s (was: dead for the session)
+    let dead = amb ? this.deadBeds[amb] : null;
+    if (amb && !this.beds[amb] && (dead == null || now - dead >= 10)) this.startBed(amb);
+    if (amb && now >= this.accentT) this.accent(amb, now);
+    if (this.voices.length > 8) {
+      for (let i = this.voices.length - 1; i >= 0; i--)
+        if (this.voices[i].end < now) {
+          this.voices[i] = this.voices[this.voices.length - 1];
+          this.voices.pop();
         }
-        case "blackout":
-          // rare quiet distant thunder or one soft muted spark tick
-          this.accentT = now + 5.5 + Math.random() * 6.0;
-          if (Math.random() < 0.45) this.noise(2.0, 0.007, { f: 160, to: 60, attack: 0.4, q: 0.7, color: "brown" });
-          else this.noise(0.025, 0.016, { type: "bandpass", f: 2200 + Math.random() * 2600, q: 4, color: "pink" });
-          break;
-        case "riftstorm":
-          // subtle slow spatial swell
-          this.accentT = now + 5.0 + Math.random() * 5.0;
-          this.accentFlip = !this.accentFlip;
-          this.tone(this.accentFlip ? 320 : 1400, 0.9, "sine", 0.018, {
-            to: this.accentFlip ? 1400 : 320,
-            attack: 0.45,
-          });
-          this.noise(0.9, 0.018, {
-            type: "bandpass",
-            f: this.accentFlip ? 900 : 2600,
-            to: this.accentFlip ? 2600 : 900,
-            q: 2,
-            attack: 0.45,
-            color: "pink",
-          });
-          break;
-        case "ashfall":
-          // gentle warm updraft, occasional muted ember
-          this.accentT = now + 4.5 + Math.random() * 4.5;
-          this.noise(1.1, 0.02, { type: "bandpass", f: 360, to: 180, q: 0.8, attack: 0.4, color: "brown" });
-          if (Math.random() < 0.4)
-            this.noise(0.05, 0.016, {
-              type: "bandpass",
-              f: 1600 + Math.random() * 1400,
-              q: 3,
-              at: 0.25 + Math.random() * 0.4,
-            });
-          break;
-        default:
-          this.accentT = now + 5;
-      }
     }
-    startScheduler() {
-      if (!this.timer) {
-        this.nextT = this.ctx.currentTime + 0.1;
-        this.timer = setInterval(() => {
-          try {
-            this.schedule();
-            this.schedFails = 0;
-          } catch (err) {
-            // 3.46.0: one throw used to clear the interval for the whole session — music, beds,
-            // the hum, the room tone and the voice pruning all died silently. Report, release
-            // the timer and re-arm with a growing backoff; the note loop is guarded per step.
-            this.fail(err);
-            clearInterval(this.timer);
-            this.timer = null;
-            if (this.ctx && !this.offline) {
-              this.schedFails = (this.schedFails || 0) + 1;
-              if (this.schedFails <= 5) {
-                setTimeout(() => {
-                  if (this.ctx && !this.timer) this.startScheduler();
-                }, 1000 * this.schedFails);
-              }
+  }
+  accent(name, now) {
+    // 3.31.1: the sounds of a biome event give way to the fight like the sounds of the place (they took voices from it)
+    this.curPri = 0.5;
+    this.curBus = this.ambBus;
+    try {
+      this.accentOf(name, now);
+    } finally {
+      this.curPri = 1;
+      this.curBus = null;
+    }
+  }
+  accentOf(name, now) {
+    const accents = {
+      whiteout: [874, 1417, 1.2, "bow", 0.024],
+      bloom: [334, 472, 0.43, "reed", 0.02],
+      blackout: [193, 121, 0.84, "ceramic", 0.034],
+      riftstorm: [277, 415, 0.98, "brass", 0.023],
+      ashfall: [208, 128, 0.76, "reed", 0.031],
+    };
+    this.accentT = now + 4.3 + Math.random() * 5.1;
+    const recipe = accents[name];
+    if (!recipe) return;
+    const [start, end, dur, wave, vol] = recipe;
+    const drift = 0.91 + Math.random() * 0.18;
+    const pan = (Math.random() - 0.5) * 1.05;
+    this.tone(start * drift, dur, wave, vol, { to: end * drift, attack: dur * 0.19, pan, lp: 1900 });
+    this.noise(dur * 1.2, vol * 0.7, {
+      f: start * 2.4,
+      to: end * 2.4,
+      type: "bandpass",
+      color: "pink",
+      attack: dur * 0.41,
+      pan: -pan,
+    });
+  }
+  startScheduler() {
+    if (!this.timer) {
+      this.nextT = this.ctx.currentTime + 0.1;
+      this.timer = setInterval(() => {
+        try {
+          this.schedule();
+          this.schedFails = 0;
+        } catch (err) {
+          // 3.46.0: one throw used to clear the interval for the whole session — music, beds,
+          // the hum, the room tone and the voice pruning all died silently. Report, release
+          // the timer and re-arm with a growing backoff; the note loop is guarded per step.
+          this.fail(err);
+          clearInterval(this.timer);
+          this.timer = null;
+          if (this.ctx && !this.offline) {
+            this.schedFails = (this.schedFails || 0) + 1;
+            if (this.schedFails <= 5) {
+              setTimeout(() => {
+                if (this.ctx && !this.timer) this.startScheduler();
+              }, 1000 * this.schedFails);
             }
           }
-        }, 30);
-      }
+        }
+      }, 30);
     }
-    schedule() {
-      let ctx = this.ctx;
-      if (!ctx || ctx.state !== "running") return;
+  }
+  schedule() {
+    let ctx = this.ctx;
+    if (!ctx || ctx.state !== "running") return;
+    try {
+      this.syncAudio();
+      this.syncTone();
+    } catch (err) {
+      this.fail(err);
+    }
+    this.syncTrack();
+    if (this.nextT < ctx.currentTime - 0.5) {
+      this.nextT = ctx.currentTime + 0.05;
+    }
+    for (; this.nextT < ctx.currentTime + 0.14;) {
+      let info = trackInfo(this.playKind, this.playBiome);
       try {
-        this.syncAudio();
-        this.syncTone();
+        if (this.playKind !== "off" && this.musVol > 0) {
+          this.note(this.step, this.nextT);
+        }
       } catch (err) {
+        // 3.46.0: one bad note must not kill the whole tick — the step still advances
         this.fail(err);
       }
-      this.syncTrack();
-      if (this.nextT < ctx.currentTime - 0.5) {
-        this.nextT = ctx.currentTime + 0.05;
+      this.nextT += 60 / info.bpm / 4;
+      this.step = (this.step + 1) % info.steps;
+      if (this.jump && this.step % 16 === 0) {
+        // phase change or enrage: back to the drop (its head brings the hit, see sectionHit)
+        this.jump = false;
+        this.step = 0;
       }
-      for (; this.nextT < ctx.currentTime + 0.14;) {
-        let info = trackInfo(this.playKind, this.playBiome);
-        try {
-          if (this.playKind !== "off" && this.musVol > 0) {
-            this.note(this.step, this.nextT);
-          }
-        } catch (err) {
-          // 3.46.0: one bad note must not kill the whole tick — the step still advances
-          this.fail(err);
-        }
-        this.nextT += 60 / info.bpm / 4;
-        this.step = (this.step + 1) % info.steps;
-        if (this.jump && this.step % 16 === 0) {
-          // phase change or enrage: back to the drop (its head brings the hit, see sectionHit)
-          this.jump = false;
-          this.step = 0;
-        }
-        if (this.step === 0) {
-          this.cycle++;
-        }
-        this.intensity += (this.want - this.intensity) * 0.02;
+      if (this.step === 0) {
+        this.cycle++;
       }
+      this.intensity += (this.want - this.intensity) * 0.02;
     }
-    /* One step (a sixteenth) of the music at `time`: the track of the biome plays it. Menu music is the old
-     slow pad theme. Everything it schedules goes through the music buses and its own voice list. */
-    note(step, time) {
-      let kind = this.playKind,
-        biome = this.playBiome,
-        chords = musicChords[biome] || musicChords.city,
-        at = time - this.ctx.currentTime;
-      if (kind === "fight" || kind === "boss") {
-        let track = musicTrack(kind, biome),
-          bar = Math.floor(step / 16),
-          // 3.46.0: a biome can let its chords breathe over more than one bar (chordBars): the Works, the
-          // Shelf and the Core change their chord every second bar (the drone of the place), the City and
-          // the Marsh keep one chord per bar. The boss tracks stay at one chord per bar: the drama.
-          [root, quality] = chords[Math.floor(bar / (track.chordBars || 1)) % 4],
-          level = kind === "boss" ? 1 : this.intensity,
-          s = step,
-          c = {
-            s,
-            bar,
-            b: step % 16,
-            at: track.swing && step % 2 === 1 ? at + track.swing * (60 / track.bpm / 4) : at,
-            L: level,
-            cycle: this.cycle,
-            heat: this.heat,
-            root,
-            q: quality,
-            ch: Math.floor(bar / (track.chordBars || 1)) % 4,
-            sec: kind === "boss" ? bossSection(bar) : bar >> 2,
-            chord: [root, root + (quality === "m" ? 3 : 4), root + 7, root + 12],
-            salt: biome.charCodeAt(0) * 7 + biome.charCodeAt(1),
-            barSec: 240 / track.bpm,
-            half: 30 / track.bpm / 4,
-          };
-        track.play(this, c);
-        // 3.19.0: the ambient bloom lies on every calm theme (this.bloom = false switches it off for a test)
-        if (kind === "fight" && this.bloom !== false) calmBloom(kit(this, c), c, biome);
-        if (kind === "boss" && this.heat > 0) bossHeatLayer(this, c);
-      } else if (kind === "menu") {
-        let [root, quality] = chords[Math.floor(step / 16)],
-          chord = [root, root + (quality === "m" ? 3 : 4), root + 7, root + 12],
-          beat = step % 16,
-          dest = this.mus;
-        if (beat === 0)
-          for (let midi of chord.slice(0, 3)) {
-            this.tone(midiToFreq(midi - 12), stepSeconds(100) * 16, "sawtooth", 0.025, {
-              lp: 800,
-              attack: 0.6,
-              dest,
-              at,
-              detune: 7,
-            });
-            this.tone(midiToFreq(midi - 12), stepSeconds(100) * 16, "sawtooth", 0.02, {
-              lp: 800,
-              attack: 0.6,
-              dest,
-              at,
-              detune: -7,
-            });
-          }
-        if (beat % 4 === 0 && (step * 7) % 3 !== 0) {
-          this.tone(midiToFreq(chord[((step / 4) % 4) | 0] + 12), 0.4, "triangle", 0.04, { dest: this.delay, at });
-        }
-        if (beat === 0) {
-          this.tone(midiToFreq(root - 24), 1.6, "sine", 0.12, { dest, at, attack: 0.05 });
-        }
-      }
-    }
-    static catalog() {
-      return rlSoundCatalog();
-    }
-    static trackInfo(kind, biome) {
-      return trackInfo(kind, biome);
-    }
-    /* Test hook: schedules `loops` loops of a track (nothing is rendered) and returns the counters of the voice
+  }
+  note(step, time) {
+    if (this.playKind !== "off") playScore(this, this.playKind, this.playBiome, step, time - this.ctx.currentTime);
+  }
+  static catalog() {
+    return rlSoundCatalog();
+  }
+  static trackInfo(kind, biome) {
+    return trackInfo(kind, biome);
+  }
+  /* Test hook: schedules `loops` loops of a track (nothing is rendered) and returns the counters of the voice
        budget (musicPeak: most voices alive at once; musicSkipped and musicShed: notes the budget refused) and the
        log of every voice, so that two runs (for example with a flood of sounds) can be compared note by note.
        spec: music (fight|boss), biome, loops, intensity, heat, flood (sounds per step) */
-    static musicBudget(spec) {
-      let Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext,
-        ctx = new Offline(1, 44100, 44100),
-        engine = new SoundEngine(),
-        info = trackInfo(spec.music, spec.biome),
-        len = 60 / info.bpm / 4;
-      engine.budgetOnly = spec.renderGraph !== true;
-      engine.attach(ctx, { room: false });
-      // This hook schedules counters and logs, never samples. Real native sources would stay
-      // attached to unrendered OfflineAudioContexts and retain gigabytes across budget cases.
-      // renderGraph is a bounded parity-test reference; actual offline renders always build nodes.
-      engine.budgetOnly = spec.renderGraph !== true;
-      engine.sfxVol = 1;
-      engine.mode = spec.music;
-      engine.biome = spec.biome;
-      engine.playKind = spec.music;
-      engine.playBiome = spec.biome;
-      engine.intensity = spec.intensity != null ? spec.intensity : 1;
-      engine.heat = spec.heat || 0;
-      engine.mixFor(spec.music);
-      engine.musicLog = [];
-      for (let n = 0; n < info.steps * (spec.loops || 1); n++) {
-        engine.simT = n * len;
-        engine.cycle = Math.floor(n / info.steps);
-        engine.note(n % info.steps, engine.simT);
-        for (let k = 0; k < (spec.flood || 0); k++) {
-          engine.last = Object.create(null);
-          let flood = RL_FLOOD[(n * 7 + k) % RL_FLOOD.length];
-          engine.play(flood[0], flood[1]);
-        }
+  static musicBudget(spec) {
+    let Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext,
+      ctx = new Offline(1, 44100, 44100),
+      engine = new SoundEngine(),
+      info = trackInfo(spec.music, spec.biome),
+      len = 60 / info.bpm / 4;
+    engine.budgetOnly = spec.renderGraph !== true;
+    engine.attach(ctx, { room: false });
+    // This hook schedules counters and logs, never samples. Real native sources would stay
+    // attached to unrendered OfflineAudioContexts and retain gigabytes across budget cases.
+    // renderGraph is a bounded parity-test reference; actual offline renders always build nodes.
+    engine.budgetOnly = spec.renderGraph !== true;
+    engine.sfxVol = 1;
+    engine.mode = spec.music;
+    engine.biome = spec.biome;
+    engine.playKind = spec.music;
+    engine.playBiome = spec.biome;
+    engine.intensity = spec.intensity != null ? spec.intensity : 1;
+    engine.heat = spec.heat || 0;
+    engine.mixFor(spec.music);
+    engine.musicLog = [];
+    for (let n = 0; n < info.steps * (spec.loops || 1); n++) {
+      engine.simT = n * len;
+      engine.cycle = Math.floor(n / info.steps);
+      engine.note(n % info.steps, engine.simT);
+      for (let k = 0; k < (spec.flood || 0); k++) {
+        engine.last = Object.create(null);
+        let flood = RL_FLOOD[(n * 7 + k) % RL_FLOOD.length];
+        engine.play(flood[0], flood[1]);
       }
-      engine.simT = null;
-      return {
-        steps: info.steps * (spec.loops || 1),
-        seconds: info.steps * (spec.loops || 1) * len,
-        scheduled: engine.musicScheduled,
-        skipped: engine.musicSkipped,
-        shed: engine.musicShed,
-        peak: engine.musicPeak,
-        dropped: engine.dropped,
-        failed: !!engine.failed,
-        log: engine.musicLog,
-      };
     }
-    /* Test hook: render one sound (or a bed, or a stretch of music) offline: mono, 44.1 kHz. The sound
+    engine.simT = null;
+    return {
+      steps: info.steps * (spec.loops || 1),
+      seconds: info.steps * (spec.loops || 1) * len,
+      scheduled: engine.musicScheduled,
+      skipped: engine.musicSkipped,
+      shed: engine.musicShed,
+      peak: engine.musicPeak,
+      dropped: engine.dropped,
+      failed: !!engine.failed,
+      log: engine.musicLog,
+    };
+  }
+  /* Test hook: render one sound (or a bed, or a stretch of music) offline: mono, 44.1 kHz. The sound
      starts 0.25 s into the render (like in the game, where the compressors are already running). */
-    static async renderOffline(spec, seconds = 2) {
-      let Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext,
-        // 3.19.0 (test): spec.stereo renders two channels (samples is the left one, samplesR the right one); spec.bloom
-        // false leaves out the ambient bloom
-        ctx = new Offline(spec.stereo ? 2 : 1, Math.ceil(44100 * (seconds + 0.35)), 44100),
-        engine = new SoundEngine(),
-        base = 0;
-      if (spec.bloom === false) engine.bloom = false;
-      // with spec.seed the noise of the engine and the sound's own random choices are seeded (see below); spec.room
-      // false leaves out the reverbs (the convolver of Chrome renders its tail on another thread, not quite the same
-      // every time)
-      const seeded = (fn) => {
-        if (spec.seed == null) return fn();
-        const random = Math.random;
-        Math.random = makeSeeded(spec.seed);
-        try {
-          return fn();
-        } finally {
-          Math.random = random;
-        }
-      };
-      seeded(() => engine.attach(ctx, { room: spec.room !== false }));
-      await engine.physical.ready;
-      engine.sfxVol = 1;
-      // balance probe (scripts/rl-mix-probe.mjs): spec.vol sets the three bus volumes the way the game
-      // would have them (the forced sfxVol = 1 above stays for every other caller)
-      if (spec.vol) engine.setVolumes(spec.vol.sfx ?? 1, spec.vol.mus ?? engine.musVol, spec.vol.amb ?? engine.ambVol);
-      if (spec.burst)
-        for (let i = 1; i < spec.burst.n; i++)
-          ctx.suspend(0.25 + i * spec.burst.interval).then(() => {
-            engine.play(spec.burst.id, spec.burst.arg);
-            ctx.resume();
-          });
-      if (spec.quietAt != null)
-        ctx.suspend(0.25 + spec.quietAt).then(() => {
-          engine.quietOld(ctx.currentTime);
+  static async renderOffline(spec, seconds = 2) {
+    let Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext,
+      // 3.19.0 (test): spec.stereo renders two channels (samples is the left one, samplesR the right one); spec.bloom
+      // false leaves out the ambient bloom
+      ctx = new Offline(spec.stereo ? 2 : 1, Math.ceil(44100 * (seconds + 0.35)), 44100),
+      engine = new SoundEngine(),
+      base = 0;
+    if (spec.bloom === false) engine.bloom = false;
+    // with spec.seed the noise of the engine and the sound's own random choices are seeded (see below); spec.room
+    // false leaves out the reverbs (the convolver of Chrome renders its tail on another thread, not quite the same
+    // every time)
+    const seeded = (fn) => {
+      if (spec.seed == null) return fn();
+      const random = Math.random;
+      Math.random = makeSeeded(spec.seed);
+      try {
+        return fn();
+      } finally {
+        Math.random = random;
+      }
+    };
+    seeded(() => engine.attach(ctx, { room: spec.room !== false }));
+    await engine.physical.ready;
+    engine.sfxVol = 1;
+    // balance probe (scripts/rl-mix-probe.mjs): spec.vol sets the three bus volumes the way the game
+    // would have them (the forced sfxVol = 1 above stays for every other caller)
+    if (spec.vol) engine.setVolumes(spec.vol.sfx ?? 1, spec.vol.mus ?? engine.musVol, spec.vol.amb ?? engine.ambVol);
+    if (spec.burst)
+      for (let i = 1; i < spec.burst.n; i++)
+        ctx.suspend(0.25 + i * spec.burst.interval).then(() => {
+          engine.play(spec.burst.id, spec.burst.arg);
           ctx.resume();
         });
-      ctx.suspend(0.25).then(() => {
-        base = ctx.currentTime;
-        if (spec.bed) {
-          engine.startBed(spec.bed);
-          engine.stopBed(spec.bed, spec.stopAt || 1.2, spec.stopRel);
-        } else if (spec.tone) {
-          // 3.43.0: a short take of a room tone, with a quick test fade (the real one breathes slower)
-          engine.startTone(spec.tone);
-          engine.stopTone(spec.tone, spec.stopAt || 1.0, spec.fade || 0.25);
-        } else if (spec.music) {
-          // 3.1.0: `seconds` of a calm theme or boss track from bar `fromBar`, at intensity `intensity` (calm) and
-          // heat `heat` (boss); musicLog (spec.log) records every music voice, `impact` plays the start of a boss track
-          engine.mode = spec.music;
-          engine.biome = spec.biome;
-          engine.playKind = spec.music;
-          engine.playBiome = spec.biome;
-          engine.intensity = spec.intensity != null ? spec.intensity : 0.9;
-          engine.heat = spec.heat || 0;
-          if (spec.log) engine.musicLog = [];
-          let info = trackInfo(spec.music, spec.biome),
-            len = 60 / info.bpm / 4,
-            first = (spec.fromBar || 0) * 16;
-          engine.fade.gain.value = musicTrack(spec.music, spec.biome).gain;
-          engine.mixFor(spec.music);
-          // 3.18.1: with spec.seed the random choices of the music (its notes, its atmosphere) are seeded as well, so that
-          // the numbers of the deep test do not change from run to run
-          seeded(() => {
-            if (!spec.noBed) engine.startMusicBed(spec.music, spec.biome, 0.05);
-            if (spec.impact) musicImpact(engine, spec.biome, 0);
-            // 3.18.1 (test): the track ends at spec.musicEnd s and spec.quietAt s is the moment of a track change
-            for (
-              let n = 0, t = 0;
-              t < Math.min(seconds - 0.25, spec.musicEnd != null ? spec.musicEnd : 1e9);
-              n++, t += len
-            ) {
-              engine.simT = base + t;
-              engine.cycle = Math.floor((first + n) / info.steps);
-              engine.note((first + n) % info.steps, base + t);
-              // 2.9.0: a flood of sounds in every step; the music notes must all be scheduled anyway
-              if (spec.flood)
-                for (let k = 0; k < 30; k++) {
-                  engine.last = Object.create(null);
-                  let flood = RL_FLOOD[(n * 7 + k) % RL_FLOOD.length];
-                  engine.play(flood[0], flood[1]);
-                }
-            }
-          });
-          engine.simT = null;
-        } else if (spec.burst) {
-          // 2.9.2: continuous fire of one sound: the first shot now, the others at times registered
-          // before rendering starts (see below), so the rate gate and the voice limit behave as in the game
-          engine.play(spec.burst.id, spec.burst.arg);
-        } else if (spec.noise) {
-          // 2.9.1: a raw noise burst (tests that long bursts are not cut off)
-          engine.noise(spec.noise.dur, spec.noise.vol, spec.noise.opts || {});
-        } else {
-          // seeded: a comparison of sounds (tests/deep-test.mjs) gives the same result every time (the sounds vary
-          // their pitch and noise at random); the whole sound is scheduled right here
-          seeded(() => engine.play(spec.id, spec.arg));
-        }
+    if (spec.quietAt != null)
+      ctx.suspend(0.25 + spec.quietAt).then(() => {
+        engine.quietOld(ctx.currentTime);
         ctx.resume();
       });
-      let buffer = await ctx.startRendering(),
-        data = buffer.getChannelData(0),
-        peak = 0,
-        sum = 0,
-        finite = true;
-      for (let i = 0; i < data.length; i++) {
-        let v = data[i];
-        if (!Number.isFinite(v)) {
-          finite = false;
-          break;
-        }
-        peak = Math.max(peak, Math.abs(v));
-        sum += v * v;
-      }
-      let last = 0;
-      for (let i = data.length - 1; i >= 0; i--)
-        if (Math.abs(data[i]) > 1e-3) {
-          last = i / 44100 - base;
-          break;
-        }
-      return {
-        finite,
-        peak,
-        rms: Math.sqrt(sum / data.length),
-        length: data.length / 44100 - base,
-        lastAudible: last,
-        maxEnd: engine.maxEnd - base,
-        dropped: engine.dropped,
-        musicScheduled: engine.musicScheduled,
-        musicSkipped: engine.musicSkipped,
-        musicShed: engine.musicShed,
-        musicPeak: engine.musicPeak,
-        musicLog: engine.musicLog,
-        bpm: spec.music ? trackInfo(spec.music, spec.biome).bpm : 0,
-        failed: !!engine.failed,
-        physicalReady: !!engine.physical.bank,
-        samples: spec.wav ? Array.from(data.subarray(Math.round(base * 44100))) : null,
-        samplesR:
-          spec.wav && spec.stereo ? Array.from(buffer.getChannelData(1).subarray(Math.round(base * 44100))) : null,
-      };
-    }
-  };
-/* ==========================================================================
- The music (3.1.0, reworked in 3.2.0, 3.5.0 and 3.7.0). Every biome has a calm theme ("fight": 16 bars, four chords
- over four bars, four sections of four bars) and a boss track (22 bars: drop 8, variation 8, half-time breakdown 4,
- build 2); the boss track is the dramatic sibling of the calm theme (same key, chords and motif). A track is a tempo, a
- length and a play(engine, c) function that is called for every sixteenth step and schedules that step's notes (see
- SoundEngine.note for the fields of c). Under the notes a track has its atmosphere (MUSIC_BEDS: a soft bed of pink or
- brown noise and tones), which is a loop and no voice of the budget.
- The calm themes belong to their place (the Aurora Shelf icy and windy, the Glowmarsh damp and alive, the Caldera a
- sleeping mountain, Blackout City a noir night in the rain, the Shattered Core dark and breathing); 3.7.0: the boss tracks
- are cinematic synth (taikos, strings, brass, choir, arpeggios, a pumping sub; no guitars and no cymbals), one style
- per boss. Rules that keep the music cheap and the same everywhere:
- - everything a step schedules is chosen by the step, the chord and the intensity, or by the deterministic hash
-   rnd() (never Math.random), so the music is the same with and without a flood of sounds
- - the voices of the music are limited to MAX_MUSIC_VOICES; texture sounds are "opt" voices that the engine sheds
-   first (never the kick, bass and chords); the tests check that nothing is ever shed
- - buses: m (music, dry: drums), p (the pump: pads, bass, strings, brass), d (the echo: far away), c (the choir: the
-   formants of an "ah"); any voice can send to the room with opts.rev and be panned with opts.pan
- - noises of the music are pink or brown (opts.color), never the white noise of the sounds
- ========================================================================== */
-function rnd(a, b, c) {
-  let x = (Math.imul(a | 0, 374761393) + Math.imul(b | 0, 668265263) + Math.imul(c | 0, 2147483647)) | 0;
-  x = Math.imul(x ^ (x >>> 13), 1274126177);
-  x ^= x >>> 16;
-  return (x >>> 0) / 4294967296;
-}
-const R = (c, n) => rnd(c.cycle * 4096 + c.s, n, c.salt),
-  /* a hashed pan position between -w and w */
-  P = (c, n, w = 0.7) => (R(c, n) * 2 - 1) * w,
-  patCache = Object.create(null),
-  /* "x" a hit, "X" an accent, "o" a ghost note, "." a rest */
-  pat = (str) =>
-    patCache[str] ||
-    (patCache[str] = Array.from(str, (ch) => (ch === "x" ? 1 : ch === "X" ? 1.5 : ch === "o" ? 0.5 : 0))),
-  curveCache = Object.create(null);
-/* level curve (0..1) of a tremolo (insect buzz, wobbling pad): `rate` Hz, `depth` 0..1, faded in and out */
-function tremoloEnv(rate, depth, dur, fade) {
-  let key = `t${rate}:${depth}:${Math.round(dur * 1e3)}:${fade}`;
-  if (curveCache[key]) return curveCache[key];
-  let n = Math.min(1600, Math.max(16, Math.ceil(dur * Math.max(100, rate * 10)))),
-    env = new Float32Array(n);
-  for (let i = 0; i < n; i++) {
-    let t = (i / (n - 1)) * dur,
-      win = Math.min(1, t / fade, (dur - t) / fade);
-    win = Math.sin((Math.max(0, win) * Math.PI) / 2) ** 2;
-    env[i] = win * (1 - depth + depth * (0.5 + 0.5 * Math.sin(t * rate * 2 * Math.PI)));
-  }
-  return (curveCache[key] = env);
-}
-/* a swell that is faded in and out by `fade` seconds with a sin^2 window: voices that start every `span` seconds
-   and last span + fade seconds cross-fade without a dip (pads and drones) */
-const padEnv = (dur, fade) => tremoloEnv(0, 0, dur, fade);
-/* one scheduling kit per step: the buses (see above), each with t(one) for an oscillator and n(oise) */
-function kit(e, c) {
-  const base = c.at,
-    bus = (dest) => ({
-      t: (f, d, w, v, o) => e.tone(f, d, w, v, { ...o, dest, at: base + ((o && o.at) || 0) }),
-      // the noises of the music are pink unless they ask for brown (never the white noise of the sounds)
-      n: (d, v, o) => e.noise(d, v, { color: "pink", ...o, dest, at: base + ((o && o.at) || 0) }),
-    });
-  return {
-    e,
-    at: base,
-    m: bus(e.mus),
-    p: bus(e.pump),
-    d: bus(e.delay),
-    c: bus(e.choir),
-    // 3.19.0: the ping-pong bus of the ambient bloom (null where the browser has no stereo panner)
-    g: e.ping ? bus(e.ping) : null,
-  };
-}
-/* the pump: the pads, bass, strings, brass and choir dip to `depth` on an accented kick and come back with `rel` */
-const pumpDip = (k, at, depth, rel = 0.09) => {
-    const gain = k.e.pump && k.e.pump.gain;
-    if (!gain) return;
-    const t = k.e.ctx.currentTime + k.at + at;
-    gain.setTargetAtTime(depth, t, 0.004);
-    gain.setTargetAtTime(1, t + 0.03, rel);
-  },
-  /* a kick: a sine that drops from f0 to f1; pump dips the pump */
-  kick = (k, v, o = {}) => {
-    k.m.t(o.f0 || 150, o.dur || 0.14, "sine", v, { to: o.f1 || 42, at: o.at });
-    if (o.pump) pumpDip(k, o.at || 0, o.pump, o.rel);
-  },
-  /* a clap: three quick bursts of pink noise */
-  clap = (k, v, o = {}) => {
-    k.m.n(0.018, v, { type: "bandpass", f: 1500, q: 1.2, color: "pink", attack: 0.001, at: o.at });
-    k.m.n(0.018, v * 0.9, { type: "bandpass", f: 1500, q: 1.2, color: "pink", attack: 0.001, at: (o.at || 0) + 0.012 });
-    k.m.n(0.14, v * 0.7, {
-      type: "bandpass",
-      f: 1400,
-      q: 0.9,
-      color: "pink",
-      at: (o.at || 0) + 0.024,
-      rev: o.rev ?? 0.3,
-    });
-  },
-  /* a bell or a struck piece of ice: a sine and inharmonic partials that die away faster */
-  bell = (bus, f, v, dur = 1.4, o = {}) => {
-    bus.t(f, dur, "sine", v, { attack: 0.002, ...o });
-    bus.t(f * 2.76, dur * 0.4, "sine", v * 0.35, { attack: 0.002, ...o });
-    if (o.bright) bus.t(f * 5.4, dur * 0.18, "sine", v * 0.18, { attack: 0.002, ...o });
-  },
-  /* a vowel: two narrow bands of noise on its formants (whispers, vocal chops) */
-  formant = (bus, f1, f2, dur, v, o = {}) => {
-    bus.n(dur, v, { type: "bandpass", f: f1, q: 9, color: "pink", ...o });
-    bus.n(dur, v * 0.85, { type: "bandpass", f: f2, q: 9, color: "pink", ...o });
-  },
-  /* a pad: one oscillator per note with a sin^2 swell (padEnv), alternately detuned */
-  pad = (bus, notes, dur, v, o = {}) =>
-    notes.forEach((n, i) =>
-      bus.t(midiToFreq(n), dur, o.wave || "sawtooth", v, {
-        lp: o.lp || 1200,
-        env: o.trem ? tremoloEnv(o.trem, 0.5, dur, o.fade || 0.3) : padEnv(dur, o.fade || 0.3),
-        detune: (i & 1 ? 1 : -1) * (o.det || 0),
-        rev: o.rev,
-        at: o.at,
-      }),
-    ),
-  /* the instruments of the boss tracks (cinematic synth, see the boss tracks below) */
-  /* a taiko: a skin that drops in pitch, the knock of the stick (a short band of brown noise, never a hiss) and the
-     room; deep adds the boom of a big drum an octave down */
-  taiko = (k, v, o = {}) => {
-    const f = o.f || 90,
-      dur = o.dur || 0.45;
-    k.m.t(f * 1.9, dur, "sine", v, { to: f, at: o.at, pan: o.pan, rev: o.rev ?? 0.35 });
-    k.m.n(0.06, v * 0.25, { f: 700, color: "brown", attack: 0.001, at: o.at, pan: o.pan });
-    // the boom stays above 44 Hz (phones play nothing lower, and the compressors would pump on it)
-    if (o.deep) k.m.t(Math.max(52, f * 0.55), dur * 1.3, "sine", v * 0.7, { to: Math.max(44, f * 0.45), at: o.at });
-  },
-  /* a frame drum or tom: higher and shorter, with the slap of its skin */
-  tom = (k, v, f, o = {}) => {
-    k.m.t(f * 1.7, 0.2, "sine", v, { to: f, at: o.at, pan: o.pan, rev: 0.3 });
-    k.m.n(0.025, v * 0.5, { type: "bandpass", f: f * 7, q: 1.5, color: "pink", attack: 0.001, at: o.at, pan: o.pan });
-  },
-  /* a hand drum: the slap of the palm and a short hollow tone */
-  slap = (k, v, o = {}) => {
-    k.m.n(0.04, v, { type: "bandpass", f: 1700, q: 2.2, color: "pink", attack: 0.001, at: o.at, pan: o.pan });
-    k.m.t(330, 0.09, "triangle", v * 0.7, { to: 210, at: o.at, pan: o.pan, rev: 0.2 });
-  },
-  /* a soft shaker that keeps the time (the boss tracks have no cymbals) */
-  shaker = (k, v, pan = 0, at) =>
-    k.m.n(0.045, v, { type: "bandpass", f: 5200, q: 1.3, color: "pink", attack: 0.012, pan, at, opt: true }),
-  /* a big snare: a body that drops and a band of pink noise in the room */
-  bigSnare = (k, v, o = {}) => {
-    const bf = o.bf || 200;
-    k.m.t(bf, 0.12, "triangle", v, { to: bf * 0.55, at: o.at });
-    k.m.n(o.dur || 0.18, v * 0.9, {
-      type: "bandpass",
-      f: o.f || 1400,
-      q: 0.9,
-      color: "pink",
-      at: o.at,
-      rev: o.rev ?? 0.45,
-      pan: o.pan,
-    });
-  },
-  /* staccato strings: two saws a few cents apart through a soft low-pass, short; oct adds the octave above, single
-     plays one saw (the fast lines of the enrage) */
-  strings = (k, midi, v, o = {}) => {
-    const f = midiToFreq(midi),
-      dur = o.dur || 0.14,
-      lp = o.lp || 2200;
-    if (o.single) return k.p.t(f, dur, "sawtooth", v * 1.4, { lp, attack: 0.008, at: o.at });
-    k.p.t(f, dur, "sawtooth", v, { lp, detune: -7, attack: 0.008, at: o.at, pan: -0.3 });
-    k.p.t(f, dur, "sawtooth", v, { lp, detune: 7, attack: 0.008, at: o.at, pan: 0.3 });
-    if (o.oct) k.p.t(f * 2, dur, "sawtooth", v * 0.45, { lp, attack: 0.008, at: o.at });
-  },
-  /* strings in tremolo (a swarm): the notes tremble 13 times a second and swell; lpTo lets them rise */
-  swarm = (k, notes, dur, v, o = {}) =>
-    notes.forEach((n, i) =>
-      k.p.t(midiToFreq(n), dur, "sawtooth", v, {
-        lp: o.lp || 1400,
-        lpTo: o.lpTo,
-        detune: i & 1 ? 9 : -9,
-        env: tremoloEnv(13, 0.6, dur, o.fade || 0.5),
-        at: o.at,
-        rev: 0.3,
-      }),
-    ),
-  /* brass: root, fifth and octave as saws whose low-pass opens like a horn over the note (from lp to lpTo) */
-  brass = (k, midi, dur, v, o = {}) => {
-    const f = midiToFreq(midi);
-    for (const [mul, vol, det] of [
-      [1, 1, -6],
-      [1.4983, 0.65, 6],
-      [2, 0.45, 0],
-    ])
-      k.p.t(f * mul, dur, "sawtooth", v * vol, {
-        lp: o.lp || 300,
-        lpTo: o.lpTo || 2400,
-        q: 1.2,
-        detune: det,
-        attack: o.attack || 0.035,
-        hold: o.hold ?? dur * 0.45,
-        at: o.at,
-        rev: o.rev ?? 0.3,
-      });
-  },
-  /* the choir: one voice per note through the "ah" of the choir bus (CHOIR_VOWEL), swelling in and out; the bus sends
-     to the room after the vowel (a send of each voice would put a raw saw into the room) */
-  choir = (k, notes, dur, v, o = {}) =>
-    notes.forEach((n, i) =>
-      k.c.t(midiToFreq(n), dur, "sawtooth", v, {
-        env: padEnv(dur, o.fade || 0.4),
-        detune: i & 1 ? 8 : -8,
-        at: o.at,
-      }),
-    ),
-  /* a plucked note in the echo (arpeggios) */
-  pluck = (k, midi, v, o = {}) =>
-    k.d.t(midiToFreq(midi), o.dur || 0.1, o.wave || "sawtooth", v, {
-      lp: o.lp || 2600,
-      attack: 0.003,
-      at: o.at,
-      pan: o.pan,
-      rev: o.rev,
-    }),
-  /* a sub-bass note for chord root `root`: never below 29 (about 44 Hz), so that phones play it */
-  subNote = (root) => {
-    let base = root - 24;
-    return midiToFreq(base < 29 ? base + 12 : base);
-  },
-  /* the sub bass of a chord, pumped by the kick */
-  sub = (k, root, dur, v, o = {}) =>
-    k.p.t(subNote(root), dur, "sine", v, { attack: o.attack || 0.01, hold: o.hold ?? dur * 0.6, at: o.at });
-
-/* ---------- the atmospheres ---------- */
-
-/* 3.7.0: the atmospheres hold no white noise any more. They were a one-second loop of white noise, filtered into rain,
-   wind, insects and steam; on a phone speaker (nothing below about 200 Hz) that hiss was most of what one heard of a
-   calm theme (Aurora Shelf about three quarters, the Glowmarsh half, Blackout City a third). Now an atmosphere is a soft
-   bed of pink or brown noise well below the music (low rumbles, a gentle band of rain, a wind that sings on the notes
-   of the chord) and the sounds of the place are notes of the theme: drops, crickets, embers, ice (see the calm themes).
-   gain: the level of the calm atmosphere, boss: the factor under the boss track */
-const BED_LEVEL = { fight: 1, boss: 1 },
-  MUSIC_BEDS = {
-    city: {
-      gain: 0.42,
-      boss: 0.4,
-      build({ loop, filt, lfo, level }) {
-        // soft band-limited rain wash and low traffic air without 50 Hz transformer buzz
-        const rain = level(filt("bandpass", 980, 0.7, loop(1, "pink")), 0.01);
-        lfo(0.05, 0.004, rain.gain);
-        const traffic = level(filt("lowpass", 280, 0.7, loop(0.8, "brown")), 0.026);
-        lfo(0.05, 0.012, traffic.gain);
-      },
-      bossExtra({ loop, filt, lfo, level }) {
-        const swell = level(filt("lowpass", 260, 0.9, loop(0.8, "brown")), 0.012);
-        lfo(0.14, 0.006, swell.gain);
-      },
-    },
-    shelf: {
-      gain: 0.95,
-      boss: 0.6,
-      build({ loop, filt, lfo, level, root }) {
-        // a wind that sings: pink noise through two narrow band-passes on the root and the fifth two octaves up, which
-        // wander a little and come in gusts, over a soft low draught (no broad hiss, no whistle)
-        const low = level(filt("lowpass", 520, 0.6, loop(0.9, "pink")), 0.022);
-        lfo(0.045, 0.014, low.gain);
-        for (const [mul, q, vol, rate, wander] of [
-          [4, 24, 0.09, 0.041, 0.07],
-          [6, 30, 0.07, 0.029, 0.05],
-        ]) {
-          const band = filt("bandpass", root * mul, q, loop(1 + mul * 0.02, "pink"));
-          lfo(rate * 1.3, root * wander, band.frequency);
-          const gust = level(band, vol);
-          lfo(rate, vol * 0.75, gust.gain);
-        }
-      },
-    },
-    flats: {
-      gain: 0.34,
-      boss: 0.55,
-      build({ osc, loop, filt, lfo, level, root }) {
-        const shimmer = filt("bandpass", 2900, 4.5, loop(1.2, "pink"));
-        lfo(0.05, 260, shimmer.frequency);
-        level(shimmer, 0.05);
-        const drone = level(osc("sine", root / 4), 0.05);
-        lfo(0.07, 0.012, drone.gain);
-      },
-    },
-    marsh: {
-      gain: 0.3,
-      boss: 1.4,
-      build({ osc, loop, filt, lfo, level, root }) {
-        // warm bayou swell below with minimal sub-bass murk so 2-12 kHz stays clean and tonal
-        const drone = filt("lowpass", 260, 1.6, osc("triangle", root / 2));
-        lfo(0.35, 90, drone.frequency);
-        level(drone, 0.045);
-        const murk = filt("lowpass", 200, 0.9, loop(0.6, "brown"));
-        lfo(0.4, 60, murk.frequency);
-        level(filt("lowpass", 260, 0.7, murk), 0.025);
-      },
-    },
-    core: {
-      gain: 0.6,
-      boss: 0.48,
-      build({ osc, loop, filt, lfo, level, root }) {
-        // two drones that beat gently against each other, a dark space wind, a subtle high shimmer
-        level(osc("sine", root / 4), 0.045);
-        level(osc("sine", root / 4 + 0.4), 0.04);
-        level(filt("lowpass", 260, 0.7, osc("triangle", root / 2 + 0.3)), 0.01);
-        const wind = filt("bandpass", 300, 1.1, loop(0.7, "brown"));
-        lfo(0.03, 140, wind.frequency);
-        level(wind, 0.085);
-        const eerie = osc("sine", root * 4);
-        lfo(0.25, 3, eerie.frequency);
-        const high = level(eerie, 0.003);
-        lfo(0.07, 0.0025, high.gain);
-      },
-    },
-    // (the Ashfall Caldera has no music bed of its own: its rumble and crackle live on the ambience
-    // bus - the scape's calderaRumble and the crater's room tone - and a music-bus copy only painted
-    // a flat skirt across the band the phone test measures. The march owns the music bus alone.)
-  };
-
-/* ---------- calm themes ---------- */
-
-/* 3.5.0: the calm themes all followed the Aurora Shelf: no beat at all until the intensity is high (then a slow heartbeat),
-   a motif of struck notes in the echo and the room whose pattern changes per section, a soft pad, a deep sub on every
-   chord, flakes of texture and the sounds of the place; each biome has an instrument of its own for the motif and its
-   own pad. The boss tracks carry the same motif, so that they sound like the same place at its darkest.
-   3.46.0: the themes still share that skeleton, but each place now walks out of it with a gait of its own: the City
-   swings (noir), the Glowmarsh drags (bayou), the Works, the Shelf and the Core let their chords breathe over two bars,
-   and every theme carries one signature voice of its own (a comping chord, a machine bass, a glass run, a dub answer,
-   a chant). */
-const CALM_MOTIF = ["x..x..x...x..x..", "x.x...x.x...x.x.", "x..x.x...x..x...", "x.x..x.x..x.x..x"],
-  /* the instruments of the motif: (bus, frequency, level, options); options.lite leaves out the upper partials */
-  VOICE = {
-    // Blackout City: an electric piano, a sine with a bright tine that dies quickly
-    piano: (bus, f, v, o) => {
-      bus.t(f, o.lite ? 0.8 : 1.5, "sine", v, { attack: 0.003, rev: 0.7, ...o });
-      if (o.lite) return;
-      bus.t(f * 2, 0.6, "sine", v * 0.28, { attack: 0.002, ...o });
-      // 3.18.2: the tine of a note in the high octave lay above 20 kHz (24992 Hz at the top: the browser clamped it to the
-      // limit of the sampling rate and warned): no one hears it, so it is left out
-      if (f * 7.1 < 16000) bus.t(f * 7.1, 0.07, "sine", v * 0.12, { attack: 0.001, ...o });
-    },
-    // The Aurora Shelf (3.51.0): a music box - the ice bell with a tine's metallic ping on top
-    ice: (bus, f, v, o) => {
-      bell(bus, f, v, o.lite ? 0.7 : 1.4, { rev: 0.7, ...o });
-      if (o.lite) return;
-      bus.t(f * 3.94, 0.3, "sine", v * 0.28, { attack: 0.001, ...o });
-    },
-    // The Glowmarsh: a kalimba, a warm triangle with harmonic tine overtones
-    kalimba: (bus, f, v, o) => {
-      bus.t(f, o.lite ? 0.6 : 1.1, "triangle", v, { attack: 0.002, rev: 0.5, ...o });
-      if (o.lite) return;
-      bus.t(f * 3.01, 0.22, "sine", v * 0.4, { attack: 0.001, ...o });
-      if (f * 5.2 < 16000) bus.t(f * 5.2, 0.22, "sine", v * 0.24, { attack: 0.001, ...o });
-    },
-    // The Shattered Core: glass, two sines that beat slowly and a high inharmonic partial, a lot of room
-    glass: (bus, f, v, o) => {
-      bus.t(f, o.lite ? 1.2 : 2.6, "sine", v, { attack: 0.004, rev: 0.9, ...o });
-      if (o.lite) return;
-      bus.t(f * 1.004, 2.6, "sine", v * 0.8, { attack: 0.004, ...o });
-      bus.t(f * 2.76, 0.9, "sine", v * 0.25, { attack: 0.002, ...o });
-    },
-    // 3.53.0: the Glass Flats: glassine - a struck glass harmonic (a sine with the glass's 2.76
-    // partial) and a hot ping on top: noon light on sheet glass
-    glassine: (bus, f, v, o) => {
-      bus.t(f, o.lite ? 0.8 : 1.6, "sine", v, { attack: 0.002, rev: 0.75, ...o });
-      bus.t(f * 2.76, o.lite ? 0.4 : 0.9, "sine", v * 0.3, { attack: 0.002, ...o });
-      if (o.lite) return;
-      bus.t(f * 5.4, 0.35, "sine", v * 0.12, { attack: 0.001, ...o });
-      bus.t(f * 7.9, 0.12, "sine", v * 0.22, { attack: 0.001, ...o });
-    },
-    // Ashfall Caldera: a struck obsidian shard - a dark fundamental, a cold inharmonic ring, a rocky
-    // knock and one far shimmer partial (the 9.2 plants tonal peaks across the band the phone test
-    // measures, the same medicine as the vibes'; the 16 kHz guard applies to both)
-    cinder: (bus, f, v, o) => {
-      bus.t(f, o.lite ? 0.9 : 2, "triangle", v, { attack: 0.002, rev: 0.4, ...o });
-      bus.t(f * 2.76, o.lite ? 0.18 : 0.45, "sine", v * 0.22, { attack: 0.001, ...o });
-      if (o.lite) return;
-      bus.t(f * 1.005, 1.8, "sine", v * 0.4, { attack: 0.002, ...o });
-      if (f * 9.2 < 16000) bus.t(f * 9.2, 0.3, "sine", v * 0.13, { attack: 0.001, ...o });
-      bus.n(0.03, v * 1.2, { type: "bandpass", f: 640, q: 2.4, color: "pink", attack: 0.001, ...o });
-    },
-  },
-  /* the level of each instrument against the ice bells (the kalimba and the glass are softer by nature) */
-  // 3.53.0: the Flats' glassine joins the voices
-  VOICE_GAIN = { piano: 1.4, ice: 1, kalimba: 1.5, glass: 1.5, cinder: 1.45, glassine: 1.4 },
-  /* the pad of each biome: notes (from the step data), wave, low-pass, fade, detune, room, level, tremolo rate */
-  CALM_PAD = {
-    city: {
-      notes: (c) => [c.chord[0] + 12, c.chord[1] + 12, c.root + 22],
-      wave: "triangle",
-      lp: 1500,
-      fade: 0.8,
-      det: 6,
-      rev: 0.7,
-      vol: 0.017,
-    },
-    // 3.53.0: the Flats: a wide bright pad, an octave up, the fifth under it - noon air
-    flats: {
-      notes: (c) => [c.chord[0] + 12, c.chord[1] + 12, c.chord[2] + 12],
-      wave: "triangle",
-      lp: 2000,
-      fade: 0.9,
-      det: 7,
-      rev: 0.7,
-      vol: 0.018,
-    },
-    shelf: {
-      notes: (c) => [c.chord[0] + 12, c.chord[2] + 12, c.chord[1] + 24],
-      wave: "triangle",
-      lp: 2200,
-      fade: 0.8,
-      det: 6,
-      rev: 0.7,
-      vol: 0.018,
-    },
-    marsh: {
-      notes: (c) => [c.chord[1], c.chord[2], c.chord[0] + 12],
-      wave: "triangle",
-      lp: 800,
-      fade: 0.5,
-      det: 9,
-      rev: 0.5,
-      vol: 0.018,
-      trem: 1.1,
-    },
-    core: {
-      notes: (c) => [c.root - 24, c.root - 24, c.root - 17, c.root - 12],
-      wave: "sawtooth",
-      lp: 360,
-      fade: 1.2,
-      det: 10,
-      rev: 0.6,
-      vol: 0.022,
-    },
-    // 3.49.0: the Caldera: a hot-metal pad - low on the root, the fifth hollow above it, bright
-    // enough that its own harmonics own the band the phone test measures (the Shelf's lesson)
-    caldera: {
-      notes: (c) => [c.root - 12, c.chord[0] + 12, c.root + 7],
-      wave: "triangle",
-      lp: 2000,
-      fade: 0.9,
-      det: 6,
-      rev: 0.3,
-      vol: 0.026,
-    },
-  };
-/* the motif of a biome on the chord tones (a fixed walk through them, an octave higher now and then) */
-function calmMotif(k, c, voice, v = 1, lite = false, heroic = false) {
-  const { b, bar, sec } = c;
-  if (!pat(CALM_MOTIF[sec & 3])[b]) return;
-  if (lite && R(c, 3) < 0.4) return;
-  const n = c.chord[[0, 2, 1, 3, 2, 1, 3][(bar * 7 + b) % 7]] + (R(c, 1) < 0.25 ? 36 : 24);
-  VOICE[voice](k.d, midiToFreq(n), 0.045 * v * VOICE_GAIN[voice], { pan: P(c, 2, 0.6), bright: sec >= 2, lite });
-  // 3.46.0: the boss tracks state the theme of their place in two octaves (the heroic form: the same
-  // note an octave down, softer, on the other side of the stereo field - darker and bigger than a
-  // top-octave doubling, and under the 2-12 kHz band the phone-speaker tests measure)
-  if (heroic)
-    VOICE[voice](k.m, midiToFreq(n - 12), 0.016 * v * VOICE_GAIN[voice], {
-      pan: -P(c, 2, 0.6),
-      bright: false,
-      lite: true,
-      rev: 0.15,
-    });
-}
-/* the pad of a biome, one swell per bar on the first step */
-/* 3.19.0: the ambient bloom (the direction of the owner: "Osmos": a subtle melody and soft effects, noticeable and nice,
-   distinct for each biome, in stereo). On top of every calm theme single notes bloom now and then and ring out for
-   seconds: each biome has its own voice (felt piano, struck pipes, glass, kalimba, inharmonic sine bells), its own
-   notes (the notes of the chord and what colours it in that place), its own register and its own density; every note
-   has its place in the room (a hashed pan) and wanders on through the ping-pong echo and the room. They are most
-   present when it is quiet and step back as the fight swells. */
-const BLOOM = {
-  // Blackout City: a felt piano a little above the electric piano motif, the colour is the ninth and the sixth
-  city: { voice: "felt", extra: [14, 9], low: 12, span: 1, rate: 0.62, vol: 0.05, len: 3.4, width: 0.85, echo: 0.6 },
-  // The Aurora Shelf: glass, high, the colour is the sharp eleventh (the Lydian fourth) and the ninth
-  shelf: { voice: "glass", extra: [18, 14], low: 24, span: 1, rate: 0.7, vol: 0.036, len: 4.8, width: 0.95, echo: 0.8 },
-  // 3.53.0: the Glass Flats: the glassine, bright and close - the colour is the major seventh and
-  // the ninth (the noon glare); the register sits under the Shelf's glass, above the marsh
-  flats: { voice: "glassine", extra: [14, 11], low: 19, span: 1, rate: 0.66, vol: 0.04, len: 4, width: 0.9, echo: 0.7 },
-  // The Glowmarsh: a kalimba, plucked and a little out of tune, the colour is the flat seventh and the fourth
-  marsh: {
-    voice: "kalimba",
-    extra: [10, 5],
-    low: 12,
-    span: 1,
-    rate: 0.75,
-    vol: 0.058,
-    len: 1.8,
-    width: 0.9,
-    echo: 0.55,
-  },
-  // The Shattered Core: sine bells that sing in a fifth and fall away, the colour is the tritone and the major seventh
-  core: { voice: "ether", extra: [6, 11], low: 12, span: 2, rate: 0.45, vol: 0.04, len: 6, width: 1, echo: 0.9 },
-  // Ashfall Caldera: a hot shard pings and cools, the colour is the fifth and the octave
-  caldera: { voice: "ember", extra: [7, 12], low: 12, span: 1, rate: 0.55, vol: 0.04, len: 2.6, width: 0.9, echo: 0.7 },
-};
-const BLOOM_VOICE = {
-  felt: (g, f, v, len, o) => {
-    g.t(f, len, "sine", v, { attack: 0.012, lp: 2400, ...o });
-    g.t(f * 2, len * 0.5, "triangle", v * 0.22, { attack: 0.01, lp: 1800, ...o });
-    g.t(f * 4.02, 0.16, "sine", v * 0.07, { attack: 0.002, ...o });
-  },
-  glass: (g, f, v, len, o) => {
-    g.t(f, len, "sine", v, { attack: 0.003, ...o });
-    g.t(f * 1.003, len * 0.8, "sine", v * 0.5, { attack: 0.003, ...o });
-    g.t(f * 2.76, len * 0.3, "sine", v * 0.3, { attack: 0.002, ...o });
-    if (f * 5.4 < 12000) g.t(f * 5.4, len * 0.12, "sine", v * 0.1, { attack: 0.002, ...o });
-  },
-  kalimba: (g, f, v, len, o) => {
-    g.t(f, len, "triangle", v, { attack: 0.004, lp: 3000, ...o });
-    g.t(f * 5.2, 0.12, "sine", v * 0.14, { attack: 0.002, ...o });
-    g.t(f * 0.5, len * 0.6, "sine", v * 0.25, { attack: 0.004, ...o });
-  },
-  // 3.53.0: the Flats' bloom: the glassine with a hotter ping (the noon glare rings off the sheets)
-  glassine: (g, f, v, len, o) => {
-    g.t(f, len, "sine", v, { attack: 0.003, ...o });
-    g.t(f * 2.76, len * 0.35, "sine", v * 0.32, { attack: 0.002, ...o });
-    if (f * 5.4 < 12000) g.t(f * 5.4, len * 0.12, "sine", v * 0.1, { attack: 0.002, ...o });
-    if (f * 7.9 < 12000) g.t(f * 7.9, 0.1, "sine", v * 0.18, { attack: 0.001, ...o });
-  },
-  ether: (g, f, v, len, o) => {
-    g.t(f, len, "sine", v, { attack: 0.35, to: f * 0.992, ...o });
-    g.t(f * 1.5, len * 0.8, "sine", v * 0.42, { attack: 0.5, detune: 7, to: f * 1.5 * 0.99, ...o });
-    g.t(f * 2.7, len * 0.4, "sine", v * 0.1, { attack: 0.3, ...o });
-  },
-  // 3.49.0: the Caldera's bloom: a hot shard pings and cools fast, one cold partial under the guard
-  ember: (g, f, v, len, o) => {
-    g.t(f, len, "triangle", v, { attack: 0.003, ...o });
-    g.t(f * 2.76, len * 0.3, "sine", v * 0.16, { attack: 0.002, ...o });
-    if (f * 6.3 < 16000) g.t(f * 6.3, 0.1, "sine", v * 0.06, { attack: 0.001, ...o });
-  },
-};
-function calmBloom(k, c, biome) {
-  const cfg = BLOOM[biome];
-  if (!cfg || !k.g) return;
-  // the places in the bar where a note may bloom: the first beat, the off-beat before the third and the last sixteenth
-  const slot = c.b === 0 ? 0 : c.b === 6 ? 1 : c.b === 10 ? 2 : c.b === 14 ? 3 : -1;
-  if (slot < 0) return;
-  // most present when quiet, thinner as the fight swells (never silent: it is part of the place)
-  const chance = cfg.rate * (0.55 - 0.3 * c.L) * (slot === 0 ? 1.2 : 0.7);
-  if (R(c, 31 + slot) >= chance) return;
-  const pool = [c.chord[0], c.chord[1], c.chord[2], c.chord[0] + cfg.extra[0], c.chord[0] + cfg.extra[1]],
-    midi =
-      pool[Math.floor(R(c, 35 + slot) * pool.length)] + cfg.low + 12 * Math.floor(R(c, 39 + slot) * (cfg.span + 1));
-  BLOOM_VOICE[cfg.voice](
-    k.g,
-    midiToFreq(midi),
-    cfg.vol * (0.7 + 0.3 * R(c, 43 + slot)),
-    cfg.len * (0.8 + 0.4 * R(c, 47 + slot)),
-    {
-      pan: P(c, 51 + slot, cfg.width),
-      rev: cfg.echo,
-      opt: true,
-    },
-  );
-}
-function calmPad(k, c, biome) {
-  if (c.b !== 0) return;
-  const cfg = CALM_PAD[biome];
-  pad(k.p, cfg.notes(c), c.barSec + cfg.fade, cfg.vol, cfg);
-}
-/* the sub of a chord and, when it swells, a heartbeat: two soft thumps */
-function calmFloor(k, c, beat) {
-  const { b, L, root } = c;
-  if (b === 0) k.p.t(subNote(root), c.barSec * 0.95, "sine", 0.075, { attack: 0.3, hold: c.barSec * 0.5 });
-  if (L > 0.5 && b === 0) kick(k, 0.22, beat);
-  if (L > 0.5 && b === 3) kick(k, 0.14, { ...beat, dur: 0.2 });
-}
-
-/* The Glass Flats, 92 BPM, D major (D A Bm G): noon over the sheet glass. A glassine motif, a wide
-   bright pad, the sub and subtle slow heat shimmer bands */
-function glassCalm(e, c) {
-  const { b, bar, L, chord, root } = c,
-    k = kit(e, c);
-  calmMotif(k, c, "glassine");
-  calmPad(k, c, "flats");
-  calmFloor(k, c, { f0: 110, f1: 44, dur: 0.26 });
-  if (b === 0) {
-    k.d.t(midiToFreq(chord[0] + 24), c.barSec * 1.06, "sine", 0.01, { lp: 4800, attack: 0.25, pan: -0.3, rev: 0.25 });
-    k.d.t(midiToFreq(chord[2] + 24), c.barSec * 1.06, "sine", 0.008, {
-      lp: 5400,
-      attack: 0.28,
-      pan: 0.32,
-      det: 4,
-      rev: 0.25,
-    });
-  }
-  if (L > 0.4 && b % 4 === 0) {
-    const walk = [root - 24, root - 17, root - 24, root - 14][b >> 2];
-    k.p.t(midiToFreq(walk), 0.4, "triangle", 0.044, { lp: 520, attack: 0.006 });
-  }
-  if (L > 0.3 && (bar & 7) === 7 && b === 0)
-    k.d.t(midiToFreq(chord[1] - 12), c.barSec * 1.3, "triangle", 0.007, { lp: 380, attack: 0.55, pan: -0.35 });
-}
-
-/* The Glass Flats' own boss (the Glasswyrm, 134 BPM): it comes up from below. Drop: a hot four on the
-   floor, glass shard plucks answering the snare, the glassine motif over it, a brass line; variation:
-   the shimmer bands bend against the chord and the glass runs in sixteenths under the choir;
-   breakdown: the shimmer alone, then the roll builds the surface burst */
-function glassBoss(e, c) {
-  const { b, bar, sec, root, chord } = c,
-    k = kit(e, c);
-  if (sec <= 2) calmMotif(k, c, "glassine", sec === 2 ? 1.4 : 1.7, sec !== 2, sec !== 2);
-  sectionHit(k, c);
-  bossFill(k, c);
-  bossCycle(k, c);
-  if (sec <= 1) {
-    // the surface run: a hot four, the sand drum on the "and" of two and four
-    if (b === 0 || b === 10) kick(k, 0.5, { f0: 130, f1: 42, dur: 0.16, pump: 0.5 });
-    if (b === 8) kick(k, 0.3, { f0: 120, f1: 40, dur: 0.14, pump: 0.4 });
-    if (b % 4 === 0) taiko(k, 0.24, { f: 98, pan: b === 0 ? -0.12 : 0.12 });
-    if (b === 4 || b === 12) {
-      bigSnare(k, 0.2, { f: 1500, bf: 185 });
-      shardPluck(k, c, 0.036, { pan: b === 4 ? -0.32 : 0.32 });
-    }
-    if (b === 6 || b === 14) taiko(k, 0.28, { f: 88, pan: b === 6 ? -0.3 : 0.3 });
-    if (pat(CHUG_BASS)[b]) {
-      k.p.t(midiToFreq(root - 24 + CHUG_OCT[b]), 0.12, "sawtooth", 0.05, { lp: 950, lpTo: 420, q: 2.2 });
-      if (b % 8 === 0) sub(k, root, 0.2, 0.12);
-    }
-    // the brass stabs up the chord while the surface walks
-    if (b === 2 && (bar & 1) === 0) brass(k, chord[0], 0.18, 0.028, { lp: 500, lpTo: 2500, hold: 0.08 });
-    if (sec === 1) {
-      if (b === 0 || b === 8) brass(k, chord[[0, 2][(bar >> 1) & 1]], 0.38, 0.03, { lp: 460, lpTo: 2700, hold: 0.13 });
-      if (b % 2 === 0 && bar >= 12) strings(k, chord[[0, 2, 1, 2][(b >> 1) & 3]] + 12, 0.019, { lp: 2000 });
-      if (bar >= 12 && b === 0) choir(k, [chord[0] + 12, chord[2] + 12], c.barSec, 0.028);
-    }
-  } else if (sec === 2) {
-    if (b === 0) {
-      taiko(k, 0.52, { f: 64, deep: true, dur: 0.75 });
-      sub(k, root, 1.05, 0.2);
-      choir(k, [chord[0] + 12, chord[1] + 12, chord[2] + 12], c.barSec + 0.35, 0.028);
-    }
-    if (b === 8) bigSnare(k, 0.22, { f: 1300, bf: 175, dur: 0.26, rev: 0.8 });
-    if (b % 4 === 2) shardPluck(k, c, 0.024, { pan: P(c, 20, 0.8) });
-    // the glass runs: a fast shimmer line up the chord late in the variation
-    if (bar >= 14 && b % 2 === 0)
-      k.d.t(midiToFreq(chord[[0, 1, 2, 3][(b >> 1) & 3]] + 24), 0.3, "sine", 0.008, { lp: 7000, pan: P(c, 30, 0.8) });
-  } else {
-    buildRoll(k, c, 84);
-    if (b % 4 === 0) kick(k, 0.3 + 0.1 * (bar - 20), { f0: 130, f1: 44, dur: 0.15 });
-    k.p.t(midiToFreq(root - 24 + Math.floor(((bar - 20) * 16 + b) / 2)), 0.09, "sawtooth", 0.048, { lp: 1000, q: 2 });
-    // the surface burst climbs over the last two bars: a shimmer line rising with the roll
-    buildRiser(k, c);
-    if (bar >= 20 && b % 2 === 0)
-      k.d.t(midiToFreq(chord[0] + 24 + ((bar - 20) * 8 + b) / 2), 0.22, "sine", 0.007, {
-        lp: 7200,
-        pan: P(c, 24, 0.8),
-      });
-  }
-}
-function shardPluck(k, c, vol, o = {}) {
-  k.d.n(0.025, vol * 1.3, { type: "bandpass", f: 3400, q: 4.5, color: "pink", attack: 0.001, ...o });
-  k.d.t(1976, 0.12, "sine", vol, { at: 0.003, ...o, lp: 7400 });
-  k.d.t(2637, 0.09, "sine", vol * 0.6, { at: 0.005, ...o, lp: 8000 });
-}
-
-/* Blackout City, 78 BPM, A minor (Am F Dm E): quiet rain on empty streets. Electric piano motif, soft pad, sub;
-   gentle walking bass and sparse comping as intensity rises, with only rare distant city echoes. */
-function cityCalm(e, c) {
-  const { b, bar, L, chord, root } = c,
-    k = kit(e, c);
-  calmMotif(k, c, "piano");
-  calmPad(k, c, "city");
-  calmFloor(k, c, { f0: 100, f1: 40, dur: 0.25 });
-  if (L > 0.35 && (bar & 1) === 1 && b === 10 && R(c, 30) < 0.75) {
-    VOICE.piano(k.d, midiToFreq(chord[1] + 12), 0.015 * VOICE_GAIN.piano, { pan: 0.32, lite: true });
-    VOICE.piano(k.d, midiToFreq(chord[0] + 22), 0.011 * VOICE_GAIN.piano, { pan: 0.32, lite: true, at: 0.014 });
-  }
-  if (L > 0.3 && b % 4 === 0) {
-    const walk = [root - 24, chord[2] - 24, chord[1] - 24, root - 22][b >> 2];
-    k.p.t(midiToFreq(walk), 0.42, "triangle", 0.048, { lp: 500, attack: 0.004 });
-  }
-  if (L > 0.5 && (b === 4 || b === 12))
-    k.m.n(0.18, 0.007, { type: "bandpass", f: 2800, to: 2100, q: 0.8, attack: 0.06, pan: 0.2, rev: 0.3 });
-  if (bar % 16 === 13 && b === 0) {
-    const lo = midiToFreq(chord[0] + 24),
-      hi = midiToFreq(chord[0] + 27);
-    k.d.t(lo, 0.9, "triangle", 0.007, { to: hi, attack: 0.32, opt: true, rev: 0.75, pan: -0.6 });
-    k.d.t(hi, 0.9, "triangle", 0.006, { to: lo, at: 0.9, attack: 0.12, opt: true, rev: 0.75, pan: -0.6 });
-  }
-  if (bar % 16 === 4 && b === 0)
-    k.m.n(2.4, 0.006, { f: 180, to: 50, attack: 0.35, q: 0.7, color: "brown", opt: true, rev: 0.35 });
-}
-
-/* The Aurora Shelf, 72 BPM, E minor (Em C G D): ice motif, glass pad, deep sub, rare wind chimes and slow harmonica breaths. */
-const SHELF_CHIME = [76, 79, 81, 83, 86, 88];
-function shelfCalm(e, c) {
-  const { b, bar, L } = c,
-    k = kit(e, c);
-  calmMotif(k, c, "ice");
-  calmPad(k, c, "shelf");
-  calmFloor(k, c, { f0: 100, f1: 40, dur: 0.25 });
-  if ((bar & 7) === 3 && b % 3 === 0) {
-    const i = b / 3,
-      f = midiToFreq(c.chord[[3, 2, 1, 0, 2, 1][i]] + 36);
-    k.d.t(f, 1.1, "sine", 0.008, { to: f * 0.985, attack: 0.1, pan: (i - 2) * 0.35, rev: 0.8, opt: true });
-  }
-  if (L > 0.25 && b % 4 === 0 && b > 0 && R(c, 7) < 0.04 + 0.04 * L)
-    bell(k.d, midiToFreq(SHELF_CHIME[(R(c, 8) * 6) | 0]), 0.018, 1.7, { opt: true, rev: 0.55, pan: P(c, 9) });
-  if (L > 0.4 && (bar & 7) === 7 && b === 0)
-    k.m.n(c.barSec, 0.01, {
-      type: "bandpass",
-      f: 480,
-      to: 1200,
-      q: 1.2,
-      color: "pink",
-      attack: c.barSec * 0.8,
-      opt: true,
-    });
-}
-
-const LOG_DRUM = "x..x..x...x.x...";
-/* The Glowmarsh, 69 BPM, F minor (Fm Ab Eb Cm): kalimba motif, warm pad, sub, and subtle dub log-drum pulse as intensity grows. */
-function marshCalm(e, c) {
-  const { b, bar, L, chord } = c,
-    k = kit(e, c);
-  calmMotif(k, c, "kalimba");
-  calmPad(k, c, "marsh");
-  calmFloor(k, c, { f0: 115, f1: 40, dur: 0.24 });
-  if (b === 0)
-    k.d.t(midiToFreq(chord[2] + 36), c.barSec * 1.05, "sine", 0.007, {
-      attack: 0.25,
-      rev: 0.15,
-      pan: 0.28,
-    });
-  if (L > 0.25 && (bar & 1) === 1 && b === 15 && R(c, 20) < 0.5)
-    VOICE.kalimba(k.d, midiToFreq(chord[2] - 12), 0.018 * VOICE_GAIN.kalimba, { pan: -0.4 });
-  if (L > 0.3 && pat(LOG_DRUM)[b]) {
-    const f = midiToFreq((b % 8 === 6 ? chord[2] : chord[0]) - 12);
-    k.p.t(f, 0.22, "sine", 0.042, { to: f * 0.88, attack: 0.003 });
-  }
-}
-
-/* The Shattered Core, 60 BPM, F# minor (F#m D A E): glass motif, dark triangle/sine drones, sub, and rare gentle whisper/choir swells. */
-const VOID_FORMANTS = [
-  [700, 1200],
-  [300, 2300],
-  [500, 1800],
-];
-function coreCalm(e, c) {
-  const { b, bar, L, chord } = c,
-    k = kit(e, c);
-  calmMotif(k, c, "glass");
-  calmPad(k, c, "core");
-  calmFloor(k, c, { f0: 90, f1: 32, dur: 0.35 });
-  if ((bar & 3) === 0 && b === 0 && L > 0.2) {
-    const [f1, f2] = VOID_FORMANTS[(bar >> 2) % 3];
-    formant(k.d, chord[0] < 50 ? f1 : f1 * 1.12, f2, c.barSec * 0.7, 0.011, {
-      attack: 0.28,
-      pan: (bar >> 2) & 1 ? 0.5 : -0.5,
-      rev: 0.6,
-      opt: true,
-    });
-  }
-  if (b === 11 && L > 0.4) k.p.t(midiToFreq(c.root - 17), 0.32, "triangle", 0.05, { lp: 340, attack: 0.008 });
-  if (L > 0.35 && (bar & 3) === 2 && b === 0) choir(k, [chord[0] + 12, chord[2] + 12], c.barSec * 2, 0.014);
-}
-
-/* the crust cracking: two grains of filtered noise, the second lower, the pan wanders with the slope */
-function calderaKnock(k, c, v, o = {}) {
-  k.m.n(0.02, v, { type: "bandpass", f: 520, q: 4.2, attack: 0.001, pan: o.pan ?? 0.15, at: o.at });
-  k.m.n(0.014, v * 0.6, {
-    type: "bandpass",
-    f: 340,
-    q: 3.4,
-    attack: 0.001,
-    at: (o.at || 0) + 0.006,
-    pan: (o.pan ?? 0.15) * -0.8,
-  });
-}
-
-/* Ashfall Caldera, 84 BPM, G minor (Gm Eb F D): obsidian motif, warm pad, sub, gentle walking bass, and occasional distant horn. */
-function calderaCalm(e, c) {
-  const { b, bar, L, chord, root } = c,
-    k = kit(e, c);
-  calmMotif(k, c, "cinder");
-  calmPad(k, c, "caldera");
-  calmFloor(k, c, { f0: 92, f1: 36, dur: 0.3 });
-  if (L > 0.3 && b % 4 === 0) {
-    const walk = [root - 24, root - 17, root - 24, root - 26][b >> 2];
-    k.p.t(midiToFreq(walk), 0.42, "triangle", 0.046, { lp: 500, attack: 0.004 });
-  }
-  if (b === 0) {
-    k.d.t(midiToFreq(chord[1] + 24), c.barSec * 1.05, "triangle", 0.008, {
-      lp: 2200,
-      attack: 0.2,
-      rev: 0.15,
-      pan: -0.25,
-    });
-    k.d.t(midiToFreq(chord[1] + 36), c.barSec * 1.05, "sine", 0.004, {
-      lp: 5500,
-      attack: 0.24,
-      rev: 0.1,
-      pan: 0.3,
-    });
-  }
-  if (L > 0.4 && b === 6 && (bar & 1) === 0 && R(c, 30) < 0.55)
-    VOICE.cinder(k.d, midiToFreq(chord[2] + 12), 0.008, { lite: true, pan: -0.3 });
-  if ((bar & 3) === 2 && b === 0) {
-    const n = chord[[0, 2, 1][(bar >> 3) % 3]] + 12;
-    k.d.t(midiToFreq(n), c.barSec * 1.1, "triangle", 0.01, {
-      to: midiToFreq(n - 2),
-      lp: 1400,
-      attack: 0.24,
-      rev: 0.3,
-      pan: -0.5,
-      opt: true,
-    });
-  }
-}
-
-/* ---------- boss tracks ---------- */
-
-/* 3.7.0: the boss tracks were metal (double-tracked distorted guitars, blast beats, crash and china cymbals); in
-   WebAudio the guitars were a fizz and the cymbals a hiss. They are cinematic synth now: taikos and big drums, staccato
-   strings, brass that opens like a horn, a choir, arpeggios, a sub bass that pumps with the kick, and no cymbal at all
-   (soft shakers keep the time). Each boss has a style of its own, and each track still carries the motif of its biome
-   on the instrument of the calm theme, so a boss sounds like its place at its darkest. The sections stay: drop (bars
-   0-7), variation (8-15), breakdown (16-19), build (20-21); a section opens with a deep taiko and a brass swell.
-   3.46.0: the boss tracks are epic now, not just loud: the theme of the place rings out in two octaves (the heroic
-   motif), a choir pedal breathes under the drop from the first bar, tom fills walk into every section change, the
-   hits land with a sub drop of their own, and a long fight grows - from the second loop a string counter-line walks
-   above the drop. The arrival itself (musicImpact below) is a braam now. */
-function bossSection(bar) {
-  return bar < 8 ? 0 : bar < 16 ? 1 : bar < 20 ? 2 : 3;
-}
-/* the hit at the head of the variation, the breakdown and every new round of the drop */
-function sectionHit(k, c) {
-  if (c.b !== 0 || !(c.bar === 8 || c.bar === 16 || (c.bar === 0 && c.cycle > 0))) return;
-  taiko(k, 0.5, { f: 64, deep: true, dur: 0.7, rev: 0.6 });
-  // 3.46.0: the sections land harder: a sub drops with the hit under the brass
-  sub(k, c.root, 0.9, 0.16);
-  brass(k, c.root - 12, c.barSec * 0.9, 0.035, { lp: 200, lpTo: 1600 });
-}
-/* 3.46.0: a tom fill walks the last three sixteenths of bars 7 and 15 into every section change */
-function bossFill(k, c) {
-  if ((c.bar === 7 || c.bar === 15) && c.b >= 13)
-    tom(k, 0.14 + 0.04 * (c.b - 13), 150 + (c.b - 13) * 55, { pan: (c.b - 14) * 0.5 });
-}
-/* 3.46.0: a long fight grows: from the second loop of a boss track a quiet string counter-line walks the chord one
-   bar in four, two octaves up (short notes, so the voice budget of the drop never fills) */
-function bossCycle(k, c) {
-  if (c.cycle > 0 && c.sec <= 1 && c.b % 4 === 0)
-    strings(k, c.chord[[0, 2, 1, 2][(c.b >> 2) & 3]] + 24, 0.013, { lp: 2400, dur: 0.08, single: true });
-}
-/* the build (bars 20 and 21): a taiko roll that thickens (eighths, then sixteenths) and swells */
-function buildRoll(k, c, f = 110) {
-  const n = (c.bar - 20) * 16 + c.b;
-  if (c.bar === 20 ? c.b % 2 === 0 : c.b < 15) taiko(k, 0.12 + 0.3 * (n / 32), { f: f + n * 1.5, dur: 0.25, rev: 0.3 });
-}
-/* the riser of the build: two saws that glide up an octave while their filter opens, over a soft swell of pink noise */
-function buildRiser(k, c) {
-  if (c.bar !== 20 || c.b !== 0) return;
-  const d = c.barSec * 2;
-  for (const [semi, v] of [
-    [0, 0.03],
-    [7, 0.022],
-  ])
-    k.p.t(midiToFreq(c.root + semi), d, "sawtooth", v, {
-      to: midiToFreq(c.root + semi + 12),
-      lp: 500,
-      lpTo: 4200,
-      attack: d * 0.92,
-      opt: true,
-    });
-  k.m.n(d, 0.035, { type: "bandpass", f: 300, to: 2400, q: 0.8, color: "pink", attack: d * 0.95, opt: true });
-}
-
-/* Blackout City boss (The Warden), 128 BPM, A minor (Am F Dm E): a cyberpunk chase. Drop: four on the floor that pumps a
-   rolling sixteenth synth bass (root and octave), taikos on the off-beats, a big snare on 2 and 4, shakers, the siren of
-   the calm theme as a gliding lead, the electric piano motif, staccato strings in the second half; variation: brass
-   stabs on the chords, a sixteenth arpeggio in the echo, the choir in its last four bars; breakdown: half time, the
-   choir and the piano, big taikos, a police siren far away; build: taiko roll, the bass climbs, riser */
-const CHASE_BASS = ["x.xxx.xxx.xxx.xx", "xxxxx.xxxxxx.xxx"],
-  CHASE_OCT = [0, 12, 0, 0, 12, 0, 0, 12, 0, 0, 12, 0, 0, 12, 0, 12];
-function cityBoss(e, c) {
-  const { b, bar, sec, root, chord } = c,
-    k = kit(e, c);
-  if (sec <= 2) calmMotif(k, c, "piano", sec === 2 ? 1.4 : 1.6, sec !== 2, sec !== 2);
-  sectionHit(k, c);
-  bossFill(k, c);
-  bossCycle(k, c);
-  if (sec <= 1) {
-    if (b % 4 === 0) kick(k, 0.5, { f0: 150, f1: 45, dur: 0.16, pump: 0.5, rel: 0.11 });
-    if (b === 4 || b === 12) bigSnare(k, 0.2, { f: 1500, bf: 190 });
-    if (b === 10 || (b === 6 && (bar & 1) === 1)) taiko(k, 0.32, { f: 85, pan: b === 6 ? -0.3 : 0.3 });
-    if (b % 4 === 2) shaker(k, 0.05, 0.4);
-    else if (b % 2 === 1) shaker(k, 0.022, -0.4);
-    if (pat(CHASE_BASS[sec])[b]) {
-      k.p.t(midiToFreq(root - 24 + CHASE_OCT[b]), 0.11, "sawtooth", 0.06, { lp: 900, lpTo: 380, q: 2.5 });
-      if (b % 4 === 0) sub(k, root, 0.2, 0.14);
-    }
-    // the siren of the calm theme as a lead: up and down a minor third, every second bar
-    if (sec === 0 && (bar & 1) === 1 && (b === 0 || b === 8)) {
-      const lo = midiToFreq(chord[0] + 24),
-        hi = midiToFreq(chord[0] + 27);
-      k.d.t(b === 0 ? lo : hi, c.barSec * 0.48, "square", 0.02, {
-        to: b === 0 ? hi : lo,
-        lp: 2400,
-        attack: 0.03,
-        rev: 0.3,
-      });
-    }
-    if (sec === 0 && bar >= 4 && b % 2 === 0) strings(k, chord[[0, 2, 1, 2][(b >> 1) & 3]] + 12, 0.022, { lp: 1800 });
-    if (sec === 1) {
-      if (b === 0 || b === 10) brass(k, chord[0], b === 0 ? 0.5 : 0.3, 0.032, { lp: 400, lpTo: 2600, hold: 0.12 });
-      const p = arpPatterns[(bar + 1) % 4];
-      pluck(k, chord[p[b % p.length]] + 24, 0.022, { pan: b % 2 ? 0.4 : -0.4 });
-      if (bar >= 12 && b === 0) choir(k, [chord[0] + 12, chord[2] + 12], c.barSec, 0.03);
-    }
-  } else if (sec === 2) {
-    if (b === 0) {
-      taiko(k, 0.55, { f: 70, deep: true, dur: 0.7 });
-      sub(k, root, 1.2, 0.24);
-      choir(k, [chord[0] + 12, chord[1] + 12, chord[2] + 12], c.barSec + 0.4, 0.03);
-    }
-    if (b === 8) bigSnare(k, 0.26, { f: 1300, bf: 170, dur: 0.28, rev: 0.8 });
-    if (b === 6 || b === 14) taiko(k, 0.25, { f: 100, pan: b === 6 ? -0.4 : 0.4 });
-    if (b % 4 === 2) shaker(k, 0.03, 0.3);
-    // a police siren far away
-    if (bar === 17 && b === 0) {
-      k.d.t(640, 1.1, "triangle", 0.014, { to: 960, attack: 0.4, rev: 0.7, pan: -0.6, opt: true });
-      k.d.t(960, 1.1, "triangle", 0.012, { to: 640, attack: 0.1, rev: 0.7, pan: -0.6, at: 1.1, opt: true });
-    }
-  } else {
-    buildRoll(k, c, 100);
-    if (b % 4 === 0) kick(k, 0.32 + 0.1 * (bar - 20), { f0: 150, f1: 45, dur: 0.14 });
-    k.p.t(midiToFreq(root - 24 + Math.floor(((bar - 20) * 16 + b) / 2)), 0.09, "sawtooth", 0.05, { lp: 1200, q: 2 });
-    buildRiser(k, c);
-  }
-}
-
-/* The Aurora Shelf boss (Frost Prism), 138 BPM, E minor (Em C G D): ice trance. Drop: a soft four on the floor that pumps
-   everything, the bass on the off-beats, a glassy arpeggio in the echo, the ice bell melody, a clap on 2 and 4, shakers,
-   a pumping pad; variation: the choir sings the chords, a lead doubles the bell melody, strings in eighths; breakdown:
-   no beat, the choir, the bells and the arpeggio behind a closed filter, a gust of wind; build: the clap rolls, the
-   kick doubles, riser */
-const SHELF_MEL = [76, 79, 83, 81, 79, 76, 74, 76, 72, 76, 79, 78, 74, 78, 81, 79],
-  ICE_ARP = [0, 1, 2, 3, 2, 1, 2, 3];
-function shelfBoss(e, c) {
-  const { b, bar, sec, root, chord } = c,
-    k = kit(e, c),
-    mel = SHELF_MEL[((bar & 3) * 4 + (b >> 2)) % 16];
-  if (sec <= 2) calmMotif(k, c, "ice", 1.3, sec !== 2);
-  sectionHit(k, c);
-  if (sec <= 1) {
-    if (b % 4 === 0) kick(k, 0.45, { f0: 130, f1: 44, dur: 0.18, pump: 0.4, rel: 0.12 });
-    if (b % 4 === 2) k.p.t(midiToFreq(root - 12), 0.16, "sawtooth", 0.05, { lp: 600, q: 1.5 });
-    if (b === 4 || b === 12) {
-      clap(k, 0.07);
-      // 3.17.0: the place in the drums: an ice crack doubles the clap
-      k.m.n(0.06, 0.03, { type: "bandpass", f: 3200, to: 1600, q: 2.5, color: "pink", attack: 0.002, pan: 0.15 });
-    }
-    // and icicles fall on the last sixteenths of every second bar
-    if ((bar & 1) === 1 && b >= 13) {
-      const f = midiToFreq(chord[(16 - b) % 3] + 36);
-      k.m.t(f, 0.06, "sine", 0.022, { to: f * 0.96, pan: (b - 14) * 0.4, rev: 0.4 });
-    }
-    shaker(k, b % 2 ? 0.018 : 0.032, b % 4 < 2 ? -0.4 : 0.4);
-    pluck(k, chord[ICE_ARP[b % 8]] + 24 + (b >= 8 && sec === 1 ? 12 : 0), 0.02, {
-      wave: "triangle",
-      lp: 4000,
-      pan: b % 2 ? 0.5 : -0.5,
-    });
-    if (b % 4 === 0) bell(k.d, midiToFreq(mel), 0.045, 0.9, { rev: 0.5, bright: sec === 1 });
-    if (b === 0) {
-      pad(k.p, [chord[0] + 12, chord[2] + 12], c.barSec + 0.2, 0.014, {
-        wave: "sawtooth",
-        lp: 1600,
-        fade: 0.2,
-        det: 9,
-      });
-      sub(k, root, c.barSec * 0.9, 0.12);
-    }
-    if (sec === 1) {
-      if (b === 0) choir(k, [chord[0] + 12, chord[1] + 12], c.barSec + 0.3, 0.03);
-      if (b % 4 === 0) k.d.t(midiToFreq(mel - 12), 0.3, "square", 0.016, { lp: 2600, attack: 0.01, rev: 0.3 });
-      if (b % 2 === 0) strings(k, chord[(b >> 1) % 3] + 12, 0.018, { lp: 2600 });
-    }
-  } else if (sec === 2) {
-    if (b === 0) {
-      choir(k, [chord[0] + 12, chord[1] + 12, chord[2] + 12], c.barSec + 0.4, 0.03);
-      sub(k, root, c.barSec, 0.16);
-    }
-    if (b % 4 === 0) bell(k.d, midiToFreq(mel), 0.05, 1.2, { rev: 0.6, bright: true });
-    pluck(k, chord[ICE_ARP[b % 8]] + 24, 0.016, { wave: "triangle", lp: 900 });
-    if (b === 0 && (bar & 1) === 0)
-      k.m.n(c.barSec * 1.8, 0.05, {
-        type: "bandpass",
-        f: 400,
-        to: 1600,
-        q: 1,
-        color: "pink",
-        attack: c.barSec,
-        hold: 0.3,
-        opt: true,
-        rev: 0.3,
-      });
-  } else {
-    const n = (bar - 20) * 16 + b;
-    // 3.46.0: the bells of the shelf run down the chord into the drop (the cascade before the wall)
-    if (b % 4 === 0)
-      bell(k.d, midiToFreq(chord[[3, 2, 1, 0, 0, 1, 2, 3][(bar - 20) * 4 + (b >> 2)]] + 24), 0.04, 0.8, { rev: 0.6 });
-    if (bar === 20 ? b % 4 === 0 : b % 2 === 0) kick(k, 0.4, { f0: 130, f1: 44, dur: 0.16 });
-    if (bar === 21 || b % 2 === 0) clap(k, 0.025 + 0.06 * (n / 32));
-    pluck(k, chord[ICE_ARP[b % 8]] + 24 + Math.floor(n / 8), 0.02, { wave: "triangle", lp: 1200 + n * 90 });
-    buildRiser(k, c);
-  }
-}
-
-/* The Glowmarsh boss (Hive Queen), 116 BPM, F minor (Fm Ab Eb Cm): tribal and acid. Drop: deep drums every six
-   sixteenths over the four of the bar (three against four), hand drums answering, small drums as ghosts, an acid bass
-   (a resonant filter that squelches on its accents), the kalimba motif, swarm strings (tremolo) every second bar;
-   variation: the acid plays every sixteenth and opens up, the choir chants, shakers in sixteenths; breakdown: a deep
-   drum, the swarm rises, bubbles and squelches, the kalimba; build: the hand drums roll, the acid opens, riser */
-const TRIBE_DEEP = "x.....x.....x...",
-  TRIBE_HAND = "...x.....x.....x",
-  TRIBE_GHOST = "..x.x...x.x...x.",
-  ACID = [0, 0, 12, 0, 3, 0, 15, 0, 0, 12, 0, 10, 0, 7, 12, 3],
-  ACID_ACCENT = "x...x.x...x..x..";
-function marshBoss(e, c) {
-  const { b, bar, sec, root, chord } = c,
-    k = kit(e, c),
-    acid = (open) => {
-      const accent = pat(ACID_ACCENT)[b],
-        note = root - 24 + ACID[b],
-        f = midiToFreq(note < 29 ? note + 12 : note);
-      k.p.t(f, accent ? 0.2 : 0.12, "sawtooth", accent ? 0.06 : 0.045, {
-        lp: accent ? 1400 + open : 450 + open * 0.3,
-        lpTo: 220,
-        q: 9,
-      });
-    };
-  if (sec <= 2) calmMotif(k, c, "kalimba", 1.7, sec !== 2, sec !== 2);
-  sectionHit(k, c);
-  bossFill(k, c);
-  bossCycle(k, c);
-  if (sec <= 1) {
-    if (pat(TRIBE_DEEP)[b]) taiko(k, 0.45, { f: 78, deep: b === 0, pan: b === 6 ? -0.25 : b === 12 ? 0.25 : 0 });
-    if (pat(TRIBE_HAND)[b]) {
-      slap(k, 0.12, { pan: 0.4 });
-      // 3.17.0: the place in the drums: a frog croaks with the hand drum on the root of the chord (every second bar)
-      if ((bar & 1) === 0) {
-        const f = midiToFreq(root - 12);
-        k.m.t(f, 0.07, "square", 0.02, { lp: 900, to: f * 0.8, pan: 0.5 });
-        k.m.t(f, 0.07, "square", 0.016, { lp: 900, to: f * 0.8, at: 0.09, pan: 0.5 });
-      }
-    }
-    if (pat(TRIBE_GHOST)[b]) {
-      tom(k, 0.06, 180 + (b % 3) * 30, { pan: -0.4 });
-      // and the acid bubbles pop on the ghost notes
-      const f = 300 + (b % 3) * 90;
-      k.m.t(f, 0.06, "sine", 0.03, { to: f * 2, pan: -0.5 });
-    }
-    if (b === 0) {
-      kick(k, 0.3, { f0: 120, f1: 42, dur: 0.18, pump: 0.5 });
-      sub(k, root, c.barSec * 0.9, 0.14);
-    }
-    if (sec === 1 || b % 2 === 0) acid(sec === 1 ? 900 : 0);
-    if (b === 0 && (bar & 1) === 0) swarm(k, [chord[0] + 12, chord[2] + 12], c.barSec * 2, 0.016);
-    if (sec === 1) {
-      shaker(k, b % 2 ? 0.018 : 0.03, b % 4 < 2 ? -0.5 : 0.5);
-      // 3.46.0: the war chant gets its horns: the brass answers every deep drum of the chant
-      if (pat(TRIBE_DEEP)[b]) brass(k, chord[0] + 12, 0.22, 0.02, { lp: 500, lpTo: 2400, hold: 0.06 });
-      if (b === 0) choir(k, [chord[0], chord[2]], c.barSec, 0.03);
-    }
-  } else if (sec === 2) {
-    if (b === 0) {
-      taiko(k, 0.5, { f: 70, deep: true, dur: 0.8 });
-      sub(k, root, c.barSec, 0.18);
-      if ((bar & 1) === 0)
-        swarm(k, [chord[0] + 12, chord[1] + 12, chord[2] + 12], c.barSec * 2, 0.016, { lp: 700, lpTo: 2800 });
-    }
-    if (pat(TRIBE_HAND)[b]) slap(k, 0.08, { pan: -0.3 });
-    if (b % 2 === 0 && R(c, 1) < 0.25) {
-      const f = 200 + R(c, 2) * 400;
-      k.m.t(f, 0.09, "sine", 0.04, { to: f * 1.9, opt: true, pan: P(c, 3, 0.8) });
-    }
-    if (b === 6 && (bar & 1) === 1) {
-      k.m.n(0.16, 0.03, { f: 900, to: 150, q: 7, color: "brown", opt: true, pan: -0.4 });
-      k.m.t(180, 0.14, "sine", 0.07, { to: 55, opt: true, pan: -0.4 });
-    }
-  } else {
-    const n = (bar - 20) * 16 + b;
-    if (bar === 20 ? b % 2 === 0 : true) slap(k, 0.05 + 0.12 * (n / 32), { pan: b % 2 ? 0.4 : -0.4 });
-    if (b % 4 === 0) taiko(k, 0.3, { f: 80 });
-    acid(n * 60);
-    buildRiser(k, c);
-  }
-}
-
-/* The Shattered Core boss (Rift Core), 172 BPM, F# minor (F#m D A E): the finale, drum and bass with a choir. Drop: a breakbeat
-   (kick on 1 and the "and" of 3, snare on 2 and 4, ghost snares), a reese bass (two saws a little apart under a
-   low-pass) that pumps, the choir sings the chords, the glass motif; variation: the motifs of the other biomes come
-   back, one bar each (electric piano, obsidian shards, ice bells, kalimba), over the break with brass stabs; breakdown:
-   half time, the choir alone with the glass, a deep drum, a heartbeat; build: the snare rolls, the choir climbs,
-   riser */
-const BREAK_K = ["x.........x.....", "x.........x..x.."],
-  BREAK_GHOST = "......x..x....x.",
-  QUOTES = ["piano", "cinder", "ice", "kalimba"];
-function coreBoss(e, c) {
-  const { b, bar, sec, root, chord } = c,
-    k = kit(e, c),
-    q = bar & 3;
-  // the glass rings long: at 172 BPM always the short (lite) form (the four quotes of the variation carry the theme)
-  if (sec === 0 || sec === 2) calmMotif(k, c, "glass", 1.6, true);
-  else if (sec === 1) calmMotif(k, c, QUOTES[q], 1.6, true);
-  sectionHit(k, c);
-  bossFill(k, c);
-  if (sec <= 1) {
-    if (pat(BREAK_K[q === 3 ? 1 : 0])[b]) kick(k, 0.5, { f0: 160, f1: 44, dur: 0.14, pump: 0.5 });
-    if (b === 4 || b === 12) bigSnare(k, 0.2, { f: 1700, bf: 230, dur: 0.12, rev: 0.25 });
-    else if (pat(BREAK_GHOST)[b] && R(c, 1) < 0.6) bigSnare(k, 0.05, { f: 1900, bf: 250, dur: 0.06, rev: 0.1 });
-    // 3.17.0: the place in the drums: the rift glitches in time at the end of every second bar (three stuttered
-    // chord tones), and a reversed swell pulls into every fourth bar
-    if ((bar & 1) === 1 && b >= 13)
-      k.m.t(midiToFreq(chord[(b - 13) % 3] + 36), 0.03, "square", 0.012, { lp: 3500, pan: (b - 14) * 0.5 });
-    if ((bar & 3) === 3 && b === 8)
-      k.m.n(c.barSec * 0.5, 0.03, {
-        type: "bandpass",
-        f: 600,
-        to: 3600,
-        q: 1.5,
-        color: "pink",
-        attack: c.barSec * 0.48,
-      });
-    shaker(k, b % 2 ? 0.018 : 0.03, P(c, 2, 0.6));
-    if (b === 0 && (bar & 1) === 0)
-      for (const det of [-12, 12])
-        k.p.t(midiToFreq(root - 24), c.barSec * 2 + 0.1, "sawtooth", 0.05, {
-          lp: 380,
-          detune: det,
-          attack: 0.02,
-          hold: c.barSec * 1.6,
+    ctx.suspend(0.25).then(() => {
+      base = ctx.currentTime;
+      if (spec.bed) {
+        engine.startBed(spec.bed);
+        engine.stopBed(spec.bed, spec.stopAt || 1.2, spec.stopRel);
+      } else if (spec.tone) {
+        // 3.43.0: a short take of a room tone, with a quick test fade (the real one breathes slower)
+        engine.startTone(spec.tone);
+        engine.stopTone(spec.tone, spec.stopAt || 1.0, spec.fade || 0.25);
+      } else if (spec.music) {
+        // 3.1.0: `seconds` of a calm theme or boss track from bar `fromBar`, at intensity `intensity` (calm) and
+        // heat `heat` (boss); musicLog (spec.log) records every music voice, `impact` plays the start of a boss track
+        engine.mode = spec.music;
+        engine.biome = spec.biome;
+        engine.playKind = spec.music;
+        engine.playBiome = spec.biome;
+        engine.intensity = spec.intensity != null ? spec.intensity : 0.9;
+        engine.heat = spec.heat || 0;
+        if (spec.log) engine.musicLog = [];
+        let info = trackInfo(spec.music, spec.biome),
+          len = 60 / info.bpm / 4,
+          first = (spec.fromBar || 0) * 16;
+        engine.fade.gain.value = musicTrack(spec.music, spec.biome).gain;
+        engine.mixFor(spec.music);
+        // 3.18.1: with spec.seed the random choices of the music (its notes, its atmosphere) are seeded as well, so that
+        // the numbers of the deep test do not change from run to run
+        seeded(() => {
+          if (!spec.noBed) engine.startMusicBed(spec.music, spec.biome, 0.05);
+          if (spec.impact) musicImpact(engine, spec.biome, 0);
+          // 3.18.1 (test): the track ends at spec.musicEnd s and spec.quietAt s is the moment of a track change
+          for (
+            let n = 0, t = 0;
+            t < Math.min(seconds - 0.25, spec.musicEnd != null ? spec.musicEnd : 1e9);
+            n++, t += len
+          ) {
+            engine.simT = base + t;
+            engine.cycle = Math.floor((first + n) / info.steps);
+            engine.note((first + n) % info.steps, base + t);
+            // 2.9.0: a flood of sounds in every step; the music notes must all be scheduled anyway
+            if (spec.flood)
+              for (let k = 0; k < 30; k++) {
+                engine.last = Object.create(null);
+                let flood = RL_FLOOD[(n * 7 + k) % RL_FLOOD.length];
+                engine.play(flood[0], flood[1]);
+              }
+          }
         });
-    if (b === 0) choir(k, [chord[0] + 12, chord[1] + 12], c.barSec + 0.2, 0.028);
-    if (sec === 1 && (b === 0 || b === 6 || b === 10))
-      brass(k, chord[0], 0.22, 0.026, { lp: 700, lpTo: 2600, hold: 0.08 });
-  } else if (sec === 2) {
-    if (b === 0) {
-      // 3.46.0: the breakdown choir takes the octave too (the hall sings above the glass)
-      taiko(k, 0.55, { f: 62, deep: true, dur: 0.9 });
-      choir(k, [chord[0] + 12, chord[1] + 12, chord[2] + 12, chord[0] + 24], c.barSec + 0.5, 0.028);
-      sub(k, root, c.barSec, 0.2);
-    }
-    if (b === 0 || b === 3) kick(k, b === 0 ? 0.4 : 0.25, { f0: 110, f1: 36, dur: 0.22 });
-    if (b === 8) bigSnare(k, 0.24, { f: 1500, dur: 0.3, rev: 0.8 });
-  } else {
-    const n = (bar - 20) * 16 + b;
-    if (bar === 20 ? b % 2 === 0 : b < 15)
-      bigSnare(k, 0.05 + 0.15 * (n / 32), { f: 1600 + n * 20, dur: 0.07, rev: 0.2 });
-    if (b % 4 === 0) kick(k, 0.4, { f0: 160, f1: 44, dur: 0.14 });
-    if (b === 0) choir(k, [root + 12 + (bar - 20) * 5, root + 19 + (bar - 20) * 5], c.barSec, 0.03, { fade: 0.2 });
-    buildRiser(k, c);
-  }
-}
-
-/* Ashfall Caldera boss (The Ash Tyrant), 132 BPM, G minor: the mountain marches. Drop: a heavy taiko
-   on the head of every fourth sixteenth, a chugging eighth-note bass that will not let go (an octave or
-   a fifth on top now and then), kick on 1 and the "and" of 3, big snare on 2 and 4 with the crust
-   doubling it, taikos on the off-beats, brass stabs between, the obsidian motif, strings walking the
-   chord late in the drop; variation: brass takes the chord, the strings answer, the choir in the last
-   four bars; breakdown: half time, the choir and the obsidian, big taikos, the mountain cracks wide
-   open; build: the taiko roll, the bass climbs, the ERUPTION rises over it all, riser. */
-const CHUG_BASS = "x.x.x.x.x.x.x.x.",
-  CHUG_OCT = [0, 0, 12, 0, 7, 0, 0, 12, 0, 0, 12, 0, 3, 0, 10, 12];
-/* the ERUPTION of the build: two detuned saws glide up a fifth while a formant band sweeps (a growl
-   that turns into a roar) - a synthesised voice, all the Caldera's own, that breaks into the drop */
-function eruptionRiser(k, c) {
-  if (c.bar !== 20 || c.b !== 0) return;
-  const d = c.barSec * 2,
-    f0 = midiToFreq(c.root + 12);
-  for (const det of [-11, 11])
-    k.d.t(f0, d, "sawtooth", 0.016, {
-      to: f0 * 1.5,
-      detune: det,
-      lp: 900,
-      lpTo: 3400,
-      attack: d * 0.55,
-      hold: d * 0.1,
-      opt: true,
-      pan: det < 0 ? -0.2 : 0.2,
+        engine.simT = null;
+      } else if (spec.burst) {
+        // 2.9.2: continuous fire of one sound: the first shot now, the others at times registered
+        // before rendering starts (see below), so the rate gate and the voice limit behave as in the game
+        engine.play(spec.burst.id, spec.burst.arg);
+      } else if (spec.noise) {
+        // 2.9.1: a raw noise burst (tests that long bursts are not cut off)
+        engine.noise(spec.noise.dur, spec.noise.vol, spec.noise.opts || {});
+      } else {
+        // seeded: a comparison of sounds (tests/deep-test.mjs) gives the same result every time (the sounds vary
+        // their pitch and noise at random); the whole sound is scheduled right here
+        seeded(() => engine.play(spec.id, spec.arg));
+      }
+      ctx.resume();
     });
-  k.d.n(d, 0.02, { type: "bandpass", f: 700, to: 2100, q: 6, color: "pink", attack: d * 0.5, opt: true });
-}
-function calderaBoss(e, c) {
-  const { b, bar, sec, root, chord } = c,
-    k = kit(e, c);
-  if (sec <= 2) calmMotif(k, c, "cinder", sec === 2 ? 1.4 : 1.7, sec !== 2, sec !== 2);
-  sectionHit(k, c);
-  bossFill(k, c);
-  bossCycle(k, c);
-  if (sec <= 1) {
-    // the march: a heavy taiko on every fourth sixteenth, kick under 1 and the "and" of 3
-    if (b === 0 || b === 10) kick(k, 0.5, { f0: 130, f1: 42, dur: 0.17, pump: 0.5 });
-    if (b === 8) kick(k, 0.3, { f0: 120, f1: 40, dur: 0.14, pump: 0.4 });
-    if (b % 4 === 0) taiko(k, 0.24, { f: 96, pan: b === 0 ? -0.12 : 0.12 });
-    if (b === 4 || b === 12) {
-      bigSnare(k, 0.2, { f: 1400, bf: 175 });
-      // the crust doubles the snare: two short grains
-      calderaKnock(k, c, 0.042, { pan: b === 4 ? -0.35 : 0.35 });
+    let buffer = await ctx.startRendering(),
+      data = buffer.getChannelData(0),
+      peak = 0,
+      sum = 0,
+      finite = true;
+    for (let i = 0; i < data.length; i++) {
+      let v = data[i];
+      if (!Number.isFinite(v)) {
+        finite = false;
+        break;
+      }
+      peak = Math.max(peak, Math.abs(v));
+      sum += v * v;
     }
-    if (b === 6 || b === 14) taiko(k, 0.3, { f: 84, pan: b === 6 ? -0.3 : 0.3 });
-    if (pat(CHUG_BASS)[b]) {
-      k.p.t(midiToFreq(root - 24 + CHUG_OCT[b]), 0.12, "sawtooth", 0.052, { lp: 950, lpTo: 380, q: 2.4 });
-      if (b % 8 === 0) sub(k, root, 0.2, 0.13);
-    }
-    // a brass stab on the "and" of every first beat while the march walks
-    if (b === 2 && (bar & 1) === 0) brass(k, chord[0], 0.18, 0.03, { lp: 500, lpTo: 2400, hold: 0.08 });
-    if (sec === 1) {
-      if (b === 0 || b === 8) brass(k, chord[[0, 2][(bar >> 1) & 1]], 0.4, 0.032, { lp: 420, lpTo: 2600, hold: 0.14 });
-      if (b % 2 === 0 && bar >= 12) strings(k, chord[[0, 2, 1, 2][(b >> 1) & 3]] + 12, 0.02, { lp: 1900 });
-      if (bar >= 12 && b === 0) choir(k, [chord[0] + 12, chord[2] + 12], c.barSec, 0.03);
-    }
-  } else if (sec === 2) {
-    if (b === 0) {
-      taiko(k, 0.55, { f: 62, deep: true, dur: 0.8 });
-      sub(k, root, 1.1, 0.22);
-      choir(k, [chord[0] + 12, chord[1] + 12, chord[2] + 12], c.barSec + 0.4, 0.03);
-    }
-    if (b === 8) bigSnare(k, 0.24, { f: 1200, bf: 165, dur: 0.28, rev: 0.8 });
-    if (b % 4 === 2) calderaKnock(k, c, 0.026, { pan: P(c, 20, 0.8) });
-    // the mountain cracks wide open
-    if (bar === 17 && b === 0) {
-      k.d.n(0.06, 0.02, { type: "bandpass", f: 2600, q: 2, color: "pink", opt: true, pan: -0.7 });
-      k.d.n(0.4, 0.014, { type: "bandpass", f: 4600, to: 2200, q: 1, color: "pink", at: 0.05, opt: true, pan: -0.7 });
-      k.d.t(64, 0.7, "sine", 0.014, { to: 30, at: 0.02, opt: true, pan: -0.7 });
-    }
-  } else {
-    buildRoll(k, c, 88);
-    if (b % 4 === 0) kick(k, 0.3 + 0.1 * (bar - 20), { f0: 130, f1: 42, dur: 0.16 });
-    k.p.t(midiToFreq(root - 24 + Math.floor(((bar - 20) * 16 + b) / 2)), 0.09, "sawtooth", 0.05, { lp: 1050, q: 2 });
-    // the ERUPTION rises over the last two bars and breaks into the drop
-    eruptionRiser(k, c);
-    buildRiser(k, c);
+    let last = 0;
+    for (let i = data.length - 1; i >= 0; i--)
+      if (Math.abs(data[i]) > 1e-3) {
+        last = i / 44100 - base;
+        break;
+      }
+    return {
+      finite,
+      peak,
+      rms: Math.sqrt(sum / data.length),
+      length: data.length / 44100 - base,
+      lastAudible: last,
+      maxEnd: engine.maxEnd - base,
+      dropped: engine.dropped,
+      musicScheduled: engine.musicScheduled,
+      musicSkipped: engine.musicSkipped,
+      musicShed: engine.musicShed,
+      musicPeak: engine.musicPeak,
+      musicLog: engine.musicLog,
+      bpm: spec.music ? trackInfo(spec.music, spec.biome).bpm : 0,
+      failed: !!engine.failed,
+      physicalReady: !!engine.physical.bank,
+      samples: spec.wav ? Array.from(data.subarray(Math.round(base * 44100))) : null,
+      samplesR:
+        spec.wav && spec.stereo ? Array.from(buffer.getChannelData(1).subarray(Math.round(base * 44100))) : null,
+    };
   }
-}
-
-/* what a phase change (heat 1) and the enrage (heat 2) add to every boss track: shakers on the off sixteenths and a
-   taiko on the last beat; enraged: staccato strings in sixteenths on the root, a brass stab every second beat and a
-   rising line of strings every fourth bar */
-function bossHeatLayer(e, c) {
-  const k = kit(e, c);
-  if (c.b % 2 === 1) shaker(k, 0.025, c.b % 4 === 1 ? 0.5 : -0.5);
-  if (c.b === 12 && c.sec !== 2) taiko(k, 0.3, { f: 100, pan: 0.2 });
-  if (c.heat >= 2) {
-    if (c.sec !== 2) strings(k, c.root - 12 + (c.b % 4 === 3 ? 12 : 0), 0.02, { dur: 0.09, lp: 1600, single: true });
-    // (not on the head of a section: its own brass swell plays there)
-    if (c.b % 8 === 0 && !(c.b === 0 && c.bar % 8 === 0))
-      brass(k, c.chord[0] + 12, 0.25, 0.022, { lp: 900, lpTo: 3000, hold: 0.06 });
-    if (c.b === 0 && (c.bar & 3) === 0)
-      k.p.t(midiToFreq(c.root + 12), c.barSec, "sawtooth", 0.014, {
-        to: midiToFreq(c.root + 24),
-        lp: 2500,
-        attack: c.barSec * 0.8,
-        opt: true,
-      });
-  }
-}
-
-/* 3.7.0: the hit when the boss track starts on the spot: a deep taiko in the room, a sub that drops, a brass swell from
-   below and a short choir (the crash of the metal tracks was a burst of hiss). The last hit when the boss is dead: a
-   deep taiko, the brass on the root with a major third (the victory), a choir and the instrument of the biome once
-   more. A phase change or the enrage jumps to the head of the drop, whose own hit (sectionHit) marks it. */
-const BIOME_VOICE = {
-  city: "piano",
-  shelf: "ice",
-  marsh: "kalimba",
-  core: "glass",
-  caldera: "cinder",
-  flats: "glassine",
 };
-/* 3.48.0: the ambience preview of the Settings slider — one far sound that says "this is the place":
-   the City sparks a broken lamp, icicles fall in the Shelf, the Glowmarsh answers with frogs, the
-   Core shimmers and the Caldera grumbles far away (3.49.0). */
 const AMB_PREVIEW = {
   city: "sparks",
   shelf: "icicles",
-  marsh: "frogs",
+  marsh: "drip",
   core: "shimmer",
-  caldera: "farBoom",
-  flats: "devilMoan",
+  caldera: "rockFall",
+  flats: "glassPing",
 };
-function musicImpact(e, biome, at) {
-  const root = (musicChords[biome] || musicChords.city)[0][0],
-    k = kit(e, { at });
-  // 3.46.0: the arrival is a braam now: two detuned saws two octaves down open into the hall under the
-  // brass, a second taiko answers the deep one and the choir takes the octave
-  taiko(k, 0.75, { f: 48, deep: true, dur: 1.4, rev: 0.8 });
-  taiko(k, 0.45, { f: 92, dur: 0.45, rev: 0.4 });
-  k.m.t(95, 1.4, "sine", 0.45, { to: 28 });
-  for (const det of [-9, 9])
-    k.p.t(midiToFreq(root - 24), 2.4, "sawtooth", 0.055, { lp: 130, lpTo: 850, detune: det, attack: 0.02, hold: 0.9 });
-  brass(k, root - 12, 1.6, 0.05, { lp: 180, lpTo: 2200, attack: 0.05, hold: 0.5, rev: 0.5 });
-  choir(k, [root, root + 7, root + 12, root + 24], 1.6, 0.03, { fade: 0.15 });
-}
-function musicResolve(e, biome, at) {
-  const root = (musicChords[biome] || musicChords.city)[0][0],
-    k = kit(e, { at });
-  // short: the music fades out over 0.9 s and the calm theme (minor) comes back; a long major third would clash
-  taiko(k, 0.6, { f: 60, deep: true, dur: 1.1, rev: 0.9 });
-  brass(k, root - 12, 1.2, 0.04, { lp: 300, lpTo: 2000, attack: 0.04, hold: 0.5, rev: 0.6 });
-  k.p.t(midiToFreq(root + 4), 1.2, "sawtooth", 0.026, { lp: 300, lpTo: 2000, attack: 0.04, hold: 0.5, rev: 0.6 });
-  choir(k, [root + 12, root + 16, root + 19], 1.2, 0.03, { fade: 0.3 });
-  VOICE[BIOME_VOICE[biome] || "piano"](k.d, midiToFreq(root + 24), 0.06, { rev: 0.8, at: 0.3, lite: true });
-}
-
-const MUSIC_TRACKS = {
-  // 3.46.0: each calm theme now moves like the place it is: the City swings (noir), the Marsh drags (bayou),
-  // the Works, the Shelf and the Core let their chords breathe over two bars (chordBars). The boss tracks
-  // stay straight and keep one chord per bar (the drama). The gains are the measured ones of 3.45.5 (see
-  // the mix note at MUSIC_SCALE) - the epic and the identity come from the notes, not from the level.
-  city: {
-    fight: { bpm: 78, bars: 16, swing: 0.26, gain: 1, play: cityCalm },
-    boss: { bpm: 128, bars: 22, swing: 0, gain: 1.1, play: cityBoss },
-  },
-  shelf: {
-    fight: { bpm: 72, bars: 16, swing: 0, chordBars: 2, gain: 1, play: shelfCalm },
-    boss: { bpm: 138, bars: 22, swing: 0, gain: 1, play: shelfBoss },
-  },
-  marsh: {
-    fight: { bpm: 69, bars: 16, swing: 0.17, gain: 1, play: marshCalm },
-    boss: { bpm: 116, bars: 22, swing: 0, gain: 1, play: marshBoss },
-  },
-  core: {
-    fight: { bpm: 60, bars: 16, swing: 0, chordBars: 2, gain: 1, play: coreCalm },
-    // 3.45.5: the mix note above trimmed the boss make-up; the Shattered Core's boss keeps a step of its own
-    // (the deep-test wants every boss track clearly louder than its calm theme; the glue compressor
-    // eats part of a track-gain raise, so this one goes to 1.25)
-    boss: { bpm: 172, bars: 22, swing: 0, gain: 1.25, play: coreBoss },
-  },
-  // 3.49.0: the Ashfall Caldera: the calm theme keeps the mountain's slow time (84, straight - the
-  // only place that neither swings nor breathes its chords), the boss track is a heavier march (132).
-  // The boss gain keeps the versus rule clear of the line (measured with the probe; the glue
-  // compressor eats part of a raise, the same as the Core's).
-  caldera: {
-    fight: { bpm: 84, bars: 16, swing: 0, gain: 1, play: calderaCalm },
-    boss: { bpm: 132, bars: 22, swing: 0, gain: 1.2, play: calderaBoss },
-  },
-  flats: {
-    fight: { bpm: 92, bars: 16, swing: 0, gain: 1, play: glassCalm },
-    boss: { bpm: 134, bars: 22, swing: 0, gain: 1.2, play: glassBoss },
-  },
-};
-function musicTrack(kind, biome) {
-  return (MUSIC_TRACKS[biome] || MUSIC_TRACKS.city)[kind];
-}
-/* tempo (BPM) and length in sixteenth steps of what plays */
 function trackInfo(kind, biome) {
   if (kind === "fight" || kind === "boss") {
     const track = musicTrack(kind, biome);
     return { bpm: track.bpm, steps: track.bars * 16 };
   }
-  return { bpm: 100, steps: 64 };
+  return { bpm: 84, steps: 96 };
 }
 
 /* 2.9.0: what the music flood test throws at the engine (sound id, argument): every weapon, deaths, blasts */
@@ -3870,10 +2227,6 @@ const RL_FLOOD = [
   ["bSlam", "warden"],
   ["eshotBoss"],
 ];
-function stepSeconds(bpm) {
-  return 60 / bpm / 4;
-}
-/* Every sound the engine can make, as render specs for the offline test (SoundEngine.renderOffline). */
 function rlSoundCatalog() {
   const list = [],
     add = (name, spec) => list.push({ name, spec }),
@@ -4044,9 +2397,9 @@ function rlSoundCatalog() {
   for (const bed of ["hum", ...Object.keys(AMBIENCE_LEVEL)]) add("bed:" + bed, { bed, stopAt: 1.1, stopRel: 0.1 });
   // 3.43.0: the room tones render too (a short take of each, the real attack is slower than the test fade)
   for (const biome of Object.keys(ROOM_TONE_LEVEL)) add("tone:" + biome, { tone: biome, stopAt: 1.0, fade: 0.25 });
-  for (const biome of Object.keys(musicChords))
+  for (const biome of scoreBiomes)
     for (const music of ["fight", "boss"]) add(`music:${biome}:${music}`, { music, biome });
   return list;
 }
 
-export { musicChords, RL_SFX_VOICES, rlShotSfx, RL_TRAP_SOUND, attackVoice, musicVoices, SoundEngine };
+export { RL_SFX_VOICES, rlShotSfx, RL_TRAP_SOUND, attackVoice, SoundEngine };
