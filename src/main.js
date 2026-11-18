@@ -194,8 +194,6 @@ let store = new SaveStore(),
   renderer = null;
 try {
   renderer = new Renderer(elementById("gl"), { dpr: 2, antialias: true });
-  // 3.13.0: thunder and sirens of the place come with their light
-  sound.onScape = (kind, pan) => renderer.scapeLight(kind, pan);
   let gl = renderer.renderer.getContext(),
     debugInfo = gl.getExtension("WEBGL_debug_renderer_info");
   setLogContext({ gpu: debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : "n/a" });
@@ -1033,12 +1031,9 @@ function handleWorldEvents(world) {
             ev.boss ? 3e3 : 2e3,
           );
         if (!ev.boss && world.arena.vents.length) {
-          // 3.4.0: Blackout City's vents are live manholes
+          // The City’s charged inlays signal a shock before discharging.
           if (world.arena.biome.id === "city")
-            showTipOnce(
-              "shock",
-              "Live manholes crackle before they arc. Lure enemies onto them \u2014 the current stuns them.",
-            );
+            showTipOnce("shock", "Charged inlays rise before they discharge. Lure enemies onto them to stun them.");
           // 3.49.0: the Caldera's vents are the fumaroles
           else if (world.arena.biome.id === "caldera")
             showTipOnce(

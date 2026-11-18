@@ -2,7 +2,7 @@
 
 // Each biome owns a consistent hazard family.
 const RL_BIOME_HAZARD = {
-  // 3.4.0: Blackout City's live manholes are vents with an electric skin (they arc instead of erupting)
+  // City vent positions hold charged inlays.
   city: "vents",
   shelf: "ice",
   core: "portals",
@@ -15,14 +15,14 @@ const RL_BIOME_HAZARD = {
 };
 const biomeList = [
   {
-    // Wet asphalt, worn road markings and emergency lights in a city power cut.
+    // Teal glaze, brass tile seams and the gallery’s amber lamps.
     id: "city",
     name: "Blackout City",
     W: 18,
     H: 18,
     floor: 0x0c0d10,
     grid: 0xe6cf7a,
-    accent: 0xff3346,
+    accent: 0xd78e67,
     fog: 0x07080b,
     sky: 0x3a404e,
     ground: 0x0a0b0e,
@@ -157,7 +157,7 @@ function planBiomeRoute(rng) {
 
 // Enemy mixes and the mechanics that distinguish each biome.
 const RL_BIOME_INFO = {
-  city: { tag: "Live manholes", mix: { gunner: 2.2, bomber: 1.8, grunt: 1.5, swarmer: 0.6 } },
+  city: { tag: "Charged inlays", mix: { gunner: 2.2, bomber: 1.8, grunt: 1.5, swarmer: 0.6 } },
   // 3.51.0: the Shelf: the blizzard breathes - the thin ice freezes and thaws on a ~20 s cycle, so
   // the slick floor (grip 6.5) swings toward 9.1 at freeze peak and back (world.js step)
   shelf: {

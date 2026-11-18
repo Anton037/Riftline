@@ -195,7 +195,7 @@ test("all seven real player shots reach their distinct render path without mutat
     const view = new WeaponEffectsView(r, Pool);
     view.draw(1 / 60, w);
     assert.equal(JSON.stringify(w.pb), before, `${weapon}: rendering changed a live shot`);
-    if (weapon === "tesla") assert.ok(view.segmentsPool.n >= 18, "Arc Caster must draw a branching arc");
+    if (weapon === "tesla") assert.ok(view.segmentsPool.n >= 18, "Arc Caster must draw an inlaid trace");
     else if (weapon === "flame")
       assert.equal(view.flamePool.n, w.pb.length * 2, "Ember Jet must draw crossed flame ribbons");
     else if (weapon === "disc") assert.ok(r.discPool.n > 0);
@@ -228,6 +228,26 @@ test("every Arc Caster shot remains visible at the simulation projectile cap", (
     p.mesh.geometry.dispose();
     p.mesh.material.dispose();
   }
+});
+
+test("electric projectile contours remain steady as the sheen travels", () => {
+  const r = { scene: new Group(), time: 0 };
+  const view = new WeaponEffectsView(r, Pool);
+  let segments = [];
+  view.segment = (...args) => segments.push(args);
+  view.arc(2, 3, 0.4, 2, 0.23, 15, 1.4, 8);
+  const before = segments;
+  segments = [];
+  r.time = 0.09;
+  view.arc(2, 3, 0.4, 2, 0.23, 15, 1.4, 8);
+  assert.deepEqual(
+    segments.map((s) => s.slice(0, 7)),
+    before.map((s) => s.slice(0, 7)),
+  );
+  assert.ok(
+    segments.some((s, i) => s[7] !== before[i][7]),
+    "the light moves along the fixed contours",
+  );
 });
 
 test("motion and summon effects no longer borrow unrelated actor palettes", () => {

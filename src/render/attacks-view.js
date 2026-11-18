@@ -20,6 +20,7 @@ import {
 import { meshPart, mergeParts } from "./models.js";
 import { SURF_VERT, SURF_LIB } from "./hazards-view.js";
 import { clamp, TAU } from "../core/util.js";
+import { FINISH } from "./palette.js";
 
 const WHITE = new Color(0xffffff),
   LAVA = new Color(0xff6a1f),
@@ -29,7 +30,7 @@ const WHITE = new Color(0xffffff),
   ACID = new Color(0x3ee8ac),
   ACID_LITE = new Color(0xbaffdc),
   RIFT = new Color(0xb070ff),
-  RIFT_PINK = new Color(0xff4dd8),
+  RIFT_PINK = new Color(0xe0b4c3),
   FIRE = new Color(0xff8a2a),
   FIRE_HOT = new Color(0xffd27a),
   SMOKE = new Color(0x4a4440),
@@ -43,12 +44,10 @@ const WHITE = new Color(0xffffff),
     carrier: new Color(0xff5a6a),
     ...Object.fromEntries(Object.values(BOSS_EFFECTS).map((effect) => [effect.projectile, new Color(effect.color)])),
   },
-  SIREN_BLUE = new Color(0x3d7bff),
-  // 3.34.0: the current of a Shorted enemy (the cold blue-white of Blackout City's live manholes)
-  ARC = new Color(0x8fd0ff),
+  ARC = new Color(FINISH.brass),
   // 3.33.0: the shot of a Frost enemy (it slows the drone it hits) glows icy, not in its maker's colour
   FROST_SHOT = new Color(0x8fe8ff),
-  RIFT_RIM_SHOT = new Color(0x7ae8ff);
+  RIFT_RIM_SHOT = new Color(FINISH.lavender);
 
 // the dust of each biome (stomps and cracks throw it), the index of its marks in the shader
 const DUST = {
@@ -249,11 +248,14 @@ const MODELS = {
       fac(0xffffff, 0.49, { x: -0.4, sx: 1.25, sy: 0.17, sz: 0.98 }),
     ],
   }),
-  slug: () => ({
-    body: [fac(BASALT, 0.74, { sx: 1.36, sy: 0.68, sz: 0.72 })],
+  seal: () => ({
+    body: [
+      meshPart(new CylinderGeometry(0.64, 0.74, 0.33, 6), PORCELAIN, { rz: Math.PI / 2 }),
+      fac(COPPER, 0.57, { x: 0.12, sy: 0.85, sz: 0.85 }),
+    ],
     glow: [
-      ring(0xffffff, 0.43, 0.057, { ry: Math.PI / 2 }, 12),
-      fac(0xffffff, 0.54, { x: 0.61, sx: 1.15, sy: 0.56, sz: 0.56 }),
+      ring(0xffffff, 0.6, 0.05, { x: 0.05, ry: Math.PI / 2 }, 12),
+      fac(0xffffff, 0.37, { x: 0.55, sx: 1.27, sy: 0.86, sz: 0.86 }),
     ],
   }),
   spore: () => ({
@@ -280,7 +282,7 @@ const MAX = {
   spike: 160,
   crystal: 360,
   dart: 360,
-  slug: 360,
+  seal: 360,
   spore: 360,
   ringshot: 360,
   cinder: 360,
@@ -536,30 +538,21 @@ class AttackView {
           });
       }
     }
-    // 3.34.0: a Shorted enemy's spot: jagged arcs flicker across it, more and brighter as it is about to strike
     if (hazard.kind === "shorted") {
-      const b = r.beams;
-      if (chance(10 + 40 * k))
-        for (let j = 0; j < 1 + Math.round(2 * k); j++) {
-          let a = Math.random() * TAU,
-            d = rr * Math.random() * 0.3,
-            px = x + Math.cos(a) * d,
-            pz = z + Math.sin(a) * d;
-          for (let i = 0; i < 4; i++) {
-            a += (Math.random() - 0.5) * 1.6;
-            const step = rr * (0.18 + Math.random() * 0.12),
-              qx = px + Math.cos(a) * step,
-              qz = pz + Math.sin(a) * step;
-            b.colC(b.seg(px, pz, qx, qz, 0.12, 0.05, 0.05), Math.random() < 0.4 ? WHITE : ARC, 0.6 + 0.4 * k);
-            px = qx;
-            pz = qz;
-          }
-        }
-      if (chance(6 + 20 * k))
-        r.emit(x + (Math.random() - 0.5) * rr, 0.15, z + (Math.random() - 0.5) * rr, 0, 1.6, 0, 0.25, 0.1, ARC, {
-          spark: true,
-          drag: 2,
-        });
+      // Inlaid spokes stop inside the strike radius and brighten as the stored charge builds.
+      const spokes = 6;
+      for (let i = 0; i < spokes; i++) {
+        const a = (i * TAU) / spokes + seed * TAU;
+        const dx = Math.cos(a) * rr,
+          dz = Math.sin(a) * rr;
+        const from = 0.18,
+          to = 0.42 + k * 0.36;
+        r.beams.colC(
+          r.beams.seg(x + dx * from, z + dz * from, x + dx * to, z + dz * to, 0.09, 0.053, 0.026),
+          ARC,
+          0.43 + k * 0.5,
+        );
+      }
     }
     switch (look) {
       case Z.glass: {
@@ -760,7 +753,7 @@ class AttackView {
       r.burst(x, z, 0.3, 22, 6, WHITE, 0.3, 0.26, { up: 6, spark: true, drag: 1 });
       r.burst(x, z, 0.3, 12, 3.5, ARC, 0.45, 0.3, { up: 3, spark: true });
       r.ring(x, z, rr * 0.3, rr * 1.3, ARC, 0.28);
-      r.flash(x, z, rr * 2.6, 1.3, ARC, 4);
+      r.flash(x, z, rr * 1.08, 0.34, ARC, 7);
       this.mark(x, z, rr * 0.9, M.burn);
       shake(0.08);
       return true;
@@ -969,14 +962,13 @@ class AttackView {
           light = 0.42;
           break;
         }
-        case "siren": {
-          const P = this.get("slug"),
-            blue = Math.sin(time * 18 + (shot.x + shot.y) * 0.7) > 0,
-            col = blue ? SIREN_BLUE : color,
-            s = shot.r * 0.9;
-          P.body.y(shot.x, h, shot.y, angle, s);
-          P.glow.colC(P.glow.y(shot.x, h, shot.y, angle, s), col, 0.95);
-          r.sprites.colC(r.sprites.bb(shot.x, h, shot.y, shot.r * 3.8, basis), col, 0.45);
+        case "warden-seal": {
+          const P = this.get("seal");
+          const size = shot.r * 1.05;
+          const roll = time * 2.2;
+          P.body.col(P.body.yr(shot.x, h, shot.y, angle, size, size, size, 0, roll), 1, 1, 1);
+          P.glow.colC(P.glow.yr(shot.x, h, shot.y, angle, size, size, size, 0, roll), color, 0.88);
+          r.sprites.colC(r.sprites.bb(shot.x, h, shot.y, shot.r * 2.2, basis), color, 0.23);
           continue;
         }
         case "spore": {

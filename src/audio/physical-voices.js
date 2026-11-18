@@ -130,7 +130,7 @@ const P = {
     gate: 0.11,
     lowpass: 1800,
   },
-  eshotWarden: { dur: 0.22, sample: "plate", body: 190, air: 0.11, grain: 0.04, gain: 0.24, gate: 0.1, lowpass: 3200 },
+  eshotWarden: { dur: 0.31, sample: "metal", body: 278, air: 0.06, grain: 0.025, gain: 0.24, gate: 0.1, lowpass: 2850 },
   eshotQueen: { dur: 0.26, sample: "flesh", body: 92, air: 0.28, grain: 0.025, gain: 0.24, gate: 0.1, lowpass: 1600 },
   eshotPrism: { dur: 0.25, sample: "glass", body: 620, air: 0.08, grain: 0.08, gain: 0.21, gate: 0.1, lowpass: 6500 },
   eshotCore: {
@@ -304,11 +304,11 @@ const P = {
   insect: { dur: 0.36, model: "insect", body: 3800, gain: 0.14, gate: 0 },
   frog: { dur: 0.46, model: "frog", body: 330, gain: 0.17, gate: 0 },
   mammal: { dur: 0.65, model: "mammal", body: 210, gain: 0.19, gate: 0 },
-  engine: { dur: 1.2, model: "engine", body: 65, gain: 0.2, gate: 0 },
-  rotor: { dur: 1.2, model: "rotor", body: 26, gain: 0.2, gate: 0 },
-  horn: { dur: 0.65, model: "horn", body: 390, gain: 0.16, gate: 0 },
-  siren: { dur: 1.2, model: "siren", body: 640, gain: 0.15, gate: 0 },
-  radio: { dur: 0.55, model: "radio", body: 560, gain: 0.15, gate: 0 },
+  galleryChime: { dur: 0.88, model: "ceramic", body: 430, gain: 0.15, gate: 0 },
+  kilnResonance: { dur: 1.19, model: "ceramic", body: 126, gain: 0.24, gate: 0 },
+  stoneEcho: { dur: 0.67, model: "ceramic", body: 209, gain: 0.18, gate: 0 },
+  inlayCharge: { dur: 0.61, model: "ceramic", body: 295, gain: 0.29, gate: 0 },
+  inlayRelease: { dur: 0.29, sample: "plate", body: 228, air: 0.07, grain: 0.04, gain: 0.32, gate: 0.06 },
   buzz: { dur: 0.65, model: "buzz", body: 60, gain: 0.14, gate: 0 },
 };
 const BOSS_TIMBRE = {
@@ -319,6 +319,22 @@ const BOSS_TIMBRE = {
   tyrant: ["wood", 88, 2000],
   wyrm: ["glass", 440, 4800],
 };
+const PLACE_FAMILIES = [
+  [/lampBuzz|portalHum|gravityHum|^hum$/i, "buzz"],
+  [/rainDrop/i, "rain"],
+  [/gutter|drip|bubble|blub|mud|gurgle|splash/i, "water"],
+  [/cricket|cicada|insect/i, "insect"],
+  [/frog/i, "frog"],
+  [/bird|owl|heron|chirp/i, "bird"],
+  [/howl/i, "mammal"],
+  [
+    /wind|gust|breeze|hiss|sizzle|dustRush|steamBlast|fumarole|breath|devilMoan|portalWhisper|swell|groan|lavaWarn/i,
+    "air",
+  ],
+  [/boom|avalanche|fall|quake|rubble|heartbeat/i, "boom"],
+  [/ice|icicle|glass|crystal|crack|shimmer|creak|reversed/i, "glass"],
+  [/spark|cl[au]nk|anvil|metal|vent|charge/i, "armor"],
+];
 export function physicalProfile(id, arg, place = false) {
   let family = P[id] ? id : "impact";
   if (!place && (id === "hit" || id === "crit")) {
@@ -334,40 +350,7 @@ export function physicalProfile(id, arg, place = false) {
     return { ...P[family], family, gain: P[family].gain * (id === "crit" ? 1.25 : 1) };
   }
   if (place) {
-    family = /helicopter/i.test(id)
-      ? "rotor"
-      : /carPass/i.test(id)
-        ? "engine"
-        : /siren|carAlarm/i.test(id)
-          ? "siren"
-          : /horn/i.test(id)
-            ? "horn"
-            : /radio/i.test(id)
-              ? "radio"
-              : /lampBuzz|portalHum|gravityHum|^hum$/i.test(id)
-                ? "buzz"
-                : /rainDrop/i.test(id)
-                  ? "rain"
-                  : /gutter|drip|bubble|blub|mud|gurgle|splash/i.test(id)
-                    ? "water"
-                    : /cricket|cicada|insect/i.test(id)
-                      ? "insect"
-                      : /frog/i.test(id)
-                        ? "frog"
-                        : /bird|owl|heron|chirp/i.test(id)
-                          ? "bird"
-                          : /dog|howl/i.test(id)
-                            ? "mammal"
-                            : /wind|gust|breeze|hiss|sizzle|dustRush|steamBlast|fumarole/i.test(id) ||
-                                /breath|devilMoan|portalWhisper|swell|groan|lavaWarn/i.test(id)
-                              ? "air"
-                              : /thunder|boom|avalanche|fall|quake|rubble|heartbeat/i.test(id)
-                                ? "boom"
-                                : /ice|icicle|glass|crystal|crack|shimmer|creak|glitch|reversed/i.test(id)
-                                  ? "glass"
-                                  : /spark|cl[au]nk|anvil|metal|vent|charge/i.test(id)
-                                    ? "armor"
-                                    : "room";
+    family = P[id]?.model === "ceramic" ? id : (PLACE_FAMILIES.find(([names]) => names.test(id))?.[1] ?? "room");
   } else if (!P[id]) {
     if (/^(tc|tm|tb|bw)|warn|wind|\block\b|servo|fuse|bWind|tArm|^beam(?:Small)?$/i.test(id)) family = "warning";
     else if (/boom|nova$|slam|thud|erupt|quake|collapse|bigkill|die/i.test(id)) family = "boom";
@@ -465,7 +448,6 @@ export function physicalProfile(id, arg, place = false) {
       gain: 0.22,
     });
   if (place && id === "heartbeat") p.gain = 0.24;
-  if (place && id === "rainMetal") p.gain = 0.16;
   if (place && id === "emberPop")
     Object.assign(p, P.impact, { family: "emberPop", sample: "wood", body: 170, lowpass: 1800, dur: 0.17, gain: 0.15 });
   if (place && /owl/i.test(id)) p.body = 470;
@@ -551,7 +533,8 @@ export class PhysicalVoices {
     let recordedLow = 0;
     const recordedAlpha = p.lowpass ? 1 - Math.exp((-Math.PI * 2 * p.lowpass) / rate) : 1;
     const center = p.model === "air" ? 0.055 : p.family === "tesla" ? 0.48 : p.family === "flame" ? 0.18 : 0.31;
-    const mechanical = ["rotor", "engine", "siren", "horn", "radio", "buzz"].includes(p.model);
+    const mechanical = p.model === "buzz";
+    const ceramic = p.model === "ceramic";
     const liquid = p.model === "rain" || p.model === "water";
     const airy = p.model === "air";
     for (let i = 0; i < n; i++) {
@@ -569,11 +552,18 @@ export class PhysicalVoices {
         phase += (Math.PI * 2 * p.body * (0.84 + drift + (liquid ? 0.22 * Math.exp(-t * 28) : 0))) / rate;
         const resonator =
           Math.sin(phase + 0.82 * Math.sin(phase * 1.384)) * 0.22 + Math.sin(phase * 2.65 + 0.2) * 0.038;
-        const value = airy
-          ? (low * 0.47 + band * 0.49) * bell * (0.7 + 0.3 * flit)
-          : liquid
-            ? (resonator * 0.69 + band * 0.29) * Math.exp(-t * 19) * (0.65 + 0.35 * flit)
-            : (resonator * (mechanical ? 0.64 : 1) + band * (mechanical ? 0.22 : 0.063)) * bell * (0.32 + 0.68 * flit);
+        const value = ceramic
+          ? (Math.sin(phase) * 0.17 * Math.exp(-t * 3.7) +
+              Math.sin(phase * 2.68 + 0.18) * 0.11 * Math.exp(-t * 7.6) +
+              Math.sin(phase * 4.07) * 0.04 * Math.exp(-t * 14)) *
+            (0.9 + 0.1 * flit)
+          : airy
+            ? (low * 0.47 + band * 0.49) * bell * (0.7 + 0.3 * flit)
+            : liquid
+              ? (resonator * 0.69 + band * 0.29) * Math.exp(-t * 19) * (0.65 + 0.35 * flit)
+              : (resonator * (mechanical ? 0.64 : 1) + band * (mechanical ? 0.22 : 0.063)) *
+                bell *
+                (0.32 + 0.68 * flit);
         data[i] = value * Math.min(1, t / 0.009, (p.dur - t) / 0.024);
         continue;
       }

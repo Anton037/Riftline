@@ -1254,7 +1254,7 @@ const SoundEngine = class {
           this.play(ev.leap ? "leap" : "blink", ev.src);
           break;
         case "erupt":
-          this.play("erupt");
+          this.play(this.biome === "city" ? "inlayRelease" : "erupt");
           break;
         case "devilNear":
           // 3.53.0: a dust devil of the Flats bears down on the player (the consume pan carried its spot)
@@ -2196,7 +2196,7 @@ const SoundEngine = class {
   }
 };
 const AMB_PREVIEW = {
-  city: "sparks",
+  city: "galleryChime",
   shelf: "icicles",
   marsh: "drip",
   core: "shimmer",
@@ -2313,6 +2313,7 @@ function rlSoundCatalog() {
   ]);
   ids(["kill"], 1.8);
   // 3.9.0: the sounds of the place
+  ids(["inlayRelease"]);
   for (const placeId of PLACE_IDS) add("place:" + placeId, { id: "place", arg: { id: placeId } });
   ids(["stun"], "riftburst");
   ids(["combo"], 6);

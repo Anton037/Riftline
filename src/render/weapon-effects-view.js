@@ -1,14 +1,14 @@
-// Distinct weapon silhouettes, with pooled lightning and animated flame ribbons rather than ball substitutes.
+// Inscribed projectile trails and animated flame ribbons.
 import { BoxGeometry, PlaneGeometry, ShaderMaterial, DoubleSide, UniformsLib, UniformsUtils } from "three";
 import { weaponDefs } from "../data/weapons.js";
 import { WEAPON_EFFECTS } from "../data/combat-effects.js";
 import { clamp } from "../core/util.js";
 import { hexColor, additiveMaterial } from "./materials.js";
+import { FINISH } from "./palette.js";
 
-const WHITE = hexColor(0xe8f7ff),
-  ARC = hexColor(0xb89be6),
-  ARC_CORE = hexColor(0xf1e4cf),
-  COPPER = hexColor(0xffd6a0);
+const WHITE = hexColor(FINISH.ivory),
+  COPPER = hexColor(FINISH.copper),
+  BRASS = hexColor(FINISH.brass);
 const flameVertex = `
 #include <common>
 #include <fog_pars_vertex>
@@ -90,24 +90,35 @@ export class WeaponEffectsView {
     const pool = this.segments();
     pool.colC(pool.seg(x0, z0, x1, z1, y, width, width), color, intensity);
   }
-  arc(x, z, angle, length, width, seed, y = 1.4, count = 8) {
+  arc(x, z, angle, length, bend, seed, y, count) {
     const ca = Math.cos(angle),
-      sa = Math.sin(angle),
-      beat = Math.floor(this.r.time * 24);
+      sa = Math.sin(angle);
+    // Stationary contours in the projectile’s frame let the material sheen travel along the inlay.
+    const phase = (seed || 0) * 0.83 + this.r.time * 9;
+    const side = seed % 2 ? 1 : -1;
     let px = x - ca * length,
       pz = z - sa * length;
     for (let i = 1; i <= count; i++) {
-      const f = i / count,
-        off = i === count ? 0 : Math.sin(seed * 13.7 + i * 11.9 + beat * 2.1) * width,
-        qx = x - ca * length * (1 - f) - sa * off,
-        qz = z - sa * length * (1 - f) + ca * off;
-      this.segment(px, pz, qx, qz, y, 0.065, ARC, 0.75);
-      this.segment(px, pz, qx, qz, y, 0.022, ARC_CORE, 1.05);
-      if (i === 3 || i === 6) {
-        const side = i === 3 ? 1 : -1,
-          bx = qx - ca * 0.22 - sa * width * side * 1.7,
-          bz = qz - sa * 0.22 + ca * width * side * 1.7;
-        this.segment(qx, qz, bx, bz, y + 0.025, 0.024, ARC, 0.8);
+      const f = i / count;
+      const arc = Math.sin(f * Math.PI) * bend * side;
+      const qx = x - ca * length * (1 - f) - sa * arc;
+      const qz = z - sa * length * (1 - f) + ca * arc;
+      const sheen = 0.69 + 0.23 * Math.sin(phase - f * 5.3);
+      const width = 0.05 + f * 0.065;
+      this.segment(px, pz, qx, qz, y, width, COPPER, 0.69);
+      this.segment(px, pz, qx, qz, y + 0.02, width * 0.34, BRASS, sheen);
+      if (i === Math.floor(count * 0.75) || (count > 4 && i === Math.floor(count * 0.43))) {
+        const finger = bend * (i % 2 ? 0.84 : -0.84);
+        this.segment(
+          qx - sa * finger,
+          qz + ca * finger,
+          qx + sa * finger,
+          qz - ca * finger,
+          y + 0.027,
+          0.037,
+          WHITE,
+          0.66,
+        );
       }
       px = qx;
       pz = qz;
@@ -150,7 +161,7 @@ export class WeaponEffectsView {
           this.tongue(shot, angle, clamp(shot.age / 0.55, 0, 1));
           if (shot.age > 0.3 && Math.random() < dt * 2) r.smokeView.emit(shot.x, 0.9, shot.y, 0.25, 0x58534e, 0.35);
           break;
-        case "branching-arc":
+        case "arc-inlay":
           this.arc(
             shot.x,
             shot.y,

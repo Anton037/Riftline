@@ -6,33 +6,34 @@
 
 import { Color, CylinderGeometry, MeshBasicMaterial, OctahedronGeometry, TorusGeometry } from "three";
 import { worldMaterial } from "./world-material.js";
+import { FINISH } from "./palette.js";
 import { meshPart, mergeParts } from "./models.js";
 import { clamp, TAU, angleDiff } from "../core/util.js";
 
-const WHITE = new Color(16777215),
-  WARN = new Color(16728160),
+const WHITE = new Color(FINISH.ivory),
+  WARN = new Color(FINISH.vermilion),
   tint = new Color(),
   hex = (value) => new Color(value);
 
 // skin colours: main (glow, particles), second (accent), debris
 const LOOK = {
   // 3.4.0: Blackout City: an electrified plate (cold blue-white, amber) and a red security laser
-  plate: { main: hex(0x8fd0ff), alt: hex(0xffb347), dust: hex(0x9fb4c8) },
-  icespike: { main: hex(0x9ae6ff), alt: hex(0xffffff), dust: hex(0xdff6ff) },
+  plate: { main: hex(FINISH.brass), alt: hex(FINISH.ivory), dust: hex(0x9fb4c8) },
+  icespike: { main: hex(FINISH.glacier), alt: hex(FINISH.ivory), dust: hex(0xdff6ff) },
   // 3.50.0: the Glowmarsh's bloom jet: mint over dark peat
-  geyser: { main: hex(0x46ffc0), alt: hex(0xd9fff0), dust: hex(0x1c4a3c) },
-  riftburst: { main: hex(0xa56bff), alt: hex(0xff4de0), dust: hex(0x2a1650) },
-  laser: { main: hex(0xff3346), alt: hex(0xffd0a0), dust: hex(0x9fb4c8) },
+  geyser: { main: hex(FINISH.jade), alt: hex(0xd6e9d0), dust: hex(0x1c4a3c) },
+  riftburst: { main: hex(FINISH.lavender), alt: hex(0xe4b6bf), dust: hex(0x2a1650) },
+  laser: { main: hex(FINISH.copper), alt: hex(0xffd0a0), dust: hex(0x9fb4c8) },
   magma: { main: hex(0xff7a1f), alt: hex(0xffd27a), dust: hex(0x746957) },
-  rift: { main: hex(0x9a5bff), alt: hex(0xff4de0), dust: hex(0x2a1650) },
+  rift: { main: hex(0x9a84bb), alt: hex(0xe4b6bf), dust: hex(0x2a1650) },
   // 3.33.0: the beams of the Aurora Shelf (the Frost Prism, the sentinel) and of the Glowmarsh (the sentinel)
-  cryo: { main: hex(0x8fe0ff), alt: hex(0xe8fbff), dust: hex(0xdff6ff) },
-  acid: { main: hex(0x46ffc0), alt: hex(0xd9fff0), dust: hex(0x1c4a3c) },
-  mine: { main: hex(0xff8a3a), alt: hex(0xffe0a0), dust: hex(0x6a6a72), led: hex(0xff3b2f) },
-  frost: { main: hex(0x9ae6ff), alt: hex(0xffffff), dust: hex(0xdff6ff), led: hex(0xc8f6ff) },
-  spore: { main: hex(0x46ffc0), alt: hex(0xd9fff0), dust: hex(0x1c4a3c), led: hex(0x8fffd9) },
-  riftmine: { main: hex(0xa56bff), alt: hex(0xff4de0), dust: hex(0x2a1650), led: hex(0xff4de0) },
-  embermine: { main: hex(0xff8c2e), alt: hex(0xffd27a), dust: hex(0x63584d), led: hex(0xff9e39) },
+  cryo: { main: hex(FINISH.glacier), alt: hex(0xe8fbff), dust: hex(0xdff6ff) },
+  acid: { main: hex(FINISH.jade), alt: hex(0xd6e9d0), dust: hex(0x1c4a3c) },
+  mine: { main: hex(0xff8a3a), alt: hex(0xffe0a0), dust: hex(0x6a6a72), led: hex(FINISH.vermilion) },
+  frost: { main: hex(FINISH.glacier), alt: hex(FINISH.ivory), dust: hex(0xdff6ff), led: hex(0xc8f6ff) },
+  spore: { main: hex(FINISH.jade), alt: hex(0xd6e9d0), dust: hex(0x1c4a3c), led: hex(0x8fffd9) },
+  riftmine: { main: hex(FINISH.lavender), alt: hex(0xe4b6bf), dust: hex(0x2a1650), led: hex(0xe4b6bf) },
+  embermine: { main: hex(0xde986e), alt: hex(0xffd27a), dust: hex(0x63584d), led: hex(0xff9e39) },
   glassmine: { main: hex(0xffd98a), alt: hex(0xfff0c4), dust: hex(0xc8b38b), led: hex(0xffd98a) },
   // 3.49.0: the Caldera's fumarole: molten
   pyro: { main: hex(0xffb45a), alt: hex(0xffe9b0), dust: hex(0x3a2418) },
@@ -43,7 +44,7 @@ const LOOK = {
   // sunspike's fused edge)
   sun: { main: hex(0xff9a2e), alt: hex(0xffd27a), dust: hex(0xffe0b0) },
 };
-const ARMING = hex(0x6fa0ff),
+const ARMING = hex(FINISH.copper),
   TRIGGER = hex(0xcfd8e6);
 
 const easeOut = (k) => 1 - (1 - k) * (1 - k);
@@ -230,13 +231,13 @@ class TrapView {
     }
   }
   // the red ring that fills up: the same language as every other warning of the game
-  warnRing(x, z, radius, k, fast) {
+  warnRing(x, z, radius, k) {
     // above the trap's own plate (y 0.2), or its body would hide the ring
     const r = this.r,
       ring = r.ringPool.y(x, 0.2, z, 0, radius);
     // a soft dark pool under the ring: red light on a pale floor (the Aurora Shelf) would wash out to pink-white
     r.shadows.y(x, 0.03, z, 0, radius * 2.6);
-    r.ringPool.colC(ring, WARN, 0.6 + Math.sin(r.time * (fast ? 50 : 25)) * 0.25 * k);
+    r.ringPool.colC(ring, WARN, 0.67 + k * 0.27);
     const disc = r.discs.y(x, 0.19, z, 0, radius * k);
     r.discs.colC(disc, WARN, 0.18 + k * 0.14);
     const edge = r.ringPool.y(x, 0.195, z, 0, radius * k);
@@ -253,8 +254,7 @@ class TrapView {
       k = warn ? clamp(trap.t / trap.delay, 0, 1) : 0,
       hit = s.fire < 0.3 ? 1 - s.fire / 0.3 : 0;
     P.body.y(x, 0, z, 0, rr, 1, rr);
-    let glow = 0.4 + Math.sin(time * 2 + trap.id) * 0.1 + k * 0.7 + hit * 1.2;
-    if (warn) glow += Math.sin(time * 36) * 0.18 * k;
+    const glow = 0.4 + Math.sin(time * 2 + trap.id) * 0.1 + k * 0.7 + hit * 0.7;
     const emit = Math.random() < dt * (3 + k * 22) * quality;
     switch (trap.skin) {
       case "plate": {
@@ -283,8 +283,7 @@ class TrapView {
           r.debrisBurst(x, z, 0.8, 8, look.dust, 0.14, 6);
           r.burst(x, z, 0.8, 10, 6, WHITE, 0.5, 0.2, { spark: true, drag: 3 });
         }
-        if (h > 0.01)
-          P.mover.y(x + (warn && k > 0.6 ? Math.sin(time * 60) * 0.02 : 0), 0, z, time * 0.2, rr * 0.9, h, rr * 0.9);
+        if (h > 0.01) P.mover.y(x, 0, z, time * 0.2, rr * 0.9, h, rr * 0.9);
         if (emit)
           r.emit(
             x + (Math.random() - 0.5) * rr * 1.6,
@@ -376,7 +375,7 @@ class TrapView {
         }
       }
     }
-    if (warn) this.warnRing(x, z, rr, k, false);
+    if (warn) this.warnRing(x, z, rr, k);
   }
   beam(trap, s, look, dt, quality, world) {
     const r = this.r,
@@ -409,7 +408,7 @@ class TrapView {
     const heads = a2 === null ? 1 : 2;
     for (let i = 0; i < heads; i++) {
       const yaw = i ? a2 : s.yaw,
-        recoil = live ? Math.sin(time * 60) * 0.015 : 0;
+        recoil = live ? 0.025 : 0;
       P.mover.y(x, hover, z, yaw, 1.35 + recoil, 1.35, 1.35);
       P.moverGlow.colC(
         P.moverGlow.y(x, hover, z, yaw, 1.35 + recoil, 1.35, 1.35),
@@ -445,7 +444,7 @@ class TrapView {
     if (live) {
       const tx = x + cy * 1.3,
         tz = z + sy * 1.3;
-      r.sprites.colC(r.sprites.bb(tx, hover, tz, 2.2 + Math.random() * 0.5, r.B), look.main, 0.8);
+      r.sprites.colC(r.sprites.bb(tx, hover, tz, 1.6, r.B), look.main, 0.35);
     }
     // a faint line shows where the head points between bursts, so the next beam is not a surprise
     if (!charge && !live) {
@@ -461,7 +460,7 @@ class TrapView {
       sa = Math.sin(beam.a),
       b = r.beams;
     if (!beam.live) return false;
-    const flick = 0.85 + Math.random() * 0.3;
+    const sheen = 0.95 + Math.sin(time * 5) * 0.035;
     if (beam.skin === "flame" || beam.skin === "magma") {
       // Continuous turbulent ribbons keep the jet fluid, rather than drawing five rectangular blocks.
       r.weaponView.flameBeam(beam, len);
@@ -479,7 +478,7 @@ class TrapView {
           off = Math.sin(time * 9 + i * 1.3) * beam.w * 0.45 * (i < 8 ? 1 : 0),
           qx = beam.x + ca * along - sa * off,
           qz = beam.y + sa * along + ca * off;
-        b.colC(b.seg(px, pz, qx, qz, 1, beam.w * flick, beam.w * 0.6), look.main, 0.75);
+        b.colC(b.seg(px, pz, qx, qz, 1, beam.w * sheen, beam.w * 0.6), look.main, 0.75);
         px = qx;
         pz = qz;
       }
@@ -502,7 +501,7 @@ class TrapView {
     } else if (beam.skin === "cryo") {
       // 3.33.0: a lance of ice: a pale glassy body with a white core, frost needles growing out of both edges along
       // the shaft (their places drift slowly, so the lance looks grown, not drawn), flakes that sink off it
-      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * (0.92 + flick * 0.08), beam.w * 0.7), look.main, 0.55);
+      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * (0.92 + sheen * 0.08), beam.w * 0.7), look.main, 0.55);
       b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.42, beam.w * 0.36), look.alt, 0.85);
       b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.16, beam.w * 0.16), WHITE, 1);
       const n = Math.max(4, Math.round(len / 1.4)),
@@ -547,7 +546,7 @@ class TrapView {
           qx = beam.x + ca * along,
           qz = beam.y + sa * along,
           swell = 0.8 + 0.3 * Math.sin(time * 14 - i * 1.6);
-        b.colC(b.seg(px, pz, qx, qz, 1, beam.w * swell * flick, beam.w * 0.6), look.main, 0.7);
+        b.colC(b.seg(px, pz, qx, qz, 1, beam.w * swell * sheen, beam.w * 0.6), look.main, 0.7);
         px = qx;
         pz = qz;
       }
@@ -579,7 +578,7 @@ class TrapView {
           qx = beam.x + ca * along - sa * off,
           qz = beam.y + sa * along + ca * off;
         b.colC(
-          b.seg(px, pz, qx, qz, 1, beam.w * (1.3 + 0.14 * Math.sin(time * 8 - i)) * flick, beam.w * 0.7),
+          b.seg(px, pz, qx, qz, 1, beam.w * (1.3 + 0.14 * Math.sin(time * 8 - i)) * sheen, beam.w * 0.7),
           look.main,
           0.85,
         );
@@ -605,12 +604,12 @@ class TrapView {
         );
       }
     } else {
-      // laser: a body in the main colour of the skin (red in Blackout City), a white core and two thin edges
-      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * flick, beam.w * 0.6), look.main, 0.7);
-      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.3, beam.w * 0.3), WHITE, 1);
+      // The City beam reads as two copper rails with an ivory filament between them.
+      r.warningEdges.colC(r.warningEdges.seg(beam.x, beam.y, ex, ez, 0.055, beam.w, 0.04), hex(FINISH.ink), 0.75);
+      b.colC(b.seg(beam.x, beam.y, ex, ez, 0.75, beam.w * 0.23, beam.w * 0.13), WHITE, 0.82);
       for (const side of [-1, 1]) {
-        const o = side * beam.w * 0.62;
-        b.colC(b.seg(beam.x - sa * o, beam.y + ca * o, ex - sa * o, ez + ca * o, 1, 0.07, 0.07), look.alt, 0.85);
+        const o = side * beam.w * 0.42;
+        b.colC(b.seg(beam.x - sa * o, beam.y + ca * o, ex - sa * o, ez + ca * o, 0.74, 0.085, 0.065), look.main, 0.88);
       }
       if (Math.random() < dt * 12) {
         const d = Math.random() * len;
@@ -629,7 +628,7 @@ class TrapView {
       }
     }
     // where it ends: a bright point and sparks
-    r.sprites.colC(r.sprites.bb(ex, 1, ez, 1.6 + Math.random() * 0.4, r.B), look.main, 0.7);
+    r.sprites.colC(r.sprites.bb(ex, 1, ez, 1.15, r.B), look.main, 0.39);
     if (Math.random() < dt * 30)
       r.emit(
         ex,
@@ -658,15 +657,15 @@ class TrapView {
       k = fuse ? clamp(trap.t / 0.45, 0, 1) : 0,
       y0 = -0.4 * (1 - rise),
       sc = (0.7 + 0.3 * rise) * 1.3;
-    // the light: slow and dim while arming, a blink when armed, a frantic red blink on the fuse
+    // A steady lamp marks armed mines. A growing vermilion fill tracks the fuse.
     let col = ARMING,
       lum = 0.15 + clamp(trap.t / 1.5, 0, 1) * 0.35;
     if (armed) {
       col = look.led;
-      lum = (time * 1.8 + trap.id * 0.37) % 1 < 0.28 ? 1.5 : 0.18;
+      lum = 0.64;
     } else if (fuse) {
       col = WARN;
-      lum = Math.floor(time * 18) % 2 ? 1.8 : 0.2;
+      lum = 0.83 + k * 0.34;
     }
     let breathe = 1;
     if (trap.skin === "spore") breathe = (armed ? 1 + Math.sin(time * 5) * 0.05 : 1) * (fuse ? 1 + k * 0.55 : 1);
@@ -689,14 +688,14 @@ class TrapView {
     if (P.mover) P.mover.y(x, gy, z, time * (fuse ? 6 : 1.4), sc, sc, sc);
     if (armed || fuse) {
       const glowSprite = r.sprites.bb(x, 0.3, z, 1.2 + (fuse ? k * 0.6 : 0), r.B);
-      r.sprites.colC(glowSprite, col, lum > 1 ? 0.5 : 0.1);
+      r.sprites.colC(glowSprite, col, fuse ? 0.18 + k * 0.15 : 0.12);
       // the area it will cover is only drawn faintly until something steps close
       if (armed) {
         const ringIdx = r.ringPool.y(x, 0.04, z, 0, 1.5);
         r.ringPool.colC(ringIdx, TRIGGER, 0.1 + Math.sin(time * 3 + trap.id) * 0.03);
       }
     }
-    if (fuse) this.warnRing(x, z, trap.r, k, true);
+    if (fuse) this.warnRing(x, z, trap.r, k);
     if (!fuse && !armed && Math.random() < dt * 2 * quality)
       r.emit(x, 0.3, z, 0, 0.6, 0, 0.5, 0.1, ARMING, { spark: true, drag: 1 });
   }
@@ -723,14 +722,14 @@ class TrapView {
       case "plate":
         r.ring(x, z, rad * 0.2, rad * 1.1, look.main, 0.35);
         r.ring(x, z, rad * 0.1, rad * 0.7, WHITE, 0.2);
-        for (let i = 0; i < 7; i++) {
-          const a = Math.random() * TAU,
-            d = rad * (0.6 + Math.random() * 0.5);
-          r.line(x, z, x + Math.cos(a) * d, z + Math.sin(a) * d, i % 3 ? look.main : WHITE, 0.22, 0.1, 0.4, 0.35);
+        for (let i = 0; i < 6; i++) {
+          const angle = (i * TAU) / 6;
+          const dx = Math.cos(angle) * rad,
+            dz = Math.sin(angle) * rad;
+          r.line(x + dx * 0.28, z + dz * 0.28, x + dx * 0.92, z + dz * 0.92, look.main, 0.34, 0.07, 0.18, 0.1);
         }
-        r.burst(x, z, 0.3, 18, 9, look.main, 0.4, 0.2, { spark: true, drag: 3 });
+        r.burst(x, z, 0.25, 9, Math.min(6, rad * 2), look.alt, 0.46, 0.16, { spark: true, drag: 3 });
         r.debrisBurst(x, z, 0.2, 5, look.dust, 0.1, 4);
-        r.flash(x, z, rad * 1.8, 1.4, look.main, 5);
         r.addScorch(x, z, rad * 0.45);
         r.addShake(0.12 * shakeK);
         break;

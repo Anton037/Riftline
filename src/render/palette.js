@@ -91,3 +91,15 @@ export const GLAZES = {
     fog: [1.24, 3.05],
   },
 };
+
+// Shared accents for porcelain, inlay, and combat feedback.
+export const FINISH = {
+  ivory: 0xf5e5c9,
+  brass: 0xe5b878,
+  copper: 0xc98860,
+  jade: 0x91c9b4,
+  glacier: 0xbacfd9,
+  lavender: 0xc0a6db,
+  vermilion: 0xf08e70,
+  ink: 0x261c22,
+};

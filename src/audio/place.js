@@ -1,5 +1,4 @@
-// Physical material and air accents, distance/pan-aware hazard sounds and six biome soundscapes.
-// Timers and light synchronization remain independent of simulation randomness.
+// Spatial soundscapes use their own timers and never consume simulation randomness.
 const HEAR = 16; // metres: how far a hazard is heard
 // the level of a hazard at distance d (1 on top of it, 0 at HEAR)
 const near = (d) => Math.pow(Math.max(0, 1 - d / HEAR), 1.6);
@@ -18,10 +17,6 @@ const PLACE = Object.fromEntries(
     "acidSizzle",
     "portalHum",
     "portalWhisper",
-    "thunder",
-    "carAlarm",
-    "carPass",
-    "radio",
     "sparks",
     "clunk",
     "bigCrack",
@@ -41,7 +36,6 @@ const PLACE = Object.fromEntries(
     "swell",
     "shimmer",
     "breath",
-    "glitch",
     "calderaRumble",
     "ventPulse",
     "emberPop",
@@ -51,18 +45,17 @@ const PLACE = Object.fromEntries(
     "steamBlast",
     "cinderGust",
     "fumaroleRush",
+    "galleryChime",
+    "kilnResonance",
+    "inlayCharge",
+    "stoneEcho",
     "lampBuzz",
     "gravityHum",
     "rainDrop",
     "gutter",
-    "rainMetal",
     "wind",
     "cricket",
     "heartbeat",
-    "siren",
-    "helicopter",
-    "horn",
-    "dog",
     "howl",
     "avalanche",
     "crystals",
@@ -81,13 +74,12 @@ const SCAPE = {
   city: {
     bed: [
       ["lampBuzz", 6, 12, 0.39],
-      ["rainMetal", 9, 17, 0.26, 0.34],
+      ["galleryChime", 13, 23, 0.23, 0.34],
     ],
     far: [
       { id: "clunk", every: [18, 36] },
-      { id: "thunder", every: [41, 84], big: true, light: "lightning" },
-      { id: "shimmer", every: [24, 48] },
-      { id: "gravityHum", every: [37, 64], light: "siren" },
+      { id: "kilnResonance", every: [32, 68], big: true },
+      { id: "stoneEcho", every: [24, 48] },
     ],
   },
   shelf: {
@@ -133,7 +125,7 @@ const SCAPE = {
     ],
     far: [
       { id: "reversed", every: [20, 47] },
-      { id: "glitch", every: [24, 48] },
+      { id: "stoneEcho", every: [24, 48] },
       { id: "metal", every: [32, 64] },
       { id: "swell", every: [37, 61], big: true },
     ],
@@ -217,14 +209,14 @@ function placeTick(e, world, dt) {
       st.timers.set(key, out ? rand(lo, hi) : t);
       return out;
     };
-  // vents: lava bubbles or the hum of a live manhole; the warning of each vent once when it starts
+  // vents announce their warning once when the charge or heat begins to build
   const city = arena.biome.id === "city";
   for (const vent of arena.vents) {
     const state = fight ? arena.ventState(vent, world.waveT) : "idle",
       last = st.vents.get(vent);
     st.vents.set(vent, state);
     const a = at(vent.x, vent.y);
-    if (state === "warn" && last !== "warn") play(city ? "charge" : "lavaWarn", a);
+    if (state === "warn" && last !== "warn") play(city ? "inlayCharge" : "lavaWarn", a);
     else if (state === "idle" && (city ? a.d < 6 : true) && due(vent, city ? 4.2 : 3.2, city ? 8.0 : 6.5))
       play(city ? "hum" : "lavaBlub", { ...a, g: a.g * (city ? 0.4 : 0.55) });
   }
@@ -286,8 +278,7 @@ function placeTick(e, world, dt) {
   }
   const far = st.far;
   for (const f of scape.far) {
-    // no free voice slot in this frame (the hazards took them): the far sounds wait for the next frame, so a light
-    // never comes without its sound and no sound loses its turn
+    // Let nearby gameplay cues take the available slots before ambience plays.
     if (budget.n <= 0) break;
     const next = far.next.get(f.id);
     if (t < next) continue;
@@ -302,7 +293,6 @@ function placeTick(e, world, dt) {
     if (f.big) far.bigUntil = t + 4;
     const pan = (Math.random() < 0.5 ? -1 : 1) * rand(0.35, 0.9);
     play(f.id, { g: rand(0.28, 0.55), pan });
-    if (f.light && e.onScape) e.onScape(f.light, pan);
     break;
   }
 }
