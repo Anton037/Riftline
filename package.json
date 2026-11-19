@@ -3,7 +3,7 @@
   "version": "4.4.1",
   "private": true,
   "type": "module",
-  "description": "Riftline – a 3D arena roguelite shooter with twin-stick touch and mouse + keyboard controls (three.js, WebAudio).",
+  "description": "Riftline – a 3D arena roguelite shooter with twin-stick touch and mouse + keyboard controls (custom WebGL2 engine, WebAudio).",
   "homepage": "https://anton037.github.io/Riftline/",
   "repository": {
     "type": "git",
@@ -42,9 +42,7 @@
     "playwright": "1.65.0",
     "prettier": "3.10.1"
   },
-  "dependencies": {
-    "three": "0.187.0"
-  },
+  "dependencies": {},
   "engines": {
     "node": "^22.13.0 || >=24"
   },

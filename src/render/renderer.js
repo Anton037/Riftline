@@ -1,2004 +1,1572 @@
-// three.js renderer (Renderer): scene, camera, lights, instanced pools, particles, per-frame drawing.
+// Riftline Renderer: orchestrates the custom WebGL2 engine, stylized painterly lighting,
+// camera, GPU-instanced pools, particles, biomes, actors, bosses and combat effects.
+
+import { Color, Euler, Mat4, Quat, Vec3, Camera } from "../engine/math.js";
+import { box, cylinder, disc, octahedron, plane, ring } from "../engine/geometry.js";
+import { InstancePool, Scene, Texture2D } from "../engine/scene.js";
+import { WebGL2Engine } from "../engine/webgl2.js";
+
 import { SmokeView } from "./smoke-view.js";
 import { AbilityEffectsView } from "./ability-effects-view.js";
 import { WeaponEffectsView } from "./weapon-effects-view.js";
-import { BOSS_EFFECTS, WEAPON_EFFECTS } from "../data/combat-effects.js";
 import { ActorEffectsView } from "./actor-effects-view.js";
-import { actorMaterial } from "../data/materials.js";
-import { setWorldShadows, WORLD_SURFACES, worldMaterial, enemySurface } from "./world-material.js";
-import { hexColor, additiveMaterial } from "./materials.js";
-import { FINISH } from "./palette.js";
-import { AMBIENT_POOL_SHARE } from "../data/atmosphere.js";
-
-import {
-  BoxGeometry,
-  CanvasTexture,
-  TextureLoader,
-  LinearFilter,
-  CircleGeometry,
-  Color,
-  CylinderGeometry,
-  DirectionalLight,
-  DoubleSide,
-  DynamicDrawUsage,
-  Euler,
-  Fog,
-  HemisphereLight,
-  InstancedBufferAttribute,
-  InstancedMesh,
-  Matrix4,
-  MeshBasicMaterial,
-  MeshLambertMaterial,
-  PerspectiveCamera,
-  PCFShadowMap,
-  PlaneGeometry,
-  PointLight,
-  Quaternion,
-  Raycaster,
-  RingGeometry,
-  Scene,
-  OctahedronGeometry,
-  SRGBColorSpace,
-  NeutralToneMapping,
-  Vector2,
-  Vector3,
-  WebGLRenderer,
-} from "three";
-import { logError } from "../core/diagnostics.js";
-import {
-  rocketProjectileGeometry,
-  debrisGeometry,
-  discGeometry,
-  enemyGeometry,
-  shardGeometry,
-  orbitBladeGeometry,
-  buildBossModel,
-  shieldArcGeometry,
-  healCrossGeometry,
-  buildPlayerModel,
-  wingDroneGeometry,
-} from "./models.js";
-import { enemyDefs, eliteAffixes, bossDefs } from "../data/enemies.js";
-import { ui } from "../main.js";
-import { smoothstep, clamp, TAU, easeOutBack, dampFactor, angleDiff } from "../core/util.js";
-import { biomeList } from "../data/biomes.js";
-import { weaponDefs } from "../data/weapons.js";
-import {
-  RL_BIOME_LOOK,
-  RL_BIOME_TINT,
-  RL_SKIN,
-  ArenaView,
-  rlAmbient,
-  rlSkinMaterial,
-  rlSkinParticles,
-} from "./biome-visuals.js";
 import { TrapView } from "./traps-view.js";
 import { BossCardView } from "./boss-cards-view.js";
-import { STEP_LEN, DASH_TIME } from "../core/walk.js";
 import { HazardView } from "./hazards-view.js";
 import { AttackView, MARK_LOOK } from "./attacks-view.js";
+import { ArenaView, RL_BIOME_LOOK, RL_BIOME_TINT, rlAmbient, rlSkinParticles } from "./arena-view.js";
+import {
+  buildPlayerModel,
+  buildBossModel,
+  enemyGeometry,
+  wingDroneGeometry,
+  orbitBladeGeometry,
+  rocketProjectileGeometry,
+  discGeometry,
+  shardGeometry,
+  healCrossGeometry,
+  shieldArcGeometry,
+  debrisGeometry,
+} from "./models.js";
+import {
+  hexColor,
+  worldMaterial,
+  emissiveMaterial,
+  additiveMaterial,
+  enemySurface,
+  setWorldShadows,
+} from "./materials.js";
+import { FINISH } from "./palette.js";
 
+import { BOSS_EFFECTS, WEAPON_EFFECTS } from "../data/combat-effects.js";
+import { actorMaterial } from "../data/materials.js";
+import { AMBIENT_POOL_SHARE } from "../data/atmosphere.js";
+import { enemyDefs, eliteAffixes, bossDefs, biomeVariants } from "../data/enemies.js";
+import { biomeList } from "../data/biomes.js";
+import { weaponDefs } from "../data/weapons.js";
+import { STEP_LEN, DASH_TIME } from "../core/walk.js";
+import { logError } from "../core/diagnostics.js";
+import { smoothstep, clamp, TAU, easeOutBack, dampFactor, angleDiff } from "../core/util.js";
+import { ui } from "../main.js";
+
+const whiteColor = hexColor(FINISH.ivory);
+const goldColor = hexColor(FINISH.brass);
+const warnColor = hexColor(FINISH.vermilion);
 const warningDark = hexColor(FINISH.ink);
-// the first `count` values of an instance attribute go to the GPU at the next draw
-function upload(attr, count) {
-  attr.clearUpdateRanges();
-  attr.addUpdateRange(0, count);
-  attr.needsUpdate = true;
-}
-/* 3.46.0: the flashes are sorted strongest first (a hoisted comparator — one used to be built
- every frame just to pick the six lights that reach the floor shader) */
+const hurtColor = hexColor(0xff4258);
+const healColor = hexColor(0x5effa8);
+const beamColor = hexColor(0xff5268);
+const resistColor = hexColor(0xc2d4e8);
+const shardColors = { 1: hexColor(0x62f2d8), 5: hexColor(0xf6c25e), 25: hexColor(0xc884ff) };
+const variantColors = Object.fromEntries(Object.values(biomeVariants).map((v) => [v.id, hexColor(v.color)]));
+
+const BOSS_PORTAL = {
+  warden: [hexColor(FINISH.brass), hexColor(FINISH.ivory)],
+  prism: [hexColor(FINISH.glacier), hexColor(FINISH.ivory)],
+  queen: [hexColor(FINISH.jade), hexColor(0xd6ffe8)],
+  core: [hexColor(FINISH.lavender), hexColor(0xff84cc)],
+  tyrant: [hexColor(0xff8c36), hexColor(0xffe094)],
+  wyrm: [hexColor(0xffd27a), hexColor(0x76e8d4)],
+};
+
+const STEP_LOOK = {
+  asphalt: { color: hexColor(0x788898), up: 1.1, life: 0.28, size: 0.14, grav: 4 },
+  snow: { color: hexColor(0xe6f8ff), up: 1.4, life: 0.35, size: 0.18, grav: 3 },
+  mud: { color: hexColor(0x52b888), up: 1.3, life: 0.34, size: 0.16, grav: 5, ring: true },
+  rift: { color: hexColor(0xc288ff), up: 1.5, life: 0.3, size: 0.15, grav: 2, spark: true },
+  ash: { color: hexColor(0xff9a44), up: 1.4, life: 0.34, size: 0.15, grav: 3, spark: true },
+  sand: { color: hexColor(0xe6cc96), up: 1.2, life: 0.36, size: 0.18, grav: 3 },
+};
+
+const RL_MOTION = {
+  swarmer: { ref: 7, f: 2.2, roll: 0.18, lean: 0.14, bounce: 0.12, hover: 0.08, hf: 7, breath: 0.03, bf: 6 },
+  mite: { ref: 7, f: 2.8, roll: 0.22, lean: 0.12, bounce: 0.14, hover: 0, hf: 0, breath: 0.04, bf: 8 },
+  grunt: { ref: 5, f: 1.6, roll: 0.1, lean: 0.12, bounce: 0.1, hover: 0, hf: 0, breath: 0.025, bf: 3 },
+  gunner: { ref: 4, f: 1.3, roll: 0.08, lean: 0.08, bounce: 0.07, hover: 0, hf: 0, breath: 0.02, bf: 2.6 },
+  bomber: { ref: 5, f: 1.8, roll: 0.14, lean: 0.14, bounce: 0.12, hover: 0, hf: 0, breath: 0.05, bf: 6 },
+  splitter: { ref: 4, f: 1.4, roll: 0.1, lean: 0.08, bounce: 0.08, hover: 0.05, hf: 4, breath: 0.04, bf: 4 },
+  brute: { ref: 4, f: 1.1, roll: 0.09, lean: 0.14, bounce: 0.09, hover: 0, hf: 0, breath: 0.02, bf: 2 },
+  sniper: { ref: 4, f: 1.2, roll: 0.06, lean: 0.06, bounce: 0.05, hover: 0, hf: 0, breath: 0.02, bf: 2.2 },
+  hive: { ref: 3, f: 0.8, roll: 0.04, lean: 0.04, bounce: 0.02, hover: 0, hf: 0, breath: 0.05, bf: 2.4 },
+  bulwark: { ref: 3, f: 1.0, roll: 0.07, lean: 0.06, bounce: 0.06, hover: 0, hf: 0, breath: 0.02, bf: 1.8 },
+  striker: { ref: 7, f: 1.5, roll: 0.16, lean: 0.18, bounce: 0.04, hover: 0.12, hf: 5.5, breath: 0.03, bf: 4 },
+  mortar: { ref: 3, f: 1.1, roll: 0.06, lean: 0.06, bounce: 0.05, hover: 0, hf: 0, breath: 0.025, bf: 2 },
+  mender: { ref: 4, f: 1.0, roll: 0.08, lean: 0.08, bounce: 0, hover: 0.16, hf: 3.4, breath: 0.03, bf: 3.2 },
+  leaper: { ref: 6, f: 2.0, roll: 0.12, lean: 0.16, bounce: 0.16, hover: 0, hf: 0, breath: 0.03, bf: 4 },
+  turret: { ref: 4, f: 0, roll: 0, lean: 0, bounce: 0, hover: 0, hf: 0, breath: 0.015, bf: 2 },
+  charger: { ref: 6, f: 1.4, roll: 0.08, lean: 0.18, bounce: 0.06, hover: 0, hf: 0, breath: 0.02, bf: 3 },
+  minebot: { ref: 5, f: 1.6, roll: 0.1, lean: 0.08, bounce: 0.06, hover: 0, hf: 0, breath: 0.03, bf: 4 },
+  sapper: { ref: 5, f: 1.7, roll: 0.12, lean: 0.12, bounce: 0.1, hover: 0, hf: 0, breath: 0.03, bf: 3.5 },
+  phantom: { ref: 6, f: 1.2, roll: 0.1, lean: 0.12, bounce: 0, hover: 0.18, hf: 3.6, breath: 0.035, bf: 3 },
+  sentinel: { ref: 4, f: 1.0, roll: 0.05, lean: 0.06, bounce: 0, hover: 0.16, hf: 2.8, breath: 0.025, bf: 2.6 },
+  carrier: { ref: 3.5, f: 0.9, roll: 0.06, lean: 0.08, bounce: 0, hover: 0.14, hf: 2.2, breath: 0.025, bf: 2.2 },
+  drone: { ref: 7, f: 1.6, roll: 0.16, lean: 0.14, bounce: 0, hover: 0.14, hf: 6.2, breath: 0.02, bf: 5 },
+  driller: { ref: 5, f: 1.5, roll: 0.1, lean: 0.14, bounce: 0.08, hover: 0, hf: 0, breath: 0.02, bf: 3 },
+  beacon: { ref: 3, f: 0.8, roll: 0.04, lean: 0.04, bounce: 0, hover: 0.12, hf: 2.6, breath: 0.03, bf: 2.8 },
+  weaver: { ref: 4.5, f: 1.1, roll: 0.08, lean: 0.1, bounce: 0, hover: 0.16, hf: 3.8, breath: 0.03, bf: 3.4 },
+};
+const RL_MOTION_NONE = { ref: 5, f: 1, roll: 0.06, lean: 0.06, bounce: 0.06, hover: 0, hf: 0, breath: 0.02, bf: 2 };
+
+const RL_WHITEOUT_FOG = [0.7, 1.12];
+const RL_WHITEOUT_TINT = new Color(0xe2f2fa);
+const RL_WHITEOUT_SNOW = new Color(0xffffff);
+
 function flashOrder(a, b) {
   return b.i - a.i;
 }
-const tmpColor = new Color(),
-  InstancePool = class {
-    constructor(geo, mat, max, opts = {}) {
-      this.max = max;
-      this.mesh = new InstancedMesh(geo, mat, max);
-      this.mesh.instanceMatrix.setUsage(DynamicDrawUsage);
-      this.mesh.frustumCulled = false;
-      this.mesh.count = 0;
-      this.m = this.mesh.instanceMatrix.array;
-      if (opts.color !== false) {
-        this.mesh.instanceColor = new InstancedBufferAttribute(new Float32Array(max * 3).fill(1), 3);
-        this.mesh.instanceColor.setUsage(DynamicDrawUsage);
-        this.c = this.mesh.instanceColor.array;
-      }
-      if (opts.flash) {
-        this.fAttr = new InstancedBufferAttribute(new Float32Array(max), 1);
-        this.fAttr.setUsage(DynamicDrawUsage);
-        geo.setAttribute("aFlash", this.fAttr);
-        this.f = this.fAttr.array;
-      }
-      this.n = 0;
-    }
-    begin() {
-      this.n = 0;
-    }
-    end() {
-      this.mesh.count = this.n;
-      // 2.8.1: an empty pool is not drawn at all (it used to cost a draw call per pool and frame)
-      this.mesh.visible = this.n > 0;
-      // 3.31.1: only the instances in use go to the GPU (the whole buffer did, up to 2200 instances a pool and frame)
-      if (!this.n) return;
-      upload(this.mesh.instanceMatrix, this.n * 16);
-      if (this.c) upload(this.mesh.instanceColor, this.n * 3);
-      if (this.f) upload(this.fAttr, this.n);
-    }
-    y(x, y, z, angle, sx, sy = sx, sz = sx) {
-      if (this.n >= this.max) return -1;
-      let idx = this.n++,
-        arr = this.m,
-        off = idx * 16,
-        cos = Math.cos(-angle),
-        sin = Math.sin(-angle);
-      arr[off] = cos * sx;
-      arr[off + 1] = 0;
-      arr[off + 2] = -sin * sx;
-      arr[off + 3] = 0;
-      arr[off + 4] = 0;
-      arr[off + 5] = sy;
-      arr[off + 6] = 0;
-      arr[off + 7] = 0;
-      arr[off + 8] = sin * sz;
-      arr[off + 9] = 0;
-      arr[off + 10] = cos * sz;
-      arr[off + 11] = 0;
-      arr[off + 12] = x;
-      arr[off + 13] = y;
-      arr[off + 14] = z;
-      arr[off + 15] = 1;
-      return idx;
-    }
-    /* like y(), plus a pitch (nose down when negative, about the local z axis) and a roll (about the
-       forward x axis); the matrix is Ry(-angle) * Rz(pitch) * Rx(roll) * scale, written without allocations */
-    yr(x, y, z, angle, sx, sy, sz, pitch, roll) {
-      if (this.n >= this.max) return -1;
-      let idx = this.n++,
-        arr = this.m,
-        off = idx * 16,
-        c = Math.cos(-angle),
-        s = Math.sin(-angle),
-        cp = Math.cos(pitch),
-        sp = Math.sin(pitch),
-        cr = Math.cos(roll),
-        sr = Math.sin(roll);
-      arr[off] = c * cp * sx;
-      arr[off + 1] = sp * sx;
-      arr[off + 2] = -s * cp * sx;
-      arr[off + 3] = 0;
-      arr[off + 4] = (-c * sp * cr + s * sr) * sy;
-      arr[off + 5] = cp * cr * sy;
-      arr[off + 6] = (s * sp * cr + c * sr) * sy;
-      arr[off + 7] = 0;
-      arr[off + 8] = (c * sp * sr + s * cr) * sz;
-      arr[off + 9] = -cp * sr * sz;
-      arr[off + 10] = (-s * sp * sr + c * cr) * sz;
-      arr[off + 11] = 0;
-      arr[off + 12] = x;
-      arr[off + 13] = y;
-      arr[off + 14] = z;
-      arr[off + 15] = 1;
-      return idx;
-    }
-    bb(x, y, z, size, basis, rot = 0) {
-      if (this.n >= this.max) return -1;
-      let idx = this.n++,
-        arr = this.m,
-        off = idx * 16,
-        rx = basis.rx,
-        ry = basis.ry,
-        rz = basis.rz,
-        ux = basis.ux,
-        uy = basis.uy,
-        uz = basis.uz;
-      if (rot) {
-        let cos = Math.cos(rot),
-          sin = Math.sin(rot),
-          nrx = rx * cos + ux * sin,
-          nry = ry * cos + uy * sin,
-          nrz = rz * cos + uz * sin;
-        ux = ux * cos - rx * sin;
-        uy = uy * cos - ry * sin;
-        uz = uz * cos - rz * sin;
-        rx = nrx;
-        ry = nry;
-        rz = nrz;
-      }
-      arr[off] = rx * size;
-      arr[off + 1] = ry * size;
-      arr[off + 2] = rz * size;
-      arr[off + 3] = 0;
-      arr[off + 4] = ux * size;
-      arr[off + 5] = uy * size;
-      arr[off + 6] = uz * size;
-      arr[off + 7] = 0;
-      arr[off + 8] = basis.fx;
-      arr[off + 9] = basis.fy;
-      arr[off + 10] = basis.fz;
-      arr[off + 11] = 0;
-      arr[off + 12] = x;
-      arr[off + 13] = y;
-      arr[off + 14] = z;
-      arr[off + 15] = 1;
-      return idx;
-    }
-    seg(x0, z0, x1, z1, y, width, height) {
-      let dx = x1 - x0,
-        dz = z1 - z0,
-        len = Math.hypot(dx, dz);
-      return len < 1e-4 ? -1 : this.y(x0, y, z0, Math.atan2(dz, dx), len, height, width);
-    }
-    col(idx, r, g, b) {
-      if (idx < 0 || !this.c) return;
-      let off = idx * 3;
-      this.c[off] = r;
-      this.c[off + 1] = g;
-      this.c[off + 2] = b;
-    }
-    colC(idx, color, mul = 1) {
-      if (idx < 0 || !this.c) return;
-      let off = idx * 3;
-      this.c[off] = color.r * mul;
-      this.c[off + 1] = color.g * mul;
-      this.c[off + 2] = color.b * mul;
-    }
-    colHex(idx, hex, mul = 1) {
-      tmpColor.setHex(hex);
-      this.colC(idx, tmpColor, mul);
-    }
-    flash(idx, value) {
-      if (idx >= 0 && this.f) {
-        this.f[idx] = value;
-      }
-    }
+
+function loadImageTexture(url, onReady) {
+  const tex = new Texture2D({ wrap: "repeat", filter: "linear", flipY: false });
+  if (typeof Image === "undefined") return tex;
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  img.onload = () => {
+    tex.setImage(img);
+    if (onReady) onReady(tex);
   };
-/* 2.7.0: how the instances of each enemy type move (all cheap maths in the matrix, no extra geometry).
-   roll/bounce/lean: walk sway about the forward axis, hop height and nose-down lean, all scaled by how fast
-   the enemy moves (ref = the speed that counts as full); f is the gait frequency per unit of speed.
-   hover/hf: bob at any time; breath/bf: breathing squash of the body; the rest are none. */
-const RL_MOTION_NONE = { roll: 0, bounce: 0, lean: 0, f: 1, ref: 4, hover: 0, hf: 1, breath: 0, bf: 1 },
-  RL_MOTION = {
-    swarmer: { roll: 0.16, bounce: 0.05, lean: 0.18, f: 2.4, ref: 5, hover: 0.06, hf: 9, breath: 0.03, bf: 9 },
-    mite: { roll: 0.2, bounce: 0.04, lean: 0.12, f: 3, ref: 5, hover: 0.04, hf: 9, breath: 0.03, bf: 8 },
-    grunt: { roll: 0.09, bounce: 0.05, lean: 0.06, f: 1.6, ref: 3.3 },
-    gunner: { roll: 0.07, bounce: 0.04, lean: 0.05, f: 1.8, ref: 3.5 },
-    bomber: { roll: 0.12, bounce: 0.06, lean: 0.1, f: 2, ref: 4, breath: 0.03, bf: 5 },
-    splitter: { roll: 0.06, bounce: 0.05, lean: 0.05, f: 1.4, ref: 3, breath: 0.05, bf: 2.6 },
-    brute: { roll: 0.05, bounce: 0.05, lean: 0.05, f: 1.2, ref: 3, breath: 0.02, bf: 2.2 },
-    sniper: { roll: 0.04, bounce: 0.02, lean: 0.04, f: 1.4, ref: 3, hover: 0.02, hf: 3 },
-    hive: { roll: 0.02, bounce: 0, lean: 0.02, f: 1, ref: 2, breath: 0.05, bf: 3 },
-    bulwark: { roll: 0.04, bounce: 0.03, lean: 0.03, f: 1.2, ref: 2.5 },
-    striker: { roll: 0.1, bounce: 0, lean: 0.3, f: 2, ref: 5, hover: 0.07, hf: 6 },
-    mortar: { roll: 0.02, bounce: 0.01, lean: 0.02, f: 1, ref: 2, breath: 0.02, bf: 2 },
-    mender: { roll: 0.08, bounce: 0, lean: 0.15, f: 1.5, ref: 3, hover: 0.06, hf: 3, breath: 0.04, bf: 3 },
-    leaper: { roll: 0.06, bounce: 0.08, lean: 0.2, f: 2, ref: 5, breath: 0.05, bf: 4 },
-    turret: { roll: 0, bounce: 0, lean: 0, f: 1, ref: 1, breath: 0.012, bf: 2 },
-    charger: { roll: 0.05, bounce: 0.04, lean: 0.14, f: 1.6, ref: 5 },
-    minebot: { roll: 0.1, bounce: 0.03, lean: 0.06, f: 2, ref: 3.5 },
-    sapper: { roll: 0.1, bounce: 0.05, lean: 0.08, f: 1.8, ref: 3.5 },
-    phantom: { roll: 0.1, bounce: 0, lean: 0.25, f: 1.2, ref: 4, hover: 0.1, hf: 2.4 },
-    sentinel: { roll: 0.03, bounce: 0, lean: 0.06, f: 1, ref: 3, hover: 0.08, hf: 2 },
-    carrier: { roll: 0.14, bounce: 0, lean: 0.1, f: 1, ref: 3, hover: 0.09, hf: 2 },
-    drone: { roll: 0.2, bounce: 0, lean: 0.35, f: 1.6, ref: 4.5, hover: 0.06, hf: 7 },
-    driller: { roll: 0.03, bounce: 0.02, lean: 0.04, f: 3, ref: 3 },
-    beacon: { roll: 0, bounce: 0, lean: 0, f: 1, ref: 1, hover: 0.04, hf: 2 },
-    weaver: { roll: 0.07, bounce: 0.03, lean: 0.06, f: 2.6, ref: 4 },
+  img.onerror = () => {
+    // Still unblock readiness gates cleanly if an image fails to load in an offline stub
+    tex.ready = true;
+    if (onReady) onReady(tex);
   };
-for (const type in RL_MOTION) RL_MOTION[type] = { ...RL_MOTION_NONE, ...RL_MOTION[type] };
-function makeEnemyMaterial(params, type) {
-  // Biome finish and hit flashes are layered onto this material before its first combat draw.
-  return worldMaterial({ color: 0xffffff, surface: enemySurface(type), ...params });
-}
-function makeCanvasTexture(size, draw) {
-  let canvas = document.createElement("canvas");
-  canvas.width = canvas.height = size;
-  let ctx = canvas.getContext("2d");
-  draw(ctx, size);
-  let tex = new CanvasTexture(canvas);
-  tex.colorSpace = SRGBColorSpace;
-  tex.needsUpdate = true;
+  img.src = url;
   return tex;
 }
-function makeGlowTexture() {
-  return makeCanvasTexture(128, (ctx, size) => {
-    const half = size / 2;
-    const brush = ctx.createRadialGradient(half, half, 0, half, half, half);
-    brush.addColorStop(0, "rgba(255,255,255,.86)");
-    brush.addColorStop(0.21, "rgba(255,250,232,.61)");
-    brush.addColorStop(0.57, "rgba(240,220,187,.17)");
-    brush.addColorStop(1, "rgba(255,231,188,0)");
-    ctx.fillStyle = brush;
-    ctx.fillRect(0, 0, size, size);
-  });
-}
-function makeShadowTexture() {
-  return makeCanvasTexture(64, (ctx, size) => {
-    const half = size / 2;
-    const ink = ctx.createRadialGradient(half, half, 0, half, half, half);
-    ink.addColorStop(0, "rgba(15,12,15,.68)");
-    ink.addColorStop(0.32, "rgba(15,12,15,.49)");
-    ink.addColorStop(0.63, "rgba(15,12,15,.17)");
-    ink.addColorStop(1, "rgba(15,12,15,0)");
-    ctx.fillStyle = ink;
-    ctx.fillRect(0, 0, size, size);
-  });
-}
-function makeSparkTexture() {
-  return makeCanvasTexture(64, (ctx, size) => {
-    const sliver = (points, fill) => {
-      ctx.fillStyle = fill;
-      ctx.beginPath();
-      points.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x * size, y * size) : ctx.lineTo(x * size, y * size)));
-      ctx.closePath();
-      ctx.fill();
+
+export class Renderer {
+  constructor(canvas, opts = {}) {
+    this.canvas = canvas;
+    this.dprCap = opts.dpr || 2;
+    this.maxParticles = 1400;
+    this.numbers = true;
+    this.motion = 1;
+    this.time = 0;
+    this.worldT = 0;
+    this.zoom = 1;
+    this.w = 1;
+    this.h = 1;
+    this.dpr = 1;
+    this.camX = 0;
+    this.camZ = 0;
+    this.camInit = false;
+    this.menuA = 0.45;
+    this.shake = 0;
+    this.kick = 0;
+    this.kickA = 0;
+    this.pulse = 0;
+    this.flashT = 0;
+    this.focus = null;
+    this.focusK = 0;
+    this.mapChanged = false;
+    this.warnColor = warnColor;
+    this.finishAtlasReady = false;
+    this.B = { rx: 1, ry: 0, rz: 0, ux: 0, uy: 1, uz: 0, fx: 0, fy: 0, fz: 1 };
+
+    this.engine = new WebGL2Engine(canvas, { shadowSize: 1024, post: true });
+    // Alias for diagnostics, browser tests and verification tools
+    this.renderer = this.engine;
+    this.scene = new Scene();
+    this.camera = new Camera(44, 1, 0.5, 190);
+    this.arena = new ArenaView(this.scene, this.engine);
+
+    // Load stylized painterly atlases asynchronously
+    this.engine.textures.terrain = loadImageTexture("textures/terrain-atlas.webp", () => {
+      this.arena.uniforms.uTerrainReady.value = 1;
+    });
+    this.engine.textures.surface = loadImageTexture("textures/surface-atlas.webp", () => {
+      this.finishAtlasReady = true;
+    });
+    this.engine.textures.vfx = loadImageTexture("textures/vfx-atlas.webp");
+
+    this.nums = [];
+    this.flashes = [];
+    this.lines = [];
+    this.rings = [];
+    this.corpses = [];
+    this.D = [];
+    this.biome = null;
+    this.player = null;
+    this.playerWeapon = null;
+    this.bossView = null;
+
+    // Shared particle typed arrays (zero per-frame heap churn)
+    const max = this.maxParticles;
+    this.P = {
+      n: 0,
+      x: new Float32Array(max),
+      y: new Float32Array(max),
+      z: new Float32Array(max),
+      vx: new Float32Array(max),
+      vy: new Float32Array(max),
+      vz: new Float32Array(max),
+      life: new Float32Array(max),
+      max: new Float32Array(max),
+      size: new Float32Array(max),
+      grow: new Float32Array(max),
+      r: new Float32Array(max),
+      g: new Float32Array(max),
+      b: new Float32Array(max),
+      drag: new Float32Array(max),
+      grav: new Float32Array(max),
+      spark: new Uint8Array(max),
     };
-    sliver(
-      [
-        [0.5, 0.015],
-        [0.72, 0.48],
-        [0.49, 0.98],
-        [0.32, 0.48],
-      ],
-      "rgba(253,220,170,.27)",
+
+    // Scratch math objects
+    this._v = new Vec3();
+    this._rayO = new Vec3();
+    this._rayD = new Vec3();
+    this._ground = { x: 0, y: 0 };
+    this._e = new Euler();
+    this._q = new Quat();
+    this._m = new Mat4();
+    this._p = new Vec3();
+    this._s = new Vec3();
+    this._dk = new Color();
+    this._flashSort = [];
+    this._muzzleCol = new Color(0x62f2e8);
+
+    // Core shared instanced pools
+    this._initPools();
+
+    // Specialized view subsystems
+    this.smokeView = new SmokeView(this, InstancePool);
+    this.abilityView = new AbilityEffectsView(this, InstancePool);
+    this.weaponView = new WeaponEffectsView(this, InstancePool);
+    this.actorView = new ActorEffectsView(this);
+    this.trapView = new TrapView(this, InstancePool);
+    this.bossCardView = new BossCardView(this, InstancePool);
+    this.hazardView = new HazardView(this, InstancePool);
+    this.attackView = new AttackView(this, InstancePool);
+
+    this.resize();
+  }
+
+  _addPool(geo, mat, max, order = 1, opts = {}) {
+    const p = new InstancePool(geo, mat, max, opts);
+    p.mesh.renderOrder = order;
+    this.scene.add(p.mesh);
+    return p;
+  }
+
+  _initPools() {
+    const quad = plane(1, 1, 1, 1);
+    const flatQuad = plane(1, 1, 1, 1).rotateX(-Math.PI / 2);
+
+    this.shadows = this._addPool(
+      flatQuad,
+      emissiveMaterial({
+        color: 0xffffff,
+        emissiveIntensity: 1,
+        opacity: 0.72,
+        transparent: true,
+        depthWrite: false,
+        spriteTile: 3,
+        fog: false,
+      }),
+      700,
+      0,
+      { color: false },
     );
-    sliver(
-      [
-        [0.52, 0.09],
-        [0.65, 0.46],
-        [0.47, 0.92],
-        [0.4, 0.52],
-      ],
-      "rgba(255,250,232,1)",
+    this.sprites = this._addPool(quad, additiveMaterial(0, 0.9, 1.35), 2200, 5);
+    this.sparks = this._addPool(quad, additiveMaterial(1, 0.95, 1.65), 1400, 5);
+    this.beams = this._addPool(box(1, 1, 1).translate(0.5, 0, 0), additiveMaterial(-1, 0.92, 1.45), 900, 4);
+    this.warningEdges = this._addPool(
+      box(1, 1, 1).translate(0.5, 0, 0),
+      emissiveMaterial({
+        color: 0xffffff,
+        emissiveIntensity: 1,
+        opacity: 0.9,
+        transparent: true,
+        depthWrite: false,
+        fog: false,
+      }),
+      240,
+      3,
     );
-    sliver(
-      [
-        [0.15, 0.62],
-        [0.27, 0.44],
-        [0.31, 0.6],
-        [0.19, 0.76],
-      ],
-      "rgba(255,232,196,.53)",
+    this.ringPool = this._addPool(ring(0.87, 1, 36), additiveMaterial(-1, 0.9, 1.35), 260, 3);
+    this.discs = this._addPool(disc(1, 32), additiveMaterial(-1, 0.85, 1.1), 160, 2);
+    this.columns = this._addPool(
+      cylinder(0.65, 1, 1, 14, true).translate(0, 0.5, 0),
+      additiveMaterial(-1, 0.85, 1.45),
+      96,
+      4,
     );
-    sliver(
-      [
-        [0.71, 0.39],
-        [0.83, 0.19],
-        [0.87, 0.32],
-        [0.76, 0.49],
-      ],
-      "rgba(255,232,196,.46)",
+    this.ebCore = this._addPool(
+      octahedron(0.6),
+      emissiveMaterial({ color: 0xffffff, emissiveIntensity: 1.65, fog: false }),
+      520,
+      3,
     );
-  });
-}
-function makeColumnTexture() {
-  return makeCanvasTexture(128, (ctx, size) => {
-    const grad = ctx.createLinearGradient(0, size, 0, 0);
-    grad.addColorStop(0, "rgba(255,238,201,.85)");
-    grad.addColorStop(0.31, "rgba(255,250,234,.52)");
-    grad.addColorStop(1, "rgba(255,237,195,0)");
-    for (let i = 0; i < 14; i++) {
-      const x = (size * i) / 14;
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.moveTo(x, size);
-      ctx.quadraticCurveTo(x + size * 0.037, size * 0.38, x + size * 0.018, size * (i % 3) * 0.07);
-      ctx.lineTo(x + size * 0.04, size * (i % 3) * 0.07);
-      ctx.quadraticCurveTo(x + size * 0.078, size * 0.52, x + size * 0.064, size);
-      ctx.fill();
-    }
-  });
-}
-function effectDisc(outline) {
-  const material = additiveMaterial(null, { side: DoubleSide });
-  material.onBeforeCompile = (shader) => {
-    shader.vertexShader = shader.vertexShader
-      .replace("#include <common>", "#include <common>\nvarying vec2 effectXZ;")
-      .replace("#include <begin_vertex>", "#include <begin_vertex>\neffectXZ=position.xz;");
-    shader.fragmentShader = shader.fragmentShader
-      .replace("#include <common>", "#include <common>\nvarying vec2 effectXZ;")
-      .replace(
-        "#include <color_fragment>",
-        `#include <color_fragment>
-float r=length(effectXZ), a=atan(effectXZ.y,effectXZ.x+.00001);
-float tick=pow(abs(cos(a*12.0)),19.0);
-diffuseColor.rgb*=${outline ? ".25+.67*smoothstep(.951,.979,r)+tick*.49" : ".34+.21*tick*r+.33*smoothstep(.82,.98,r)"};
-`,
-      );
-  };
-  material.customProgramCacheKey = () => (outline ? "etched-ring" : "etched-disc");
-  return material;
-}
-const MAX_PARTICLES = 1400,
-  goldColor = new Color(16762954),
-  shardColors = { 1: hexColor(FINISH.jade), 5: hexColor(FINISH.brass), 25: hexColor(FINISH.lavender) },
-  // 3.17.0: what a foot kicks up on each ground (core/walk.js FLOOR): a puff of dust, snow, mud, droplets or sparks
-  STEP_LOOK = {
-    asphalt: { color: hexColor(0x8a93a0), size: 0.26, life: 0.35, up: 0.5, grav: 1.5 },
-    frost: { color: hexColor(0xe6f6ff), size: 0.3, life: 0.45, up: 0.6, grav: 1 },
-    ice: { color: hexColor(0xbff0ff), size: 0.12, life: 0.3, up: 1, grav: 5, spark: true, ring: true },
-    mud: { color: hexColor(0x5a4a2a), size: 0.22, life: 0.45, up: 1.6, grav: 8 },
-    glass: { color: hexColor(0xb070ff), size: 0.14, life: 0.3, up: 0.5, grav: 0, spark: true, ring: true },
-    acid: { color: hexColor(0x46ffc0), size: 0.16, life: 0.4, up: 1.8, grav: 7 },
-    crust: { color: hexColor(0xffb45a), size: 0.12, life: 0.3, up: 1.1, grav: 5, spark: true },
-    sandglass: { color: hexColor(0xffe9c4), size: 0.2, life: 0.34, up: 0.7, grav: 2, spark: true },
-  },
-  // 3.16.0: the colours of the portals a boss calls open (render loop, world.markers with `boss`)
-  BOSS_PORTAL = Object.fromEntries(
-    Object.entries(BOSS_EFFECTS).map(([id, effect]) => [id, [hexColor(effect.color), hexColor(effect.accent)]]),
-  ),
-  healColor = hexColor(7208842),
-  whiteColor = hexColor(FINISH.ivory),
-  hurtColor = hexColor(16724048),
-  warnColor = hexColor(FINISH.vermilion),
-  variantColors = {
-    flareheart: hexColor(0xffb520),
-    frost: hexColor(11462911),
-    phase: hexColor(16732120),
-    // 3.50.0: the Glowmarsh's Bloomed
-    bloomed: hexColor(0x46ffc0),
-    shorted: hexColor(0x8fd0ff),
-    // 3.53.0: the Glass Flats' Sunstruck: a hot gleam
-    sunstruck: hexColor(0xffd27a),
-  },
-  beamColor = hexColor(FINISH.copper),
-  // 3.0.0: the grey-white of a hit that the burst cap swallowed
-  resistColor = new Color(14608110),
-  Renderer = class {
-    constructor(canvas, opts = {}) {
-      this.canvas = canvas;
-      // The game enables MSAA; isolated rendering probes can opt out.
-      this.antialias = opts.antialias !== false;
-      this.renderer = new WebGLRenderer({
-        canvas,
-        antialias: this.antialias,
-        powerPreference: "high-performance",
-        stencil: false,
+    this.debris = this._addPool(debrisGeometry(), worldMaterial({ surface: "stone", color: 0xffffff }), 320, 1);
+    this.debris.mesh.castShadow = true;
+
+    this.rocketBodies = this._addPool(
+      rocketProjectileGeometry(),
+      worldMaterial({ surface: "metal", vertexColors: true }),
+      140,
+      2,
+    );
+    this.discPool = this._addPool(
+      discGeometry(),
+      worldMaterial({ surface: "metal", vertexColors: true, emissive: 0x305860 }),
+      96,
+      2,
+    );
+    this.shardPool = this._addPool(
+      shardGeometry(),
+      emissiveMaterial({ color: 0xffffff, emissiveIntensity: 1.45 }),
+      260,
+      2,
+    );
+    this.healPool = this._addPool(
+      healCrossGeometry(),
+      emissiveMaterial({ color: 0xffffff, emissiveIntensity: 1.55 }),
+      48,
+      2,
+    );
+    this.blades = this._addPool(
+      orbitBladeGeometry(),
+      emissiveMaterial({ color: 0xffffff, emissiveIntensity: 1.5, vertexColors: true }),
+      48,
+      2,
+    );
+    this.wing = this._addPool(wingDroneGeometry(), worldMaterial({ surface: "armor", vertexColors: true }), 16, 2);
+    this.wing.mesh.castShadow = true;
+    this.shieldPool = this._addPool(
+      shieldArcGeometry(),
+      emissiveMaterial({
+        color: 0xffffff,
+        emissiveIntensity: 1.55,
+        opacity: 0.72,
+        transparent: true,
+        additive: true,
+        depthWrite: false,
+        doubleSide: true,
+      }),
+      96,
+      4,
+    );
+
+    // Prebuild instanced body+glow pools for all 25 enemy types
+    this.enemyPools = {};
+    for (const [type, def] of Object.entries(enemyDefs)) {
+      const kit = enemyGeometry(type);
+      const bodyMat = worldMaterial({
+        surface: enemySurface(type),
+        vertexColors: true,
+        biomeSkin: true,
       });
-      this.renderer.outputColorSpace = SRGBColorSpace;
-      // 3.38.0: a filmic tone curve on the lit bodies (enemies, walker, props, bosses): highlights roll off
-      // instead of clipping to flat white, so the flat-shaded plastic reads less like a toy. The Khronos
-      // neutral curve keeps saturated colours closer to their hue than ACES. Everything that glows keeps its
-      // own look: every emissive material is built with toneMapped: false, the floor is a ShaderMaterial
-      // (tone mapping never applies), the 2D overlay draws itself — none of them change.
-      this.renderer.toneMapping = NeutralToneMapping;
-      this.renderer.toneMappingExposure = 1.04;
-      this.renderer.setClearColor(0x121c27, 1);
-      this.dprCap = opts.dpr || 2;
-      this.zoom = 1;
-      this.scene = new Scene();
-      this.scene.fog = new Fog(395798, 30, 75);
-      this.camera = new PerspectiveCamera(42, 1, 0.5, 200);
-      this.hemi = new HemisphereLight(2771594, 657944, 1.9);
-      this.sun = new DirectionalLight(16777215, 1.5);
-      this.sun.position.set(-16, 34, -5);
-      this.sun.castShadow = true;
-      this.sun.shadow.mapSize.set(1024, 1024);
-      Object.assign(this.sun.shadow.camera, { left: -30, right: 30, top: 30, bottom: -30, near: 5, far: 120 });
-      this.sun.shadow.normalBias = 0.035;
-      this.sun.shadow.bias = -0.00015;
-      this.sun.shadow.radius = 2;
-      this.sun.shadow.intensity = 0.8;
-      this.renderer.shadowMap.type = PCFShadowMap;
-      this.renderer.shadowMap.enabled = true;
-      // 3.29.0: a fill light from the other side, in a colour that goes against the sun's (set per biome, no shadows)
-      this.fill = new DirectionalLight(0xffffff, 0);
-      this.fill.position.set(13, 7, 9);
-      this.scene.add(this.hemi, this.sun, this.fill);
-      this.arena = new ArenaView(this.scene);
-      this.smokeView = new SmokeView(this.scene);
-      this.terrainAtlas = new TextureLoader().load("textures/terrain-atlas.webp", (texture) => {
-        this.arena.uniforms.uTerrainMap.value = texture;
-        this.arena.uniforms.uTerrainReady.value = 1;
+      const glowMat = emissiveMaterial({ color: 0xffffff, emissiveIntensity: 1.7, vertexColors: true });
+      const cap = type === "swarmer" || type === "mite" ? 180 : 96;
+      const body = this._addPool(kit.body, bodyMat, cap, 1, { flash: true });
+      body.mesh.castShadow = true;
+      body.mesh.receiveShadow = true;
+      const glow = this._addPool(kit.glow, glowMat, cap, 2);
+      this.enemyPools[type] = { body, glow, color: hexColor(def.color) };
+    }
+
+    this._stablePools = [
+      this.shadows,
+      this.sprites,
+      this.sparks,
+      this.beams,
+      this.warningEdges,
+      this.ringPool,
+      this.discs,
+      this.columns,
+      this.ebCore,
+      this.debris,
+      this.rocketBodies,
+      this.discPool,
+      this.shardPool,
+      this.healPool,
+      this.blades,
+      this.wing,
+      this.shieldPool,
+    ];
+  }
+
+  allPools() {
+    return this._stablePools;
+  }
+
+  resize() {
+    const w = this.canvas.clientWidth || window.innerWidth || 800;
+    const h = this.canvas.clientHeight || window.innerHeight || 600;
+    const dpr = Math.min(window.devicePixelRatio || 1, this.dprCap || 2);
+    if (w === this.w && h === this.h && dpr === this.dpr) return;
+    this.w = w;
+    this.h = h;
+    this.dpr = dpr;
+    this.engine.setPixelRatio(dpr);
+    this.engine.setSize(w, h, false);
+    this.camera.aspect = w / h;
+    this.camera.updateProjectionMatrix();
+    this._rlViewKey = "";
+  }
+
+  camDistance() {
+    const aspect = this.w / Math.max(1, this.h);
+    const portraitBoost = aspect < 1 ? 1.18 : aspect < 1.45 ? 1.06 : 1;
+    return 24.5 * this.zoom * portraitBoost;
+  }
+
+  setBiome(biome, layout) {
+    const changed = !this.biome || this.biome.id !== biome.id || (layout && this.arena.layKey !== layout.key);
+    this.biome = biome;
+    if (changed) {
+      this.arena.build(biome, layout, !!layout);
+      if (layout) this.mapChanged = true;
+    }
+    const look = RL_BIOME_LOOK[biome.id] || RL_BIOME_LOOK.city;
+    const s = this.scene;
+    s.biomeIndex = look.style;
+    s.clearColor.setHex(look.fogColor);
+    s.fogColor.setHex(look.fogColor);
+    s.sunColor.setHex(look.sun);
+    s.sunIntensity = look.sunI;
+    s.hemiSky.setHex(look.skyFill);
+    s.hemiGround.setHex(look.groundFill);
+    s.hemiIntensity = look.hemi;
+    s.fillColor.setHex(look.fill[0]);
+    s.fillIntensity = look.fill[1];
+    s.shadowTint.setHex(look.shadowTint);
+    s.rimColor.setHex(look.rimColor);
+    s.bloomStrength = look.bloom;
+    this.engine.setClearColor(s.clearColor, 1);
+
+    const dist = this.camDistance();
+    s.fogNear = dist * look.fog[0];
+    s.fogFar = dist * look.fog[1];
+
+    const whiteK = this.rlWhiteK || 0;
+    if (biome.id === "shelf") {
+      const breath = whiteK + (1 - whiteK) * (0.5 - 0.5 * Math.cos(((this.worldT || 0) / 20) * TAU));
+      s.fogNear *= 1 - 0.16 * breath;
+      s.fogFar *= 1 - 0.16 * breath;
+    }
+    if (whiteK > 0 && biome.id === "shelf") {
+      s.fogNear += (dist * RL_WHITEOUT_FOG[0] - s.fogNear) * whiteK;
+      s.fogFar += (dist * RL_WHITEOUT_FOG[1] - s.fogFar) * whiteK;
+      s.fogColor.lerp(RL_WHITEOUT_TINT, 0.85 * whiteK);
+      s.clearColor.copy(s.fogColor);
+      this.engine.setClearColor(s.fogColor, 1);
+    }
+  }
+
+  ensurePlayer(weapon) {
+    if (this.playerWeapon === weapon && this.player) return;
+    if (this.player) {
+      this.scene.remove(this.player.group);
+      this.player.group.traverse((obj) => {
+        if (obj.geometry) obj.geometry.dispose();
       });
-      this.terrainAtlas.colorSpace = SRGBColorSpace;
-      this.terrainAtlas.flipY = false;
-      this.terrainAtlas.minFilter = this.terrainAtlas.magFilter = LinearFilter;
-      this.terrainAtlas.generateMipmaps = false;
-      this.finishAtlasReady = false;
-      this.finishAtlas = new TextureLoader().load("textures/surface-atlas.webp", (texture) => {
-        WORLD_SURFACES.finishMap.value = texture;
-        WORLD_SURFACES.finishReady.value = 1;
-        this.finishAtlasReady = true;
+    }
+    this.player = buildPlayerModel(weapon, weaponDefs[weapon].color);
+    this.playerWeapon = weapon;
+    setWorldShadows(this.player.group);
+    this.scene.add(this.player.group);
+  }
+
+  emit(x, y, z, vx, vy, vz, life, size, color, opts = {}) {
+    const parts = this.P;
+    if (opts.ambient && parts.n >= this.maxParticles * AMBIENT_POOL_SHARE) return;
+    if (
+      parts.n >= this.maxParticles ||
+      (parts.n > this.maxParticles * 0.6 && Math.random() < (parts.n / this.maxParticles - 0.6) * 2)
+    ) {
+      return;
+    }
+    const i = parts.n++;
+    parts.x[i] = x;
+    parts.y[i] = y;
+    parts.z[i] = z;
+    parts.vx[i] = vx;
+    parts.vy[i] = vy;
+    parts.vz[i] = vz;
+    parts.life[i] = life;
+    parts.max[i] = life;
+    parts.size[i] = size;
+    parts.grow[i] = opts.grow || 0;
+    parts.r[i] = color.r;
+    parts.g[i] = color.g;
+    parts.b[i] = color.b;
+    parts.drag[i] = opts.drag ?? 2.5;
+    parts.grav[i] = opts.grav ?? 0;
+    parts.spark[i] = opts.spark ? 1 : 0;
+  }
+
+  burst(x, z, y, count, speed, color, life = 0.5, size = 0.35, opts = {}) {
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * TAU;
+      const spd = speed * (0.35 + Math.random() * 0.65);
+      const vy = opts.up != null ? opts.up : (Math.random() - 0.3) * speed * 0.5;
+      this.emit(
+        x,
+        y,
+        z,
+        Math.cos(angle) * spd,
+        vy,
+        Math.sin(angle) * spd,
+        life * (0.6 + Math.random() * 0.6),
+        size * (0.6 + Math.random() * 0.7),
+        color,
+        opts,
+      );
+    }
+  }
+
+  line(x1, z1, x2, z2, color, life, width = 0.12, y = 0.7, bend = 0) {
+    if (this.lines.length <= 120) this.lines.push({ x1, z1, x2, z2, col: color, life, max: life, w: width, y, bend });
+  }
+
+  ring(x, z, r0, r1, color, life, y = 0.06) {
+    if (this.rings.length <= 100) this.rings.push({ x, z, r0, r1, col: color, life, max: life, y });
+  }
+
+  addShake(amount) {
+    this.shake = Math.min(0.75, this.shake + amount * this.motion);
+  }
+
+  flash(x, z, radius, intensity, color, decay = 6) {
+    if (this.flashes.length > 24) this.flashes.shift();
+    this.flashes.push({ x, z, r: radius, i: intensity, col: color, decay });
+  }
+
+  addScorch(x, z, radius) {
+    this.attackView.mark(x, z, radius * 1.15, MARK_LOOK.burn);
+  }
+
+  debrisBurst(x, z, y, count, color, size, speed) {
+    const tint = this.biome && RL_BIOME_TINT[this.biome.id];
+    if (tint && color && color.isColor) color = color.clone().lerp(tint, 0.5);
+    const list = this.D;
+    for (let i = 0; i < count && list.length < 300; i++) {
+      const angle = Math.random() * TAU;
+      const spd = speed * (0.4 + Math.random() * 0.8);
+      list.push({
+        x: x + Math.cos(angle) * 0.2,
+        y,
+        z: z + Math.sin(angle) * 0.2,
+        vx: Math.cos(angle) * spd,
+        vy: 2.2 + Math.random() * speed * 0.8,
+        vz: Math.sin(angle) * spd,
+        rx: Math.random() * 6,
+        ry: Math.random() * 6,
+        rz: Math.random() * 6,
+        sx: (Math.random() - 0.5) * 7,
+        sy: (Math.random() - 0.5) * 7,
+        sz: (Math.random() - 0.5) * 7,
+        s: size * (0.5 + Math.random() * 0.7),
+        life: 1.1 + Math.random() * 0.6,
+        col: color,
       });
-      this.finishAtlas.colorSpace = SRGBColorSpace;
-      this.finishAtlas.flipY = false;
-      this.finishAtlas.minFilter = this.finishAtlas.magFilter = LinearFilter;
-      this.finishAtlas.generateMipmaps = false;
-      this.time = 0;
-      this.shake = 0;
-      // 3.58.0: how much the camera may move (1: as tuned, 0: still). main.js sets it from the OS motion
-      // preference, so "reduce motion" now reaches the shake and the recoil kick instead of only the CSS.
-      this.motion = 1;
-      // 3.57.0: the shake is no longer the player's switch (it is always on, see addShake). Endless mode fires
-      // so many events that the accumulator sat at its cap for whole waves, and a capped shake is a shake that
-      // never rests. A lower cap, a flatter amplitude curve and a faster decay keep the punch of a single hit
-      // without the permanent wobble.
-      this.numbers = true;
-      this.camX = 0;
-      this.camZ = 2;
-      this.camInit = false;
-      this.B = { rx: 1, ry: 0, rz: 0, ux: 0, uy: 1, uz: 0, fx: 0, fy: 0, fz: 1 };
-      this.nums = [];
-      this.maxParticles = opts.particles || MAX_PARTICLES;
-      this.initPools();
-      this.initParticles();
-      this.lines = [];
-      this.rings = [];
-      this.player = null;
-      this.playerWeapon = null;
-      this.bossView = null;
-      this.flashT = 0;
-      this.menuA = 0;
-      this.resize();
     }
-    initPools() {
-      let scene = this.scene;
-      // 3.0.0: traps, 3.12.0: and the Singularity (its pools are made when a skin first appears)
-      this.trapView = new TrapView(this, InstancePool);
-      // 3.8.0: the map hazards have their own models and surface programs
-      this.hazardView = new HazardView(this, InstancePool);
-      // 3.10.0: the attacks of enemies and bosses (zones, mines, shells, shots) and the marks they leave
-      this.attackView = new AttackView(this, InstancePool);
-      this.weaponView = new WeaponEffectsView(this, InstancePool);
-      this.abilityView = new AbilityEffectsView(this, InstancePool);
-      this.actorView = new ActorEffectsView(this);
-      // 3.15.0: the boss cards (cages, burning ground, splinters, larvae, the implosion of Event Collapse)
-      this.bossCardView = new BossCardView(this, InstancePool);
-      // the colour of the warnings
-      this.warnColor = warnColor;
-      this.texGlow = makeGlowTexture();
-      this.texShadow = makeShadowTexture();
-      this.texSpark = makeSparkTexture();
-      let quad = new PlaneGeometry(1, 1);
-      this.sprites = new InstancePool(quad, additiveMaterial(this.texGlow), 2200);
-      this.sparks = new InstancePool(quad.clone(), additiveMaterial(this.texSpark), 700);
-      let ringGeo = new RingGeometry(0.86, 1, 48, 1);
-      ringGeo.rotateX(-Math.PI / 2);
-      this.ringPool = new InstancePool(ringGeo, effectDisc(true), 260);
-      let discGeo = new CircleGeometry(1, 40);
-      discGeo.rotateX(-Math.PI / 2);
-      this.discs = new InstancePool(discGeo, effectDisc(false), 120);
-      let beamGeo = new BoxGeometry(1, 1, 1);
-      beamGeo.translate(0.5, 0, 0);
-      this.beams = new InstancePool(beamGeo, additiveMaterial(null), 500);
-      // Normal blending is required for a dark keyline; an additive dark colour cannot dim snow.
-      this.warningEdges = new InstancePool(
-        beamGeo.clone(),
-        new MeshBasicMaterial({
-          transparent: true,
-          opacity: 0.85,
-          depthWrite: false,
-          toneMapped: false,
-        }),
-        256,
-      );
-      let floorQuad = new PlaneGeometry(1, 1);
-      floorQuad.rotateX(-Math.PI / 2);
-      this.shadows = new InstancePool(
-        floorQuad,
-        new MeshBasicMaterial({ map: this.texShadow, transparent: true, depthWrite: false, color: 16777215 }),
-        320,
-        { color: false },
-      );
-      let sphere = new OctahedronGeometry(1);
-      this.ebCore = new InstancePool(sphere, new MeshBasicMaterial({ toneMapped: false }), 380);
-      this.shardPool = new InstancePool(shardGeometry(), new MeshBasicMaterial({ toneMapped: false }), 300);
-      this.healPool = new InstancePool(
-        healCrossGeometry(),
-        new MeshBasicMaterial({ toneMapped: false, vertexColors: true }),
-        40,
-      );
-      this.blades = new InstancePool(orbitBladeGeometry(), worldMaterial({ surface: "metal", color: 0xb2c2c2 }), 8);
-      this.wing = new InstancePool(wingDroneGeometry(), worldMaterial({ surface: "armor", vertexColors: true }), 4, {
-        color: false,
-      });
-      this.shieldPool = new InstancePool(shieldArcGeometry(), additiveMaterial(null, { side: DoubleSide }), 24);
-      this.rocketBodies = new InstancePool(
-        rocketProjectileGeometry(),
-        worldMaterial({ surface: "metal", vertexColors: true }),
-        420,
-      );
-      this.discPool = new InstancePool(discGeometry(), worldMaterial({ surface: "metal", vertexColors: true }), 420);
-      this.debris = new InstancePool(debrisGeometry(), new MeshLambertMaterial({ flatShading: true }), 320);
-      let columnGeo = new CylinderGeometry(1, 1, 1, 16, 1, true);
-      columnGeo.translate(0, 0.5, 0);
-      this.columns = new InstancePool(columnGeo, additiveMaterial(makeColumnTexture(), { side: DoubleSide }), 60);
-      this.columns.mesh.renderOrder = 4;
-      this.shieldPool.mesh.renderOrder = 5;
-      this.shadows.mesh.renderOrder = 1;
-      this.discs.mesh.renderOrder = 2;
-      this.ringPool.mesh.renderOrder = 3;
-      this.warningEdges.mesh.renderOrder = 4;
-      this.beams.mesh.renderOrder = 5;
-      this.sprites.mesh.renderOrder = 6;
-      this.sparks.mesh.renderOrder = 7;
-      this.enemyPools = {};
-      for (let type in enemyDefs) {
-        let def = enemyDefs[type],
-          geo = enemyGeometry(type),
-          max = def.r > 0.9 ? 40 : 120,
-          body = new InstancePool(geo.body, makeEnemyMaterial({ vertexColors: true }, type), max, {
-            flash: true,
-          }),
-          glow = new InstancePool(geo.glow, new MeshBasicMaterial({ toneMapped: false, vertexColors: true }), max);
-        body.mesh.castShadow = body.mesh.receiveShadow = true;
-        this.enemyPools[type] = { body, glow, color: hexColor(def.color) };
-        scene.add(body.mesh, glow.mesh);
-      }
-      for (let pool of this.allPools()) scene.add(pool.mesh);
-      this.pLight = new PointLight(4846335, 0, 9, 2);
-      this.bLight = new PointLight(16747069, 0, 12, 2);
-      scene.add(this.pLight, this.bLight);
-      this.flashes = [];
-      this.D = [];
-      this.corpses = [];
-      this.kick = 0;
-      this.kickA = 0;
+  }
+
+  updateLights(dt, world) {
+    const flashes = this.flashes;
+    let w = 0;
+    for (let i = 0; i < flashes.length; i++) {
+      const f = flashes[i];
+      f.i -= f.i * Math.min(1, f.decay * dt) + dt * 0.05;
+      if (f.i > 0.02) flashes[w++] = f;
     }
-    allPools() {
-      // 3.46.0: the stable pools are cached (the array used to be rebuilt with four
-      // spreads every frame). The pools of the views come and go with the traps, hazards, zones
-      // and boss cards — frame() iterates their lists live.
-      return (
-        this._pools ||
-        (this._pools = [
-          this.shadows,
-          this.discs,
-          this.ringPool,
-          this.columns,
-          this.beams,
-          this.warningEdges,
-          this.shieldPool,
-          this.rocketBodies,
-          this.ebCore,
-          this.discPool,
-          this.shardPool,
-          this.healPool,
-          this.blades,
-          this.wing,
-          this.debris,
-          this.sprites,
-          this.sparks,
-        ])
-      );
+    flashes.length = w;
+
+    const sorted = this._flashSort;
+    sorted.length = 0;
+    for (let i = 0; i < flashes.length; i++) sorted.push(flashes[i]);
+    sorted.sort(flashOrder);
+
+    const lights = this.scene.pointLights;
+    this.muzzle = Math.max(0, (this.muzzle || 0) - dt * 14);
+    const player = world?.player;
+
+    // Slot 0: dynamic player muzzle / weapon glow light
+    if (player && this.muzzle > 0.01) {
+      lights[0].x = player.x + Math.cos(player.aim) * 0.85;
+      lights[0].y = 1.4;
+      lights[0].z = player.y + Math.sin(player.aim) * 0.85;
+      lights[0].r = this._muzzleCol.r;
+      lights[0].g = this._muzzleCol.g;
+      lights[0].b = this._muzzleCol.b;
+      lights[0].radius = 6.5;
+      lights[0].intensity = this.muzzle * 1.4;
+    } else {
+      lights[0].intensity = 0;
     }
-    initParticles() {
-      let max = this.maxParticles;
-      this.P = {
-        n: 0,
-        x: new Float32Array(max),
-        y: new Float32Array(max),
-        z: new Float32Array(max),
-        vx: new Float32Array(max),
-        vy: new Float32Array(max),
-        vz: new Float32Array(max),
-        life: new Float32Array(max),
-        max: new Float32Array(max),
-        size: new Float32Array(max),
-        grow: new Float32Array(max),
-        r: new Float32Array(max),
-        g: new Float32Array(max),
-        b: new Float32Array(max),
-        drag: new Float32Array(max),
-        grav: new Float32Array(max),
-        spark: new Uint8Array(max),
-      };
-    }
-    resize() {
-      let canvas = this.canvas,
-        w = Math.max(1, canvas.clientWidth || window.innerWidth),
-        h = Math.max(1, canvas.clientHeight || window.innerHeight),
-        dpr = Math.min(window.devicePixelRatio || 1, this.dprCap);
-      // Startup and visualViewport can repeat a resize notification without changing the buffer.
-      if (!(w === this.w && h === this.h && dpr === this.dpr)) {
-        this.w = w;
-        this.h = h;
-        this.dpr = dpr;
-        this.renderer.setPixelRatio(dpr);
-        this.renderer.setSize(w, h, false);
-        this.camera.aspect = w / h;
-        this.camera.fov = w / h < 1 ? 50 : 40;
-        this.camera.updateProjectionMatrix();
-      }
-    }
-    camDistance() {
-      let aspect = this.w / this.h,
-        halfV = (this.camera.fov * Math.PI) / 360,
-        halfH = Math.atan(Math.tan(halfV) * aspect),
-        fitW = aspect < 1 ? 15.5 : 26,
-        fitD = aspect < 1 ? 19 : 13;
-      return Math.max(fitW / 2 / Math.tan(halfH), fitD / 2 / Math.tan(halfV)) * this.zoom;
-    }
-    setBiome(biome, layout) {
-      let prevKey = this.arena.layKey;
-      // 3.46.0: the layout object is reused (setBiome runs every frame and arena.build early-
-      // returns on an unchanged key, so the fresh literal was allocated for nothing)
-      let lay = null;
-      if (layout) {
-        lay = this._layScratch || (this._layScratch = {});
-        lay.key = layout.key;
-        lay.W = layout.W;
-        lay.H = layout.H;
-        lay.obs = layout.obs;
-        lay.deco = layout.deco;
-      }
-      this.arena.build(biome, lay, !!layout);
-      if (layout && prevKey != null && prevKey !== this.arena.layKey) {
-        const dust = hexColor(
-          { city: 0x5c6670, shelf: 0xa9c6d3, marsh: 0x384f3c, core: 0x716a89, caldera: 0x625b53, flats: 0xa58a5e }[
-            biome.id
-          ],
-        );
-        for (const obstacle of layout.obs)
-          this.burst(obstacle.x, obstacle.y, 0.12, 4, 1.8, dust, 0.3, 0.14, { drag: 4, grav: 1 });
-        this.addShake(0.12);
-        this.mapChanged = true;
-      }
-      this.biome = biome;
-      // 2.4.0: sun colour and fog density of the biome look
-      const look = RL_BIOME_LOOK[biome.id] || RL_BIOME_LOOK.city,
-        fog = this.scene.fog;
-      fog.color.setHex(look.fogColor);
-      this.renderer.setClearColor(fog.color, 1);
-      this.hemi.color.setHex(look.skyFill || biome.sky);
-      this.hemi.groundColor.setHex(look.groundFill || biome.ground);
-      this.sun.color.setHex(look.sun);
-      this.fill.color.setHex(look.fill ? look.fill[0] : 0xffffff);
-      if (look.fog) {
-        // fog relative to the camera distance, so portrait phones (camera further out) look the same
-        const dist = this.camDistance();
-        fog.near = dist * look.fog[0];
-        fog.far = dist * look.fog[1];
+
+    // Slots 1..7: strongest 7 active combat flashes (blasts, arcs, traps, boss attacks)
+    for (let i = 0; i < 7; i++) {
+      const f = sorted[i];
+      const slot = lights[i + 1];
+      if (f) {
+        slot.x = f.x;
+        slot.y = 1.65;
+        slot.z = f.z;
+        slot.r = f.col.r;
+        slot.g = f.col.g;
+        slot.b = f.col.b;
+        slot.radius = Math.max(2.5, f.r * 2.2);
+        slot.intensity = Math.min(2.2, f.i * 1.35);
       } else {
-        fog.near = 30;
-        fog.far = 75;
-      }
-      // 2.5.0 C: in a Whiteout the fog closes in and turns pale
-      const whiteK = this.rlWhiteK || 0;
-      if (biome.id === "shelf") {
-        // 3.51.0: the Shelf's blizzard breathes: the fog thickens and thins on the storm's ~20 s
-        // cycle (the run's clock - the grip's freeze/thaw follows it in world.step; RL_THAW_PERIOD
-        // there). A Whiteout is the storm's peak: it locks the breath dense and closes in on top.
-        const breath = whiteK + (1 - whiteK) * (0.5 - 0.5 * Math.cos(((this.worldT || 0) / 20) * Math.PI * 2));
-        fog.near *= 1 - 0.16 * breath;
-        fog.far *= 1 - 0.16 * breath;
-      }
-      if (!(whiteK > 0) || biome.id !== "shelf") return;
-      const camDist = this.camDistance();
-      fog.near += (camDist * RL_WHITEOUT_FOG[0] - fog.near) * whiteK;
-      fog.far += (camDist * RL_WHITEOUT_FOG[1] - fog.far) * whiteK;
-      fog.color.lerp(RL_WHITEOUT_TINT, 0.85 * whiteK);
-      this.renderer.setClearColor(fog.color, 1);
-    }
-    ensurePlayer(weapon) {
-      if (!(this.playerWeapon === weapon && this.player)) {
-        if (this.player) {
-          this.scene.remove(this.player.group);
-          // 3.31.1: the materials of the old model go too (each model builds its own)
-          this.player.group.traverse((obj) => {
-            if (obj.geometry) {
-              obj.geometry.dispose();
-            }
-            if (obj.material) {
-              [].concat(obj.material).forEach((mat) => mat.dispose());
-            }
-          });
-        }
-        this.player = buildPlayerModel(weapon, weaponDefs[weapon].color);
-        this.playerWeapon = weapon;
-        setWorldShadows(this.player.group);
-        this.scene.add(this.player.group);
+        slot.intensity = 0;
       }
     }
-    emit(x, y, z, vx, vy, vz, life, size, color, opts = {}) {
-      let parts = this.P;
-      if (opts.ambient && parts.n >= this.maxParticles * AMBIENT_POOL_SHARE) return;
-      if (
-        parts.n >= this.maxParticles ||
-        (parts.n > this.maxParticles * 0.6 && Math.random() < (parts.n / this.maxParticles - 0.6) * 2)
-      )
-        return;
-      let i = parts.n++;
-      parts.x[i] = x;
-      parts.y[i] = y;
-      parts.z[i] = z;
-      parts.vx[i] = vx;
-      parts.vy[i] = vy;
-      parts.vz[i] = vz;
-      parts.life[i] = life;
-      parts.max[i] = life;
-      parts.size[i] = size;
-      parts.grow[i] = opts.grow || 0;
-      parts.r[i] = color.r;
-      parts.g[i] = color.g;
-      parts.b[i] = color.b;
-      parts.drag[i] = opts.drag ?? 2.5;
-      parts.grav[i] = opts.grav ?? 0;
-      parts.spark[i] = opts.spark ? 1 : 0;
+
+    const dark = this.rlBlackK || 0;
+    this.scene.darkness = dark;
+    if (dark > 0) {
+      this.scene.hemiIntensity *= 1 - 0.65 * dark;
+      this.scene.sunIntensity *= 1 - 0.72 * dark;
+      this.scene.fillIntensity *= 1 - 0.72 * dark;
     }
-    burst(x, z, y, count, speed, color, life = 0.5, size = 0.35, opts = {}) {
-      for (let i = 0; i < count; i++) {
-        let angle = Math.random() * TAU,
-          spd = speed * (0.35 + Math.random() * 0.65),
-          vy = opts.up != null ? opts.up : (Math.random() - 0.3) * speed * 0.5;
-        this.emit(
-          x,
-          y,
-          z,
-          Math.cos(angle) * spd,
-          vy,
-          Math.sin(angle) * spd,
-          life * (0.6 + Math.random() * 0.6),
-          size * (0.6 + Math.random() * 0.7),
-          color,
-          opts,
-        );
-      }
-    }
-    line(x1, z1, x2, z2, color, life, width = 0.12, y = 0.7, bend = 0) {
-      if (!(this.lines.length > 120)) {
-        this.lines.push({ x1, z1, x2, z2, col: color, life, max: life, w: width, y, bend });
-      }
-    }
-    ring(x, z, r0, r1, color, life, y = 0.06) {
-      if (!(this.rings.length > 100)) {
-        this.rings.push({ x, z, r0, r1, col: color, life, max: life, y });
-      }
-    }
-    addShake(amount) {
-      // 3.57.0: the cap is 0.75, not 1. In endless mode the per-event shakes of many enemies arrived faster
-      // than the decay retired them, so the accumulator sat at the cap and the camera never settled. The
-      // amplitude curve is flatter (see the camera block) and the decay faster, so a single hit still reads
-      // as an impact while a busy wave no longer turns into a permanent wobble.
-      this.shake = Math.min(0.75, this.shake + amount * this.motion);
-    }
-    flash(x, z, radius, intensity, color, decay = 6) {
-      if (this.flashes.length > 24) {
-        this.flashes.shift();
-      }
-      this.flashes.push({ x, z, r: radius, i: intensity, col: color, decay });
-    }
-    updateLights(dt, world) {
-      let flashes = this.flashes;
-      for (let flash of flashes) flash.i -= flash.i * Math.min(1, flash.decay * dt) + dt * 0.05;
-      if (flashes.length && flashes.some((flash) => flash.i <= 0.02)) {
-        this.flashes = flashes.filter((flash) => flash.i > 0.02);
-      }
-      // 3.46.0: the scratch array is reused (a slice + a fresh comparator used to be built every
-      // frame just to pick the six strongest flashes)
-      let sorted = this._flashSort || (this._flashSort = []);
-      sorted.length = 0;
-      for (let flash of this.flashes) sorted.push(flash);
-      sorted.sort(flashOrder);
-      let uniforms = this.arena.uniforms;
-      for (let i = 0; i < 6; i++) {
-        let flash = sorted[i];
-        if (flash) {
-          uniforms.uL.value[i].set(flash.x, flash.z, flash.r, Math.min(1.6, flash.i));
-          uniforms.uLC.value[i].copy(flash.col);
-        } else {
-          uniforms.uL.value[i].w = 0;
-        }
-      }
-      let player = world && world.player;
-      this.muzzle = Math.max(0, (this.muzzle || 0) - dt * 14);
-      if (player) {
-        this.pLight.position.set(player.x + Math.cos(player.aim) * 0.8, 1.3, player.y + Math.sin(player.aim) * 0.8);
-      }
-      this.hemi.intensity = 1.9;
-      this.sun.intensity = 1.5;
-      this.pLight.intensity = this.muzzle * 2.2;
-      let big = sorted.find((flash) => !flash.muzzle);
-      if (big) {
-        this.bLight.position.set(big.x, 1.6, big.z);
-        this.bLight.color.copy(big.col);
-        this.bLight.intensity = Math.min(1.5, big.i) * 10;
-        this.bLight.distance = big.r * 3;
-      } else {
-        this.bLight.intensity = 0;
-      }
-      // 2.4.0: light intensities of the biome look
-      const look = this.biome && RL_BIOME_LOOK[this.biome.id];
-      if (look) {
-        this.hemi.intensity = look.hemi;
-        this.sun.intensity = look.sunI;
-        this.fill.intensity = look.fill ? look.fill[1] : 0;
-      }
-      // 3.4.0: the Blackout of Blackout City takes most of the light away (blasts and arcs still light the street)
-      const dark = this.rlBlackK || 0;
-      if (dark > 0) {
-        this.hemi.intensity *= 1 - 0.68 * dark;
-        this.sun.intensity *= 1 - 0.75 * dark;
-        this.fill.intensity *= 1 - 0.75 * dark;
-      }
-    }
-    debrisBurst(x, z, y, count, color, size, speed) {
-      // 3.41.0: the pieces calm into the biome's tone (style guide: quiet, drawn colours, not confetti)
-      // 3.44.0: the mix deepens (0.6) and the pieces fly softer: a lower kick, a slower tumble,
-      // a longer life that fades earlier - rubble that settles instead of a splash
-      const tint = this.biome && RL_BIOME_TINT[this.biome.id];
-      if (tint && color && color.isColor) color = color.clone().lerp(tint, 0.6);
-      let list = this.D;
-      for (let i = 0; i < count && list.length < 300; i++) {
-        let angle = Math.random() * TAU,
-          spd = speed * (0.4 + Math.random() * 0.8);
-        list.push({
-          x: x + Math.cos(angle) * 0.2,
-          y,
-          z: z + Math.sin(angle) * 0.2,
-          vx: Math.cos(angle) * spd,
-          vy: 2.2 + Math.random() * speed * 0.8,
-          vz: Math.sin(angle) * spd,
-          rx: Math.random() * 6,
-          ry: Math.random() * 6,
-          rz: Math.random() * 6,
-          sx: (Math.random() - 0.5) * 7,
-          sy: (Math.random() - 0.5) * 7,
-          sz: (Math.random() - 0.5) * 7,
-          s: size * (0.5 + Math.random() * 0.7),
-          life: 1.1 + Math.random() * 0.6,
-          col: color,
-        });
-      }
-    }
-    drawDebris(dt) {
-      let list = this.D,
-        pool = this.debris,
-        arr = pool.m,
-        euler = this._e || (this._e = new Euler()),
-        quat = this._q || (this._q = new Quaternion()),
-        mat = this._m || (this._m = new Matrix4()),
-        pos = this._p || (this._p = new Vector3()),
-        scale = this._s || (this._s = new Vector3());
-      for (let piece of list) {
-        piece.life -= dt;
-        piece.vy -= 16 * dt; // 3.44.0: was 22 - a gentler fall
-        piece.x += piece.vx * dt;
-        piece.y += piece.vy * dt;
-        piece.z += piece.vz * dt;
-        if (piece.y < piece.s * 0.5) {
-          piece.y = piece.s * 0.5;
-          piece.vy *= -0.22; // 3.44.0: the bounce dies quickly (was -0.35 / 0.7)
-          piece.vx *= 0.55;
-          piece.vz *= 0.55;
-          piece.sx *= 0.6;
-          piece.sy *= 0.6;
-          piece.sz *= 0.6;
-        }
-        piece.rx += piece.sx * dt;
-        piece.ry += piece.sy * dt;
-        piece.rz += piece.sz * dt;
-        if (pool.n >= pool.max) continue;
-        let idx = pool.n++,
-          fade = piece.life < 0.5 ? Math.max(0, piece.life / 0.5) : 1; // 3.44.0: the shrink-out starts earlier and reads softer
-        euler.set(piece.rx, piece.ry, piece.rz);
-        quat.setFromEuler(euler);
-        mat.compose(pos.set(piece.x, piece.y, piece.z), quat, scale.setScalar(piece.s * fade));
-        mat.toArray(arr, idx * 16);
-        pool.colC(idx, piece.col, 1);
-      }
-      if (list.length && list.some((piece) => piece.life <= 0)) {
-        // 3.46.0: compacted in place (a filter used to hand the GC a fresh array)
-        let w = 0;
-        for (let i = 0; i < list.length; i++) if (list[i].life > 0) list[w++] = list[i];
-        list.length = w;
-      }
-    }
-    /* 3.10.0: a burnt mark of the place (until 3.9.0 the same black blob in every biome) */
-    addScorch(x, z, radius) {
-      this.attackView.mark(x, z, radius * 1.15, MARK_LOOK.burn);
-    }
-    consume(events, world, opts) {
-      // 3.45.5: the Settings toggles gate the floating numbers and the shake on top of the per-event opts
-      let showNumbers = opts.numbers !== false && this.numbers !== false,
-        shakeK = (opts.shake === false ? 0 : 1) * this.motion;
-      for (let ev of events) {
-        if (this.abilityView.event(ev, world, shakeK)) continue;
-        if (this.bossCardView.event(ev, world, shakeK)) continue;
-        if (this.actorView.consume(ev, shakeK, world)) continue;
-        switch (ev.k) {
-          case "shot": {
-            let def = weaponDefs[ev.w],
-              color = hexColor(def.color),
-              dirX = Math.cos(ev.a),
-              dirZ = Math.sin(ev.a);
-            const muzzle = this._shotMuzzle || (this._shotMuzzle = new Vector3());
-            this.player.aimAt(ev.a);
-            this.player.muzzle.getWorldPosition(muzzle);
-            muzzle.x += ev.x - this.player.group.position.x;
-            muzzle.z += ev.y - this.player.group.position.z;
-            this.player.recoil = Math.min(
-              0.07,
-              this.player.recoil + (def.id === "rail" || def.id === "scatter" ? 0.06 : 0.035) * this.motion,
-            );
-            const muzzleKind = WEAPON_EFFECTS[ev.w].muzzle;
-            if (muzzleKind === "arc") {
-              const tx = muzzle.x + dirX * 0.58,
-                tz = muzzle.z + dirZ * 0.58;
-              this.line(muzzle.x, muzzle.z, tx, tz, hexColor(FINISH.copper), 0.13, 0.09, muzzle.y, 0.09);
-              this.ring(tx, tz, 0.13, 0.36, hexColor(FINISH.brass), 0.17, muzzle.y);
-            } else if (muzzleKind === "mechanical") {
-              const perpX = -dirZ,
-                perpZ = dirX;
-              for (const side of [-1, 1])
-                this.line(
-                  muzzle.x,
-                  muzzle.z,
-                  muzzle.x + (dirX * 0.22 + perpX * side * 0.16),
-                  muzzle.z + (dirZ * 0.22 + perpZ * side * 0.16),
-                  color,
-                  0.07,
-                  0.022,
-                  muzzle.y,
-                );
-              this.burst(muzzle.x, muzzle.z, muzzle.y, 4, 1.8, color, 0.13, 0.075, { spark: true, drag: 6 });
-            } else if (muzzleKind === "combustion") {
-              for (let j = -2; j <= 2; j++) {
-                const coneA = ev.a + j * 0.14,
-                  len = j === 0 ? 0.42 : 0.3;
-                this.line(
-                  muzzle.x,
-                  muzzle.z,
-                  muzzle.x + Math.cos(coneA) * len,
-                  muzzle.z + Math.sin(coneA) * len,
-                  j === 0 ? whiteColor : color,
-                  0.065,
-                  0.04,
-                  muzzle.y,
-                );
-              }
-              this.emit(muzzle.x, muzzle.y, muzzle.z, dirX * 4.5, 0, dirZ * 4.5, 0.1, 0.85, color, { drag: 0 });
-            } else if (muzzleKind === "rail") {
-              const perpX = -dirZ,
-                perpZ = dirX;
-              for (const side of [-1, 1])
-                this.line(
-                  muzzle.x,
-                  muzzle.z,
-                  muzzle.x - dirX * 0.18 + perpX * side * 0.34,
-                  muzzle.z - dirZ * 0.18 + perpZ * side * 0.34,
-                  color,
-                  0.11,
-                  0.03,
-                  muzzle.y,
-                );
-              this.ring(muzzle.x + dirX * 0.15, muzzle.z + dirZ * 0.15, 0.12, 0.85, color, 0.14);
-              this.emit(muzzle.x, muzzle.y, muzzle.z, dirX * 5, 0, dirZ * 5, 0.1, 0.65, whiteColor, { drag: 0 });
-            } else if (muzzleKind === "backblast") {
+  }
+
+  consume(events, world, opts) {
+    const showNumbers = opts.numbers !== false && this.numbers !== false;
+    const shakeK = (opts.shake === false ? 0 : 1) * this.motion;
+    for (const ev of events) {
+      if (this.abilityView.event(ev, world, shakeK)) continue;
+      if (this.bossCardView.event(ev, world, shakeK)) continue;
+      if (this.actorView.consume(ev, shakeK, world)) continue;
+      switch (ev.k) {
+        case "shot": {
+          const def = weaponDefs[ev.w];
+          const color = hexColor(def.color);
+          const dirX = Math.cos(ev.a),
+            dirZ = Math.sin(ev.a);
+          const muzzle = this._shotMuzzle || (this._shotMuzzle = new Vec3());
+          this.player.aimAt(ev.a);
+          this.player.muzzle.getWorldPosition(muzzle);
+          muzzle.x += ev.x - this.player.group.position.x;
+          muzzle.z += ev.y - this.player.group.position.z;
+          this.player.recoil = Math.min(
+            0.08,
+            this.player.recoil + (def.id === "rail" || def.id === "scatter" ? 0.065 : 0.038) * this.motion,
+          );
+          const muzzleKind = WEAPON_EFFECTS[ev.w].muzzle;
+          if (muzzleKind === "arc") {
+            const tx = muzzle.x + dirX * 0.58,
+              tz = muzzle.z + dirZ * 0.58;
+            this.line(muzzle.x, muzzle.z, tx, tz, hexColor(FINISH.copper), 0.13, 0.09, muzzle.y, 0.09);
+            this.ring(tx, tz, 0.13, 0.36, hexColor(FINISH.brass), 0.17, muzzle.y);
+          } else if (muzzleKind === "mechanical") {
+            const perpX = -dirZ,
+              perpZ = dirX;
+            for (const side of [-1, 1]) {
               this.line(
                 muzzle.x,
                 muzzle.z,
-                muzzle.x + dirX * 0.3,
-                muzzle.z + dirZ * 0.3,
-                whiteColor,
+                muzzle.x + (dirX * 0.22 + perpX * side * 0.16),
+                muzzle.z + (dirZ * 0.22 + perpZ * side * 0.16),
+                color,
+                0.07,
+                0.025,
+                muzzle.y,
+              );
+            }
+            this.burst(muzzle.x, muzzle.z, muzzle.y, 4, 1.8, color, 0.13, 0.08, { spark: true, drag: 6 });
+          } else if (muzzleKind === "combustion") {
+            for (let j = -2; j <= 2; j++) {
+              const coneA = ev.a + j * 0.14;
+              const len = j === 0 ? 0.44 : 0.32;
+              this.line(
+                muzzle.x,
+                muzzle.z,
+                muzzle.x + Math.cos(coneA) * len,
+                muzzle.z + Math.sin(coneA) * len,
+                j === 0 ? whiteColor : color,
                 0.065,
-                0.08,
+                0.042,
                 muzzle.y,
               );
-              const backX = muzzle.x - dirX * 0.62,
-                backZ = muzzle.z - dirZ * 0.62;
-              this.emit(backX, muzzle.y, backZ, -dirX * 3.2, 0.35, -dirZ * 3.2, 0.18, 0.55, color, { drag: 3 });
-              this.smokeView.emit(backX, muzzle.y, backZ, 0.42, 0x9da7a8, 0.36);
-            } else if (muzzleKind === "fire") {
-              this.emit(
-                muzzle.x + dirX * 0.12,
-                muzzle.y,
-                muzzle.z + dirZ * 0.12,
-                dirX * 3.5,
-                0.3,
-                dirZ * 3.5,
-                0.08,
-                0.32,
-                whiteColor,
-                { drag: 2 },
-              );
-            } else {
-              // Pulse blaster: crisp twin-core energy flash and forward bolt streak.
+            }
+            this.emit(muzzle.x, muzzle.y, muzzle.z, dirX * 4.5, 0, dirZ * 4.5, 0.1, 0.85, color, { drag: 0 });
+          } else if (muzzleKind === "rail") {
+            const perpX = -dirZ,
+              perpZ = dirX;
+            for (const side of [-1, 1]) {
               this.line(
                 muzzle.x,
                 muzzle.z,
-                muzzle.x + dirX * 0.32,
-                muzzle.z + dirZ * 0.32,
-                whiteColor,
-                0.06,
-                0.075,
+                muzzle.x - dirX * 0.18 + perpX * side * 0.36,
+                muzzle.z - dirZ * 0.18 + perpZ * side * 0.36,
+                color,
+                0.11,
+                0.032,
                 muzzle.y,
               );
-              this.emit(muzzle.x, muzzle.y, muzzle.z, dirX * 4, 0, dirZ * 4, 0.09, 0.52, color, { drag: 0 });
             }
-            if (["pulse", "scatter", "rocket", "flame"].includes(def.id))
-              this.smokeView.emit(muzzle.x, muzzle.y, muzzle.z, def.id === "scatter" ? 0.5 : 0.3, 0x9da7a8, 0.32);
-            this.muzzle = Math.min(1, (this.muzzle || 0) + (def.id === "flame" ? 0.12 : 0.6));
-            this.pLight.color.copy(color);
-            if (!this.lastMuzzleT || this.time - this.lastMuzzleT > 0.05) {
-              this.lastMuzzleT = this.time;
-              let muzzleFlash = {
-                x: muzzle.x,
-                z: muzzle.z,
-                r: def.id === "rail" ? 3.2 : 2.2,
-                i: def.id === "flame" ? 0.35 : 0.55,
-                col: color,
-                decay: 16,
-                muzzle: true,
-              };
-              this.flashes.push(muzzleFlash);
-            }
-            if (def.shake > 0.04 && shakeK) {
-              this.kick = Math.min(0.6, this.kick + def.shake * 2.2 * this.motion);
-              this.kickA = ev.a;
-            }
-            if (def.rail) {
-              let len = world.stats.lance ? world.stats.range : world.arena.rayLen(ev.x, ev.y, ev.a, world.stats.range);
-              const offset = (muzzle.x - ev.x) * dirX + (muzzle.z - ev.y) * dirZ;
-              if (len > offset) {
-                this.line(muzzle.x, muzzle.z, ev.x + dirX * len, ev.y + dirZ * len, color, 0.2, 0.1, muzzle.y);
-                this.line(muzzle.x, muzzle.z, ev.x + dirX * len, ev.y + dirZ * len, whiteColor, 0.08, 0.025, muzzle.y);
-              }
-            }
-            this.addShake(def.shake * 0.3 * shakeK);
-            break;
+            this.ring(muzzle.x + dirX * 0.15, muzzle.z + dirZ * 0.15, 0.12, 0.85, color, 0.14);
+            this.emit(muzzle.x, muzzle.y, muzzle.z, dirX * 5, 0, dirZ * 5, 0.1, 0.65, whiteColor, { drag: 0 });
+          } else if (muzzleKind === "backblast") {
+            this.line(
+              muzzle.x,
+              muzzle.z,
+              muzzle.x + dirX * 0.32,
+              muzzle.z + dirZ * 0.32,
+              whiteColor,
+              0.065,
+              0.08,
+              muzzle.y,
+            );
+            const backX = muzzle.x - dirX * 0.62,
+              backZ = muzzle.z - dirZ * 0.62;
+            this.emit(backX, muzzle.y, backZ, -dirX * 3.2, 0.35, -dirZ * 3.2, 0.18, 0.55, color, { drag: 3 });
+            this.smokeView.emit(backX, muzzle.y, backZ, 0.44, 0x9da7a8, 0.4);
+          } else if (muzzleKind === "fire") {
+            this.emit(
+              muzzle.x + dirX * 0.12,
+              muzzle.y,
+              muzzle.z + dirZ * 0.12,
+              dirX * 3.5,
+              0.3,
+              dirZ * 3.5,
+              0.08,
+              0.34,
+              whiteColor,
+              { drag: 2 },
+            );
+          } else {
+            this.line(
+              muzzle.x,
+              muzzle.z,
+              muzzle.x + dirX * 0.34,
+              muzzle.z + dirZ * 0.34,
+              whiteColor,
+              0.06,
+              0.075,
+              muzzle.y,
+            );
+            this.emit(muzzle.x, muzzle.y, muzzle.z, dirX * 4, 0, dirZ * 4, 0.09, 0.54, color, { drag: 0 });
           }
-          case "wingShot":
-            this.emit(ev.x, 0.9, ev.y, 0, 0, 0, 0.06, 0.6, hexColor(weaponDefs[world.weapon].color), { drag: 0 });
-            break;
-          case "dmg": {
-            if (showNumbers) {
-              // 3.0.0: only the hits of one attack (within 0.15 s of the first) add up; then the number fades and
-              // the next hits make a new one, so a maxed Railgun shows its single shots, not a running total
-              let existing = null;
-              if (ev.id)
-                for (const num of this.nums)
-                  if (
-                    num.id === ev.id &&
-                    // 3.45.0: a burn drip merges into its live number (the window spans the 0.5 s cadence),
-                    // hit numbers stay to their one attack (0.15 s)
-                    this.time - num.t0 <= (num.burn ? 0.6 : 0.15) &&
-                    !num.burn == !ev.burn &&
-                    !num.shield == !ev.shield
-                  ) {
-                    existing = num;
-                    break;
-                  }
-              if (existing) {
-                existing.v += ev.v;
-                existing.crit = existing.crit || ev.crit;
-                // 3.45.0: a burn keeps one living number per enemy instead of a fresh one every half second
-                if (ev.burn) existing.life = 0.6;
-              } else {
-                const num = {
-                  id: ev.id,
-                  x: ev.x + (Math.random() - 0.5) * 0.4,
-                  z: ev.y,
-                  y: 1.4,
-                  v: ev.v,
-                  crit: ev.crit,
-                  burn: ev.burn,
-                  shield: ev.shield,
-                  life: ev.crit ? 0.8 : 0.6,
-                  t0: this.time,
-                };
-                // 3.45.0: a handful of numbers reads calmer than a scoreboard (was 60)
-                if (this.nums.length < 24) this.nums.push(num);
-                else {
-                  // full: the smallest number makes room for a bigger one
-                  let low = 0;
-                  for (let i = 1; i < this.nums.length; i++) if (this.nums[i].v < this.nums[low].v) low = i;
-                  if (this.nums[low].v < ev.v) this.nums[low] = num;
+          if (["pulse", "scatter", "rocket", "flame"].includes(def.id)) {
+            this.smokeView.emit(muzzle.x, muzzle.y, muzzle.z, def.id === "scatter" ? 0.5 : 0.3, 0x9da7a8, 0.35);
+          }
+          this.muzzle = Math.min(1, (this.muzzle || 0) + (def.id === "flame" ? 0.14 : 0.65));
+          this._muzzleCol.copy(color);
+          if (!this.lastMuzzleT || this.time - this.lastMuzzleT > 0.05) {
+            this.lastMuzzleT = this.time;
+            this.flashes.push({
+              x: muzzle.x,
+              z: muzzle.z,
+              r: def.id === "rail" ? 3.4 : 2.3,
+              i: def.id === "flame" ? 0.4 : 0.6,
+              col: color,
+              decay: 16,
+              muzzle: true,
+            });
+          }
+          if (def.shake > 0.04 && shakeK) {
+            this.kick = Math.min(0.6, this.kick + def.shake * 2.2 * this.motion);
+            this.kickA = ev.a;
+          }
+          if (def.rail) {
+            const len = world.stats.lance ? world.stats.range : world.arena.rayLen(ev.x, ev.y, ev.a, world.stats.range);
+            const offset = (muzzle.x - ev.x) * dirX + (muzzle.z - ev.y) * dirZ;
+            if (len > offset) {
+              this.line(muzzle.x, muzzle.z, ev.x + dirX * len, ev.y + dirZ * len, color, 0.22, 0.11, muzzle.y);
+              this.line(muzzle.x, muzzle.z, ev.x + dirX * len, ev.y + dirZ * len, whiteColor, 0.09, 0.03, muzzle.y);
+            }
+          }
+          this.addShake(def.shake * 0.3 * shakeK);
+          break;
+        }
+        case "wingShot":
+          this.emit(ev.x, 0.9, ev.y, 0, 0, 0, 0.06, 0.6, hexColor(weaponDefs[world.weapon].color), { drag: 0 });
+          break;
+        case "dmg": {
+          if (showNumbers) {
+            let existing = null;
+            if (ev.id) {
+              for (const num of this.nums) {
+                if (
+                  num.id === ev.id &&
+                  this.time - num.t0 <= (num.burn ? 0.6 : 0.15) &&
+                  !num.burn == !ev.burn &&
+                  !num.shield == !ev.shield
+                ) {
+                  existing = num;
+                  break;
                 }
               }
             }
-            if (!ev.burn) {
-              // Short impact fans point away from the walker; critical hits spread farther.
-              const a = Math.atan2(ev.y - world.player.y, ev.x - world.player.x),
-                material = ev.shield ? "energy" : actorMaterial(ev.type),
-                hard = material === "armor" || material === "crystal",
-                impactColor = hexColor(
-                  { armor: 0xc8b98f, organic: 0x729568, stone: 0x8d8375, energy: 0xa18abd, crystal: 0xbadbdc }[
-                    material
-                  ],
-                );
-              const n = ev.crit ? 5 : 3;
-              for (let j = 0; hard && j < n; j++) {
-                const angle = a + (j / Math.max(1, n - 1) - 0.5) * 1.8;
-                const length = ev.crit ? 0.65 : 0.35;
-                this.line(
-                  ev.x,
-                  ev.y,
-                  ev.x + Math.cos(angle) * length,
-                  ev.y + Math.sin(angle) * length,
-                  ev.crit ? goldColor : impactColor,
-                  ev.crit ? 0.13 : 0.075,
-                  0.025,
-                  0.65,
-                );
-              }
-              this.burst(ev.x, ev.y, 0.6, ev.crit ? 4 : 2, hard ? 5 : 2.2, impactColor, 0.18, 0.18, {
-                spark: hard,
-                drag: 6,
-              });
-            }
-            break;
-          }
-          case "kill": {
-            let color = ev.boss
-                ? hexColor(bossDefs[ev.type].color)
-                : ev.elite
-                  ? goldColor
-                  : hexColor(enemyDefs[ev.type].color),
-              scale = ev.boss ? 4 : ev.elite ? 1.8 : Math.max(0.8, ev.r * 1.4),
-              material = actorMaterial(ev.type),
-              hard = material === "armor" || material === "crystal";
-
-            this.burst(
-              ev.x,
-              ev.y,
-              0.6,
-              Math.round((ev.boss ? 10 : 4) * scale),
-              5 * Math.sqrt(scale),
-              ev.boss ? color : hexColor(enemySurface(ev.type) === "organic" ? 0x7b9877 : 0xc7b89e),
-              ev.boss ? 0.55 : 0.28,
-              (ev.boss ? 0.45 : 0.16) * Math.sqrt(scale),
-            );
-            this.burst(
-              ev.x,
-              ev.y,
-              0.6,
-              Math.round((hard ? 6 : 3) * scale),
-              (hard ? 10 : 4) * Math.sqrt(scale),
-              hard ? whiteColor : color,
-              0.3,
-              hard ? 0.18 : 0.12,
-              {
-                spark: hard,
-                drag: 5,
-              },
-            );
-            if (ev.boss) {
-              this.ring(ev.x, ev.y, 0.2, 1.6 * scale, color, 0.35);
-              this.emit(ev.x, 0.8, ev.y, 0, 0, 0, 0.12, 2.2 * scale, color, { drag: 0 });
-            } else if (material !== "energy")
-              this.smokeView.emit(
-                ev.x,
-                0.6,
-                ev.y,
-                0.6 * scale,
-                enemySurface(ev.type) === "organic" ? 0x5e7562 : 0x89908d,
-                0.5,
-              );
-            // Bespoke boss death signatures so every biome finale goes out in its own element.
-            if (ev.type === "queen") {
-              for (let j = 0; j < 14; j++)
-                this.emit(
-                  ev.x + (Math.random() - 0.5) * 3,
-                  0.6 + Math.random() * 1.6,
-                  ev.y + (Math.random() - 0.5) * 3,
-                  (Math.random() - 0.5) * 0.8,
-                  0.5 + Math.random() * 0.5,
-                  (Math.random() - 0.5) * 0.8,
-                  2.5 + Math.random() * 1.5,
-                  0.2,
-                  hexColor(0x46ffc0),
-                  { drag: 1.2 },
-                );
-              this.ring(ev.x, ev.y, 0.4, 4.5, hexColor(0xd9fff0), 0.5);
-            } else if (ev.type === "warden") {
-              this.burst(ev.x, ev.y, 1.2, 16, 8, hexColor(0x2766ff), 0.55, 0.24, { spark: true, drag: 3 });
-              this.burst(ev.x, ev.y, 1.2, 16, 8, hexColor(0xff3045), 0.55, 0.24, { spark: true, drag: 3 });
-              this.ring(ev.x, ev.y, 0.5, 5.2, hexColor(0x3a8bff), 0.42);
-            } else if (ev.type === "prism") {
-              this.burst(ev.x, ev.y, 1.5, 22, 9, hexColor(0xcff6ff), 0.75, 0.28, { spark: true, up: 4, drag: 2 });
-              this.ring(ev.x, ev.y, 0.4, 5.4, hexColor(0x7be8ff), 0.48);
-            } else if (ev.type === "core") {
-              this.burst(ev.x, ev.y, 1.8, 20, 8.5, hexColor(0xc27bff), 0.7, 0.3, { spark: true, up: 5, drag: 2 });
-              this.burst(ev.x, ev.y, 1.8, 12, 6, hexColor(0xff5cab), 0.65, 0.26, { up: 4, drag: 2 });
-              this.ring(ev.x, ev.y, 0.5, 5.8, hexColor(0xdcb3ff), 0.5);
-            } else if (ev.type === "tyrant") {
-              this.burst(ev.x, ev.y, 1.1, 22, 9, hexColor(0xffa14a), 0.8, 0.34, {
-                spark: true,
-                up: 7,
-                grav: 9,
-                drag: 1.5,
-              });
-              this.smokeView.emit(ev.x, 1.1, ev.y, 2.2, 0x3a322d, 0.7);
-              this.ring(ev.x, ev.y, 0.5, 5.4, hexColor(0xff6b2b), 0.48);
-            } else if (ev.type === "wyrm") {
-              this.burst(ev.x, ev.y, 1.2, 22, 9.5, hexColor(0xffe08a), 0.7, 0.26, {
-                spark: true,
-                up: 5,
-                grav: 7,
-                drag: 2,
-              });
-              this.burst(ev.x, ev.y, 0.5, 14, 6, hexColor(0xd8c8a8), 0.7, 0.32, { up: 3, drag: 3 });
-              this.ring(ev.x, ev.y, 0.5, 5.4, hexColor(0xffdf88), 0.46);
-            }
-            let base = hexColor(ev.boss ? bossDefs[ev.type].color : enemyDefs[ev.type].color),
-              dark = this._dk || (this._dk = new Color());
-            dark.copy(base).multiplyScalar(0.55);
-            this.debrisBurst(
-              ev.x,
-              ev.y,
-              0.6,
-              Math.round(Math.min(11, 3 + scale * 3)), // 3.44.0: was min(18, 4+scale*5) - fewer pieces, calmer kill
-              dark.clone(),
-              0.12 + 0.1 * Math.sqrt(scale),
-              2.6 + scale * 1.7,
-            );
-            // 2.7.0: the model does not vanish at once: it shrinks, spins and hops for a moment (drawWorld), and a
-            // second handful of debris in the lighter shade of its colour flies off.
-            if (!ev.boss && this.corpses.length < 40 && enemyDefs[ev.type]) {
-              this.corpses.push({
-                type: ev.type,
-                x: ev.x,
+            if (existing) {
+              existing.v += ev.v;
+              existing.crit = existing.crit || ev.crit;
+              if (ev.burn) existing.life = 0.6;
+            } else {
+              const num = {
+                id: ev.id,
+                x: ev.x + (Math.random() - 0.5) * 0.4,
                 z: ev.y,
-                r: ev.r / enemyDefs[ev.type].r,
-                a: Math.random() * TAU,
-                spin: (Math.random() < 0.5 ? -1 : 1) * (7 + Math.random() * 5),
-                t: 0,
-                elite: !!ev.elite,
-              });
+                y: 1.4,
+                v: ev.v,
+                crit: ev.crit,
+                burn: ev.burn,
+                shield: ev.shield,
+                life: ev.crit ? 0.8 : 0.6,
+                t0: this.time,
+              };
+              if (this.nums.length < 24) this.nums.push(num);
+              else {
+                let low = 0;
+                for (let i = 1; i < this.nums.length; i++) if (this.nums[i].v < this.nums[low].v) low = i;
+                if (this.nums[low].v < ev.v) this.nums[low] = num;
+              }
             }
-            if (!ev.boss && this.maxParticles >= 800) {
-              // 3.44.0: the light handful rests too (was elite 6 : 3)
-              this.debrisBurst(ev.x, ev.y, 0.7, ev.elite ? 4 : 2, base, 0.1 + 0.08 * Math.sqrt(scale), 4 + scale * 2);
-            }
-            if (ev.r >= 0.5 || ev.elite || ev.boss) {
-              this.attackView.mark(
+          }
+          if (!ev.burn) {
+            const a = Math.atan2(ev.y - world.player.y, ev.x - world.player.x);
+            const material = ev.shield ? "energy" : actorMaterial(ev.type);
+            const hard = material === "armor" || material === "crystal";
+            const impactColor = hexColor(
+              { armor: 0xdec48f, organic: 0x62c478, stone: 0x9c8c78, energy: 0xbe8cff, crystal: 0xb6f2ff }[material] ||
+                0xffffff,
+            );
+            const n = ev.crit ? 5 : 3;
+            for (let j = 0; hard && j < n; j++) {
+              const angle = a + (j / Math.max(1, n - 1) - 0.5) * 1.8;
+              const length = ev.crit ? 0.68 : 0.36;
+              this.line(
                 ev.x,
                 ev.y,
-                ev.r * 1.3 + 0.3,
-                material === "organic"
-                  ? MARK_LOOK.slime
-                  : material === "energy"
-                    ? MARK_LOOK.rift
-                    : material === "crystal"
-                      ? MARK_LOOK.crack
-                      : MARK_LOOK.burn,
+                ev.x + Math.cos(angle) * length,
+                ev.y + Math.sin(angle) * length,
+                ev.crit ? goldColor : impactColor,
+                ev.crit ? 0.13 : 0.08,
+                0.026,
+                0.65,
               );
             }
-            if (ev.boss) this.flash(ev.x, ev.y, 2 + scale * 1.6, 0.7 + scale * 0.2, color, 5);
-            else this.flash(ev.x, ev.y, 0.8 + scale * 0.6, 0.22, hexColor(0xffd4a0), 12);
-            this.addShake((ev.boss ? 0.9 : ev.elite ? 0.18 : 0.04) * shakeK);
-            break;
+            this.burst(ev.x, ev.y, 0.6, ev.crit ? 4 : 2, hard ? 5 : 2.4, impactColor, 0.18, 0.19, {
+              spark: hard,
+              drag: 6,
+            });
           }
-          case "boom": {
-            // 3.0.0: a trap strike is drawn per skin by its trapFire event; 3.12.0: the Singularity's collapse has a
-            // blast of its own
-            if (ev.kind === "trap") break;
-            // the Combo Surge shockwave is drawn by its own "surge" event
-            if (ev.kind === "surge") break;
-            // 3.10.0: the blasts of the attacks of enemies and bosses look like what they are
-            if (this.attackView.impact(ev, world, shakeK)) break;
-            let color =
-                ev.kind === "pop"
-                  ? hexColor(16769354)
-                  : ev.kind === "payload"
-                    ? hexColor(16752957)
-                    : ev.kind === "rocket"
-                      ? hexColor(16738877)
-                      : ev.kind === "frost" || ev.kind === "glacier" // 2.4.6: Frost Prism ice
-                        ? hexColor(12578815)
-                        : hexColor(16734778),
-              radius = ev.r;
-            this.burst(ev.x, ev.y, 0.5, Math.round(6 + radius * 5), radius * 5, color, 0.45, 0.5 + radius * 0.12);
-            this.emit(ev.x, 0.6, ev.y, 0, 0, 0, 0.15, radius * 2.4, color, { drag: 0 });
-            this.ring(ev.x, ev.y, radius * 0.3, radius, color, 0.3);
-            this.addShake(
-              (ev.kind === "payload"
-                ? 0.02
-                : ev.kind === "rain" || ev.kind === "stomp" || ev.kind === "mortar"
-                  ? 0.25
-                  : 0.1) * shakeK,
+          break;
+        }
+        case "kill": {
+          const color = ev.boss
+            ? hexColor(bossDefs[ev.type].color)
+            : ev.elite
+              ? goldColor
+              : hexColor(enemyDefs[ev.type].color);
+          const scale = ev.boss ? 4 : ev.elite ? 1.8 : Math.max(0.8, ev.r * 1.4);
+          const material = actorMaterial(ev.type);
+          const hard = material === "armor" || material === "crystal";
+          this.burst(
+            ev.x,
+            ev.y,
+            0.6,
+            Math.round((ev.boss ? 12 : 4) * scale),
+            5 * Math.sqrt(scale),
+            ev.boss ? color : hexColor(enemySurface(ev.type) === "organic" ? 0x6cd48c : 0xdcc49c),
+            ev.boss ? 0.55 : 0.28,
+            (ev.boss ? 0.45 : 0.17) * Math.sqrt(scale),
+          );
+          this.burst(
+            ev.x,
+            ev.y,
+            0.6,
+            Math.round((hard ? 6 : 3) * scale),
+            (hard ? 10 : 4.2) * Math.sqrt(scale),
+            hard ? whiteColor : color,
+            0.3,
+            hard ? 0.18 : 0.13,
+            { spark: hard, drag: 5 },
+          );
+          if (ev.boss) {
+            this.ring(ev.x, ev.y, 0.2, 1.6 * scale, color, 0.38);
+            this.emit(ev.x, 0.8, ev.y, 0, 0, 0, 0.14, 2.3 * scale, color, { drag: 0 });
+          } else if (material !== "energy") {
+            this.smokeView.emit(
+              ev.x,
+              0.6,
+              ev.y,
+              0.6 * scale,
+              enemySurface(ev.type) === "organic" ? 0x527a60 : 0x8a9296,
+              0.52,
             );
-            if (ev.kind !== "payload" || Math.random() < 0.3) {
-              this.flash(ev.x, ev.y, radius * 1.6, ev.kind === "payload" ? 0.5 : 1.1, color, 4.5);
-            }
-            if (ev.kind !== "payload" && ev.kind !== "pop" && ev.kind !== "frost" && ev.kind !== "glacier") {
-              this.addScorch(ev.x, ev.y, radius * 0.7);
-            }
-            if (ev.kind === "frost" || ev.kind === "glacier") {
-              this.burst(ev.x, ev.y, 0.2, Math.round(8 + radius * 4), radius * 1.6, whiteColor, 0.6, 0.22, {
-                spark: true,
-              });
-            }
-            if (ev.kind === "rocket" || ev.kind === "bomber" || ev.kind === "mortar" || ev.kind === "volatile") {
-              this.debrisBurst(ev.x, ev.y, 0.3, 4, hexColor(3811874), 0.12, 5); // 3.44.0: was 5
-            }
-            break;
           }
-          case "chain": {
-            let pts = ev.pts;
-            for (let i = 0; i + 3 < pts.length; i += 2)
-              this.line(pts[i], pts[i + 1], pts[i + 2], pts[i + 3], hexColor(FINISH.copper), 0.24, 0.1, 0.64, 0.24);
-            break;
+          if (ev.type === "queen") {
+            for (let j = 0; j < 14; j++)
+              this.emit(
+                ev.x + (Math.random() - 0.5) * 3,
+                0.6 + Math.random() * 1.6,
+                ev.y + (Math.random() - 0.5) * 3,
+                (Math.random() - 0.5) * 0.8,
+                0.5 + Math.random() * 0.5,
+                (Math.random() - 0.5) * 0.8,
+                2.5 + Math.random() * 1.5,
+                0.22,
+                hexColor(0x46ffc0),
+                { drag: 1.2 },
+              );
+            this.ring(ev.x, ev.y, 0.4, 4.5, hexColor(0xd9fff0), 0.5);
+          } else if (ev.type === "warden") {
+            this.burst(ev.x, ev.y, 1.2, 16, 8, hexColor(0x3a8bff), 0.55, 0.24, { spark: true, drag: 3 });
+            this.burst(ev.x, ev.y, 1.2, 16, 8, hexColor(0xff4258), 0.55, 0.24, { spark: true, drag: 3 });
+            this.ring(ev.x, ev.y, 0.5, 5.2, hexColor(0x3a8bff), 0.42);
+          } else if (ev.type === "prism") {
+            this.burst(ev.x, ev.y, 1.5, 22, 9, hexColor(0xcff6ff), 0.75, 0.28, { spark: true, up: 4, drag: 2 });
+            this.ring(ev.x, ev.y, 0.4, 5.4, hexColor(0x7be8ff), 0.48);
+          } else if (ev.type === "core") {
+            this.burst(ev.x, ev.y, 1.8, 20, 8.5, hexColor(0xc27bff), 0.7, 0.3, { spark: true, up: 5, drag: 2 });
+            this.burst(ev.x, ev.y, 1.8, 12, 6, hexColor(0xff5cab), 0.65, 0.26, { up: 4, drag: 2 });
+            this.ring(ev.x, ev.y, 0.5, 5.8, hexColor(0xdcb3ff), 0.5);
+          } else if (ev.type === "tyrant") {
+            this.burst(ev.x, ev.y, 1.1, 22, 9, hexColor(0xffa14a), 0.8, 0.34, {
+              spark: true,
+              up: 7,
+              grav: 9,
+              drag: 1.5,
+            });
+            this.smokeView.emit(ev.x, 1.1, ev.y, 2.2, 0x3a322d, 0.7);
+            this.ring(ev.x, ev.y, 0.5, 5.4, hexColor(0xff6b2b), 0.48);
+          } else if (ev.type === "wyrm") {
+            this.burst(ev.x, ev.y, 1.2, 22, 9.5, hexColor(0xffe08a), 0.7, 0.26, {
+              spark: true,
+              up: 5,
+              grav: 7,
+              drag: 2,
+            });
+            this.burst(ev.x, ev.y, 0.5, 14, 6, hexColor(0xd8c8a8), 0.7, 0.32, { up: 3, drag: 3 });
+            this.ring(ev.x, ev.y, 0.5, 5.4, hexColor(0xffdf88), 0.46);
           }
-          case "zap":
-            this.burst(ev.x, ev.y, 0.6, 6, 6, hexColor(8386303), 0.25, 0.3, { spark: true });
-            break;
-          case "freeze":
-            this.burst(ev.x, ev.y, 0.8, 4, 3, hexColor(12580095), 0.4, 0.3);
-            break;
-          case "spark":
-            this.burst(
+          const base = hexColor(ev.boss ? bossDefs[ev.type].color : enemyDefs[ev.type].color);
+          this._dk.copy(base).multiplyScalar(0.55);
+          this.debrisBurst(
+            ev.x,
+            ev.y,
+            0.6,
+            Math.round(Math.min(11, 3 + scale * 3)),
+            this._dk.clone(),
+            0.12 + 0.1 * Math.sqrt(scale),
+            2.6 + scale * 1.7,
+          );
+          if (!ev.boss && this.corpses.length < 40 && enemyDefs[ev.type]) {
+            this.corpses.push({
+              type: ev.type,
+              x: ev.x,
+              z: ev.y,
+              r: ev.r / enemyDefs[ev.type].r,
+              a: Math.random() * TAU,
+              spin: (Math.random() < 0.5 ? -1 : 1) * (7 + Math.random() * 5),
+              t: 0,
+              elite: !!ev.elite,
+            });
+          }
+          if (!ev.boss && this.maxParticles >= 800) {
+            this.debrisBurst(ev.x, ev.y, 0.7, ev.elite ? 4 : 2, base, 0.1 + 0.08 * Math.sqrt(scale), 4 + scale * 2);
+          }
+          if (ev.r >= 0.5 || ev.elite || ev.boss) {
+            this.attackView.mark(
               ev.x,
               ev.y,
-              0.7,
-              3,
-              4,
-              hexColor(weaponDefs[ev.w] ? weaponDefs[ev.w].color : 16777215),
-              0.2,
-              0.2,
-              {
-                spark: true,
-              },
+              ev.r * 1.3 + 0.3,
+              material === "organic"
+                ? MARK_LOOK.slime
+                : material === "energy"
+                  ? MARK_LOOK.rift
+                  : material === "crystal"
+                    ? MARK_LOOK.crack
+                    : MARK_LOOK.burn,
             );
-            break;
-          case "bounce":
-            this.burst(ev.x, ev.y, 0.7, 3, 5, whiteColor, 0.2, 0.2, { spark: true });
-            break;
-          case "ping":
-            if (ev.resist) {
-              // 3.0.0: the burst cap swallowed this hit: a short grey-white spark and a small hexagon of a shield
-              if (this.time - (this.lastResist || 0) > 0.04) {
-                this.lastResist = this.time;
-                this.burst(ev.x, ev.y, 1, 3, 4, resistColor, 0.16, 0.16, { spark: true, drag: 5 });
-                this.emit(ev.x, 1, ev.y, 0, 0, 0, 0.12, 0.8, resistColor, { drag: 0 });
-                for (let i = 0; i < 6; i++)
-                  this.line(
-                    ev.x + Math.cos((i / 6) * TAU) * 0.38,
-                    ev.y + Math.sin((i / 6) * TAU) * 0.38,
-                    ev.x + Math.cos(((i + 1) / 6) * TAU) * 0.38,
-                    ev.y + Math.sin(((i + 1) / 6) * TAU) * 0.38,
-                    resistColor,
-                    0.16,
-                    0.05,
-                    1,
-                  );
-              }
-              break;
-            }
-            this.burst(ev.x, ev.y, 1.2, 2, 4, hexColor(10466520), 0.2, 0.25, { spark: true });
-            break;
-          case "trapFire":
-          case "trapArm":
-            this.trapView.event(ev, world, shakeK);
-            break;
-          case "gadgetReady":
-            this.ring(world.player.x, world.player.y, 0.3, 1.2, hexColor(16757575), 0.3, 0.1);
-            this.burst(world.player.x, world.player.y, 0.9, 5, 3, hexColor(16772812), 0.35, 0.16, { spark: true });
-            break;
-          case "gadgetDeny":
-            this.burst(world.player.x, world.player.y, 0.9, 4, 2.5, resistColor, 0.25, 0.14, { spark: true, drag: 4 });
-            break;
-          case "novaReady":
-            this.ring(world.player.x, world.player.y, 0.35, 1.45, hexColor(0x6ee7ff), 0.32, 0.14);
-            this.burst(world.player.x, world.player.y, 0.9, 6, 3.2, whiteColor, 0.3, 0.15, {
-              up: 3,
-              spark: true,
-            });
-            break;
-          case "shieldUp":
-            this.ring(world.player.x, world.player.y, 1.1, 0.55, hexColor(0x74f7ff), 0.28, 0.12);
-            this.burst(world.player.x, world.player.y, 0.9, 6, 2.8, hexColor(0x74f7ff), 0.28, 0.14, {
-              spark: true,
-              drag: 3,
-            });
-            break;
-          case "barrier":
-            this.ring(ev.x, ev.y, 0.4, 2.4, goldColor, 0.42, 0.16);
-            this.burst(ev.x, ev.y, 0.9, 10, 4.5, goldColor, 0.4, 0.2, { up: 3, spark: true, drag: 2 });
-            this.flash(ev.x, ev.y, 3.5, 1.2, goldColor, 4);
-            break;
-          case "bountyPulse":
-            this.ring(ev.x, ev.y, 0.3, 1.4, goldColor, 0.28, 0.12);
-            this.burst(ev.x, ev.y, 1.0, 5, 2.5, goldColor, 0.32, 0.14, { up: 3.5, spark: true });
-            break;
-          case "shortArm":
-            this.ring(ev.x, ev.y, 0.25, ev.r || 1.4, hexColor(FINISH.brass), 0.32);
-            this.burst(ev.x, ev.y, 0.6, 7, 4.0, goldColor, 0.28, 0.12, { spark: true, drag: 4 });
-            break;
-          case "dash": {
-            const p = world.player;
-            const a = Math.atan2(p.vy, p.vx);
-            const copper = hexColor(FINISH.copper);
-            for (const side of [-1, 1]) {
-              const x = p.x - Math.sin(a) * side * 0.3,
-                z = p.y + Math.cos(a) * side * 0.3;
-              this.line(x, z, x - Math.cos(a) * 1.15, z - Math.sin(a) * 1.15, copper, 0.25, 0.068, 0.12, side * 0.16);
-            }
-            this.ring(p.x, p.y, 0.22, 0.84, hexColor(FINISH.brass), 0.27, 0.06);
-            break;
           }
-          // 3.17.0: the walker: a foot comes down (a puff of the ground it stands on, at the foot), the landing after a
-          // dash (a ring and a burst of it)
-          case "step":
-          case "land": {
-            const look = STEP_LOOK[ev.ground] || STEP_LOOK.asphalt,
-              face = world.player.face,
-              land = ev.k === "land",
-              side = land ? 0 : ev.foot ? 0.2 : -0.2,
-              fx = ev.x - Math.sin(face) * side,
-              fz = ev.y + Math.cos(face) * side,
-              n = land ? 10 : this.maxParticles >= 600 ? 2 : 1;
-            if (!land && Math.hypot(world.player.vx, world.player.vy) < 1) break;
-            for (let i = 0; i < n; i++)
-              this.emit(
-                fx + (Math.random() - 0.5) * 0.2,
-                0.05,
-                fz + (Math.random() - 0.5) * 0.2,
-                (Math.random() - 0.5) * (land ? 3.2 : 1.2),
-                look.up * (0.6 + Math.random() * 0.8) * (land ? 1.6 : 1),
-                (Math.random() - 0.5) * (land ? 3.2 : 1.2),
-                look.life * (0.7 + Math.random() * 0.6),
-                look.size * (land ? 1.6 : 1),
-                look.color,
-                { drag: 2.5, grav: look.grav, spark: look.spark },
-              );
-            if (look.ring) this.ring(fx, fz, 0.1, land ? 1.4 : 0.55, look.color, land ? 0.3 : 0.2);
-            if (land) this.addShake(0.05 * shakeK);
-            break;
-          }
-          case "edash":
-            {
-              let color = hexColor(enemyDefs[ev.type] ? enemyDefs[ev.type].color : 16777215);
-              this.ring(ev.x, ev.y, 0.2, 1.3, color, 0.25);
-              this.burst(ev.x, ev.y, 0.5, 8, 6, color, 0.3, 0.25, { spark: true });
-            }
-            break;
-          case "supplyDrop":
-            this.ring(ev.x, ev.y, 0.3, 1.8, goldColor, 0.35);
-            break;
-          case "hurt":
-            this.addShake(0.35 * shakeK);
-            this.burst(ev.x, ev.y, 0.7, 10, 6, hurtColor, 0.35, 0.3);
-            break;
-          case "heal":
-            this.burst(ev.x, ev.y, 0.5, 8, 2.5, healColor, 0.6, 0.3, { up: 3 });
-            break;
-          case "revive":
-            this.ring(ev.x, ev.y, 0.5, 6, healColor, 0.6);
-            this.burst(ev.x, ev.y, 0.7, 40, 9, healColor, 0.7, 0.45);
-            break;
-          case "die":
-            this.burst(ev.x, ev.y, 0.7, 60, 12, hexColor(8386303), 0.9, 0.5);
-            this.ring(ev.x, ev.y, 0.5, 5, hurtColor, 0.5);
-            this.addShake(0.8 * shakeK);
-            break;
-          case "spawn": {
-            // 3.60.0: an arrival says how heavy the thing is before its silhouette can be read - light types
-            // land in a quick streak, heavy ones under a slow wide ring and a dust puff (the colour was already
-            // the type's own; the shape was the same for all 25)
-            let def = enemyDefs[ev.type],
-              color = ev.elite ? goldColor : hexColor(def ? def.color : 16777215),
-              size = def ? def.r : 0.6;
-            if (size < 0.6) {
-              this.ring(ev.x, ev.y, 0.14, 1.05, color, 0.22);
-              this.burst(ev.x, ev.y, 0.25, 6, 9, color, 0.45, 0.22, { up: 1 });
-            } else if (size >= 0.85) {
-              this.ring(ev.x, ev.y, 0.3, 2.4, color, 0.55);
-              this.burst(ev.x, ev.y, 0.5, 10, 3, color, 0.35, 0.45, { up: 2.5 });
-            } else {
-              this.ring(ev.x, ev.y, 0.2, 1.4, color, 0.3);
-              this.burst(ev.x, ev.y, 0.3, 8, 4, color, 0.4, 0.3, { up: 5 });
-            }
-            break;
-          }
-          case "block":
-            this.burst(ev.x, ev.y, 0.9, 3, 5, hexColor(10475775), 0.2, 0.25, { spark: true, drag: 6 });
-            break;
-          case "guardBreak":
-            this.burst(ev.x, ev.y, 0.9, 22, 8, hexColor(5941503), 0.45, 0.35, { spark: true });
-            this.ring(ev.x, ev.y, 0.3, 2.4, hexColor(10475775), 0.35);
-            this.addShake(0.08 * shakeK);
-            break;
-          case "guardUp":
-            this.ring(ev.x, ev.y, 2, 0.6, hexColor(5941503), 0.35);
-            break;
-          case "shieldPop":
-            this.burst(ev.x, ev.y, 0.8, 16, 6, hexColor(eliteAffixes.shielded.color), 0.4, 0.3, { spark: true });
-            this.ring(ev.x, ev.y, 0.3, ev.r * 2.6, hexColor(eliteAffixes.shielded.color), 0.3);
-            break;
-          case "mutator":
-            // 3.3.0: the rift mutates: a wide ring and a shake
-            this.ring(ev.x, ev.y, 1, 14, hexColor(16734778), 0.9);
-            this.addShake(0.5 * shakeK);
-            break;
-          case "bossDown":
-            this.flashT = 0.35;
-            this.addShake(1 * shakeK);
-            this.ring(ev.x, ev.y, 1, 16, whiteColor, 0.8);
-            break;
-          case "wave":
-            this.pulse = 1;
-            break;
-          case "mend": {
-            const mend = hexColor(enemyDefs[ev.src || ev.type]?.color || enemyDefs.mender.color);
-            if (ev.tx == null) {
-              this.ring(ev.x, ev.y, 0.5, ev.r || 6, mend, 0.5);
-              this.burst(ev.x, ev.y, 1, 10, 2, mend, 0.5, 0.15, { up: 2 });
-            } else {
-              this.line(ev.x, ev.y, ev.tx, ev.ty, mend, 0.35, 0.07, 0.9, 0.14);
-              this.burst(ev.tx, ev.ty, 0.8, 6, 2, mend, 0.4, 0.14, { up: 2 });
-            }
-            break;
-          }
-          case "chill":
-            this.burst(ev.x, ev.y, 0.6, 12, 3, hexColor(11462911), 0.5, 0.3, { spark: true });
-            break;
-          case "stun": {
-            // 3.7.1: an electric trap stuns the drone: sparks in the colour of the trap jump off it, a short cold flash
-            const arc = hexColor(ev.skin === "riftburst" ? 0xc49bff : 0x8fd0ff);
-            this.burst(ev.x, ev.y, 0.6, 14, 6, whiteColor, 0.25, 0.22, { spark: true, drag: 2 });
-            this.burst(ev.x, ev.y, 0.6, 8, 3, arc, 0.4, 0.3, { spark: true, up: 2 });
-            this.flash(ev.x, ev.y, 2.4, 0.9, arc, 6);
-            break;
-          }
-          case "champion":
-            this.ring(ev.x, ev.y, 0.5, 5, goldColor, 0.6);
-            this.burst(ev.x, ev.y, 0.5, 30, 7, goldColor, 0.6, 0.45, { up: 4 });
-            this.addShake(0.25 * shakeK);
-            break;
-          case "championDown":
-            this.ring(ev.x, ev.y, 1, 9, goldColor, 0.6);
-            this.flash(ev.x, ev.y, 6, 1.4, goldColor, 3);
-            break;
-          case "tribute": {
-            // 3.49.0: the Tyrant's Tithe pays out: a burst of ember shards and a bandage
-            const ember = hexColor(0xffb45a);
-            this.burst(ev.x, ev.y, 0.3, 20, 5, ember, 0.6, 0.4, { up: 5, spark: true, drag: 1 });
-            this.ring(ev.x, ev.y, 0.3, 1.7, ember, 0.4);
-            this.flash(ev.x, ev.y, 2.6, 1, ember, 2);
-            break;
-          }
-          case "erupt": {
-            if (world?.arena?.biome?.id === "city") {
-              const brass = hexColor(FINISH.brass);
-              this.ring(ev.x, ev.y, ev.r * 0.52, ev.r, brass, 0.46);
-              this.burst(ev.x, ev.y, 0.26, 9, 3.3, brass, 0.42, 0.16, { spark: true, grav: 4, drag: 2 });
-              this.addShake(0.035 * shakeK);
-              break;
-            }
-            // 3.49.0: the fumaroles of the Ashfall Caldera: a molten geyser with a shower of embers
-            if (world && world.arena && world.arena.biome.id === "caldera") {
-              const magma = hexColor(0xffb45a);
-              this.burst(ev.x, ev.y, 0.3, 24, 6, magma, 0.8, 0.55, { up: 8, grav: 9, drag: 1.4 });
-              this.burst(ev.x, ev.y, 0.3, 12, 4, hexColor(0xfff0b8), 0.5, 0.35, { up: 10, spark: true });
-              this.ring(ev.x, ev.y, ev.r * 0.4, ev.r * 1.4, magma, 0.4);
-              // the caldera's floor is charcoal - the flash lights it hard, so this one burns tighter
-              // than the Works' vents did (the jet itself carries the show)
-              this.flash(ev.x, ev.y, ev.r * 2.2, 0.9, magma, 4.5);
-              this.addShake(0.12 * shakeK);
-              break;
-            }
-            break;
-          }
-          case "warp": {
-            let color = hexColor(FINISH.lavender),
-              count = ev.who === "player" ? 12 : 5;
-            this.burst(ev.x, ev.y, 0.6, count, 4, color, 0.4, 0.35, { spark: true });
-            this.burst(ev.tx, ev.ty, 0.6, count, 4, hexColor(FINISH.jade), 0.4, 0.21, { spark: true });
-            if (ev.who === "player") {
-              this.ring(ev.tx, ev.ty, 0.3, 1.6, hexColor(FINISH.jade), 0.35);
-              this.camInit = false;
-            }
-            break;
-          }
+          if (ev.boss) this.flash(ev.x, ev.y, 2 + scale * 1.6, 0.8 + scale * 0.22, color, 5);
+          else this.flash(ev.x, ev.y, 0.9 + scale * 0.6, 0.25, hexColor(0xffd4a0), 12);
+          this.addShake((ev.boss ? 0.9 : ev.elite ? 0.18 : 0.04) * shakeK);
+          break;
         }
-      }
-    }
-    updateCamera(dt, world, menu) {
-      let cam = this.camera,
-        tilt = this.w < this.h ? 1.08 : 0.98,
-        dist = this.camDistance();
-      if (menu) {
-        this.menuA += dt * 0.12;
-        let radius = 22 * this.zoom,
-          height = 15 * this.zoom;
-        cam.position.set(Math.sin(this.menuA) * radius, height, Math.cos(this.menuA) * radius);
-        cam.lookAt(0, 0.5, 0);
-      } else {
-        let player = world.player,
-          arena = world.arena,
-          tx = player.x,
-          tz = player.y;
-        if (player.firing) {
-          tx += Math.cos(player.aim) * 1.2;
-          tz += Math.sin(player.aim) * 1.2;
-        }
-        tx += player.vx * 0.12;
-        tz += player.vy * 0.12;
-        tx = clamp(tx, -arena.W + 3, arena.W - 3);
-        tz = clamp(tz, -arena.H + 3, arena.H - 3);
-        if (!this.camInit) {
-          this.camX = tx;
-          this.camZ = tz;
-          this.camInit = true;
-        }
-        let damp = dampFactor(5, dt);
-        if (this.focus) {
-          let k = clamp(this.focusK || 0, 0, 1),
-            blend = k < 0.3 ? smoothstep(k / 0.3) : k > 0.75 ? smoothstep((1 - k) / 0.25) : 1;
-          tx += (clamp(this.focus.x, -arena.W + 3, arena.W - 3) - tx) * blend;
-          tz += (clamp(this.focus.z, -arena.H + 3, arena.H - 3) - tz) * blend;
-          damp = dampFactor(12, dt);
-        }
-        this.camX += (tx - this.camX) * damp;
-        this.camZ += (tz - this.camZ) * damp;
-        // 3.57.0: 0.55 * shake^2 peaked at 0.55 world units of camera travel and was uncomfortable in endless.
-        // 0.30 with the lower 0.75 cap peaks at 0.17 - about a third of before - while a single small hit
-        // (shake 0.12) still moves about 0.004.
-        let amp = this.shake * this.shake * 0.3,
-          shakeX = (Math.random() - 0.5) * amp - Math.cos(this.kickA) * this.kick * 0.35,
-          shakeZ = (Math.random() - 0.5) * amp - Math.sin(this.kickA) * this.kick * 0.35;
-        cam.position.set(this.camX + shakeX, Math.sin(tilt) * dist, this.camZ + Math.cos(tilt) * dist + shakeZ);
-        cam.lookAt(this.camX + shakeX, 0, this.camZ + shakeZ - 1);
-      }
-      // 3.57.0: decays faster than the old 2.2, so a burst of events cannot keep the camera shaken forever
-      this.shake = Math.max(0, this.shake - dt * 3.2);
-      this.kick = Math.max(0, this.kick - dt * (4 + this.kick * 10));
-      cam.updateMatrixWorld();
-      let elements = cam.matrixWorld.elements,
-        basis = this.B;
-      basis.rx = elements[0];
-      basis.ry = elements[1];
-      basis.rz = elements[2];
-      basis.ux = elements[4];
-      basis.uy = elements[5];
-      basis.uz = elements[6];
-      basis.fx = elements[8];
-      basis.fy = elements[9];
-      basis.fz = elements[10];
-      // 2.3.6: on the two-column home screen the drone is shown in the free band of the title
-      // column instead of the screen centre (see homeViewSpot below the class)
-      let want = null;
-      if (menu && ui.screen === "home") {
-        if (dirty) {
-          homeViewSpot = measureHomeViewSpot();
-          dirty = false;
-        }
-        want = homeViewSpot;
-      }
-      const key = want ? `${Math.round(want.x)},${Math.round(want.y)},${this.w},${this.h}` : "";
-      if (key === (this._rlViewKey || "")) return;
-      this._rlViewKey = key;
-      if (want) {
-        this.camera.setViewOffset(this.w, this.h, this.w / 2 - want.x, this.h / 2 - want.y, this.w, this.h);
-      } else {
-        this.camera.clearViewOffset();
-      }
-    }
-    frame(dt, world, opts = {}) {
-      this.abilityView.useWorld(opts.menu ? null : world);
-      // 2.5.0 C: Whiteout (the Aurora Shelf) blows wind-driven snow across the view; it fades in and out
-      // over about a second and stays within the shared particle budget.
-      const want =
-        !opts.menu &&
-        world &&
-        world.event === "whiteout" &&
-        world.state === "fight" &&
-        world.arena?.biome?.id === "shelf"
-          ? 1
-          : 0;
-      this.rlWhiteK = clamp((this.rlWhiteK || 0) + (want ? 0.7 : -0.55) * (dt || 0), 0, 1); // 3.44.0: the storm gathers slower (0.7) and passes slower still (was ±0.9)
-      // 3.4.0: the Blackout (Blackout City) fades the light out over about two seconds, and back after the wave
-      // 3.49.0: the ERUPTION dims the Ashfall Caldera the same way
-      const black =
-        !opts.menu &&
-        world &&
-        world.state === "fight" &&
-        ((world.event === "blackout" && world.arena?.biome?.id === "city") ||
-          (world.event === "ashfall" && world.arena?.biome?.id === "caldera"));
-      this.rlBlackK = clamp((this.rlBlackK || 0) + (black ? 0.42 : -0.8) * (dt || 0), 0, 1); // 3.44.0: the dark settles slower (was 0.5), the lift keeps its pace
-      if (this.arena?.uniforms?.uDark) this.arena.uniforms.uDark.value = this.rlBlackK * 0.85;
-      // 2.8.1: the snow keeps fading after Home, when there may be no world any more
-      if (this.rlWhiteK > 0.02 && world?.arena && dt > 0 && dt < 0.25) {
-        const density = Math.min(1, this.maxParticles / 1400) * this.rlWhiteK,
-          amount = 95 * dt * density, // 3.44.0: was 110 - still a wall of flakes, less of a swarm
-          count = Math.floor(amount) + (Math.random() < amount - Math.floor(amount) ? 1 : 0),
-          W = world.arena.W,
-          H = world.arena.H;
-        for (let j = 0; j < count; j++)
-          this.emit(
-            clamp(this.camX + (Math.random() * 2 - 1) * 18, -W - 2, W + 2),
-            0.6 + Math.random() * 5,
-            clamp(this.camZ + (Math.random() * 2 - 1) * 14 - 2, -H - 2, H + 2),
-            5 + Math.random() * 3,
-            -1.6 - Math.random(),
-            1.2 + Math.random(),
-            2.2,
-            0.34 + Math.random() * 0.14, // 3.41.0: was 0.16-0.24, sub-pixel dust at phone camera distance
-            RL_WHITEOUT_SNOW,
-            { drag: 0 },
+        case "boom": {
+          if (ev.kind === "trap" || ev.kind === "surge") break;
+          if (this.attackView.impact(ev, world, shakeK)) break;
+          const color =
+            ev.kind === "pop"
+              ? hexColor(0xffe066)
+              : ev.kind === "payload"
+                ? hexColor(0xffa458)
+                : ev.kind === "rocket"
+                  ? hexColor(0xff6b3a)
+                  : ev.kind === "frost" || ev.kind === "glacier"
+                    ? hexColor(0x9eeeff)
+                    : hexColor(0xff5a5a);
+          const radius = ev.r;
+          this.burst(ev.x, ev.y, 0.5, Math.round(6 + radius * 5), radius * 5, color, 0.45, 0.5 + radius * 0.12);
+          this.emit(ev.x, 0.6, ev.y, 0, 0, 0, 0.15, radius * 2.4, color, { drag: 0 });
+          this.ring(ev.x, ev.y, radius * 0.3, radius, color, 0.3);
+          this.addShake(
+            (ev.kind === "payload"
+              ? 0.02
+              : ev.kind === "rain" || ev.kind === "stomp" || ev.kind === "mortar"
+                ? 0.25
+                : 0.1) * shakeK,
           );
-      }
-      // 2.4.1: biome skins for enemy and boss materials and particles
-      if (!this.rlSkinned) {
-        for (const id in this.enemyPools) rlSkinMaterial(this.enemyPools[id].body.mesh.material, true);
-        this.rlSkinned = true;
-      }
-      const look = this.biome && RL_BIOME_LOOK[this.biome.id];
-      RL_SKIN.uSkin.value = look ? look.style : 0;
-      if (this.bossView && !this.bossView.rlSkin) {
-        for (const mat of this.bossView.mats) rlSkinMaterial(mat, false);
-        this.bossView.rlSkin = true;
-      }
-      try {
-        if (!opts.menu) {
-          rlSkinParticles(this, dt, world);
+          if (ev.kind !== "payload" || Math.random() < 0.3)
+            this.flash(ev.x, ev.y, radius * 1.6, ev.kind === "payload" ? 0.5 : 1.15, color, 4.5);
+          if (ev.kind !== "payload" && ev.kind !== "pop" && ev.kind !== "frost" && ev.kind !== "glacier")
+            this.addScorch(ev.x, ev.y, radius * 0.7);
+          if (ev.kind === "frost" || ev.kind === "glacier")
+            this.burst(ev.x, ev.y, 0.2, Math.round(8 + radius * 4), radius * 1.6, whiteColor, 0.6, 0.22, {
+              spark: true,
+            });
+          if (["rocket", "bomber", "mortar", "volatile"].includes(ev.kind))
+            this.debrisBurst(ev.x, ev.y, 0.3, 4, hexColor(0x3a2e28), 0.12, 5);
+          break;
         }
-      } catch (err) {
-        if (!this.rlSkinErr) {
-          logError("skin", err);
-          this.rlSkinErr = true;
+        case "chain":
+          for (let i = 0; i + 3 < ev.pts.length; i += 2) {
+            this.line(
+              ev.pts[i],
+              ev.pts[i + 1],
+              ev.pts[i + 2],
+              ev.pts[i + 3],
+              hexColor(FINISH.copper),
+              0.24,
+              0.1,
+              0.64,
+              0.24,
+            );
+          }
+          break;
+        case "zap":
+          this.burst(ev.x, ev.y, 0.6, 6, 6, hexColor(0x7ef2ff), 0.25, 0.3, { spark: true });
+          break;
+        case "freeze":
+          this.burst(ev.x, ev.y, 0.8, 4, 3, hexColor(0xbef2ff), 0.4, 0.3);
+          break;
+        case "spark":
+          this.burst(ev.x, ev.y, 0.7, 3, 4, hexColor(weaponDefs[ev.w] ? weaponDefs[ev.w].color : 0xffffff), 0.2, 0.2, {
+            spark: true,
+          });
+          break;
+        case "bounce":
+          this.burst(ev.x, ev.y, 0.7, 3, 5, whiteColor, 0.2, 0.2, { spark: true });
+          break;
+        case "ping":
+          if (ev.resist) {
+            if (this.time - (this.lastResist || 0) > 0.04) {
+              this.lastResist = this.time;
+              this.burst(ev.x, ev.y, 1, 3, 4, resistColor, 0.16, 0.16, { spark: true, drag: 5 });
+              this.emit(ev.x, 1, ev.y, 0, 0, 0, 0.12, 0.8, resistColor, { drag: 0 });
+              for (let i = 0; i < 6; i++) {
+                this.line(
+                  ev.x + Math.cos((i / 6) * TAU) * 0.38,
+                  ev.y + Math.sin((i / 6) * TAU) * 0.38,
+                  ev.x + Math.cos(((i + 1) / 6) * TAU) * 0.38,
+                  ev.y + Math.sin(((i + 1) / 6) * TAU) * 0.38,
+                  resistColor,
+                  0.16,
+                  0.05,
+                  1,
+                );
+              }
+            }
+          } else {
+            this.burst(ev.x, ev.y, 1.2, 2, 4, hexColor(0x9fb8d8), 0.2, 0.25, { spark: true });
+          }
+          break;
+        case "trapFire":
+        case "trapArm":
+          this.trapView.event(ev, world, shakeK);
+          break;
+        case "gadgetReady":
+          this.ring(world.player.x, world.player.y, 0.3, 1.2, hexColor(0xffba66), 0.3, 0.1);
+          this.burst(world.player.x, world.player.y, 0.9, 5, 3, hexColor(0xffeec0), 0.35, 0.16, { spark: true });
+          break;
+        case "gadgetDeny":
+          this.burst(world.player.x, world.player.y, 0.9, 4, 2.5, resistColor, 0.25, 0.14, { spark: true, drag: 4 });
+          break;
+        case "novaReady":
+          this.ring(world.player.x, world.player.y, 0.35, 1.45, hexColor(0x6ee7ff), 0.32, 0.14);
+          this.burst(world.player.x, world.player.y, 0.9, 6, 3.2, whiteColor, 0.3, 0.15, { up: 3, spark: true });
+          break;
+        case "shieldUp":
+          this.ring(world.player.x, world.player.y, 1.1, 0.55, hexColor(0x74f7ff), 0.28, 0.12);
+          this.burst(world.player.x, world.player.y, 0.9, 6, 2.8, hexColor(0x74f7ff), 0.28, 0.14, {
+            spark: true,
+            drag: 3,
+          });
+          break;
+        case "barrier":
+          this.ring(ev.x, ev.y, 0.4, 2.4, goldColor, 0.42, 0.16);
+          this.burst(ev.x, ev.y, 0.9, 10, 4.5, goldColor, 0.4, 0.2, { up: 3, spark: true, drag: 2 });
+          this.flash(ev.x, ev.y, 3.5, 1.2, goldColor, 4);
+          break;
+        case "bountyPulse":
+          this.ring(ev.x, ev.y, 0.3, 1.4, goldColor, 0.28, 0.12);
+          this.burst(ev.x, ev.y, 1, 5, 2.5, goldColor, 0.32, 0.14, { up: 3.5, spark: true });
+          break;
+        case "shortArm":
+          this.ring(ev.x, ev.y, 0.25, ev.r || 1.4, hexColor(FINISH.brass), 0.32);
+          this.burst(ev.x, ev.y, 0.6, 7, 4, goldColor, 0.28, 0.12, { spark: true, drag: 4 });
+          break;
+        case "dash": {
+          const p = world.player;
+          const a = Math.atan2(p.vy, p.vx);
+          const copper = hexColor(FINISH.copper);
+          for (const side of [-1, 1]) {
+            const x = p.x - Math.sin(a) * side * 0.3;
+            const z = p.y + Math.cos(a) * side * 0.3;
+            this.line(x, z, x - Math.cos(a) * 1.15, z - Math.sin(a) * 1.15, copper, 0.25, 0.068, 0.12, side * 0.16);
+          }
+          this.ring(p.x, p.y, 0.22, 0.84, hexColor(FINISH.brass), 0.27, 0.06);
+          break;
+        }
+        case "step":
+        case "land": {
+          const look = STEP_LOOK[ev.ground] || STEP_LOOK.asphalt;
+          const face = world.player.face;
+          const land = ev.k === "land";
+          const side = land ? 0 : ev.foot ? 0.2 : -0.2;
+          const fx = ev.x - Math.sin(face) * side;
+          const fz = ev.y + Math.cos(face) * side;
+          const n = land ? 10 : this.maxParticles >= 600 ? 2 : 1;
+          if (!land && Math.hypot(world.player.vx, world.player.vy) < 1) break;
+          for (let i = 0; i < n; i++) {
+            this.emit(
+              fx + (Math.random() - 0.5) * 0.2,
+              0.05,
+              fz + (Math.random() - 0.5) * 0.2,
+              (Math.random() - 0.5) * (land ? 3.2 : 1.2),
+              look.up * (0.6 + Math.random() * 0.8) * (land ? 1.6 : 1),
+              (Math.random() - 0.5) * (land ? 3.2 : 1.2),
+              look.life * (0.7 + Math.random() * 0.6),
+              look.size * (land ? 1.6 : 1),
+              look.color,
+              { drag: 2.5, grav: look.grav, spark: look.spark },
+            );
+          }
+          if (look.ring) this.ring(fx, fz, 0.1, land ? 1.4 : 0.55, look.color, land ? 0.3 : 0.2);
+          if (land) this.addShake(0.05 * shakeK);
+          break;
+        }
+        case "edash": {
+          const color = hexColor(enemyDefs[ev.type] ? enemyDefs[ev.type].color : 0xffffff);
+          this.ring(ev.x, ev.y, 0.2, 1.3, color, 0.25);
+          this.burst(ev.x, ev.y, 0.5, 8, 6, color, 0.3, 0.25, { spark: true });
+          break;
+        }
+        case "supplyDrop":
+          this.ring(ev.x, ev.y, 0.3, 1.8, goldColor, 0.35);
+          break;
+        case "hurt":
+          this.addShake(0.35 * shakeK);
+          this.burst(ev.x, ev.y, 0.7, 10, 6, hurtColor, 0.35, 0.3);
+          break;
+        case "heal":
+          this.burst(ev.x, ev.y, 0.5, 8, 2.5, healColor, 0.6, 0.3, { up: 3 });
+          break;
+        case "revive":
+          this.ring(ev.x, ev.y, 0.5, 6, healColor, 0.6);
+          this.burst(ev.x, ev.y, 0.7, 40, 9, healColor, 0.7, 0.45);
+          break;
+        case "die":
+          this.burst(ev.x, ev.y, 0.7, 60, 12, hexColor(0x7ef2ff), 0.9, 0.5);
+          this.ring(ev.x, ev.y, 0.5, 5, hurtColor, 0.5);
+          this.addShake(0.8 * shakeK);
+          break;
+        case "spawn": {
+          const def = enemyDefs[ev.type];
+          const color = ev.elite ? goldColor : hexColor(def ? def.color : 0xffffff);
+          const size = def ? def.r : 0.6;
+          if (size < 0.6) {
+            this.ring(ev.x, ev.y, 0.14, 1.05, color, 0.22);
+            this.burst(ev.x, ev.y, 0.25, 6, 9, color, 0.45, 0.22, { up: 1 });
+          } else if (size >= 0.85) {
+            this.ring(ev.x, ev.y, 0.3, 2.4, color, 0.55);
+            this.burst(ev.x, ev.y, 0.5, 10, 3, color, 0.35, 0.45, { up: 2.5 });
+          } else {
+            this.ring(ev.x, ev.y, 0.2, 1.4, color, 0.3);
+            this.burst(ev.x, ev.y, 0.3, 8, 4, color, 0.4, 0.3, { up: 5 });
+          }
+          break;
+        }
+        case "block":
+          this.burst(ev.x, ev.y, 0.9, 3, 5, hexColor(0x9fd8ff), 0.2, 0.25, { spark: true, drag: 6 });
+          break;
+        case "guardBreak":
+          this.burst(ev.x, ev.y, 0.9, 22, 8, hexColor(0x5aaaff), 0.45, 0.35, { spark: true });
+          this.ring(ev.x, ev.y, 0.3, 2.4, hexColor(0x9fd8ff), 0.35);
+          this.addShake(0.08 * shakeK);
+          break;
+        case "guardUp":
+          this.ring(ev.x, ev.y, 2, 0.6, hexColor(0x5aaaff), 0.35);
+          break;
+        case "shieldPop":
+          this.burst(ev.x, ev.y, 0.8, 16, 6, hexColor(eliteAffixes.shielded.color), 0.4, 0.3, { spark: true });
+          this.ring(ev.x, ev.y, 0.3, ev.r * 2.6, hexColor(eliteAffixes.shielded.color), 0.3);
+          break;
+        case "mutator":
+          this.ring(ev.x, ev.y, 1, 14, hexColor(0xff5a5a), 0.9);
+          this.addShake(0.5 * shakeK);
+          break;
+        case "bossDown":
+          this.flashT = 0.35;
+          this.addShake(1 * shakeK);
+          this.ring(ev.x, ev.y, 1, 16, whiteColor, 0.8);
+          break;
+        case "wave":
+          this.pulse = 1;
+          break;
+        case "mend": {
+          const mend = hexColor(enemyDefs[ev.src || ev.type]?.color || enemyDefs.mender.color);
+          if (ev.tx == null) {
+            this.ring(ev.x, ev.y, 0.5, ev.r || 6, mend, 0.5);
+            this.burst(ev.x, ev.y, 1, 10, 2, mend, 0.5, 0.15, { up: 2 });
+          } else {
+            this.line(ev.x, ev.y, ev.tx, ev.ty, mend, 0.35, 0.07, 0.9, 0.14);
+            this.burst(ev.tx, ev.ty, 0.8, 6, 2, mend, 0.4, 0.14, { up: 2 });
+          }
+          break;
+        }
+        case "chill":
+          this.burst(ev.x, ev.y, 0.6, 12, 3, hexColor(0x9eeeff), 0.5, 0.3, { spark: true });
+          break;
+        case "stun": {
+          const arc = hexColor(ev.skin === "riftburst" ? 0xc49bff : 0x8fd0ff);
+          this.burst(ev.x, ev.y, 0.6, 14, 6, whiteColor, 0.25, 0.22, { spark: true, drag: 2 });
+          this.burst(ev.x, ev.y, 0.6, 8, 3, arc, 0.4, 0.3, { spark: true, up: 2 });
+          this.flash(ev.x, ev.y, 2.4, 0.9, arc, 6);
+          break;
+        }
+        case "champion":
+          this.ring(ev.x, ev.y, 0.5, 5, goldColor, 0.6);
+          this.burst(ev.x, ev.y, 0.5, 30, 7, goldColor, 0.6, 0.45, { up: 4 });
+          this.addShake(0.25 * shakeK);
+          break;
+        case "championDown":
+          this.ring(ev.x, ev.y, 1, 9, goldColor, 0.6);
+          this.flash(ev.x, ev.y, 6, 1.4, goldColor, 3);
+          break;
+        case "tribute": {
+          const ember = hexColor(0xffb45a);
+          this.burst(ev.x, ev.y, 0.3, 20, 5, ember, 0.6, 0.4, { up: 5, spark: true, drag: 1 });
+          this.ring(ev.x, ev.y, 0.3, 1.7, ember, 0.4);
+          this.flash(ev.x, ev.y, 2.6, 1, ember, 2);
+          break;
+        }
+        case "erupt":
+          if (world?.arena?.biome?.id === "city") {
+            const brass = hexColor(FINISH.brass);
+            this.ring(ev.x, ev.y, ev.r * 0.52, ev.r, brass, 0.46);
+            this.burst(ev.x, ev.y, 0.26, 9, 3.3, brass, 0.42, 0.16, { spark: true, grav: 4, drag: 2 });
+            this.addShake(0.035 * shakeK);
+          } else if (world?.arena?.biome?.id === "caldera") {
+            const magma = hexColor(0xffb45a);
+            this.burst(ev.x, ev.y, 0.3, 24, 6, magma, 0.8, 0.55, { up: 8, grav: 9, drag: 1.4 });
+            this.burst(ev.x, ev.y, 0.3, 12, 4, hexColor(0xfff0b8), 0.5, 0.35, { up: 10, spark: true });
+            this.ring(ev.x, ev.y, ev.r * 0.4, ev.r * 1.4, magma, 0.4);
+            this.flash(ev.x, ev.y, ev.r * 2.2, 0.9, magma, 4.5);
+            this.addShake(0.12 * shakeK);
+          }
+          break;
+        case "warp": {
+          const color = hexColor(FINISH.lavender);
+          const count = ev.who === "player" ? 12 : 5;
+          this.burst(ev.x, ev.y, 0.6, count, 4, color, 0.4, 0.35, { spark: true });
+          this.burst(ev.tx, ev.ty, 0.6, count, 4, hexColor(FINISH.jade), 0.4, 0.21, { spark: true });
+          if (ev.who === "player") {
+            this.ring(ev.tx, ev.ty, 0.3, 1.6, hexColor(FINISH.jade), 0.35);
+            this.camInit = false;
+          }
+          break;
         }
       }
-      // 2.4.0: ambient particles of the biome
-      try {
-        rlAmbient(this, dt, world, opts);
-      } catch (err) {
-        if (!this.rlAmbErr) {
-          logError("ambient", err);
-          this.rlAmbErr = true;
-        }
-      }
-      this.time += dt;
-      this.resize();
-      let menu = !world || opts.menu;
-      // 3.51.0: the Shelf's blizzard breathes on the run's own clock (the grip freeze/thaw follows
-      // the same cycle in world.step); the menu breathes on the renderer's clock
-      this.worldT = menu ? this.time : world.time;
-      if (menu) {
-        let biome = opts.biome || biomeList[0];
-        this.setBiome(biome);
-        this.ensurePlayer(opts.weapon || "pulse");
-      } else {
-        this.setBiome(world.arena.biome, world.arena);
-        this.ensurePlayer(world.weapon);
-      }
-      this.updateCamera(dt, world, menu);
-      this.pulse = Math.max(0, (this.pulse || 0) - dt * 1.5);
-      let px = menu ? 0 : world.player.x,
-        pz = menu ? 0 : world.player.y;
-      this.arena.update(dt, px, pz, this.pulse);
-      let pools = this.allPools();
-      for (let pool of pools) pool.begin();
-      // 3.46.0: the view pools are iterated live (their lists grow and shrink with the wave)
-      for (let pool of this.trapView.list) pool.begin();
-      for (let pool of this.hazardView.list) pool.begin();
-      for (let pool of this.attackView.list) pool.begin();
-      for (let pool of this.weaponView.list) pool.begin();
-      for (let pool of this.abilityView.list) pool.begin();
-      for (let pool of this.bossCardView.list) pool.begin();
-      for (let type in this.enemyPools) {
-        this.enemyPools[type].body.begin();
-        this.enemyPools[type].glow.begin();
-      }
-      if (menu) {
-        this.drawMenuPlayer(dt);
-      } else {
-        this.drawWorld(dt, world);
-        this.abilityView.draw(dt, world);
-      }
-      this.updateLights(dt, menu ? null : world);
-      this.drawDebris(dt);
-      this.drawParticles(dt);
-      this.drawTransient(dt);
-      for (let pool of this.bossCardView.list) pool.end();
-      for (let pool of this.attackView.list) pool.end();
-      for (let pool of this.weaponView.list) pool.end();
-      for (let pool of this.abilityView.list) pool.end();
-      for (let pool of this.hazardView.list) pool.end();
-      for (let pool of this.trapView.list) pool.end();
-      for (let pool of pools) pool.end();
-      for (let type in this.enemyPools) {
-        this.enemyPools[type].body.end();
-        this.enemyPools[type].glow.end();
-      }
-      for (let num of this.nums) {
-        num.life -= dt;
-        num.y += dt * 1.6;
-      }
-      if (this.nums.length && this.nums[0].life <= 0) {
-        // 3.46.0: compacted in place (a filter used to hand the GC a fresh array)
-        let w = 0;
-        for (let i = 0; i < this.nums.length; i++) if (this.nums[i].life > 0) this.nums[w++] = this.nums[i];
-        this.nums.length = w;
-      }
-      this.flashT = Math.max(0, this.flashT - dt);
-      this.renderer.render(this.scene, this.camera);
     }
-    drawMenuPlayer(dt) {
-      let drone = this.player;
-      drone.group.visible = true;
-      // 3.17.0: the walker stands on the floor and breathes; its body turns slowly and the weapon scans
-      drone.group.position.set(0, drone.setWalk(0, 0, 0, this.time), 0);
-      drone.shield.visible = false;
-      drone.base.rotation.set(0, this.time * 0.3, 0);
-      drone.aimAt(-Math.sin(this.time * 0.7) * 1.2, dt);
-      this.corpses.length = 0;
-      for (let mat of drone.mats) mat.emissive.setScalar(0);
-      this.shadows.y(0, 0.02, 0, 0, 2.2);
-      let glow = this.sprites.bb(0, 0.15, 0, 2.2, this.B);
-      this.sprites.colC(glow, hexColor(weaponDefs[this.playerWeapon].color), 0.35);
-      if (Math.random() < dt * 30) {
-        let angle = Math.random() * TAU,
-          dist = 3 + Math.random() * 14;
+  }
+
+  updateCamera(dt, world, menu) {
+    const cam = this.camera;
+    const tilt = this.w < this.h ? 1.08 : 0.98;
+    const dist = this.camDistance();
+    if (menu) {
+      this.menuA += dt * 0.14;
+      const radius = 19.5 * this.zoom;
+      const height = 13.5 * this.zoom;
+      cam.position.set(Math.sin(this.menuA) * radius, height, Math.cos(this.menuA) * radius);
+      cam.lookAt(0, 0.7, 0);
+    } else {
+      const player = world.player;
+      const arena = world.arena;
+      let tx = player.x,
+        tz = player.y;
+      if (player.firing) {
+        tx += Math.cos(player.aim) * 1.2;
+        tz += Math.sin(player.aim) * 1.2;
+      }
+      tx += player.vx * 0.12;
+      tz += player.vy * 0.12;
+      tx = clamp(tx, -arena.W + 3, arena.W - 3);
+      tz = clamp(tz, -arena.H + 3, arena.H - 3);
+      if (!this.camInit) {
+        this.camX = tx;
+        this.camZ = tz;
+        this.camInit = true;
+      }
+      let damp = dampFactor(5, dt);
+      if (this.focus) {
+        const k = clamp(this.focusK || 0, 0, 1);
+        const blend = k < 0.3 ? smoothstep(k / 0.3) : k > 0.75 ? smoothstep((1 - k) / 0.25) : 1;
+        tx += (clamp(this.focus.x, -arena.W + 3, arena.W - 3) - tx) * blend;
+        tz += (clamp(this.focus.z, -arena.H + 3, arena.H - 3) - tz) * blend;
+        damp = dampFactor(12, dt);
+      }
+      this.camX += (tx - this.camX) * damp;
+      this.camZ += (tz - this.camZ) * damp;
+      const amp = this.shake * this.shake * 0.3;
+      const shakeX = (Math.random() - 0.5) * amp - Math.cos(this.kickA) * this.kick * 0.35;
+      const shakeZ = (Math.random() - 0.5) * amp - Math.sin(this.kickA) * this.kick * 0.35;
+      cam.position.set(this.camX + shakeX, Math.sin(tilt) * dist, this.camZ + Math.cos(tilt) * dist + shakeZ);
+      cam.lookAt(this.camX + shakeX, 0, this.camZ + shakeZ - 1);
+    }
+    this.shake = Math.max(0, this.shake - dt * 3.2);
+    this.kick = Math.max(0, this.kick - dt * (4 + this.kick * 10));
+    cam.updateMatrixWorld();
+    const el = cam.matrixWorld.elements;
+    const basis = this.B;
+    basis.rx = el[0];
+    basis.ry = el[1];
+    basis.rz = el[2];
+    basis.ux = el[4];
+    basis.uy = el[5];
+    basis.uz = el[6];
+    basis.fx = el[8];
+    basis.fy = el[9];
+    basis.fz = el[10];
+
+    let want = null;
+    if (menu && ui.screen === "home") {
+      if (dirty) {
+        homeViewSpot = measureHomeViewSpot();
+        dirty = false;
+      }
+      want = homeViewSpot;
+    }
+    const key = want ? `${Math.round(want.x)},${Math.round(want.y)},${this.w},${this.h}` : "";
+    if (key === (this._rlViewKey || "")) return;
+    this._rlViewKey = key;
+    if (want) cam.setViewOffset(this.w, this.h, this.w / 2 - want.x, this.h / 2 - want.y, this.w, this.h);
+    else cam.clearViewOffset();
+  }
+
+  frame(dt, world, opts = {}) {
+    this.abilityView.useWorld(opts.menu ? null : world);
+    const wantWhite =
+      !opts.menu && world && world.event === "whiteout" && world.state === "fight" && world.arena?.biome?.id === "shelf"
+        ? 1
+        : 0;
+    this.rlWhiteK = clamp((this.rlWhiteK || 0) + (wantWhite ? 0.7 : -0.55) * (dt || 0), 0, 1);
+
+    const black =
+      !opts.menu &&
+      world &&
+      world.state === "fight" &&
+      ((world.event === "blackout" && world.arena?.biome?.id === "city") ||
+        (world.event === "ashfall" && world.arena?.biome?.id === "caldera"));
+    this.rlBlackK = clamp((this.rlBlackK || 0) + (black ? 0.42 : -0.8) * (dt || 0), 0, 1);
+    this.arena.uniforms.uDark.value = this.rlBlackK * 0.85;
+
+    if (this.rlWhiteK > 0.02 && world?.arena && dt > 0 && dt < 0.25) {
+      const density = Math.min(1, this.maxParticles / 1400) * this.rlWhiteK;
+      const amount = 95 * dt * density;
+      const count = Math.floor(amount) + (Math.random() < amount - Math.floor(amount) ? 1 : 0);
+      const W = world.arena.W,
+        H = world.arena.H;
+      for (let j = 0; j < count; j++) {
         this.emit(
-          Math.cos(angle) * dist,
-          0.1,
-          Math.sin(angle) * dist,
-          0,
-          0.6 + Math.random(),
-          0,
-          2.5,
-          0.25,
-          hexColor(this.biome.grid),
-          {
-            drag: 0,
-          },
+          clamp(this.camX + (Math.random() * 2 - 1) * 18, -W - 2, W + 2),
+          0.6 + Math.random() * 5,
+          clamp(this.camZ + (Math.random() * 2 - 1) * 14 - 2, -H - 2, H + 2),
+          5 + Math.random() * 3,
+          -1.6 - Math.random(),
+          1.2 + Math.random(),
+          2.2,
+          0.34 + Math.random() * 0.14,
+          RL_WHITEOUT_SNOW,
+          { drag: 0 },
         );
       }
-      if (this.bossView) {
-        this.bossView.group.visible = false;
+    }
+
+    try {
+      if (!opts.menu) rlSkinParticles(this, dt, world);
+    } catch (err) {
+      if (!this.rlSkinErr) {
+        logError("skin", err);
+        this.rlSkinErr = true;
       }
     }
-    drawWorld(dt, world) {
-      let basis = this.B,
-        time = this.time,
-        player = world.player,
-        drone = this.player;
-      drone.group.visible = player.alive;
-      if (player.alive) {
-        drone.base.rotation.y = -player.face;
-        // 3.17.0: the walker: the legs follow the stride of the world (a foot comes down every STEP_LEN metres, the
-        // same moment as the footstep sound), a dash is a jump (the legs tuck, the body rises and falls), the body
-        // leans into the movement and banks in turns
-        {
-          const speed = Math.hypot(player.vx, player.vy),
-            // (the world stands still in the upgrade choice and the victory screen, whatever its velocity says)
-            moving = world.state === "fight" || world.state === "cleared",
-            amount = moving ? clamp(speed / Math.max(2, world.stats.speed * 0.55), 0, 1) : 0,
-            jump = player.dashT > 0 ? Math.sin(Math.PI * clamp(1 - player.dashT / DASH_TIME, 0, 1)) : 0,
-            turn = angleDiff(drone.faceLast === undefined ? player.face : drone.faceLast, player.face),
-            k = dampFactor(10, dt);
-          drone.faceLast = player.face;
-          drone.lean += ((player.dashT > 0 ? 0.22 : amount * 0.1) - drone.lean) * k;
-          drone.bank += (clamp((turn * 0.08) / Math.max(dt, 0.008), -0.4, 0.4) - drone.bank) * k;
-          drone.base.rotation.z = -drone.lean;
-          drone.base.rotation.x = drone.bank;
-          const body = drone.setWalk((player.stride / STEP_LEN) * Math.PI, amount, jump, time);
-          drone.group.position.set(player.x, body + jump * 0.6, player.y);
-          drone.aimAt(player.aim, dt);
-        }
-        const shieldHit = Math.max(0, 1 - (time - this.abilityView.shieldHitAt) / 0.28);
-        const barrierUp = world.barrierT > 0;
-        drone.shield.visible = player.shield || barrierUp || shieldHit > 0;
-        const shieldUniforms = drone.shield.material.uniforms;
-        shieldUniforms.uTime.value = time;
-        shieldUniforms.uHit.value = shieldHit;
-        shieldUniforms.uFade.value = player.shield || barrierUp ? 1 : shieldHit;
-        shieldUniforms.uColor.value.setHex(barrierUp ? 0xffc84a : weaponDefs[world.weapon].color);
-        const protectedHull =
-          player.iT > 0 && player.hurtT <= 0 && player.dashT <= 0 && world.waveT > 1.05 && world.state === "fight";
-        const hurt = clamp(player.hurtT / 0.3, 0, 1);
-        for (const mat of drone.mats)
-          mat.emissive.setRGB(
-            hurt * 0.45 + (protectedHull ? 0.084 : 0),
-            hurt * 0.1 + (protectedHull ? 0.071 : 0),
-            hurt * 0.042,
-          );
-        if (protectedHull) {
-          const inlay = this.ringPool.y(player.x, 0.052, player.y, player.face, 1.02);
-          this.ringPool.colC(inlay, hexColor(FINISH.brass), 0.52);
-        }
-        this.shadows.y(player.x, 0.02, player.y, 0, 1.9);
-        if (player.manual) {
-          const reach = world.arena.rayLen(player.x, player.y, player.aim, Math.min(world.stats.range, 16));
-          const dx = Math.cos(player.aim),
-            dz = Math.sin(player.aim);
-          for (let along = 1.0; along < reach; along += 1.2) {
-            const end = Math.min(reach, along + 0.48);
-            const trace = this.beams.seg(
+    try {
+      rlAmbient(this, dt, world, opts);
+    } catch (err) {
+      if (!this.rlAmbErr) {
+        logError("ambient", err);
+        this.rlAmbErr = true;
+      }
+    }
+
+    this.time += dt;
+    this.scene.time = this.time;
+    this.resize();
+    const menu = !world || opts.menu;
+    this.worldT = menu ? this.time : world.time;
+
+    if (menu) {
+      this.setBiome(opts.biome || biomeList[0]);
+      this.ensurePlayer(opts.weapon || "pulse");
+    } else {
+      this.setBiome(world.arena.biome, world.arena);
+      this.ensurePlayer(world.weapon);
+    }
+    this.updateCamera(dt, world, menu);
+    this.pulse = Math.max(0, (this.pulse || 0) - dt * 1.5);
+    const px = menu ? 0 : world.player.x,
+      pz = menu ? 0 : world.player.y;
+    this.arena.update(dt, px, pz, this.pulse);
+
+    const pools = this.allPools();
+    for (const pool of pools) pool.begin();
+    for (const pool of this.trapView.list) pool.begin();
+    for (const pool of this.hazardView.list) pool.begin();
+    for (const pool of this.attackView.list) pool.begin();
+    for (const pool of this.weaponView.list) pool.begin();
+    for (const pool of this.abilityView.list) pool.begin();
+    for (const pool of this.bossCardView.list) pool.begin();
+    for (const type in this.enemyPools) {
+      this.enemyPools[type].body.begin();
+      this.enemyPools[type].glow.begin();
+    }
+
+    if (menu) {
+      this.drawMenuPlayer(dt);
+    } else {
+      this.drawWorld(dt, world);
+      this.abilityView.draw(dt, world);
+    }
+    this.updateLights(dt, menu ? null : world);
+    this.drawDebris(dt);
+    this.drawParticles(dt);
+    this.drawTransient(dt);
+
+    for (const pool of this.bossCardView.list) pool.end();
+    for (const pool of this.attackView.list) pool.end();
+    for (const pool of this.weaponView.list) pool.end();
+    for (const pool of this.abilityView.list) pool.end();
+    for (const pool of this.hazardView.list) pool.end();
+    for (const pool of this.trapView.list) pool.end();
+    for (const pool of pools) pool.end();
+    for (const type in this.enemyPools) {
+      this.enemyPools[type].body.end();
+      this.enemyPools[type].glow.end();
+    }
+
+    for (const num of this.nums) {
+      num.life -= dt;
+      num.y += dt * 1.6;
+    }
+    if (this.nums.length && this.nums[0].life <= 0) {
+      let w = 0;
+      for (let i = 0; i < this.nums.length; i++) if (this.nums[i].life > 0) this.nums[w++] = this.nums[i];
+      this.nums.length = w;
+    }
+    this.flashT = Math.max(0, this.flashT - dt);
+    this.engine.flash = this.flashT;
+    this.renderer.render(this.scene, this.camera);
+  }
+
+  drawMenuPlayer(dt) {
+    const drone = this.player;
+    drone.group.visible = true;
+    drone.group.position.set(0, drone.setWalk(0, 0, 0, this.time), 0);
+    drone.shield.visible = false;
+    drone.base.rotation.set(0, this.time * 0.32, 0);
+    drone.aimAt(-Math.sin(this.time * 0.7) * 1.2, dt);
+    this.corpses.length = 0;
+    for (const mat of drone.mats) mat.emissive.setScalar(0);
+    this.shadows.y(0, 0.025, 0, 0, 2.2);
+    this.ringPool.colC(
+      this.ringPool.y(0, 0.04, 0, this.time * 0.5, 1.45),
+      hexColor(weaponDefs[this.playerWeapon].color),
+      0.55,
+    );
+    this.sprites.colC(this.sprites.bb(0, 0.25, 0, 2.4, this.B), hexColor(weaponDefs[this.playerWeapon].color), 0.42);
+    if (Math.random() < dt * 26) {
+      const angle = Math.random() * TAU,
+        dist = 3 + Math.random() * 14;
+      this.emit(
+        Math.cos(angle) * dist,
+        0.1,
+        Math.sin(angle) * dist,
+        0,
+        0.6 + Math.random(),
+        0,
+        2.5,
+        0.25,
+        hexColor(this.biome.grid),
+        { drag: 0 },
+      );
+    }
+    if (this.bossView) this.bossView.group.visible = false;
+  }
+
+  drawWorld(dt, world) {
+    const basis = this.B;
+    const time = this.time;
+    const player = world.player;
+    const drone = this.player;
+    drone.group.visible = player.alive;
+    if (player.alive) {
+      drone.base.rotation.y = -player.face;
+      const speed = Math.hypot(player.vx, player.vy);
+      const moving = world.state === "fight" || world.state === "cleared";
+      const amount = moving ? clamp(speed / Math.max(2, world.stats.speed * 0.55), 0, 1) : 0;
+      const jump = player.dashT > 0 ? Math.sin(Math.PI * clamp(1 - player.dashT / DASH_TIME, 0, 1)) : 0;
+      const turn = angleDiff(drone.faceLast === undefined ? player.face : drone.faceLast, player.face);
+      const k = dampFactor(10, dt);
+      drone.faceLast = player.face;
+      drone.lean += ((player.dashT > 0 ? 0.22 : amount * 0.1) - drone.lean) * k;
+      drone.bank += (clamp((turn * 0.08) / Math.max(dt, 0.008), -0.4, 0.4) - drone.bank) * k;
+      drone.base.rotation.z = -drone.lean;
+      drone.base.rotation.x = drone.bank;
+      const body = drone.setWalk((player.stride / STEP_LEN) * Math.PI, amount, jump, time);
+      drone.group.position.set(player.x, body + jump * 0.6, player.y);
+      drone.aimAt(player.aim, dt);
+
+      const shieldHit = Math.max(0, 1 - (time - this.abilityView.shieldHitAt) / 0.28);
+      const barrierUp = world.barrierT > 0;
+      drone.shield.visible = player.shield || barrierUp || shieldHit > 0;
+      const su = drone.shield.material.uniforms;
+      su.uTime.value = time;
+      su.uHit.value = shieldHit;
+      su.uFade.value = player.shield || barrierUp ? 1 : shieldHit;
+      su.uColor.value.setHex(barrierUp ? 0xffc84a : weaponDefs[world.weapon].color);
+
+      const protectedHull =
+        player.iT > 0 && player.hurtT <= 0 && player.dashT <= 0 && world.waveT > 1.05 && world.state === "fight";
+      const hurt = clamp(player.hurtT / 0.3, 0, 1);
+      for (const mat of drone.mats) {
+        mat.emissive.setRGB(
+          hurt * 0.55 + (protectedHull ? 0.1 : 0),
+          hurt * 0.12 + (protectedHull ? 0.08 : 0),
+          hurt * 0.05,
+        );
+      }
+      if (protectedHull) {
+        this.ringPool.colC(this.ringPool.y(player.x, 0.052, player.y, player.face, 1.04), hexColor(FINISH.brass), 0.55);
+      }
+      this.shadows.y(player.x, 0.025, player.y, 0, 1.9);
+      if (player.manual) {
+        const reach = world.arena.rayLen(player.x, player.y, player.aim, Math.min(world.stats.range, 16));
+        const dx = Math.cos(player.aim),
+          dz = Math.sin(player.aim);
+        for (let along = 1.0; along < reach; along += 1.2) {
+          const end = Math.min(reach, along + 0.48);
+          this.beams.colC(
+            this.beams.seg(
               player.x + dx * along,
               player.y + dz * along,
               player.x + dx * end,
@@ -2006,430 +1574,398 @@ const MAX_PARTICLES = 1400,
               0.083,
               0.055,
               0.022,
-            );
-            this.beams.colC(trace, hexColor(FINISH.ivory), 0.37);
-          }
-        }
-        let glow = this.sprites.bb(player.x, 0.2, player.y, 2, basis);
-        this.sprites.colC(glow, hexColor(weaponDefs[world.weapon].color), 0.3);
-        if (player.dashT > 0 && dt > 0 && Math.random() < dt * 65)
-          this.emit(
-            player.x,
-            0.29,
-            player.y,
-            -player.vx * 0.18,
-            0.23,
-            -player.vy * 0.18,
-            0.32,
-            0.14,
-            hexColor(FINISH.brass),
-            { spark: true, drag: 3, grav: 1.7 },
+            ),
+            hexColor(FINISH.ivory),
+            0.4,
           );
-
-        let count = world.stats.orbit;
-        for (let i = 0; i < count; i++) {
-          let angle = world.time * 3.3 + (i * TAU) / count,
-            bx = player.x + Math.cos(angle) * world.stats.orbitR,
-            bz = player.y + Math.sin(angle) * world.stats.orbitR,
-            blade = this.blades.y(bx, 0, bz, angle + Math.PI / 2, 1.2 * world.stats.bladeScale);
-          this.blades.colHex(blade, FINISH.brass);
-          let halo = this.sprites.bb(bx, 0.62, bz, 0.75, basis);
-          this.sprites.colHex(halo, FINISH.copper, 0.23);
-        }
-        for (let wing of player.wings) {
-          this.wing.y(wing.x, Math.sin(time * 4 + wing.x) * 0.1, wing.y, player.aim, 1.3);
-          let halo = this.sprites.bb(wing.x, 0.9, wing.y, 1, basis);
-          this.sprites.colHex(halo, weaponDefs[world.weapon].color, 0.5);
-          this.shadows.y(wing.x, 0.02, wing.y, 0, 0.9);
         }
       }
-      let boss = null;
-      for (let enemy of world.enemies) {
-        if (enemy.boss) {
-          boss = enemy;
-          continue;
-        }
-        let pools = this.enemyPools[enemy.type];
-        if (!pools) continue;
-        let grow = enemy.spawnT > 0 ? 1 - enemy.spawnT / 0.35 : 1,
-          scale = (enemy.r / enemyDefs[enemy.type].r) * easeOutBack(clamp(grow, 0, 1)),
-          scaleY = scale,
-          lift = 0,
-          angle = enemy.face,
-          pitch = 0,
-          roll = 0;
-        if (enemy.type === "bomber" && enemy.st === 1) {
-          const pulse = 1.045 + Math.sin(time * 7) * 0.035;
-          scale *= pulse;
-          scaleY *= pulse;
-        }
-        if (enemy.type === "brute" && enemy.st === 1) {
-          scaleY *= 0.9;
-        }
-        if (enemy.type === "mortar" && enemy.st === 1) {
-          scaleY *= 0.88;
-        }
-        if (enemy.type === "striker" && enemy.st === 1) {
-          scale *= 0.96;
-          scaleY *= 0.89;
-        }
-        // 2.7.0: walk sway, hop and lean into the movement, hover bob, breathing, spawn pop with a half turn
-        {
-          const motion = RL_MOTION[enemy.type] || RL_MOTION_NONE,
-            speed = Math.hypot(enemy.vx || 0, enemy.vy || 0),
-            move = speed > 0.4 ? Math.min(1, speed / motion.ref) : 0,
-            gait = time * (4 + speed * motion.f) + enemy.phase,
-            breath = Math.sin(time * motion.bf + enemy.phase) * motion.breath;
-          roll = Math.sin(gait) * motion.roll * move;
-          pitch = -motion.lean * move;
-          lift =
-            Math.abs(Math.sin(gait)) * motion.bounce * move + Math.sin(time * motion.hf + enemy.phase) * motion.hover;
-          scaleY *= 1 + breath;
-          scale *= 1 - breath * 0.5;
-          if (grow < 1) {
-            lift += Math.sin(clamp(grow, 0, 1) * Math.PI) * 0.35 * scale;
-            angle += (1 - clamp(grow, 0, 1)) * 2.4;
-          }
-        }
-        if (enemy.flash > 0) {
-          // hit squash: flattened and wider for a moment, the material-preserving flash is in the shader
-          scale *= 1 + enemy.flash * 0.16;
-          scaleY *= 1 - enemy.flash * 0.2;
-        }
-        if (enemy.type === "phantom" && enemy.ghost) {
-          scale *= 0.86;
-          scaleY *= 1.12;
-        }
-        let bodyIdx = pools.body.yr(enemy.x, lift, enemy.y, angle, scale, scaleY, scale, pitch, roll);
-        pools.body.flash(bodyIdx, enemy.flash > 0 ? enemy.flash : enemy.slowT > 0 ? 0.25 : 0);
-        let tint = enemy.variant ? variantColors[enemy.variant] : null;
-        // 3.34.0: a Shorted enemy crackles: now and then a spark jumps off it (what it will leave where it dies)
-        if (enemy.variant === "shorted" && Math.random() < dt * 5)
-          this.emit(
-            enemy.x + (Math.random() - 0.5) * enemy.r * 1.6,
-            0.4 + Math.random() * 0.8,
-            enemy.y + (Math.random() - 0.5) * enemy.r * 1.6,
-            (Math.random() - 0.5) * 3,
-            2,
-            (Math.random() - 0.5) * 3,
-            0.18,
-            0.12,
-            Math.random() < 0.5 ? whiteColor : tint,
-            { spark: true, drag: 2 },
-          );
-        if (enemy.type === "phantom" && enemy.ghost) {
-          pools.body.col(bodyIdx, 0.45, 0.35, 0.9);
-        } else if (enemy.healFlash > 0) {
-          pools.body.col(bodyIdx, 0.75, 1.35, 0.95);
-        } else if (enemy.slowT > 0) {
-          pools.body.col(bodyIdx, 0.7, 0.9, 1.3);
-        } else if (enemy.corrode) {
-          pools.body.col(bodyIdx, 0.9, 1.3, 0.6);
-        } else if (tint) {
-          pools.body.col(bodyIdx, 0.55 + tint.r * 0.7, 0.55 + tint.g * 0.7, 0.55 + tint.b * 0.7);
-        } else if (enemy.elite) {
-          pools.body.col(bodyIdx, 1.25, 1.05, 0.7);
-        } else {
-          pools.body.col(bodyIdx, 1, 1, 1);
-        }
-        let glowIdx = pools.glow.yr(enemy.x, lift, enemy.y, angle, scale, scaleY, scale, pitch, roll),
-          glowK = 1;
-        if (
-          ((enemy.type === "gunner" ||
-            enemy.type === "sniper" ||
-            enemy.type === "charger" ||
-            enemy.type === "driller" ||
-            enemy.type === "weaver" ||
-            enemy.type === "sentinel") &&
-            enemy.st === 1) ||
-          enemy.sunT > 0
-        ) {
-          glowK = 1.32 + Math.sin(time * 6) * 0.18;
-        }
-        if (enemy.type === "bomber" && enemy.st === 1) {
-          glowK = 2;
-        }
-        if (enemy.type === "phantom" && enemy.ghost) {
-          glowK = 0.27 + Math.sin(time * 3) * 0.07;
-          if (Math.random() < dt * 18)
-            this.emit(enemy.x, 0.65, enemy.y, 0, 0.6, 0, 0.28, 0.24, pools.color, { drag: 2 });
-        }
-        if (enemy.sunT > 0 && Math.random() < dt * 24) {
+      this.sprites.colC(
+        this.sprites.bb(player.x, 0.22, player.y, 2.1, basis),
+        hexColor(weaponDefs[world.weapon].color),
+        0.34,
+      );
+      if (player.dashT > 0 && dt > 0 && Math.random() < dt * 65) {
+        this.emit(
+          player.x,
+          0.29,
+          player.y,
+          -player.vx * 0.18,
+          0.23,
+          -player.vy * 0.18,
+          0.32,
+          0.15,
+          hexColor(FINISH.brass),
+          { spark: true, drag: 3, grav: 1.7 },
+        );
+      }
+      const count = world.stats.orbit;
+      for (let i = 0; i < count; i++) {
+        const angle = world.time * 3.3 + (i * TAU) / count;
+        const bx = player.x + Math.cos(angle) * world.stats.orbitR;
+        const bz = player.y + Math.sin(angle) * world.stats.orbitR;
+        this.blades.colHex(this.blades.y(bx, 0, bz, angle + Math.PI / 2, 1.2 * world.stats.bladeScale), FINISH.brass);
+        this.sprites.colHex(this.sprites.bb(bx, 0.62, bz, 0.78, basis), FINISH.copper, 0.28);
+      }
+      for (const wing of player.wings) {
+        this.wing.y(wing.x, Math.sin(time * 4 + wing.x) * 0.1, wing.y, player.aim, 1.3);
+        this.sprites.colHex(this.sprites.bb(wing.x, 0.9, wing.y, 1.05, basis), weaponDefs[world.weapon].color, 0.55);
+        this.shadows.y(wing.x, 0.025, wing.y, 0, 0.9);
+      }
+    }
+
+    let boss = null;
+    for (const enemy of world.enemies) {
+      if (enemy.boss) {
+        boss = enemy;
+        continue;
+      }
+      const pools = this.enemyPools[enemy.type];
+      if (!pools) continue;
+      const grow = enemy.spawnT > 0 ? 1 - enemy.spawnT / 0.35 : 1;
+      let scale = (enemy.r / enemyDefs[enemy.type].r) * easeOutBack(clamp(grow, 0, 1));
+      let scaleY = scale;
+      let lift = 0;
+      let angle = enemy.face;
+      let pitch = 0;
+      let roll = 0;
+      if (enemy.type === "bomber" && enemy.st === 1) {
+        const pulse = 1.05 + Math.sin(time * 7) * 0.04;
+        scale *= pulse;
+        scaleY *= pulse;
+      }
+      if (enemy.type === "brute" && enemy.st === 1) scaleY *= 0.9;
+      if (enemy.type === "mortar" && enemy.st === 1) scaleY *= 0.88;
+      if (enemy.type === "striker" && enemy.st === 1) {
+        scale *= 0.96;
+        scaleY *= 0.89;
+      }
+      const motion = RL_MOTION[enemy.type] || RL_MOTION_NONE;
+      const speed = Math.hypot(enemy.vx || 0, enemy.vy || 0);
+      const move = speed > 0.4 ? Math.min(1, speed / motion.ref) : 0;
+      const gait = time * (4 + speed * motion.f) + enemy.phase;
+      const breath = Math.sin(time * motion.bf + enemy.phase) * motion.breath;
+      roll = Math.sin(gait) * motion.roll * move;
+      pitch = -motion.lean * move;
+      lift = Math.abs(Math.sin(gait)) * motion.bounce * move + Math.sin(time * motion.hf + enemy.phase) * motion.hover;
+      scaleY *= 1 + breath;
+      scale *= 1 - breath * 0.5;
+      if (grow < 1) {
+        lift += Math.sin(clamp(grow, 0, 1) * Math.PI) * 0.35 * scale;
+        angle += (1 - clamp(grow, 0, 1)) * 2.4;
+      }
+      if (enemy.flash > 0) {
+        scale *= 1 + enemy.flash * 0.16;
+        scaleY *= 1 - enemy.flash * 0.2;
+      }
+      if (enemy.type === "phantom" && enemy.ghost) {
+        scale *= 0.86;
+        scaleY *= 1.12;
+      }
+      const bodyIdx = pools.body.yr(enemy.x, lift, enemy.y, angle, scale, scaleY, scale, pitch, roll);
+      pools.body.flash(bodyIdx, enemy.flash > 0 ? enemy.flash : enemy.slowT > 0 ? 0.25 : 0);
+      const tint = enemy.variant ? variantColors[enemy.variant] : null;
+      if (enemy.variant === "shorted" && Math.random() < dt * 5) {
+        this.emit(
+          enemy.x + (Math.random() - 0.5) * enemy.r * 1.6,
+          0.4 + Math.random() * 0.8,
+          enemy.y + (Math.random() - 0.5) * enemy.r * 1.6,
+          (Math.random() - 0.5) * 3,
+          2,
+          (Math.random() - 0.5) * 3,
+          0.18,
+          0.13,
+          Math.random() < 0.5 ? whiteColor : tint,
+          { spark: true, drag: 2 },
+        );
+      }
+      if (enemy.type === "phantom" && enemy.ghost) pools.body.col(bodyIdx, 0.48, 0.38, 0.95);
+      else if (enemy.healFlash > 0) pools.body.col(bodyIdx, 0.75, 1.35, 0.95);
+      else if (enemy.slowT > 0) pools.body.col(bodyIdx, 0.7, 0.92, 1.32);
+      else if (enemy.corrode) pools.body.col(bodyIdx, 0.85, 1.3, 0.62);
+      else if (tint) pools.body.col(bodyIdx, 0.55 + tint.r * 0.7, 0.55 + tint.g * 0.7, 0.55 + tint.b * 0.7);
+      else if (enemy.elite) pools.body.col(bodyIdx, 1.25, 1.06, 0.72);
+      else pools.body.col(bodyIdx, 1, 1, 1);
+
+      const glowIdx = pools.glow.yr(enemy.x, lift, enemy.y, angle, scale, scaleY, scale, pitch, roll);
+      let glowK = 1.05;
+      if (
+        (["gunner", "sniper", "charger", "driller", "weaver", "sentinel"].includes(enemy.type) && enemy.st === 1) ||
+        enemy.sunT > 0
+      ) {
+        glowK = 1.4 + Math.sin(time * 6) * 0.2;
+      }
+      if (enemy.type === "bomber" && enemy.st === 1) glowK = 2.1;
+      if (enemy.type === "phantom" && enemy.ghost) {
+        glowK = 0.3 + Math.sin(time * 3) * 0.08;
+        if (Math.random() < dt * 18) this.emit(enemy.x, 0.65, enemy.y, 0, 0.6, 0, 0.28, 0.24, pools.color, { drag: 2 });
+      }
+      if (enemy.sunT > 0 && Math.random() < dt * 24) {
+        this.emit(
+          enemy.x,
+          0.55,
+          enemy.y,
+          -enemy.vx * 0.15,
+          0.5,
+          -enemy.vy * 0.15,
+          0.25,
+          0.26,
+          variantColors.sunstruck,
+          { spark: true, drag: 2 },
+        );
+      }
+      pools.glow.colC(
+        glowIdx,
+        enemy.sunT > 0 ? variantColors.sunstruck : tint || (enemy.elite ? goldColor : pools.color),
+        glowK,
+      );
+
+      if (enemy.champion) {
+        this.ringPool.colC(
+          this.ringPool.y(enemy.x, 0.06, enemy.y, time * 1.5, 7),
+          goldColor,
+          0.2 + Math.sin(time * 4) * 0.06,
+        );
+        this.ringPool.colC(this.ringPool.y(enemy.x, 1.6 + enemy.r, enemy.y, -time * 3, enemy.r * 0.8), goldColor, 1);
+      }
+      if (enemy.rallyT > 0 && !enemy.champion && Math.random() < dt * 6)
+        this.emit(enemy.x, 0.3, enemy.y, 0, 1.5, 0, 0.35, 0.3, goldColor, { drag: 1 });
+      if (tint && Math.random() < dt * 5)
+        this.emit(
+          enemy.x + (Math.random() - 0.5) * enemy.r,
+          0.5,
+          enemy.y + (Math.random() - 0.5) * enemy.r,
+          0,
+          1,
+          0,
+          0.4,
+          0.25,
+          tint,
+          { drag: 1 },
+        );
+
+      this.shadows.y(enemy.x, 0.022, enemy.y, 0, enemy.r * 2.8 * scale);
+      this.sprites.colC(
+        this.sprites.bb(enemy.x, 0.35, enemy.y, enemy.r * (enemy.elite ? 4.2 : 3.2) * scale, basis),
+        enemy.elite ? goldColor : pools.color,
+        enemy.elite ? 0.24 : 0.09,
+      );
+      if (enemy.burnT > 0 && Math.random() < dt * 14)
+        this.emit(
+          enemy.x + (Math.random() - 0.5) * enemy.r,
+          0.6,
+          enemy.y + (Math.random() - 0.5) * enemy.r,
+          0,
+          1.8,
+          0,
+          0.35,
+          0.35,
+          hexColor(0xff7232),
+          { drag: 1 },
+        );
+
+      if (enemy.type === "sniper" && enemy.st === 1)
+        this.aimLine(world, enemy.x, enemy.y, enemy.ta, enemy.t2 < 0.35, 1 - enemy.t2 / 1.25);
+      if (enemy.type === "brute" && enemy.st === 1)
+        this.chargeLine(enemy.x, enemy.y, enemy.ta, 9.5, 1.7, 1 - enemy.t2 / 0.8);
+      if (enemy.type === "leaper" && enemy.st === 1)
+        this.chargeLine(enemy.x, enemy.y, enemy.ta, 7.5, 1.35, 1 - enemy.t2 / 0.55);
+      if (enemy.type === "bomber" && enemy.st === 1) {
+        const k = 1 - enemy.t2 / 0.55;
+        this.ringPool.colC(this.ringPool.y(enemy.x, 0.05, enemy.y, 0, 2.6), warnColor, 0.9);
+        this.discs.colC(this.discs.y(enemy.x, 0.04, enemy.y, 0, 2.6 * k), warnColor, 0.28);
+      }
+      if (enemy.type === "gunner" && enemy.st === 1) {
+        this.sprites.colC(
+          this.sprites.bb(
+            enemy.x + Math.cos(enemy.face) * 0.95,
+            0.62,
+            enemy.y + Math.sin(enemy.face) * 0.95,
+            0.5 + (1 - enemy.t2 / 0.45) * 0.9,
+            basis,
+          ),
+          pools.color,
+          1,
+        );
+      }
+      if (enemy.type === "turret" && enemy.st === 1)
+        this.aimLine(world, enemy.x, enemy.y, enemy.ta, enemy.t2 < 0.22, 1 - enemy.t2 / 0.62);
+      if (enemy.type === "charger" && enemy.st === 1)
+        this.chargeLine(enemy.x, enemy.y, enemy.ta, 9.5, 1.35, 1 - enemy.t2 / 0.48);
+      if (enemy.type === "driller" && enemy.st === 1)
+        this.chargeLine(enemy.x, enemy.y, enemy.ta, 9.5, 1.6, 1 - enemy.t2 / 0.58);
+      if (enemy.type === "weaver" && enemy.st === 1) {
+        this.aimLine(
+          world,
+          enemy.x,
+          enemy.y,
+          Math.atan2(world.player.y - enemy.y, world.player.x - enemy.x),
+          enemy.t2 < 0.16,
+          1 - enemy.t2 / 0.45,
+        );
+      }
+      if (enemy.type === "bulwark") {
+        if (enemy.guardDown <= 0) {
+          const alpha =
+            0.4 +
+            0.35 * clamp(enemy.guard / enemy.guardMax, 0, 1) +
+            (enemy.guardFlash > 0 ? enemy.guardFlash * 0.6 : 0);
+          const sc = ((enemy.r + 0.5) / 1.35) * scale;
+          this.shieldPool.colC(this.shieldPool.y(enemy.x, 0, enemy.y, enemy.face, sc, scale, sc), pools.color, alpha);
+        } else if (Math.random() < dt * 20) {
           this.emit(
             enemy.x,
-            0.55,
+            1.2,
             enemy.y,
-            -enemy.vx * 0.15,
-            0.5,
-            -enemy.vy * 0.15,
-            0.25,
-            0.26,
-            variantColors.sunstruck,
-            { spark: true, drag: 2 },
-          );
-        }
-        pools.glow.colC(
-          glowIdx,
-          enemy.sunT > 0 ? variantColors.sunstruck : tint || (enemy.elite ? goldColor : pools.color),
-          glowK,
-        );
-        if (enemy.champion) {
-          let ring = this.ringPool.y(enemy.x, 0.06, enemy.y, time * 1.5, 7);
-          this.ringPool.colC(ring, goldColor, 0.18 + Math.sin(time * 4) * 0.06);
-          let crown = this.ringPool.y(enemy.x, 1.6 + enemy.r, enemy.y, -time * 3, enemy.r * 0.8);
-          this.ringPool.colC(crown, goldColor, 1);
-        }
-        if (enemy.rallyT > 0 && !enemy.champion && Math.random() < dt * 6) {
-          this.emit(enemy.x, 0.3, enemy.y, 0, 1.5, 0, 0.35, 0.3, goldColor, { drag: 1 });
-        }
-        if (tint && Math.random() < dt * 5) {
-          this.emit(
-            enemy.x + (Math.random() - 0.5) * enemy.r,
-            0.5,
-            enemy.y + (Math.random() - 0.5) * enemy.r,
-            0,
+            (Math.random() - 0.5) * 3,
             1,
-            0,
-            0.4,
+            (Math.random() - 0.5) * 3,
+            0.3,
             0.25,
-            tint,
-            { drag: 1 },
+            pools.color,
+            { spark: true },
           );
         }
-        this.shadows.y(enemy.x, 0.02, enemy.y, 0, enemy.r * 2.8 * scale);
-        let halo = this.sprites.bb(enemy.x, 0.35, enemy.y, enemy.r * (enemy.elite ? 4.4 : 3.4) * scale, basis);
-        this.sprites.colC(halo, enemy.elite ? goldColor : pools.color, enemy.elite ? 0.2 : 0.075);
-        if (enemy.burnT > 0 && Math.random() < dt * 14) {
-          this.emit(
-            enemy.x + (Math.random() - 0.5) * enemy.r,
-            0.6,
-            enemy.y + (Math.random() - 0.5) * enemy.r,
-            0,
-            1.8,
-            0,
-            0.35,
-            0.35,
-            hexColor(16742958),
-            { drag: 1 },
-          );
-        }
-        if (enemy.type === "sniper" && enemy.st === 1) {
-          this.aimLine(world, enemy.x, enemy.y, enemy.ta, enemy.t2 < 0.35, 1 - enemy.t2 / 1.25);
-        }
-        if (enemy.type === "brute" && enemy.st === 1) {
-          this.chargeLine(enemy.x, enemy.y, enemy.ta, 9.5, 1.7, 1 - enemy.t2 / 0.8);
-        }
-        if (enemy.type === "leaper" && enemy.st === 1) {
-          this.chargeLine(enemy.x, enemy.y, enemy.ta, 7.5, 1.35, 1 - enemy.t2 / 0.55);
-        }
-        if (enemy.type === "bomber" && enemy.st === 1) {
-          let k = 1 - enemy.t2 / 0.55,
-            ring = this.ringPool.y(enemy.x, 0.05, enemy.y, 0, 2.6);
-          this.ringPool.colC(ring, warnColor, 0.85);
-          let disc = this.discs.y(enemy.x, 0.04, enemy.y, 0, 2.6 * k);
-          this.discs.colC(disc, warnColor, 0.25);
-        }
-        if (enemy.type === "gunner" && enemy.st === 1) {
-          let gx = enemy.x + Math.cos(enemy.face) * 0.95,
-            gz = enemy.y + Math.sin(enemy.face) * 0.95,
-            flare = this.sprites.bb(gx, 0.62, gz, 0.5 + (1 - enemy.t2 / 0.45) * 0.9, basis);
-          this.sprites.colC(flare, pools.color, 1);
-        }
-        if (enemy.type === "turret" && enemy.st === 1) {
-          this.aimLine(world, enemy.x, enemy.y, enemy.ta, enemy.t2 < 0.22, 1 - enemy.t2 / 0.62);
-        }
-        if (enemy.type === "charger" && enemy.st === 1) {
-          this.chargeLine(enemy.x, enemy.y, enemy.ta, 9.5, 1.35, 1 - enemy.t2 / 0.48);
-        }
-        if (enemy.type === "driller" && enemy.st === 1) {
-          this.chargeLine(enemy.x, enemy.y, enemy.ta, 9.5, 1.6, 1 - enemy.t2 / 0.58);
-        }
-        if (enemy.type === "weaver" && enemy.st === 1) {
-          const aim = Math.atan2(world.player.y - enemy.y, world.player.x - enemy.x);
-          this.aimLine(world, enemy.x, enemy.y, aim, enemy.t2 < 0.16, 1 - enemy.t2 / 0.45);
-        }
-        if (enemy.type === "bulwark") {
-          let guardUp = enemy.guardDown <= 0,
-            alpha = guardUp
-              ? 0.35 +
-                0.35 * clamp(enemy.guard / enemy.guardMax, 0, 1) +
-                (enemy.guardFlash > 0 ? enemy.guardFlash * 0.6 : 0)
-              : 0;
-          if (guardUp) {
-            let shield = this.shieldPool.y(
-              enemy.x,
-              0,
-              enemy.y,
-              enemy.face,
-              ((enemy.r + 0.5) / 1.35) * scale,
-              scale,
-              ((enemy.r + 0.5) / 1.35) * scale,
-            );
-            this.shieldPool.colC(shield, pools.color, alpha);
-          } else {
-            if (Math.random() < dt * 20) {
-              this.emit(
-                enemy.x,
-                1.2,
-                enemy.y,
-                (Math.random() - 0.5) * 3,
-                1,
-                (Math.random() - 0.5) * 3,
-                0.3,
-                0.25,
-                pools.color,
-                {
-                  spark: true,
-                },
-              );
-            }
-          }
-        }
-        if (enemy.type === "striker" && enemy.st === 1) {
-          let k = 1 - enemy.t2 / 0.7,
-            ring = this.ringPool.y(enemy.tx, 0.05, enemy.ty, time * 4, 1.4 - k * 0.6);
-          this.ringPool.colC(ring, pools.color, 0.6 + k * 0.6);
-          let disc = this.discs.y(enemy.tx, 0.04, enemy.ty, 0, 0.9 * k);
-          this.discs.colC(disc, pools.color, 0.25);
-        }
-        if (enemy.type === "striker" && enemy.st === 2) {
-          this.chargeLine(enemy.x, enemy.y, enemy.ta, 4.2, 1, 1 - enemy.t2 / 0.32);
-        }
-        if (enemy.affix) {
-          let color = hexColor(eliteAffixes[enemy.affix].color);
-          if (enemy.affix === "shielded" && enemy.shield > 0) {
-            let ring = this.ringPool.y(enemy.x, 0.9, enemy.y, time, enemy.r * 1.7 * scale);
-            this.ringPool.colC(ring, color, 0.35 + 0.4 * (enemy.shield / enemy.shieldMax));
-            let halo = this.sprites.bb(enemy.x, 0.8, enemy.y, enemy.r * 4.2 * scale, basis);
-            this.sprites.colC(halo, color, 0.18);
-          } else if (enemy.affix === "hasted" && Math.random() < dt * 25)
-            this.emit(enemy.x, 0.5, enemy.y, -enemy.vx * 0.2, 0.2, -enemy.vy * 0.2, 0.3, enemy.r * 1.4, color, {
-              drag: 2,
-            });
-          else if (enemy.affix === "volatile") {
-            let ring = this.ringPool.y(enemy.x, 0.06, enemy.y, 0, enemy.r * 1.9);
-            this.ringPool.colC(ring, color, 0.35 + Math.sin(time * 9 + enemy.phase) * 0.25);
-          }
-        }
       }
-      // 2.7.0: dying enemies: a short shrink, spin and hop, white at first (the kill burst hides the rest)
-      if (this.corpses.length) {
-        let list = this.corpses,
-          keep = 0;
-        for (let i = 0; i < list.length; i++) {
-          let corpse = list[i];
-          corpse.t += dt;
-          let k = corpse.t / 0.3;
-          if (k >= 1) continue;
-          list[keep++] = corpse;
-          let pools = this.enemyPools[corpse.type],
-            shrink = (1 - k) * (1 - k),
-            size = corpse.r * (1 + k * 0.25) * shrink + 0.001,
-            hop = Math.sin(k * Math.PI) * 0.5,
-            idx = pools.body.yr(
-              corpse.x,
-              hop,
-              corpse.z,
-              corpse.a + corpse.spin * corpse.t,
-              size,
-              size * (1 - k * 0.3),
-              size,
-              k * 0.9,
-              0,
-            );
-          pools.body.flash(idx, 1 - k * 0.6);
-          pools.body.col(idx, corpse.elite ? 1.25 : 1, corpse.elite ? 1.05 : 1, corpse.elite ? 0.7 : 1);
-          let glowIdx = pools.glow.yr(
-            corpse.x,
-            hop,
-            corpse.z,
-            corpse.a + corpse.spin * corpse.t,
-            size,
-            size,
-            size,
-            k * 0.9,
-            0,
-          );
-          pools.glow.colC(glowIdx, corpse.elite ? goldColor : pools.color, 1 + (1 - k) * 1.5);
-        }
-        list.length = keep;
+      if (enemy.type === "striker" && enemy.st === 1) {
+        const k = 1 - enemy.t2 / 0.7;
+        this.ringPool.colC(
+          this.ringPool.y(enemy.tx, 0.05, enemy.ty, time * 4, 1.4 - k * 0.6),
+          pools.color,
+          0.65 + k * 0.6,
+        );
+        this.discs.colC(this.discs.y(enemy.tx, 0.04, enemy.ty, 0, 0.9 * k), pools.color, 0.28);
       }
-      this.drawBoss(dt, world, boss);
-      this.weaponView.draw(dt, world);
-      for (let trail of world.trails) {
-        let puff = this.sprites.bb(trail.x, 0.3, trail.y, 1.3 * Math.min(1, trail.life), basis);
-        this.sprites.colHex(puff, 8386303, 0.35 * Math.min(1, trail.life));
-      }
-      // 3.10.0: every kind of enemy shot has a shape of its own
-      this.attackView.shots(world, dt);
-      for (let pickup of world.pickups) {
-        let lift = 0.45 + Math.sin(time * 4 + pickup.id) * 0.12;
-        if (pickup.rain && pickup.t < 0.6) {
-          lift += (0.6 - pickup.t) * 16;
-          if (Math.random() < 0.5) {
-            this.emit(pickup.x, lift + 0.4, pickup.y, 0, 2, 0, 0.25, 0.3, shardColors[1], { drag: 1 });
-          }
-        }
-        if (pickup.rain && pickup.t >= 0.6 && !pickup.landed) {
-          pickup.landed = true;
-          this.ring(pickup.x, pickup.y, 0.2, 1.1, shardColors[1], 0.3);
-        }
-        if (pickup.kind === "shard") {
-          let color = shardColors[pickup.v] || shardColors[1],
-            scale = pickup.v >= 25 ? 1.8 : pickup.v >= 5 ? 1.35 : 1,
-            shard = this.shardPool.y(pickup.x, lift, pickup.y, time * 3 + pickup.id, scale);
-          this.shardPool.colC(shard, color, 1);
-          let halo = this.sprites.bb(pickup.x, lift, pickup.y, 0.9 * scale, basis);
-          this.sprites.colC(halo, color, 0.45);
-        } else {
-          if (pickup.t > 11 && !pickup.pull && Math.floor(time * (pickup.t > 13 ? 12 : 6)) % 2) continue;
-          let cross = this.healPool.y(pickup.x, lift + 0.2, pickup.y, time * 2, 1);
-          this.healPool.colC(cross, healColor, 1);
-          let halo = this.sprites.bb(pickup.x, lift + 0.2, pickup.y, 1.6, basis);
-          this.sprites.colC(halo, healColor, 0.5 + Math.sin(time * 6) * 0.15);
-        }
-      }
-      try {
-        this.bossCardView.update(dt, world);
-      } catch (err) {
-        if (!this.rlBossCardErr) {
-          logError("boss cards", err);
-          this.rlBossCardErr = true;
-        }
-      }
-      try {
-        this.trapView.update(dt, world);
-      } catch (err) {
-        if (!this.rlTrapErr) {
-          logError("traps", err);
-          this.rlTrapErr = true;
-        }
-      }
-      this.drawFeatures(dt, world);
-      for (let marker of world.markers) {
-        let k = clamp(marker.t / marker.dur, 0, 1),
-          color = marker.fake
-            ? hexColor(9431295)
-            : marker.elite
-              ? goldColor
-              : hexColor(enemyDefs[marker.type] ? enemyDefs[marker.type].color : 16777215),
-          size = marker.fake ? 2.2 : 1.2 - k * 0.5,
-          ring = this.ringPool.y(marker.x, 0.05, marker.y, time * 2, size);
-        this.ringPool.colC(ring, color, 0.5 + k * 0.6);
-        const call = marker.boss && BOSS_PORTAL[marker.boss];
-        const rim = call?.[0] ?? color;
-        const inlay = call?.[1] ?? whiteColor;
-        // Keep the portal marked on the floor from the first frame, and raise the seals as it opens.
-        if (call) {
+      if (enemy.type === "striker" && enemy.st === 2)
+        this.chargeLine(enemy.x, enemy.y, enemy.ta, 4.2, 1, 1 - enemy.t2 / 0.32);
+      if (enemy.affix) {
+        const color = hexColor(eliteAffixes[enemy.affix].color);
+        if (enemy.affix === "shielded" && enemy.shield > 0) {
           this.ringPool.colC(
-            this.ringPool.y(marker.x, 0.058, marker.y, -time * 1.4, size * 1.37),
-            rim,
-            0.55 + k * 0.24,
+            this.ringPool.y(enemy.x, 0.9, enemy.y, time, enemy.r * 1.7 * scale),
+            color,
+            0.4 + 0.4 * (enemy.shield / enemy.shieldMax),
           );
-          for (let j = 0; j < 4; j++) {
-            const a = (j * TAU) / 4 + time * 1.2;
-            const span = size * (0.95 + k * 0.25);
-            const tick = this.shardPool.yr(
+          this.sprites.colC(this.sprites.bb(enemy.x, 0.8, enemy.y, enemy.r * 4.2 * scale, basis), color, 0.22);
+        } else if (enemy.affix === "hasted" && Math.random() < dt * 25) {
+          this.emit(enemy.x, 0.5, enemy.y, -enemy.vx * 0.2, 0.2, -enemy.vy * 0.2, 0.3, enemy.r * 1.4, color, {
+            drag: 2,
+          });
+        } else if (enemy.affix === "volatile") {
+          this.ringPool.colC(
+            this.ringPool.y(enemy.x, 0.06, enemy.y, 0, enemy.r * 1.9),
+            color,
+            0.38 + Math.sin(time * 9 + enemy.phase) * 0.25,
+          );
+        }
+      }
+    }
+
+    // Dying corpses pop/spin/dissolve cleanly
+    if (this.corpses.length) {
+      const list = this.corpses;
+      let keep = 0;
+      for (let i = 0; i < list.length; i++) {
+        const c = list[i];
+        c.t += dt;
+        const k = c.t / 0.3;
+        if (k >= 1) continue;
+        list[keep++] = c;
+        const pools = this.enemyPools[c.type];
+        const shrink = (1 - k) * (1 - k);
+        const size = c.r * (1 + k * 0.25) * shrink + 0.001;
+        const hop = Math.sin(k * Math.PI) * 0.5;
+        const idx = pools.body.yr(c.x, hop, c.z, c.a + c.spin * c.t, size, size * (1 - k * 0.3), size, k * 0.9, 0);
+        pools.body.flash(idx, 1 - k * 0.6);
+        pools.body.col(idx, c.elite ? 1.25 : 1, c.elite ? 1.05 : 1, c.elite ? 0.7 : 1);
+        const gi = pools.glow.yr(c.x, hop, c.z, c.a + c.spin * c.t, size, size, size, k * 0.9, 0);
+        pools.glow.colC(gi, c.elite ? goldColor : pools.color, 1 + (1 - k) * 1.5);
+      }
+      list.length = keep;
+    }
+
+    this.drawBoss(dt, world, boss);
+    this.weaponView.draw(dt, world);
+    for (const trail of world.trails) {
+      this.sprites.colHex(
+        this.sprites.bb(trail.x, 0.3, trail.y, 1.3 * Math.min(1, trail.life), basis),
+        0x7ef2ff,
+        0.38 * Math.min(1, trail.life),
+      );
+    }
+    this.attackView.shots(world, dt);
+
+    for (const pickup of world.pickups) {
+      let lift = 0.45 + Math.sin(time * 4 + pickup.id) * 0.12;
+      if (pickup.rain && pickup.t < 0.6) {
+        lift += (0.6 - pickup.t) * 16;
+        if (Math.random() < 0.5)
+          this.emit(pickup.x, lift + 0.4, pickup.y, 0, 2, 0, 0.25, 0.3, shardColors[1], { drag: 1 });
+      }
+      if (pickup.rain && pickup.t >= 0.6 && !pickup.landed) {
+        pickup.landed = true;
+        this.ring(pickup.x, pickup.y, 0.2, 1.1, shardColors[1], 0.3);
+      }
+      if (pickup.kind === "shard") {
+        const color = shardColors[pickup.v] || shardColors[1];
+        const scale = pickup.v >= 25 ? 1.8 : pickup.v >= 5 ? 1.35 : 1;
+        this.shardPool.colC(this.shardPool.y(pickup.x, lift, pickup.y, time * 3 + pickup.id, scale), color, 1);
+        this.sprites.colC(this.sprites.bb(pickup.x, lift, pickup.y, 0.95 * scale, basis), color, 0.5);
+      } else {
+        if (pickup.t > 11 && !pickup.pull && Math.floor(time * (pickup.t > 13 ? 12 : 6)) % 2) continue;
+        this.healPool.colC(this.healPool.y(pickup.x, lift + 0.2, pickup.y, time * 2, 1), healColor, 1);
+        this.sprites.colC(
+          this.sprites.bb(pickup.x, lift + 0.2, pickup.y, 1.65, basis),
+          healColor,
+          0.55 + Math.sin(time * 6) * 0.15,
+        );
+      }
+    }
+
+    try {
+      this.bossCardView.update(dt, world);
+    } catch (err) {
+      if (!this.rlBossCardErr) {
+        logError("boss cards", err);
+        this.rlBossCardErr = true;
+      }
+    }
+    try {
+      this.trapView.update(dt, world);
+    } catch (err) {
+      if (!this.rlTrapErr) {
+        logError("traps", err);
+        this.rlTrapErr = true;
+      }
+    }
+    try {
+      this.hazardView.update(dt, world);
+    } catch (err) {
+      if (!this.rlHazardErr) {
+        logError("hazards", err);
+        this.rlHazardErr = true;
+      }
+    }
+
+    for (const marker of world.markers) {
+      const k = clamp(marker.t / marker.dur, 0, 1);
+      const color = marker.fake
+        ? hexColor(0x8fe8ff)
+        : marker.elite
+          ? goldColor
+          : hexColor(enemyDefs[marker.type] ? enemyDefs[marker.type].color : 0xffffff);
+      const size = marker.fake ? 2.2 : 1.2 - k * 0.5;
+      this.ringPool.colC(this.ringPool.y(marker.x, 0.05, marker.y, time * 2, size), color, 0.55 + k * 0.6);
+      const call = marker.boss && BOSS_PORTAL[marker.boss];
+      const rim = call?.[0] ?? color;
+      const inlay = call?.[1] ?? whiteColor;
+      if (call) {
+        this.ringPool.colC(this.ringPool.y(marker.x, 0.058, marker.y, -time * 1.4, size * 1.37), rim, 0.6 + k * 0.25);
+        for (let j = 0; j < 4; j++) {
+          const a = (j * TAU) / 4 + time * 1.2;
+          const span = size * (0.95 + k * 0.25);
+          this.shardPool.colC(
+            this.shardPool.yr(
               marker.x + Math.cos(a) * span,
               0.14 + k * 0.7,
               marker.y + Math.sin(a) * span,
@@ -2439,535 +1975,525 @@ const MAX_PARTICLES = 1400,
               0.54,
               0,
               0.24,
-            );
-            this.shardPool.colC(tick, inlay, 0.63 + k * 0.35);
-          }
-        }
-        const disc = this.discs.y(marker.x, 0.041, marker.y, 0, size * 0.92);
-        this.discs.colC(disc, rim, 0.11 + k * 0.23);
-        if (!marker.fake) {
-          const seal = this.shardPool.yr(
-            marker.x,
-            0.27 + k * 0.64,
-            marker.y,
-            time * 0.9,
-            0.86,
-            0.55 + k * 0.75,
-            0.86,
-            0,
-            0.26,
+            ),
+            inlay,
+            0.68 + k * 0.35,
           );
-          this.shardPool.colC(seal, inlay, 0.62 + k * 0.34);
         }
       }
-      // 3.10.0: the attack zones (world.hazards) with a look of their kind, the marks on the floor
-      try {
-        this.attackView.update(dt, world);
-      } catch (err) {
-        if (!this.rlAttackErr) {
-          logError("attacks", err);
-          this.rlAttackErr = true;
-        }
-      }
-      for (let beam of world.beams) {
-        let len = beam.cur,
-          ex = beam.x + Math.cos(beam.a) * len,
-          ez = beam.y + Math.sin(beam.a) * len;
-        if (len <= 0) continue;
-        // 3.0.0: trap beams wear the colours of their skin (the warning phase below stays red for every beam)
-        if (beam.live && beam.skin && this.trapView.drawBeam(beam, ex, ez, len, time, dt)) continue;
-        if (beam.live) {
-          // 2.4.6: a beam can bring its own colour (Frost Prism: ice)
-          const outer = this.beams.seg(beam.x, beam.y, ex, ez, 0.72, beam.w, beam.w * 0.19);
-          const beamCol = beam.color ? hexColor(beam.color) : beamColor;
-          this.beams.colC(outer, beamCol, 0.69);
-          const inner = this.beams.seg(beam.x, beam.y, ex, ez, 0.75, beam.w * 0.21, beam.w * 0.12);
-          this.beams.colC(inner, whiteColor, 0.88);
-          if (Math.random() < dt * 14) {
-            let along = Math.random() * len;
-            this.emit(
-              beam.x + Math.cos(beam.a) * along,
-              1,
-              beam.y + Math.sin(beam.a) * along,
-              (Math.random() - 0.5) * 4,
-              2,
-              (Math.random() - 0.5) * 4,
-              0.3,
-              0.4,
-              beam.color ? beamCol : hexColor(16732064),
-            );
-          }
-        } else {
-          const progress = clamp(beam.t / beam.warn, 0, 1),
-            halfWidth = beam.w * 0.5,
-            dx = -Math.sin(beam.a) * halfWidth,
-            dz = Math.cos(beam.a) * halfWidth;
-          // The two rails mark the full strike width immediately. Steady light also reads
-          // against bright floors without relying on a rapid flash.
-          for (let side = -1; side <= 1; side += 2) {
-            const x = side * dx,
-              z = side * dz,
-              edge = this.beams.seg(beam.x + x, beam.y + z, ex + x, ez + z, 0.12, 0.09, 0.04);
-            this.beams.colC(edge, warnColor, 0.72 + progress * 0.2);
-          }
-          const fill = this.beams.seg(beam.x, beam.y, ex, ez, 0.08, beam.w, 0.02);
-          this.beams.colC(fill, warnColor, 0.12 + progress * 0.18);
-        }
-      }
-    }
-    drawFeatures(dt, world) {
-      // 3.8.0: the hazards have models of their own (render/hazards-view.js)
-      try {
-        this.hazardView.update(dt, world);
-      } catch (err) {
-        if (!this.rlHazardErr) {
-          logError("hazards", err);
-          this.rlHazardErr = true;
-        }
-      }
-    }
-    aimLine(world, x, z, angle, locked, k) {
-      const dist = world.arena.rayLen(x, z, angle, 32),
-        cos = Math.cos(angle),
-        sin = Math.sin(angle),
-        from = Math.min(0.6, dist),
-        ex = x + cos * dist,
-        ez = z + sin * dist;
-      if (dist <= from) return;
-      // A steady dark keyline separates the aim from bright ice and sand. Lock is brighter/wider,
-      // rather than a 24 Hz flash; the ground footprint also shows where the shot can hit.
-      this.warningEdges.colC(
-        this.warningEdges.seg(x + cos * from, z + sin * from, ex, ez, 0.95, locked ? 0.2 : 0.13, 0.04),
-        warningDark,
-        0.9,
-      );
-      this.beams.colC(
-        this.beams.seg(x + cos * from, z + sin * from, ex, ez, 0.98, locked ? 0.09 : 0.05, 0.04),
-        warnColor,
-        locked ? 1 : 0.45 + clamp(k, 0, 1) * 0.35,
-      );
-      this.beams.colC(
-        this.beams.seg(x + cos * from, z + sin * from, ex, ez, 0.07, locked ? 0.15 : 0.08, 0.02),
-        warnColor,
-        locked ? 0.6 : 0.25,
-      );
-    }
-    chargeLine(x, z, angle, len, width, k) {
-      k = clamp(k, 0, 1);
-      const cos = Math.cos(angle),
-        sin = Math.sin(angle),
-        ex = x + cos * len,
-        ez = z + sin * len,
-        dx = -sin * width * 0.5,
-        dz = cos * width * 0.5;
-      this.beams.colC(this.beams.seg(x, z, ex, ez, 0.06, width, 0.02), warnColor, 0.1 + k * 0.12);
-      // Full-width rails remain visible from the start; the interior fill conveys time to strike.
-      for (let side = -1; side <= 1; side += 2) {
-        this.warningEdges.colC(
-          this.warningEdges.seg(x + side * dx, z + side * dz, ex + side * dx, ez + side * dz, 0.08, 0.2, 0.025),
-          warningDark,
-          0.9,
-        );
-        this.beams.colC(
-          this.beams.seg(x + side * dx, z + side * dz, ex + side * dx, ez + side * dz, 0.11, 0.075, 0.025),
-          warnColor,
-          0.7 + k * 0.25,
-        );
-        // An inward chevron identifies the direction of travel without a separate mesh or pool.
-        this.beams.colC(
-          this.beams.seg(ex + side * dx - cos * 0.55, ez + side * dz - sin * 0.55, ex, ez, 0.12, 0.09, 0.025),
-          warnColor,
-          0.85,
+      this.discs.colC(this.discs.y(marker.x, 0.041, marker.y, 0, size * 0.92), rim, 0.14 + k * 0.24);
+      if (!marker.fake) {
+        this.shardPool.colC(
+          this.shardPool.yr(marker.x, 0.27 + k * 0.64, marker.y, time * 0.9, 0.86, 0.55 + k * 0.75, 0.86, 0, 0.26),
+          inlay,
+          0.68 + k * 0.35,
         );
       }
-      if (k > 0)
-        this.beams.colC(this.beams.seg(x, z, x + cos * len * k, z + sin * len * k, 0.07, width, 0.02), warnColor, 0.2);
     }
 
-    drawBoss(dt, world, boss) {
-      if (!boss) {
-        if (this.bossView) {
-          this.bossView.group.visible = false;
-        }
-        return;
-      }
-      if (!this.bossView || this.bossView.id !== boss.type) {
-        if (this.bossView) {
-          this.scene.remove(this.bossView.group);
-          this.bossView.group.traverse((obj) => {
-            if (obj.geometry) {
-              obj.geometry.dispose();
-            }
-            if (obj.material) {
-              [].concat(obj.material).forEach((mat) => mat.dispose());
-            }
-          });
-        }
-        let model = buildBossModel(boss.type, bossDefs[boss.type].color);
-        model.id = boss.type;
-        setWorldShadows(model.group);
-        this.bossView = model;
-        this.scene.add(model.group);
-      }
-      let view = this.bossView,
-        group = view.group,
-        time = this.time;
-      group.visible = true;
-      let grow = boss.spawnT > 0 ? clamp(1 - boss.spawnT / 1.2, 0, 1) : 1;
-      if (this.focus) {
-        grow = Math.max(grow, clamp((this.focusK - 0.15) / 0.45, 0, 1));
-      }
-      if (group.userData.energyTime) group.userData.energyTime.value = time;
-      let scale = easeOutBack(grow),
-        walking = boss.st === "walk",
-        rushing = boss.st === "charge" && boss.sub === 1,
-        lift =
-          boss.type === "prism" || boss.type === "wyrm"
-            ? (1 + Math.sin(time * 1.6)) * 0.09
-            : boss.type === "queen"
-              ? Math.abs(Math.sin(time * 2.2)) * 0.08
-              : walking
-                ? Math.abs(Math.sin(time * 6.5)) * 0.09
-                : 0,
-        pitch = rushing ? -0.14 : walking ? -0.04 : 0,
-        roll =
-          boss.type === "warden" || boss.type === "tyrant"
-            ? Math.sin(time * (rushing ? 14 : 6.5)) * (rushing ? 0.06 : walking ? 0.035 : 0)
-            : 0;
-      group.position.set(boss.x, lift, boss.y);
-      group.scale.setScalar(Math.max(0.01, scale));
-      // 3.56.0: the Glasswyrm's body undulates as it swims (the segments rock in local z)
-      if (group.userData.tail)
-        for (const seg of group.userData.tail)
-          seg.m.position.z = seg.z + Math.sin(time * 5.5 + seg.i * 1.15) * (0.08 + seg.i * 0.05);
-      group.rotation.order = "YZX";
-      group.rotation.set(roll, -boss.face, pitch);
-      for (let part of view.spin) {
-        part.m.rotation[part.ax] += part.v * dt * (boss.enraged ? 1.8 : 1);
-        if (boss.type === "core") part.m.position.y = 2.4 + Math.sin(time * 1.5) * 0.15;
-      }
-      let flash = boss.flash;
-      const identity = BOSS_EFFECTS[boss.type];
-      for (let mat of view.mats)
-        mat.emissive.copy(hexColor(identity.accent)).multiplyScalar(flash * 0.16 + (boss.charging ? 0.045 : 0));
-      view.glowMat.color.setHex(boss.enraged ? identity.accent : identity.color);
-      if (boss.shielded) {
-        view.glowMat.color.setHex(16777215);
-      }
-      let alpha = boss.ghost ? 0.12 : 1;
-      // 3.56.0: the Glasswyrm dives under the glass (boss.diveT counts its seconds below): it sinks,
-      // flattens and fades - the bulge telegraphs show where it swims
-      const dive = boss.type === "wyrm" && boss.diveT > 0 ? 1 : 0;
-      if (dive) group.scale.y *= 0.55;
-      // 2.4.6: a fade material can be translucent on its own (userData.opacity, Frost Prism ice)
-      if (group.userData.fadeMats)
-        for (let mat of group.userData.fadeMats) mat.opacity = alpha * (1 - dive * 0.74) * (mat.userData.opacity ?? 1);
-      view.glowMat.opacity = boss.ghost ? 0.15 : 1 - dive * 0.74;
-      this.shadows.y(boss.x, 0.02, boss.y, 0, boss.r * 3.4 * scale);
-      let glow = this.sprites.bb(boss.x, 1.2, boss.y, boss.r * 5, this.B);
-      this.sprites.colHex(glow, boss.enraged ? identity.accent : identity.color, 0.09);
-      if (boss.shielded) {
-        let ring = this.ringPool.y(boss.x, 0.1, boss.y, time, boss.r * 1.6);
-        this.ringPool.colC(ring, whiteColor, 0.8);
-      }
-      // 2.4.6: cold mist drifts off the Frost Prism
-      if (boss.type === "prism" && !boss.ghost && Math.random() < dt * 18) {
-        this.emit(
-          boss.x + (Math.random() - 0.5) * 2.6,
-          1 + Math.random() * 2.4,
-          boss.y + (Math.random() - 0.5) * 2.6,
-          (Math.random() - 0.5) * 0.6,
-          -0.5 - Math.random() * 0.6,
-          (Math.random() - 0.5) * 0.6,
-          1.1,
-          0.3,
-          hexColor(12578815),
-          { drag: 0.5 },
-        );
-      }
-      // 3.56.0: sand sheds off the Glasswyrm while it swims under the glass
-      if (boss.type === "wyrm" && dive && Math.random() < dt * 34) {
-        this.emit(
-          boss.x + (Math.random() - 0.5) * 3.2,
-          0.3 + Math.random() * 0.7,
-          boss.y + (Math.random() - 0.5) * 3.2,
-          (Math.random() - 0.5) * 2.4,
-          1.2 + Math.random() * 1.8,
-          (Math.random() - 0.5) * 2.4,
-          0.7,
-          0.3,
-          hexColor(0xd8c8a8),
-          { drag: 1.2, grav: -3 },
-        );
-      }
-      if (boss.type === "warden" && rushing && Math.random() < dt * 22) {
-        const backward = boss.face + Math.PI;
-        const heelX = boss.x + Math.cos(backward) * 1.16;
-        const heelZ = boss.y + Math.sin(backward) * 1.16;
-        this.emit(
-          heelX,
-          0.21,
-          heelZ,
-          Math.cos(backward) * 2.1,
-          0.8 + Math.random(),
-          Math.sin(backward) * 2.1,
-          0.43,
-          0.14,
-          hexColor(identity.accent),
-          { spark: true, drag: 2, grav: 3 },
-        );
-      }
-      if (boss.type === "queen" && Math.random() < dt * 10) {
-        this.emit(
-          boss.x + (Math.random() - 0.5) * 2.4,
-          1.2 + Math.random() * 1.6,
-          boss.y + (Math.random() - 0.5) * 2.4,
-          (Math.random() - 0.5) * 0.5,
-          0.4 + Math.random() * 0.5,
-          (Math.random() - 0.5) * 0.5,
-          1.2,
-          0.16,
-          hexColor(0x52ff9b),
-          { drag: 1.2 },
-        );
-      }
-      if (boss.type === "core" && Math.random() < dt * 14) {
-        this.emit(
-          boss.x + (Math.random() - 0.5) * 2.6,
-          1.2 + Math.random() * 2.2,
-          boss.y + (Math.random() - 0.5) * 2.6,
-          (Math.random() - 0.5) * 0.8,
-          0.6 + Math.random() * 0.8,
-          (Math.random() - 0.5) * 0.8,
-          0.85,
-          0.18,
-          hexColor(Math.random() < 0.5 ? 0xb56cff : 0xff5cab),
-          { spark: true, drag: 1.2 },
-        );
-      }
-      if (boss.type === "tyrant" && Math.random() < dt * (rushing ? 32 : 14)) {
-        this.emit(
-          boss.x + (Math.random() - 0.5) * 2.2,
-          1.1 + Math.random() * 1.8,
-          boss.y + (Math.random() - 0.5) * 2.2,
-          (Math.random() - 0.5) * 1.4,
-          1.2 + Math.random() * 1.6,
-          (Math.random() - 0.5) * 1.4,
-          0.55,
-          0.16,
-          hexColor(0xff9a42),
-          { spark: true, drag: 1.5 },
-        );
-      }
-      if (boss.type === "warden" && boss.st === "charge" && boss.sub === 0) {
-        this.chargeLine(boss.x, boss.y, boss.ta, 12, 3.4, clamp(boss.subT / 0.85, 0, 1));
-      }
-      // 3.49.0: the Ash Tyrant lines up its shoulder charge the same way
-      if (boss.type === "tyrant" && boss.st === "charge" && boss.sub === 0) {
-        this.chargeLine(boss.x, boss.y, boss.ta, 11, 3.2, clamp(boss.subT / 0.7, 0, 1));
+    try {
+      this.attackView.update(dt, world);
+    } catch (err) {
+      if (!this.rlAttackErr) {
+        logError("attacks", err);
+        this.rlAttackErr = true;
       }
     }
-    drawParticles(dt) {
-      let parts = this.P,
-        basis = this.B,
-        count = parts.n;
-      for (let i = 0; i < count; i++) {
-        parts.life[i] -= dt;
-        if (parts.life[i] <= 0) {
-          count--;
-          if (i !== count) {
-            parts.x[i] = parts.x[count];
-            parts.y[i] = parts.y[count];
-            parts.z[i] = parts.z[count];
-            parts.vx[i] = parts.vx[count];
-            parts.vy[i] = parts.vy[count];
-            parts.vz[i] = parts.vz[count];
-            parts.life[i] = parts.life[count];
-            parts.max[i] = parts.max[count];
-            parts.size[i] = parts.size[count];
-            parts.grow[i] = parts.grow[count];
-            parts.r[i] = parts.r[count];
-            parts.g[i] = parts.g[count];
-            parts.b[i] = parts.b[count];
-            parts.drag[i] = parts.drag[count];
-            parts.grav[i] = parts.grav[count];
-            parts.spark[i] = parts.spark[count];
-            i--;
-          }
-          continue;
-        }
-        let damp = 1 - Math.exp(-parts.drag[i] * dt);
-        parts.vx[i] -= parts.vx[i] * damp;
-        parts.vy[i] -= parts.vy[i] * damp + parts.grav[i] * dt;
-        parts.vz[i] -= parts.vz[i] * damp;
-        parts.x[i] += parts.vx[i] * dt;
-        parts.y[i] += parts.vy[i] * dt;
-        parts.z[i] += parts.vz[i] * dt;
-        if (parts.y[i] < 0.05) {
-          parts.y[i] = 0.05;
-          parts.vy[i] *= -0.4;
-        }
-        let k = parts.life[i] / parts.max[i],
-          size = parts.size[i] * (1 + parts.grow[i] * (1 - k)),
-          pool = parts.spark[i] ? this.sparks : this.sprites,
-          idx = pool.bb(
-            parts.x[i],
-            parts.y[i],
-            parts.z[i],
-            size * (parts.spark[i] ? 1 : 0.6 + 0.4 * k),
-            basis,
-            parts.spark[i] ? i : 0,
+
+    for (const beam of world.beams) {
+      const len = beam.cur;
+      if (len <= 0) continue;
+      const ex = beam.x + Math.cos(beam.a) * len;
+      const ez = beam.y + Math.sin(beam.a) * len;
+      if (beam.live && beam.skin && this.trapView.drawBeam(beam, ex, ez, len, time, dt)) continue;
+      if (beam.live) {
+        const beamCol = beam.color ? hexColor(beam.color) : beamColor;
+        this.beams.colC(this.beams.seg(beam.x, beam.y, ex, ez, 0.72, beam.w, beam.w * 0.2), beamCol, 0.78);
+        this.beams.colC(this.beams.seg(beam.x, beam.y, ex, ez, 0.75, beam.w * 0.22, beam.w * 0.13), whiteColor, 0.95);
+        if (Math.random() < dt * 14) {
+          const along = Math.random() * len;
+          this.emit(
+            beam.x + Math.cos(beam.a) * along,
+            1,
+            beam.y + Math.sin(beam.a) * along,
+            (Math.random() - 0.5) * 4,
+            2,
+            (Math.random() - 0.5) * 4,
+            0.3,
+            0.4,
+            beam.color ? beamCol : hexColor(0xff5268),
           );
-        if (idx >= 0) {
-          pool.col(idx, parts.r[i] * k, parts.g[i] * k, parts.b[i] * k);
         }
-      }
-      parts.n = count;
-    }
-    drawTransient(dt) {
-      this.smokeView.update(dt, this.B);
-      for (let line of this.lines) {
-        line.life -= dt;
-        let k = Math.max(0, line.life / line.max);
-        if (line.bend) {
-          let px = line.x1,
-            pz = line.z1,
-            dx = line.x2 - line.x1,
-            dz = line.z2 - line.z1,
-            len = Math.hypot(dx, dz) || 1,
-            nx = -dz / len,
-            nz = dx / len;
-          for (let i = 1; i <= 4; i++) {
-            const frac = i / 4,
-              sweep = Math.sin(frac * Math.PI) * line.bend,
-              qx = line.x1 + dx * frac + nx * sweep,
-              qz = line.z1 + dz * frac + nz * sweep,
-              seg = this.beams.seg(px, pz, qx, qz, line.y, line.w, line.w * 0.4);
-            this.beams.colC(seg, i % 2 ? line.col : whiteColor, k * (i % 2 ? 0.95 : 0.58));
-            px = qx;
-            pz = qz;
-          }
-        } else {
-          let seg = this.beams.seg(line.x1, line.z1, line.x2, line.z2, line.y, line.w * k, line.w * k);
-          this.beams.colC(seg, line.col, k);
+      } else {
+        const progress = clamp(beam.t / beam.warn, 0, 1);
+        const halfWidth = beam.w * 0.5;
+        const dx = -Math.sin(beam.a) * halfWidth;
+        const dz = Math.cos(beam.a) * halfWidth;
+        for (let side = -1; side <= 1; side += 2) {
+          const x = side * dx,
+            z = side * dz;
+          this.warningEdges.colC(
+            this.warningEdges.seg(beam.x + x, beam.y + z, ex + x, ez + z, 0.1, 0.2, 0.04),
+            warningDark,
+            0.92,
+          );
+          this.beams.colC(
+            this.beams.seg(beam.x + x, beam.y + z, ex + x, ez + z, 0.125, 0.095, 0.04),
+            warnColor,
+            0.78 + progress * 0.22,
+          );
         }
-      }
-      if (this.lines.length && this.lines.some((line) => line.life <= 0)) {
-        // 3.46.0: compacted in place (a filter used to hand the GC a fresh array)
-        let w = 0;
-        for (let i = 0; i < this.lines.length; i++) if (this.lines[i].life > 0) this.lines[w++] = this.lines[i];
-        this.lines.length = w;
-      }
-      for (let ring of this.rings) {
-        ring.life -= dt;
-        let k = Math.max(0, ring.life / ring.max),
-          radius = ring.r1 + (ring.r0 - ring.r1) * k,
-          idx = this.ringPool.y(ring.x, ring.y, ring.z, 0, radius);
-        this.ringPool.colC(idx, ring.col, k);
-      }
-      if (this.rings.length && this.rings.some((ring) => ring.life <= 0)) {
-        // 3.46.0: compacted in place (a filter used to hand the GC a fresh array)
-        let w = 0;
-        for (let i = 0; i < this.rings.length; i++) if (this.rings[i].life > 0) this.rings[w++] = this.rings[i];
-        this.rings.length = w;
+        this.beams.colC(this.beams.seg(beam.x, beam.y, ex, ez, 0.08, beam.w, 0.02), warnColor, 0.14 + progress * 0.2);
       }
     }
-    project(x, y, z, out) {
-      let ndc = this._v || (this._v = new Vector3());
-      ndc.set(x, y, z).project(this.camera);
-      out.x = (ndc.x * 0.5 + 0.5) * this.w;
-      out.y = (-ndc.y * 0.5 + 0.5) * this.h;
-      out.vis = ndc.z < 1 && ndc.x > -1.05 && ndc.x < 1.05 && ndc.y > -1.05 && ndc.y < 1.05;
-      out.nx = ndc.x;
-      out.ny = ndc.y;
-      return out;
+  }
+
+  aimLine(world, x, z, angle, locked, k) {
+    const dist = world.arena.rayLen(x, z, angle, 32);
+    const cos = Math.cos(angle),
+      sin = Math.sin(angle);
+    const from = Math.min(0.6, dist);
+    const ex = x + cos * dist,
+      ez = z + sin * dist;
+    if (dist <= from) return;
+    this.warningEdges.colC(
+      this.warningEdges.seg(x + cos * from, z + sin * from, ex, ez, 0.95, locked ? 0.22 : 0.15, 0.04),
+      warningDark,
+      0.94,
+    );
+    this.beams.colC(
+      this.beams.seg(x + cos * from, z + sin * from, ex, ez, 0.98, locked ? 0.095 : 0.055, 0.04),
+      warnColor,
+      locked ? 1.1 : 0.5 + clamp(k, 0, 1) * 0.4,
+    );
+    this.beams.colC(
+      this.beams.seg(x + cos * from, z + sin * from, ex, ez, 0.07, locked ? 0.16 : 0.085, 0.02),
+      warnColor,
+      locked ? 0.65 : 0.28,
+    );
+  }
+
+  chargeLine(x, z, angle, len, width, k) {
+    k = clamp(k, 0, 1);
+    const cos = Math.cos(angle),
+      sin = Math.sin(angle);
+    const ex = x + cos * len,
+      ez = z + sin * len;
+    const dx = -sin * width * 0.5,
+      dz = cos * width * 0.5;
+    this.beams.colC(this.beams.seg(x, z, ex, ez, 0.06, width, 0.02), warnColor, 0.12 + k * 0.14);
+    for (let side = -1; side <= 1; side += 2) {
+      this.warningEdges.colC(
+        this.warningEdges.seg(x + side * dx, z + side * dz, ex + side * dx, ez + side * dz, 0.08, 0.22, 0.025),
+        warningDark,
+        0.92,
+      );
+      this.beams.colC(
+        this.beams.seg(x + side * dx, z + side * dz, ex + side * dx, ez + side * dz, 0.11, 0.08, 0.025),
+        warnColor,
+        0.78 + k * 0.25,
+      );
+      this.beams.colC(
+        this.beams.seg(ex + side * dx - cos * 0.55, ez + side * dz - sin * 0.55, ex, ez, 0.12, 0.095, 0.025),
+        warnColor,
+        0.9,
+      );
     }
-    groundAt(sx, sy) {
-      if (!Number.isFinite(sx) || !Number.isFinite(sy)) return null;
-      let rect = this.canvas?.getBoundingClientRect ? this.canvas.getBoundingClientRect() : null,
-        w = rect && rect.width > 0 ? rect.width : this.w,
-        h = rect && rect.height > 0 ? rect.height : this.h,
-        left = rect ? rect.left : 0,
-        top = rect ? rect.top : 0;
-      if (!(w > 0 && h > 0)) return null;
-      let ndc = this._ndc || (this._ndc = new Vector2()),
-        rc = this._rc || (this._rc = new Raycaster());
-      ndc.set(((sx - left) / w) * 2 - 1, -(((sy - top) / h) * 2 - 1));
-      rc.setFromCamera(ndc, this.camera);
-      let dir = rc.ray.direction;
-      if (Math.abs(dir.y) < 1e-4) return null;
-      let t = (0.75 - rc.ray.origin.y) / dir.y;
-      if (!(t > 0)) return null;
-      let out = this._ground || (this._ground = { x: 0, y: 0 });
-      out.x = rc.ray.origin.x + dir.x * t;
-      out.y = rc.ray.origin.z + dir.z * t;
-      return out;
+    if (k > 0)
+      this.beams.colC(this.beams.seg(x, z, x + cos * len * k, z + sin * len * k, 0.07, width, 0.02), warnColor, 0.22);
+  }
+
+  drawBoss(dt, world, boss) {
+    if (!boss) {
+      if (this.bossView) this.bossView.group.visible = false;
+      return;
     }
-    resetCamera() {
-      this.smokeView.clear();
-      this.camInit = false;
-      this.shake = 0;
-      this._rlViewKey = "";
-      this.camera.clearViewOffset();
+    if (!this.bossView || this.bossView.id !== boss.type) {
+      if (this.bossView) {
+        this.scene.remove(this.bossView.group);
+        this.bossView.group.traverse((obj) => {
+          if (obj.geometry) obj.geometry.dispose();
+        });
+      }
+      const model = buildBossModel(boss.type, bossDefs[boss.type].color);
+      model.id = boss.type;
+      setWorldShadows(model.group);
+      this.bossView = model;
+      this.scene.add(model.group);
     }
-    focusOn(x, z) {
-      this.focus = x == null ? null : { x, z };
-      this.focusK = 0;
+    const view = this.bossView;
+    const group = view.group;
+    const time = this.time;
+    group.visible = true;
+    let grow = boss.spawnT > 0 ? clamp(1 - boss.spawnT / 1.2, 0, 1) : 1;
+    if (this.focus) grow = Math.max(grow, clamp((this.focusK - 0.15) / 0.45, 0, 1));
+    const scale = easeOutBack(grow);
+    const walking = boss.st === "walk";
+    const rushing = boss.st === "charge" && boss.sub === 1;
+    const lift =
+      boss.type === "prism" || boss.type === "wyrm"
+        ? (1 + Math.sin(time * 1.6)) * 0.09
+        : boss.type === "queen"
+          ? Math.abs(Math.sin(time * 2.2)) * 0.08
+          : walking
+            ? Math.abs(Math.sin(time * 6.5)) * 0.09
+            : 0;
+    const pitch = rushing ? -0.14 : walking ? -0.04 : 0;
+    const roll =
+      boss.type === "warden" || boss.type === "tyrant"
+        ? Math.sin(time * (rushing ? 14 : 6.5)) * (rushing ? 0.06 : walking ? 0.035 : 0)
+        : 0;
+    group.position.set(boss.x, lift, boss.y);
+    group.scale.setScalar(Math.max(0.01, scale));
+    if (group.userData.tail) {
+      for (const seg of group.userData.tail)
+        seg.m.position.z = seg.z + Math.sin(time * 5.5 + seg.i * 1.15) * (0.08 + seg.i * 0.05);
     }
-  };
-// 2.3.6: on landscape phones and tablets the home screen has two columns (title left, weapon
-// card right), while desktop stacks title above dock. Shift the menu view into whichever open
-// showcase band sits free of UI chrome (`dirty` asks for a new measurement).
-let homeViewSpot = null,
-  dirty = true;
+    group.rotation.order = "YZX";
+    group.rotation.set(roll, -boss.face, pitch);
+    for (const part of view.spin) {
+      part.m.rotation[part.ax] += part.v * dt * (boss.enraged ? 1.8 : 1);
+      if (boss.type === "core") part.m.position.y = 2.4 + Math.sin(time * 1.5) * 0.15;
+    }
+    const flash = boss.flash;
+    const identity = BOSS_EFFECTS[boss.type];
+    for (const mat of view.mats) {
+      mat.emissive.copy(hexColor(identity.accent)).multiplyScalar(flash * 0.25 + (boss.charging ? 0.06 : 0));
+    }
+    view.glowMat.color.setHex(boss.shielded ? 0xffffff : boss.enraged ? identity.accent : identity.color);
+    const alpha = boss.ghost ? 0.14 : 1;
+    const dive = boss.type === "wyrm" && boss.diveT > 0 ? 1 : 0;
+    if (dive) group.scale.y *= 0.55;
+    if (group.userData.fadeMats) {
+      for (const mat of group.userData.fadeMats) mat.opacity = alpha * (1 - dive * 0.74) * (mat.userData.opacity ?? 1);
+    }
+    view.glowMat.opacity = boss.ghost ? 0.18 : 1 - dive * 0.74;
+    this.shadows.y(boss.x, 0.025, boss.y, 0, boss.r * 3.4 * scale);
+    this.sprites.colHex(
+      this.sprites.bb(boss.x, 1.2, boss.y, boss.r * 5, this.B),
+      boss.enraged ? identity.accent : identity.color,
+      0.12,
+    );
+    if (boss.shielded) this.ringPool.colC(this.ringPool.y(boss.x, 0.1, boss.y, time, boss.r * 1.6), whiteColor, 0.85);
+
+    if (boss.type === "prism" && !boss.ghost && Math.random() < dt * 18)
+      this.emit(
+        boss.x + (Math.random() - 0.5) * 2.6,
+        1 + Math.random() * 2.4,
+        boss.y + (Math.random() - 0.5) * 2.6,
+        (Math.random() - 0.5) * 0.6,
+        -0.5 - Math.random() * 0.6,
+        (Math.random() - 0.5) * 0.6,
+        1.1,
+        0.3,
+        hexColor(0xbef2ff),
+        { drag: 0.5 },
+      );
+    if (boss.type === "wyrm" && dive && Math.random() < dt * 34)
+      this.emit(
+        boss.x + (Math.random() - 0.5) * 3.2,
+        0.3 + Math.random() * 0.7,
+        boss.y + (Math.random() - 0.5) * 3.2,
+        (Math.random() - 0.5) * 2.4,
+        1.2 + Math.random() * 1.8,
+        (Math.random() - 0.5) * 2.4,
+        0.7,
+        0.3,
+        hexColor(0xe0cc9e),
+        { drag: 1.2, grav: -3 },
+      );
+    if (boss.type === "warden" && rushing && Math.random() < dt * 22) {
+      const backward = boss.face + Math.PI;
+      this.emit(
+        boss.x + Math.cos(backward) * 1.16,
+        0.21,
+        boss.y + Math.sin(backward) * 1.16,
+        Math.cos(backward) * 2.1,
+        0.8 + Math.random(),
+        Math.sin(backward) * 2.1,
+        0.43,
+        0.14,
+        hexColor(identity.accent),
+        { spark: true, drag: 2, grav: 3 },
+      );
+    }
+    if (boss.type === "queen" && Math.random() < dt * 10)
+      this.emit(
+        boss.x + (Math.random() - 0.5) * 2.4,
+        1.2 + Math.random() * 1.6,
+        boss.y + (Math.random() - 0.5) * 2.4,
+        (Math.random() - 0.5) * 0.5,
+        0.4 + Math.random() * 0.5,
+        (Math.random() - 0.5) * 0.5,
+        1.2,
+        0.16,
+        hexColor(0x52ff9b),
+        { drag: 1.2 },
+      );
+    if (boss.type === "core" && Math.random() < dt * 14)
+      this.emit(
+        boss.x + (Math.random() - 0.5) * 2.6,
+        1.2 + Math.random() * 2.2,
+        boss.y + (Math.random() - 0.5) * 2.6,
+        (Math.random() - 0.5) * 0.8,
+        0.6 + Math.random() * 0.8,
+        (Math.random() - 0.5) * 0.8,
+        0.85,
+        0.18,
+        hexColor(Math.random() < 0.5 ? 0xb56cff : 0xff5cab),
+        { spark: true, drag: 1.2 },
+      );
+    if (boss.type === "tyrant" && Math.random() < dt * (rushing ? 32 : 14))
+      this.emit(
+        boss.x + (Math.random() - 0.5) * 2.2,
+        1.1 + Math.random() * 1.8,
+        boss.y + (Math.random() - 0.5) * 2.2,
+        (Math.random() - 0.5) * 1.4,
+        1.2 + Math.random() * 1.6,
+        (Math.random() - 0.5) * 1.4,
+        0.55,
+        0.16,
+        hexColor(0xff9a42),
+        { spark: true, drag: 1.5 },
+      );
+    if (boss.type === "warden" && boss.st === "charge" && boss.sub === 0)
+      this.chargeLine(boss.x, boss.y, boss.ta, 12, 3.4, clamp(boss.subT / 0.85, 0, 1));
+    if (boss.type === "tyrant" && boss.st === "charge" && boss.sub === 0)
+      this.chargeLine(boss.x, boss.y, boss.ta, 11, 3.2, clamp(boss.subT / 0.7, 0, 1));
+  }
+
+  drawDebris(dt) {
+    const list = this.D;
+    const pool = this.debris;
+    const arr = pool.m;
+    let keep = 0;
+    for (let i = 0; i < list.length; i++) {
+      const piece = list[i];
+      piece.life -= dt;
+      if (piece.life <= 0) continue;
+      list[keep++] = piece;
+      piece.vy -= 16 * dt;
+      piece.x += piece.vx * dt;
+      piece.y += piece.vy * dt;
+      piece.z += piece.vz * dt;
+      if (piece.y < piece.s * 0.5) {
+        piece.y = piece.s * 0.5;
+        piece.vy *= -0.22;
+        piece.vx *= 0.55;
+        piece.vz *= 0.55;
+        piece.sx *= 0.6;
+        piece.sy *= 0.6;
+        piece.sz *= 0.6;
+      }
+      piece.rx += piece.sx * dt;
+      piece.ry += piece.sy * dt;
+      piece.rz += piece.sz * dt;
+      if (pool.n >= pool.max) continue;
+      const idx = pool.n++;
+      const fade = piece.life < 0.5 ? Math.max(0, piece.life / 0.5) : 1;
+      this._e.set(piece.rx, piece.ry, piece.rz);
+      this._q.setFromEuler(this._e);
+      this._m.compose(this._p.set(piece.x, piece.y, piece.z), this._q, this._s.setScalar(piece.s * fade));
+      this._m.toArray(arr, idx * 16);
+      pool.colC(idx, piece.col, 1);
+    }
+    list.length = keep;
+  }
+
+  drawParticles(dt) {
+    const parts = this.P;
+    const basis = this.B;
+    let count = parts.n;
+    for (let i = 0; i < count; i++) {
+      parts.life[i] -= dt;
+      if (parts.life[i] <= 0) {
+        count--;
+        if (i !== count) {
+          parts.x[i] = parts.x[count];
+          parts.y[i] = parts.y[count];
+          parts.z[i] = parts.z[count];
+          parts.vx[i] = parts.vx[count];
+          parts.vy[i] = parts.vy[count];
+          parts.vz[i] = parts.vz[count];
+          parts.life[i] = parts.life[count];
+          parts.max[i] = parts.max[count];
+          parts.size[i] = parts.size[count];
+          parts.grow[i] = parts.grow[count];
+          parts.r[i] = parts.r[count];
+          parts.g[i] = parts.g[count];
+          parts.b[i] = parts.b[count];
+          parts.drag[i] = parts.drag[count];
+          parts.grav[i] = parts.grav[count];
+          parts.spark[i] = parts.spark[count];
+          i--;
+        }
+        continue;
+      }
+      const damp = 1 - Math.exp(-parts.drag[i] * dt);
+      parts.vx[i] -= parts.vx[i] * damp;
+      parts.vy[i] -= parts.vy[i] * damp + parts.grav[i] * dt;
+      parts.vz[i] -= parts.vz[i] * damp;
+      parts.x[i] += parts.vx[i] * dt;
+      parts.y[i] += parts.vy[i] * dt;
+      parts.z[i] += parts.vz[i] * dt;
+      if (parts.y[i] < 0.05) {
+        parts.y[i] = 0.05;
+        parts.vy[i] *= -0.4;
+      }
+      const k = parts.life[i] / parts.max[i];
+      const size = parts.size[i] * (1 + parts.grow[i] * (1 - k));
+      const pool = parts.spark[i] ? this.sparks : this.sprites;
+      const idx = pool.bb(
+        parts.x[i],
+        parts.y[i],
+        parts.z[i],
+        size * (parts.spark[i] ? 1.15 : 0.6 + 0.4 * k),
+        basis,
+        parts.spark[i] ? i : 0,
+      );
+      if (idx >= 0) pool.col(idx, parts.r[i] * k, parts.g[i] * k, parts.b[i] * k);
+    }
+    parts.n = count;
+  }
+
+  drawTransient(dt) {
+    this.smokeView.update(dt, this.B);
+    let keepL = 0;
+    for (let i = 0; i < this.lines.length; i++) {
+      const line = this.lines[i];
+      line.life -= dt;
+      if (line.life <= 0) continue;
+      this.lines[keepL++] = line;
+      const k = Math.max(0, line.life / line.max);
+      if (line.bend) {
+        let px = line.x1,
+          pz = line.z1;
+        const dx = line.x2 - line.x1,
+          dz = line.z2 - line.z1;
+        const len = Math.hypot(dx, dz) || 1;
+        const nx = -dz / len,
+          nz = dx / len;
+        for (let s = 1; s <= 4; s++) {
+          const frac = s / 4;
+          const sweep = Math.sin(frac * Math.PI) * line.bend;
+          const qx = line.x1 + dx * frac + nx * sweep;
+          const qz = line.z1 + dz * frac + nz * sweep;
+          this.beams.colC(
+            this.beams.seg(px, pz, qx, qz, line.y, line.w, line.w * 0.4),
+            s % 2 ? line.col : whiteColor,
+            k * (s % 2 ? 1.0 : 0.62),
+          );
+          px = qx;
+          pz = qz;
+        }
+      } else {
+        this.beams.colC(
+          this.beams.seg(line.x1, line.z1, line.x2, line.z2, line.y, line.w * k, line.w * k),
+          line.col,
+          k,
+        );
+      }
+    }
+    this.lines.length = keepL;
+
+    let keepR = 0;
+    for (let i = 0; i < this.rings.length; i++) {
+      const r = this.rings[i];
+      r.life -= dt;
+      if (r.life <= 0) continue;
+      this.rings[keepR++] = r;
+      const k = Math.max(0, r.life / r.max);
+      const radius = r.r1 + (r.r0 - r.r1) * k;
+      this.ringPool.colC(this.ringPool.y(r.x, r.y, r.z, 0, radius), r.col, k);
+    }
+    this.rings.length = keepR;
+  }
+
+  project(x, y, z, out) {
+    const ndc = this.camera.projectNDC(x, y, z, this._v);
+    out.x = (ndc.x * 0.5 + 0.5) * this.w;
+    out.y = (-ndc.y * 0.5 + 0.5) * this.h;
+    out.vis = ndc.z < 1 && ndc.x > -1.05 && ndc.x < 1.05 && ndc.y > -1.05 && ndc.y < 1.05;
+    out.nx = ndc.x;
+    out.ny = ndc.y;
+    return out;
+  }
+
+  groundAt(sx, sy) {
+    if (!Number.isFinite(sx) || !Number.isFinite(sy)) return null;
+    const rect = this.canvas?.getBoundingClientRect ? this.canvas.getBoundingClientRect() : null;
+    const w = rect && rect.width > 0 ? rect.width : this.w;
+    const h = rect && rect.height > 0 ? rect.height : this.h;
+    const left = rect ? rect.left : 0;
+    const top = rect ? rect.top : 0;
+    if (!(w > 0 && h > 0)) return null;
+    const ndcX = ((sx - left) / w) * 2 - 1;
+    const ndcY = -(((sy - top) / h) * 2 - 1);
+    this.camera.unprojectRay(ndcX, ndcY, this._rayO, this._rayD);
+    if (Math.abs(this._rayD.y) < 1e-4) return null;
+    const t = (0.75 - this._rayO.y) / this._rayD.y;
+    if (!(t > 0)) return null;
+    this._ground.x = this._rayO.x + this._rayD.x * t;
+    this._ground.y = this._rayO.z + this._rayD.z * t;
+    return this._ground;
+  }
+
+  resetCamera() {
+    this.smokeView.clear();
+    this.camInit = false;
+    this.shake = 0;
+    this._rlViewKey = "";
+    this.camera.clearViewOffset();
+  }
+
+  focusOn(x, z) {
+    this.focus = x == null ? null : { x, z };
+    this.focusK = 0;
+  }
+}
+
+let homeViewSpot = null;
+let dirty = true;
+
 const measureHomeViewSpot = () => {
-  const query = (sel) => document.querySelector(sel),
-    brand = query("#home .brand"),
-    panel = query("#home .home-panel"),
-    top = query("#home .topbar"),
-    nav = query("#home .bottom-nav");
+  const query = (sel) => document.querySelector(sel);
+  const brand = query("#home .brand");
+  const panel = query("#home .home-panel");
+  const top = query("#home .topbar");
+  const nav = query("#home .bottom-nav");
   if (!brand || !panel || !top || !nav) return null;
-  const brandBox = brand.getBoundingClientRect(),
-    panelBox = panel.getBoundingClientRect();
+  const brandBox = brand.getBoundingClientRect();
+  const panelBox = panel.getBoundingClientRect();
   if (brandBox.width < 1 || panelBox.width < 1) return null;
   if (brandBox.right > panelBox.left) {
     const gap = panelBox.top - brandBox.bottom;
     if (gap < 28) return null;
     return { x: (brandBox.left + brandBox.right) / 2, y: brandBox.bottom + gap * 0.5 };
   }
-  const topEdge = top.getBoundingClientRect().bottom,
-    navEdge = nav.getBoundingClientRect().top,
-    above = brandBox.top - topEdge,
-    below = navEdge - brandBox.bottom;
+  const topEdge = top.getBoundingClientRect().bottom;
+  const navEdge = nav.getBoundingClientRect().top;
+  const above = brandBox.top - topEdge;
+  const below = navEdge - brandBox.bottom;
   return {
     x: (brandBox.left + brandBox.right) / 2,
     y: above > below ? brandBox.top - Math.min(above / 2, 100) : brandBox.bottom + Math.min(below / 2, 100),
   };
 };
-/** Asks the home screen drone view for a new measurement (the UI calls it when a screen is shown). */
-function markHomeViewDirty() {
+
+export function markHomeViewDirty() {
   dirty = true;
 }
-// the device classes (phone/tablet, portrait/landscape) settle up to 420 ms after a resize
-const remeasureHomeView = () => {
-  dirty = true;
-  setTimeout(() => (dirty = true), 450);
-};
-addEventListener("resize", remeasureHomeView, { passive: true });
-if (window.visualViewport) {
-  window.visualViewport.addEventListener("resize", remeasureHomeView, { passive: true });
-}
-if (document.fonts) {
-  document.fonts.ready.then(() => (dirty = true));
-}
 
-// 2.5.0 C: biome events in the renderer (Whiteout fog and snow, see frame() and setBiome()).
-const RL_WHITEOUT_FOG = [0.7, 1.12],
-  // 3.41.0: a whiteout goes bright and white (the old slate-grey tint sat darker than the pale shelf
-  // scene and read as nothing). The window starts inside the play field and closes before the arena
-  // edge, so the edge dissolves into the storm while the fight keeps a sight pocket; the flakes are
-  // finally big enough to see from the phone camera
-  RL_WHITEOUT_TINT = new Color(0xe6f0f6),
-  RL_WHITEOUT_SNOW = new Color(0xffffff);
-
-export { Renderer, markHomeViewDirty };
+if (typeof addEventListener === "function") {
+  const remeasureHomeView = () => {
+    dirty = true;
+    setTimeout(() => (dirty = true), 450);
+  };
+  addEventListener("resize", remeasureHomeView, { passive: true });
+  if (typeof window !== "undefined" && window.visualViewport) {
+    window.visualViewport.addEventListener("resize", remeasureHomeView, { passive: true });
+  }
+  if (typeof document !== "undefined" && document.fonts) {
+    document.fonts.ready.then(() => (dirty = true));
+  }
+}

@@ -1,898 +1,909 @@
-// Mesh builders for the player drone, enemies, bosses and props.
-import { worldMaterial } from "./world-material.js";
-import { createAegisMaterial } from "./aegis-material.js";
-import { BOSS_EFFECTS } from "../data/combat-effects.js";
-import { armorBox } from "./armor-geometry.js";
-import { mergeStaticMeshes } from "./static-meshes.js";
+// Ground-up stylized painterly / cel-shaded 3D models for Riftline:
+// articulated Player + 7 custom weapons, all 25 distinct enemy kits, all 6 monumental biome bosses, and combat props.
 
 import {
-  BoxGeometry,
-  BufferAttribute,
-  BufferGeometry,
-  Color,
-  ConeGeometry,
-  CylinderGeometry,
-  Euler,
-  LatheGeometry,
-  ExtrudeGeometry,
-  Group,
-  Matrix4,
-  Mesh,
-  MeshBasicMaterial,
-  OctahedronGeometry,
-  Quaternion,
-  Shape,
-  SphereGeometry,
-  TorusGeometry,
-  Vector2,
-  Vector3,
-} from "three";
+  box,
+  beveledBox,
+  cylinder,
+  cone,
+  sphere,
+  octahedron,
+  icosahedron,
+  torus,
+  sculptedCrystal,
+  sculptedCap,
+  meshPart,
+  mergeGeometries,
+} from "../engine/geometry.js";
+import { MeshNode, Node } from "../engine/scene.js";
+import { worldMaterial, emissiveMaterial, aegisMaterial, enemySurface } from "./materials.js";
+import { FINISH } from "./palette.js";
+import { enemyDefs } from "../data/enemies.js";
+import { TAU, angleDiff, dampFactor } from "../core/util.js";
 
-// One lit and one emissive mesh per enemy type, budgeted at 810 triangles together.
-// Local +x is forward and +y is up. Geometry does not affect contact or movement.
-const limbUp = new Vector3(0, 1, 0),
-  limbDir = new Vector3(),
-  limbZ = new Vector3(),
-  limbU = new Vector3(),
-  limbC = new Vector3(),
-  limbRoll = new Quaternion();
-/* a part that runs from point a to point b; make(len) returns a geometry of that length along y.
-   flat = true rolls it so that its local z (the thin side) points up, for blades and wings */
-function limb(color, make, a, b, flat = false) {
-  limbDir.set(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
-  const len = limbDir.length() || 1e-3;
-  limbDir.divideScalar(len);
-  const geo = make(len);
-  geo.translate(0, len / 2, 0);
-  const q = new Quaternion().setFromUnitVectors(limbUp, limbDir);
-  if (flat) {
-    limbZ.set(0, 0, 1).applyQuaternion(q);
-    limbU.copy(limbUp).addScaledVector(limbDir, -limbUp.dot(limbDir));
-    if (limbU.lengthSq() > 1e-6) {
-      limbU.normalize();
-      limbC.crossVectors(limbZ, limbU);
-      q.premultiply(limbRoll.setFromAxisAngle(limbDir, Math.atan2(limbC.dot(limbDir), limbZ.dot(limbU))));
-    }
-  }
-  return meshPart(geo, color, { x: a[0], y: a[1], z: a[2], q });
-}
-const spike = (color, r, seg, a, b) => limb(color, (len) => new ConeGeometry(r, len, seg), a, b),
-  bar = (color, w, a, b, t = w) => limb(color, (len) => new BoxGeometry(w, len, t), a, b, t !== w),
-  pipe = (color, r0, r1, seg, a, b) => limb(color, (len) => new CylinderGeometry(r1, r0, len, seg), a, b),
-  box = (color, w, h, d, p = {}) =>
-    meshPart(Math.min(w, h, d) >= 0.12 ? armorBox(w, h, d) : new BoxGeometry(w, h, d), color, p),
-  both = (make) => [].concat(make(1), make(-1));
-// Dimensions and head crests are authored per role. The plans are assembled once into the two instance layers.
-const SENTRY_KITS = {
-  swarmer: ["dart", 0.51, 0.33, 0.73, 2, 0xc26d73],
-  mite: ["dart", 0.32, 0.28, 0.43, 3, 0x80a476],
-  grunt: ["mask", 0.62, 0.53, 0.94, 2, 0xc56750],
-  gunner: ["reeds", 0.64, 0.49, 1.1, 2, 0xc48556],
-  bomber: ["urn", 0.56, 0.51, 0.82, 3, 0xd5a354],
-  splitter: ["urn", 0.76, 0.69, 1.08, 3, 0x69946d],
-  brute: ["mask", 1.02, 0.86, 1.5, 4, 0xb85b4b],
-  sniper: ["reeds", 0.63, 0.43, 1.24, 1, 0xcc635a],
-  hive: ["urn", 1.03, 0.96, 1.64, 5, 0x82a377],
-  bulwark: ["shield", 0.76, 0.88, 1.22, 3, 0x8595b2],
-  striker: ["dart", 0.59, 0.55, 1.01, 4, 0x9b82bc],
-  mender: ["crown", 0.59, 0.49, 1.23, 3, 0x89bda4],
-  mortar: ["urn", 0.68, 0.65, 1.26, 4, 0xaf8a62],
-  leaper: ["dart", 0.67, 0.61, 0.85, 5, 0x9c9260],
-  turret: ["reeds", 0.73, 0.63, 1.12, 4, 0xbca17d],
-  charger: ["shield", 0.91, 0.67, 1.04, 1, 0xa57154],
-  minebot: ["urn", 0.69, 0.56, 0.72, 2, 0xb89861],
-  sapper: ["reeds", 0.66, 0.54, 0.88, 3, 0xc3a779],
-  phantom: ["crown", 0.63, 0.58, 1.31, 2, 0xa389b1],
-  sentinel: ["shield", 0.83, 0.71, 1.41, 4, 0x6f9ba4],
-  carrier: ["crown", 0.89, 0.79, 1.22, 5, 0xab856e],
-  drone: ["dart", 0.64, 0.67, 0.67, 1, 0x77a5ac],
-  driller: ["shield", 0.99, 0.78, 0.88, 2, 0xc9774a],
-  beacon: ["crown", 0.69, 0.69, 1.61, 4, 0xc1ae70],
-  weaver: ["mask", 0.77, 0.6, 1.22, 5, 0x9b77aa],
-};
-export const RL_MESH_TYPES = Object.keys(SENTRY_KITS);
-const brass = 0xc49261,
-  cream = 0xe7d9bb,
-  ink = 0x263032;
-const jewel = (color, r, p) => meshPart(new OctahedronGeometry(r), color, p);
-const collar = (color, r, t, p) => meshPart(new TorusGeometry(r, t, 4, 12), color, p);
-const shell = (color, r, h, p) =>
-  meshPart(
-    new LatheGeometry(
-      [
-        new Vector2(0, -h * 0.48),
-        new Vector2(r * 0.68, -h * 0.47),
-        new Vector2(r, -h * 0.19),
-        new Vector2(r * 0.99, h * 0.14),
-        new Vector2(r * 0.7, h * 0.41),
-        new Vector2(0, h * 0.5),
-      ],
-      10,
-    ),
-    color,
-    p,
-  );
-function enemyGeometry(type) {
-  const [kind, x, z, h, details, glaze] = SENTRY_KITS[type] || SENTRY_KITS.grunt;
-  const body = [],
-    glow = [jewel(0xffffff, 0.125, { x: x * 0.82, y: h * 0.73, sx: 0.45, sy: 1.25 })];
-  body.push(shell(glaze, 1, h * 0.68, { y: h * 0.58, sx: x * 0.73, sz: z * 0.73 }));
-  body.push(jewel(cream, 0.44, { x: x * 0.54, y: h * 0.72, sx: x * 0.66, sy: h * 0.79, sz: z * 1.25 }));
-  body.push(jewel(ink, 0.22, { x: x * 0.77, y: h * 0.74, sx: 0.36, sy: h * 0.81, sz: z * 1.12 }));
-  if (kind === "mask" || kind === "reeds" || kind === "shield") {
-    body.push(
-      ...both((s) => [
-        bar(ink, 0.11, [-x * 0.36, h * 0.51, s * z * 0.44], [x * 0.19, 0.08, s * z * 0.72], 0.14),
-        jewel(glaze, 0.37, { x: -x * 0.08, y: h * 0.44, z: s * z * 0.61, sx: x * 1.1, sy: h * 0.77, sz: z * 0.74 }),
-      ]),
-    );
-  }
-  if (kind === "dart") {
-    body.push(
-      ...both((s) => [
-        jewel(glaze, 0.66, { x: -x * 0.52, y: h * 0.73, z: s * z * 0.53, sx: x, sy: 0.24, sz: z * 1.42, ry: s * 0.42 }),
-        jewel(brass, 0.37, { x: -x * 0.74, y: h * 0.64, z: s * z * 0.74, sx: x, sy: 0.19, sz: z, ry: s * 0.42 }),
-      ]),
-    );
-    body.push(spike(cream, 0.11, 5, [x * 0.42, h * 0.58, 0], [x * 1.46, h * 0.48, 0]));
-  }
-  if (kind === "shield") {
-    const plate = meshPart(new CylinderGeometry(0.71, 0.86, 0.16, 6), glaze, {
-      x: x * 0.39,
-      y: h * 0.54,
-      rz: Math.PI / 2,
-      sx: h * 0.81,
-      sz: z * 1.14,
-      rx: 0.48,
-    });
-    body.push(plate, collar(brass, 0.36, 0.033, { x: x * 0.53, y: h * 0.54, ry: Math.PI / 2, sy: h, sz: z }));
-  }
-  if (kind === "urn") {
-    body.push(collar(brass, 0.6, 0.05, { y: h * 0.45, rx: Math.PI / 2, sx: x, sy: z }));
-    body.push(shell(cream, 0.31, 0.31, { y: h * 0.98, sz: 1.12 }));
-  }
-  if (kind === "crown") {
-    body.push(collar(brass, 0.6, 0.033, { y: h * 0.92, rx: Math.PI / 2, sx: x, sy: z }));
-    body.push(jewel(glaze, 0.3, { x: -x * 0.47, y: h * 0.52, sy: 1.48 }));
-  }
-  for (let i = 0; i < details; i++) {
-    const a = (i * Math.PI * 2) / details;
-    const px = -x * 0.17 + x * 0.38 * Math.cos(a),
-      pz = z * 0.46 * Math.sin(a);
-    const y = h * (0.89 + (i % 2) * 0.075);
-    if (kind === "reeds") body.push(pipe(ink, 0.07, 0.045, 6, [px, y, pz], [px + x * 0.65, y + h * 0.18, pz]));
-    body.push(jewel(i % 2 ? cream : brass, 0.11, { x: px, y: y + h * 0.06, z: pz, sy: kind === "crown" ? 2.2 : 1.4 }));
-    glow.push(jewel(0xffffff, 0.052, { x: px, y: y + h * 0.17, z: pz, sy: 1.25 }));
-  }
-  if (type === "mender") glow.push(jewel(0xffffff, 0.17, { x: -x * 0.45, y: h * 1.04, sy: 1.6 }));
-  if (type === "sniper") body.push(pipe(brass, 0.09, 0.04, 6, [x * 0.15, h * 0.81, 0], [x * 1.73, h * 0.87, 0]));
-  if (type === "driller" || type === "charger")
-    body.push(spike(cream, 0.2, 6, [x * 0.64, h * 0.51, 0], [x * 1.45, h * 0.46, 0]));
-  // Retain the enemy's gameplay color in the emissive instance tint, applied by Renderer.
-  return { body: mergeParts(body), glow: mergeParts(glow) };
+export { meshPart };
+export function mergeParts(list) {
+  return mergeGeometries(list);
 }
 
-function mergeGeometries(geometries, useGroups = false) {
-  let isIndexed = geometries[0].index !== null,
-    attributesUsed = new Set(Object.keys(geometries[0].attributes)),
-    morphAttributesUsed = new Set(Object.keys(geometries[0].morphAttributes)),
-    attributes = {},
-    morphAttributes = {},
-    morphTargetsRelative = geometries[0].morphTargetsRelative,
-    merged = new BufferGeometry(),
-    offset = 0;
-  for (let i = 0; i < geometries.length; ++i) {
-    let geometry = geometries[i],
-      attributesCount = 0;
-    if (isIndexed !== (geometry.index !== null)) {
-      console.error(
-        "THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " +
-          i +
-          ". All geometries must have compatible attributes; make sure index attribute exists among all geometries, or in none of them.",
-      );
-      return null;
-    }
-    for (let name in geometry.attributes) {
-      if (!attributesUsed.has(name)) {
-        console.error(
-          "THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " +
-            i +
-            '. All geometries must have compatible attributes; make sure "' +
-            name +
-            '" attribute exists among all geometries, or in none of them.',
-        );
-        return null;
-      }
-      if (attributes[name] === undefined) {
-        attributes[name] = [];
-      }
-      attributes[name].push(geometry.attributes[name]);
-      attributesCount++;
-    }
-    if (attributesCount !== attributesUsed.size) {
-      console.error(
-        "THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " +
-          i +
-          ". Make sure all geometries have the same number of attributes.",
-      );
-      return null;
-    }
-    if (morphTargetsRelative !== geometry.morphTargetsRelative) {
-      console.error(
-        "THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " +
-          i +
-          ". .morphTargetsRelative must be consistent throughout all geometries.",
-      );
-      return null;
-    }
-    for (let name in geometry.morphAttributes) {
-      if (!morphAttributesUsed.has(name)) {
-        console.error(
-          "THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " +
-            i +
-            ".  .morphAttributes must be consistent throughout all geometries.",
-        );
-        return null;
-      }
-      if (morphAttributes[name] === undefined) {
-        morphAttributes[name] = [];
-      }
-      morphAttributes[name].push(geometry.morphAttributes[name]);
-    }
-    if (useGroups) {
-      let count;
-      if (isIndexed) count = geometry.index.count;
-      else if (geometry.attributes.position !== undefined) count = geometry.attributes.position.count;
-      else {
-        console.error(
-          "THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " +
-            i +
-            ". The geometry must have either an index or a position attribute",
-        );
-        return null;
-      }
-      merged.addGroup(offset, count, i);
-      offset += count;
-    }
-  }
-  if (isIndexed) {
-    let indexOffset = 0,
-      mergedIndex = [];
-    for (let i = 0; i < geometries.length; ++i) {
-      let index = geometries[i].index;
-      for (let j = 0; j < index.count; ++j) mergedIndex.push(index.getX(j) + indexOffset);
-      indexOffset += geometries[i].attributes.position.count;
-    }
-    merged.setIndex(mergedIndex);
-  }
-  for (let name in attributes) {
-    let mergedAttribute = mergeAttributes(attributes[name]);
-    if (!mergedAttribute) {
-      console.error(
-        "THREE.BufferGeometryUtils: .mergeGeometries() failed while trying to merge the " + name + " attribute.",
-      );
-      return null;
-    }
-    merged.setAttribute(name, mergedAttribute);
-  }
-  for (let name in morphAttributes) {
-    let numMorphTargets = morphAttributes[name][0].length;
-    if (numMorphTargets !== 0) {
-      merged.morphAttributes = merged.morphAttributes || {};
-      merged.morphAttributes[name] = [];
-      for (let i = 0; i < numMorphTargets; ++i) {
-        let toMerge = [];
-        for (let j = 0; j < morphAttributes[name].length; ++j) toMerge.push(morphAttributes[name][j][i]);
-        let mergedMorph = mergeAttributes(toMerge);
-        if (!mergedMorph) {
-          console.error(
-            "THREE.BufferGeometryUtils: .mergeGeometries() failed while trying to merge the " +
-              name +
-              " morphAttribute.",
-          );
-          return null;
-        }
-        merged.morphAttributes[name].push(mergedMorph);
-      }
-    }
-  }
-  return merged;
+const SLATE = 0x263848;
+const IRON = 0x3b4e5e;
+const IVORY = FINISH.ivory;
+const BRASS = FINISH.brass;
+const COPPER = FINISH.copper;
+
+// Cached primitive geometries reused by kit builders
+const G_BOX = box(1, 1, 1);
+const G_BEV = beveledBox(1, 1, 1, 0.16);
+const G_OCT = octahedron(0.5);
+const G_CYL8 = cylinder(0.5, 0.5, 1, 8);
+const G_CYL6 = cylinder(0.5, 0.5, 1, 6);
+const G_CONE6 = cone(0.5, 1, 6);
+const G_SPH = icosahedron(0.5, 1);
+const G_TOR = torus(0.5, 0.11, 5, 14);
+
+const part = (geo, color, p) => meshPart(geo, color, p);
+
+function addMesh(parent, geo, mat, p = {}) {
+  const m = new MeshNode(geo, mat);
+  if (p.x || p.y || p.z) m.position.set(p.x || 0, p.y || 0, p.z || 0);
+  if (p.rx || p.ry || p.rz) m.rotation.set(p.rx || 0, p.ry || 0, p.rz || 0);
+  if (p.sx != null || p.sy != null || p.sz != null) m.scale.set(p.sx ?? 1, p.sy ?? 1, p.sz ?? 1);
+  parent.add(m);
+  return m;
 }
-function mergeAttributes(attributes) {
-  let TypedArray,
-    itemSize,
-    normalized,
-    gpuType = -1,
-    arrayLength = 0;
-  for (let i = 0; i < attributes.length; ++i) {
-    let attribute = attributes[i];
-    if (TypedArray === undefined) {
-      TypedArray = attribute.array.constructor;
-    }
-    if (TypedArray !== attribute.array.constructor) {
-      console.error(
-        "THREE.BufferGeometryUtils: .mergeAttributes() failed. BufferAttribute.array must be of consistent array types across matching attributes.",
+
+// ============================================================================
+// PLAYER WALKER + ALL 7 CUSTOM WEAPONS
+// ============================================================================
+
+function buildWeaponRig(weapon, accentHex) {
+  const gun = new Node();
+  const bodyParts = [];
+  const glowParts = [];
+  let muzzleX = 0.85;
+  let muzzleY = 0.04;
+
+  switch (weapon) {
+    case "scatter":
+      // Wide heavy double-barrel trench scattergun with brass heat shield
+      bodyParts.push(
+        part(G_BEV, SLATE, { x: 0.16, y: 0.02, sx: 0.56, sy: 0.24, sz: 0.34 }),
+        part(G_CYL8, IRON, { x: 0.54, y: 0.04, z: -0.09, rz: Math.PI / 2, sx: 0.15, sy: 0.52, sz: 0.15 }),
+        part(G_CYL8, IRON, { x: 0.54, y: 0.04, z: 0.09, rz: Math.PI / 2, sx: 0.15, sy: 0.52, sz: 0.15 }),
+        part(G_BEV, BRASS, { x: 0.36, y: 0.12, sx: 0.34, sy: 0.08, sz: 0.32 }),
       );
-      return null;
-    }
-    if (itemSize === undefined) {
-      itemSize = attribute.itemSize;
-    }
-    if (itemSize !== attribute.itemSize) {
-      console.error(
-        "THREE.BufferGeometryUtils: .mergeAttributes() failed. BufferAttribute.itemSize must be consistent across matching attributes.",
+      glowParts.push(
+        part(G_BOX, accentHex, { x: 0.78, y: 0.04, z: -0.09, sx: 0.06, sy: 0.09, sz: 0.09 }),
+        part(G_BOX, accentHex, { x: 0.78, y: 0.04, z: 0.09, sx: 0.06, sy: 0.09, sz: 0.09 }),
       );
-      return null;
-    }
-    if (normalized === undefined) {
-      normalized = attribute.normalized;
-    }
-    if (normalized !== attribute.normalized) {
-      console.error(
-        "THREE.BufferGeometryUtils: .mergeAttributes() failed. BufferAttribute.normalized must be consistent across matching attributes.",
+      muzzleX = 0.84;
+      muzzleY = 0.04;
+      break;
+    case "tesla":
+      // Forked copper Arc Caster emitter prongs with glowing plasma coil rings
+      bodyParts.push(
+        part(G_BEV, SLATE, { x: 0.14, y: 0.02, sx: 0.44, sy: 0.22, sz: 0.28 }),
+        part(G_CYL6, COPPER, { x: 0.48, y: 0.04, z: -0.14, rz: Math.PI / 2, sx: 0.09, sy: 0.58, sz: 0.09 }),
+        part(G_CYL6, COPPER, { x: 0.48, y: 0.04, z: 0.14, rz: Math.PI / 2, sx: 0.09, sy: 0.58, sz: 0.09 }),
+        part(G_CYL6, BRASS, { x: 0.34, y: 0.04, rz: Math.PI / 2, sx: 0.22, sy: 0.14, sz: 0.22 }),
       );
-      return null;
-    }
-    if (gpuType === -1) {
-      gpuType = attribute.gpuType;
-    }
-    if (gpuType !== attribute.gpuType) {
-      console.error(
-        "THREE.BufferGeometryUtils: .mergeAttributes() failed. BufferAttribute.gpuType must be consistent across matching attributes.",
+      glowParts.push(
+        part(G_TOR, accentHex, { x: 0.54, y: 0.04, ry: Math.PI / 2, sx: 0.32, sy: 0.32, sz: 0.32 }),
+        part(G_OCT, IVORY, { x: 0.78, y: 0.04, sx: 0.14, sy: 0.14, sz: 0.14 }),
       );
-      return null;
-    }
-    arrayLength += attribute.count * itemSize;
+      muzzleX = 0.84;
+      muzzleY = 0.04;
+      break;
+    case "rail":
+      // Long cantilevered electromagnetic Railgun lance with glowing accelerator channel
+      bodyParts.push(
+        part(G_BEV, SLATE, { x: 0.16, y: 0.02, sx: 0.54, sy: 0.24, sz: 0.28 }),
+        part(G_BEV, IVORY, { x: 0.66, y: 0.09, sx: 0.82, sy: 0.09, sz: 0.22 }),
+        part(G_BEV, IVORY, { x: 0.66, y: -0.05, sx: 0.82, sy: 0.09, sz: 0.22 }),
+        part(G_BEV, BRASS, { x: 0.36, y: 0.02, sx: 0.22, sy: 0.28, sz: 0.34 }),
+      );
+      glowParts.push(
+        part(G_BOX, accentHex, { x: 0.68, y: 0.02, sx: 0.84, sy: 0.06, sz: 0.1 }),
+        part(G_OCT, IVORY, { x: 1.08, y: 0.02, sx: 0.1, sy: 0.1, sz: 0.1 }),
+      );
+      muzzleX = 1.12;
+      muzzleY = 0.02;
+      break;
+    case "rocket":
+      // Heavy cylindrical salvo launcher pod with flared exhaust bell
+      bodyParts.push(
+        part(G_CYL8, SLATE, { x: 0.24, y: 0.06, rz: Math.PI / 2, sx: 0.34, sy: 0.86, sz: 0.34 }),
+        part(G_CYL8, BRASS, { x: 0.62, y: 0.06, rz: Math.PI / 2, sx: 0.38, sy: 0.14, sz: 0.38 }),
+        part(G_CONE6, IRON, { x: -0.22, y: 0.06, rz: -Math.PI / 2, sx: 0.34, sy: 0.24, sz: 0.34 }),
+      );
+      glowParts.push(
+        part(G_CYL6, accentHex, { x: 0.69, y: 0.06, rz: Math.PI / 2, sx: 0.22, sy: 0.06, sz: 0.22 }),
+        part(G_BOX, accentHex, { x: 0.22, y: 0.24, sx: 0.24, sy: 0.06, sz: 0.12 }),
+      );
+      muzzleX = 0.78;
+      muzzleY = 0.06;
+      break;
+    case "disc":
+      // Rotary magnetic crescent sling cradling a luminous saw-disc
+      bodyParts.push(
+        part(G_BEV, SLATE, { x: 0.14, y: 0.02, sx: 0.44, sy: 0.18, sz: 0.36 }),
+        part(G_BEV, BRASS, { x: 0.44, y: 0.02, z: -0.18, ry: 0.26, sx: 0.42, sy: 0.12, sz: 0.1 }),
+        part(G_BEV, BRASS, { x: 0.44, y: 0.02, z: 0.18, ry: -0.26, sx: 0.42, sy: 0.12, sz: 0.1 }),
+      );
+      glowParts.push(
+        part(G_TOR, accentHex, { x: 0.5, y: 0.02, rx: Math.PI / 2, sx: 0.38, sy: 0.38, sz: 0.38 }),
+        part(G_CYL8, IVORY, { x: 0.5, y: 0.02, sx: 0.16, sy: 0.05, sz: 0.16 }),
+      );
+      muzzleX = 0.78;
+      muzzleY = 0.02;
+      break;
+    case "flame":
+      // Dual-canister thermal projector with wide brass igniter shroud
+      bodyParts.push(
+        part(G_BEV, SLATE, { x: 0.16, y: 0.02, sx: 0.52, sy: 0.24, sz: 0.26 }),
+        part(G_CYL8, COPPER, { x: 0.12, y: 0.08, z: -0.18, rz: Math.PI / 2, sx: 0.17, sy: 0.42, sz: 0.17 }),
+        part(G_CYL8, COPPER, { x: 0.12, y: 0.08, z: 0.18, rz: Math.PI / 2, sx: 0.17, sy: 0.42, sz: 0.17 }),
+        part(G_CONE6, BRASS, { x: 0.58, y: 0.02, rz: Math.PI / 2, sx: 0.3, sy: 0.36, sz: 0.3 }),
+      );
+      glowParts.push(part(G_OCT, accentHex, { x: 0.74, y: 0.02, sx: 0.16, sy: 0.14, sz: 0.14 }));
+      muzzleX = 0.82;
+      muzzleY = 0.02;
+      break;
+    default:
+      // Pulse Carbine: crisp sculpted energy rifle with luminous core strip
+      bodyParts.push(
+        part(G_BEV, SLATE, { x: 0.18, y: 0.02, sx: 0.56, sy: 0.22, sz: 0.24 }),
+        part(G_BEV, IVORY, { x: 0.56, y: 0.04, sx: 0.42, sy: 0.14, sz: 0.18 }),
+        part(G_BEV, BRASS, { x: 0.34, y: 0.13, sx: 0.28, sy: 0.07, sz: 0.18 }),
+      );
+      glowParts.push(
+        part(G_BOX, accentHex, { x: 0.56, y: 0.04, sx: 0.46, sy: 0.06, sz: 0.2 }),
+        part(G_OCT, IVORY, { x: 0.8, y: 0.04, sx: 0.09, sy: 0.09, sz: 0.09 }),
+      );
+      muzzleX = 0.84;
+      muzzleY = 0.04;
+      break;
   }
-  let array = new TypedArray(arrayLength),
-    result = new BufferAttribute(array, itemSize, normalized),
-    offset = 0;
-  for (let i = 0; i < attributes.length; ++i) {
-    let attribute = attributes[i];
-    if (attribute.isInterleavedBufferAttribute) {
-      let tupleOffset = offset / itemSize;
-      for (let j = 0, count = attribute.count; j < count; j++)
-        for (let k = 0; k < itemSize; k++) {
-          let value = attribute.getComponent(j, k);
-          result.setComponent(j + tupleOffset, k, value);
-        }
-    } else array.set(attribute.array, offset);
-    offset += attribute.count * itemSize;
-  }
-  if (gpuType !== undefined) {
-    result.gpuType = gpuType;
-  }
-  return result;
+
+  const bodyMat = worldMaterial({ surface: "armor", vertexColors: true });
+  const glowMat = emissiveMaterial({ vertexColors: true, emissiveIntensity: 1.55 });
+  gun.add(new MeshNode(mergeGeometries(bodyParts), bodyMat));
+  gun.add(new MeshNode(mergeGeometries(glowParts), glowMat));
+  const muzzle = new Node();
+  muzzle.position.set(muzzleX, muzzleY, 0);
+  gun.add(muzzle);
+  return { gun, muzzle, bodyMat, glowMat };
 }
-const partMatrix = new Matrix4(),
-  partQuat = new Quaternion(),
-  partEuler = new Euler(),
-  partScale = new Vector3(),
-  partPos = new Vector3();
-function meshPart(geo, color, { x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1, q = null } = {}) {
-  let part = geo.index ? geo.toNonIndexed() : geo;
-  if (q) partQuat.copy(q);
-  else partQuat.setFromEuler(partEuler.set(rx, ry, rz));
-  partMatrix.compose(partPos.set(x, y, z), partQuat, partScale.set(sx, sy, sz));
-  part.applyMatrix4(partMatrix);
-  part.deleteAttribute("uv");
-  let col = new Color(color),
-    count = part.attributes.position.count,
-    colors = new Float32Array(count * 3);
-  for (let i = 0; i < count; i++) {
-    colors[i * 3] = col.r;
-    colors[i * 3 + 1] = col.g;
-    colors[i * 3 + 2] = col.b;
-  }
-  part.setAttribute("color", new BufferAttribute(colors, 3));
-  return part;
-}
-function mergeParts(parts) {
-  let merged = mergeGeometries(parts, false);
-  merged.computeBoundingSphere();
-  return merged;
-}
-function shieldArcGeometry() {
-  const shield = new CylinderGeometry(1.37, 1.29, 1.39, 24, 2, true, -Math.PI / 2.9, (Math.PI * 2) / 2.9);
-  shield.rotateY(Math.PI / 2);
-  shield.translate(0, 0.8, 0);
-  return shield;
-}
-function discGeometry() {
-  const profile = new Shape();
-  for (let i = 0; i < 24; i++) {
-    const a = (i * Math.PI) / 12;
-    const r = [1.03, 0.94, 0.76, 0.88][i % 4];
-    if (i === 0) profile.moveTo(Math.cos(a) * r, Math.sin(a) * r);
-    else profile.lineTo(Math.cos(a) * r, Math.sin(a) * r);
-  }
-  profile.closePath();
-  const blade = new ExtrudeGeometry(profile, { depth: 0.066, bevelEnabled: false });
-  return mergeParts([
-    meshPart(blade, cream, { rx: -Math.PI / 2, y: -0.033 }),
-    collar(brass, 0.44, 0.035, { y: 0.054, rx: Math.PI / 2 }),
-    jewel(0x879c84, 0.31, { y: 0.07, sy: 0.48 }),
-    ...Array.from({ length: 6 }, (_, i) => {
-      const a = (i * Math.PI) / 3;
-      return jewel(0x92694c, 0.14, {
-        x: Math.cos(a) * 0.61,
-        z: Math.sin(a) * 0.61,
-        y: 0.047,
-        ry: -a,
-        sx: 1.25,
-        sy: 0.1,
-        sz: 0.5,
-      });
-    }),
-  ]);
-}
-function debrisGeometry() {
-  return new OctahedronGeometry(0.57).scale(0.86, 0.39, 1.1).rotateZ(0.37);
-}
-function buildPlayerModel(weapon, color) {
-  // Porcelain head, split mantle and brass-shod articulated legs.
-  const hullMat = worldMaterial({ surface: "armor", color: 0xf0dcb2, shininess: 56 }),
-    trimMat = worldMaterial({ surface: "armor", color: 0xb34e3c, shininess: 43 }),
-    mechanismMat = worldMaterial({ surface: "rubber", color: 0x20333c, shininess: 8 }),
-    steelMat = worldMaterial({ surface: "metal", color: 0xc99554, shininess: 64 }),
-    glowMat = new MeshBasicMaterial({ color, toneMapped: false }),
-    visorMat = worldMaterial({ surface: "crystal", color: 0x1c4148, shininess: 68 }),
-    group = new Group(),
-    base = new Group(),
-    torso = new Group(),
-    HIP = 0.68,
-    THIGH = 0.3,
-    SHIN = 0.3,
-    addPart = (parts, material, parent) => {
-      const mesh = new Mesh(mergeParts(parts), material);
-      parent.add(mesh);
-      return mesh;
-    };
-  addPart(
-    [
-      shell(0xffffff, 0.33, 0.43, { x: -0.04, y: 1.04, sx: 1.07, sz: 1.05, rz: -0.2 }),
-      ...both((side) => [
-        jewel(0xffffff, 0.37, { x: -0.16, y: 1.1, z: side * 0.32, sx: 0.89, sy: 0.5, sz: 0.79, ry: side * 0.43 }),
-        jewel(0xffffff, 0.31, { x: 0.18, y: 0.97, z: side * 0.27, sx: 0.73, sy: 0.54, sz: 0.62 }),
-      ]),
-    ],
-    hullMat,
-    torso,
-  );
-  addPart(
-    [
-      ...both((side) => [
-        jewel(0xffffff, 0.31, { x: -0.21, y: 0.94, z: side * 0.33, sx: 1.04, sy: 1.2, sz: 0.66, rz: -0.55 }),
-        jewel(0xffffff, 0.19, { x: -0.34, y: 1.1, z: side * 0.28, sx: 1.15, sy: 0.8, sz: 0.78 }),
-      ]),
-      shell(0xffffff, 0.22, 0.31, { x: -0.35, y: 1.0, sz: 0.71, rz: 0.68 }),
-    ],
-    trimMat,
-    torso,
-  );
-  addPart(
-    [
-      jewel(0xffffff, 0.26, { x: 0.25, y: 1.09, sx: 0.53, sy: 0.93, sz: 1.06 }),
-      jewel(0xffffff, 0.13, { x: -0.4, y: 0.9, sx: 1.1, sy: 0.75, sz: 1.66 }),
-    ],
-    visorMat,
-    torso,
-  );
-  addPart(
-    [
-      collar(0xffffff, 0.177, 0.027, { x: 0.343, y: 1.09, ry: Math.PI / 2, sx: 1.13 }),
-      ...both((side) => [collar(0xffffff, 0.115, 0.021, { x: -0.15, y: 1.01, z: side * 0.452 })]),
-    ],
-    steelMat,
-    torso,
-  );
-  addPart(
-    [
-      jewel(0xffffff, 0.085, { x: 0.409, y: 1.09, sx: 0.51, sy: 1.28, sz: 0.87 }),
-      ...both((side) => [jewel(0xffffff, 0.052, { x: -0.21, y: 1.082, z: side * 0.453, sy: 1.7 })]),
-    ],
-    glowMat,
-    torso,
-  );
-  addPart([shell(0xffffff, 0.23, 0.21, { y: HIP, sz: 1.1 })], mechanismMat, base);
-  addPart(
-    both((side) => [jewel(0xffffff, 0.11, { y: HIP, z: side * 0.27, sz: 0.7 })]),
-    steelMat,
-    base,
-  );
-  base.add(torso);
-  const legs = [];
-  for (const side of [-1, 1]) {
-    const hip = new Group(),
-      knee = new Group(),
-      ankle = new Group();
-    hip.position.set(0, HIP, side * 0.235);
-    addPart([jewel(0xffffff, 0.21, { x: 0.02, y: -0.145, sx: 0.65, sy: 1.05, sz: 0.68 })], trimMat, hip);
-    addPart([pipe(0xffffff, 0.048, 0.057, 7, [-0.07, 0, 0], [-0.07, -THIGH, 0])], steelMat, hip);
-    knee.position.set(0.02, -THIGH, 0);
-    addPart(
-      [
-        collar(0xffffff, 0.079, 0.022, { z: side * 0.105, rx: side * 0.05 }),
-        pipe(0xffffff, 0.065, 0.074, 6, [0.01, -0.01, 0], [-0.02, -SHIN, 0]),
-      ],
-      steelMat,
-      knee,
-    );
-    addPart([shell(0xffffff, 0.092, 0.22, { x: 0.031, y: -0.153, rz: -0.17 })], hullMat, knee);
-    ankle.position.set(-0.02, -SHIN, 0);
-    addPart([jewel(0xffffff, 0.21, { x: 0.09, y: 0.015, sx: 1.07, sy: 0.38, sz: 0.65 })], mechanismMat, ankle);
-    addPart([jewel(0xffffff, 0.19, { x: 0.13, y: 0.046, sx: 1.12, sy: 0.34, sz: 0.65 })], hullMat, ankle);
-    knee.add(ankle);
-    hip.add(knee);
-    base.add(hip);
-    legs.push({ hip, knee, ankle, side });
-  }
+
+export function buildPlayerModel(weapon = "pulse", weaponColor = 0x5ce8ff) {
+  const group = new Node();
+  const base = new Node();
   base.rotation.order = "YZX";
   group.add(base);
-  const setWalk = (phase, amount, air, time) => {
-    for (const leg of legs) {
-      const p = phase + (leg.side > 0 ? 0 : Math.PI),
-        swing = Math.sin(p) * 0.65 * amount,
-        bend = Math.max(0, Math.cos(p)) * 0.8 * amount;
-      leg.hip.rotation.z = swing * (1 - air) + 0.55 * air;
-      leg.knee.rotation.z = -bend * (1 - air) - 1.1 * air;
-      leg.ankle.rotation.z = (bend * 0.5 - swing * 0.3) * (1 - air) + 0.5 * air;
-    }
-    torso.rotation.y = Math.sin(phase) * 0.06 * amount;
-    torso.rotation.z = Math.sin(phase * 2) * 0.018 * amount;
-    return -Math.abs(Math.sin(phase)) * 0.045 * amount + Math.sin(time * 2.2) * 0.008 * (1 - amount);
+
+  const armorMat = worldMaterial({ surface: "armor", vertexColors: true });
+  const metalMat = worldMaterial({ surface: "metal", vertexColors: true });
+  const visorMat = emissiveMaterial({ color: weaponColor, emissiveIntensity: 1.65 });
+
+  // Articulated legs (thigh + shin + armored boot)
+  const makeLeg = (side) => {
+    const hip = new Node();
+    hip.position.set(0, 0.58, side * 0.22);
+    const legGeo = mergeGeometries([
+      part(G_BEV, IRON, { y: -0.14, sx: 0.18, sy: 0.3, sz: 0.16 }),
+      part(G_BEV, SLATE, { x: 0.04, y: -0.4, sx: 0.2, sy: 0.28, sz: 0.18 }),
+      part(G_BEV, BRASS, { x: 0.09, y: -0.53, sx: 0.28, sy: 0.12, sz: 0.2 }),
+    ]);
+    hip.add(new MeshNode(legGeo, metalMat));
+    base.add(hip);
+    return hip;
   };
-  const weaponMount = new Group(),
-    turret = new Group(),
-    gun = new Group();
-  weaponMount.position.set(0, 1.23, 0);
-  torso.add(weaponMount);
-  weaponMount.add(turret);
-  turret.add(gun);
-  // The ball-and-ring bearing stays on the chest; only the stabilized yoke rotates and the gun recoils locally.
-  addPart(
-    [meshPart(new CylinderGeometry(0.22, 0.25, 0.12, 14), 0xffffff, { y: weaponMount.position.y - 0.06 })],
-    mechanismMat,
-    torso,
-  );
-  addPart(
-    [meshPart(new TorusGeometry(0.19, 0.035, 5, 16), 0xffffff, { y: weaponMount.position.y - 0.025, rx: Math.PI / 2 })],
-    steelMat,
-    torso,
-  );
-  const gimbal = new Mesh(new SphereGeometry(0.16, 10, 6), steelMat);
-  gimbal.position.y = 0.005;
-  turret.add(gimbal);
-  const cradle = new Mesh(armorBox(0.38, 0.16, 0.3, 0.035), trimMat);
-  cradle.position.set(0, 0.105, 0);
-  turret.add(cradle);
-  gun.position.y = 0.16;
-  const axis = new Vector3(0, 1, 0),
-    worldAim = new Quaternion(),
-    parentRotation = new Quaternion();
-  const aimAt = (angle, dt = 0) => {
-    weaponMount.getWorldQuaternion(parentRotation).invert();
-    worldAim.setFromAxisAngle(axis, -angle);
-    turret.quaternion.copy(parentRotation).multiply(worldAim);
-    model.recoil = Math.max(0, model.recoil - dt * 0.65);
-    gun.position.x = -model.recoil;
-  };
-  const barrels = {
-    pulse: [0.77, 0.125, 1],
-    scatter: [0.65, 0.106, 2],
-    tesla: [0.7, 0.12, 1],
-    rail: [1.1, 0.087, 1],
-    rocket: [0.56, 0.093, 4],
-    disc: [0.62, 0.15, 1],
-    flame: [0.74, 0.133, 1],
-  };
-  const [reach, bore, count] = barrels[weapon] || barrels.pulse;
-  addPart([jewel(0xffffff, 0.27, { x: 0.04, y: 0.045, sx: 1.3, sy: 0.62, sz: 0.91 })], trimMat, gun);
-  for (let i = 0; i < count; i++) {
-    const z = count === 1 ? 0 : i % 2 === 0 ? -0.104 : 0.104;
-    const y = count < 4 ? 0.028 : i < 2 ? -0.058 : 0.114;
-    const narrow = weapon === "rail" || weapon === "tesla";
-    addPart(
-      [
-        pipe(0xffffff, bore * 0.58, bore * 0.78, 8, [0.16, y, z], [reach - 0.06, y, z]),
-        collar(0xffffff, bore * 0.67, bore * 0.16, { x: reach - 0.055, y, z, ry: Math.PI / 2 }),
-      ],
-      steelMat,
-      gun,
-    );
-    addPart(
-      [
-        jewel(0xffffff, 0.24, {
-          x: reach * 0.48,
-          y,
-          z,
-          sx: reach * (narrow ? 1.84 : 1.62),
-          sy: bore * 2.7,
-          sz: bore * (weapon === "disc" ? 4.8 : 3),
-        }),
-      ],
-      hullMat,
-      gun,
-    );
-    addPart([jewel(0xffffff, bore * 0.44, { x: reach - 0.035, y, z, sx: 0.39 })], mechanismMat, gun);
-    addPart(
-      [jewel(0xffffff, bore * 0.31, { x: reach * 0.52, y: y + bore * 0.47, z, sx: 1.64, sy: 0.6 })],
-      glowMat,
-      gun,
-    );
-  }
-  if (weapon === "tesla" || weapon === "pulse")
-    addPart(
-      [0.28, 0.43, 0.58].map((x) => collar(0xffffff, bore * 0.94, 0.015, { x, y: 0.03, ry: Math.PI / 2 })),
-      steelMat,
-      gun,
-    );
-  if (weapon === "disc") addPart([collar(0xffffff, 0.17, 0.032, { x: 0.43, y: 0.11, rx: Math.PI / 2 })], steelMat, gun);
-  if (weapon === "flame" || weapon === "rail")
-    addPart(
-      both((z) => [jewel(0xffffff, 0.14, { x: 0.21, y: 0.065, z: z * 0.17, sx: 1.25, sy: 0.71 })]),
-      trimMat,
-      gun,
-    );
-  const muzzle = new Group();
-  muzzle.position.set(
-    { pulse: 0.77, scatter: 0.65, tesla: 0.7, rail: 1.1, rocket: 0.56, disc: 0.62, flame: 0.74 }[weapon] || 0.77,
-    0.02,
-    0,
-  );
-  gun.add(muzzle);
-  mergeStaticMeshes(torso);
-  mergeStaticMeshes(gun);
-  let shield = new Mesh(new SphereGeometry(1, 20, 12), createAegisMaterial(color));
-  shield.position.y = 0.95;
-  shield.scale.setScalar(1.1);
+  const legL = makeLeg(-1);
+  const legR = makeLeg(1);
+
+  // Pelvis & stylized heroic torso chassis (clean ivory + teal-slate + brass trim)
+  const torsoGeo = mergeGeometries([
+    part(G_BEV, SLATE, { y: 0.66, sx: 0.44, sy: 0.22, sz: 0.52 }),
+    part(G_BEV, IVORY, { x: 0.03, y: 0.96, sx: 0.54, sy: 0.46, sz: 0.64 }),
+    // Sculpted shoulder pauldrons
+    part(G_BEV, SLATE, { x: 0.0, y: 1.08, z: -0.42, rx: 0.22, sx: 0.42, sy: 0.24, sz: 0.28 }),
+    part(G_BEV, SLATE, { x: 0.0, y: 1.08, z: 0.42, rx: -0.22, sx: 0.42, sy: 0.24, sz: 0.28 }),
+    // Backpack thruster cowl & brass trim collar
+    part(G_BEV, IRON, { x: -0.32, y: 0.96, sx: 0.26, sy: 0.42, sz: 0.42 }),
+    part(G_BEV, BRASS, { x: 0.08, y: 1.2, sx: 0.38, sy: 0.09, sz: 0.46 }),
+  ]);
+  base.add(new MeshNode(torsoGeo, armorMat));
+
+  // Back thruster vents glow
+  const thrusterGeo = mergeGeometries([
+    part(G_OCT, weaponColor, { x: -0.46, y: 0.88, z: -0.12, sx: 0.12, sy: 0.16, sz: 0.12 }),
+    part(G_OCT, weaponColor, { x: -0.46, y: 0.88, z: 0.12, sx: 0.12, sy: 0.16, sz: 0.12 }),
+  ]);
+  base.add(new MeshNode(thrusterGeo, emissiveMaterial({ vertexColors: true, emissiveIntensity: 1.45 })));
+
+  // Weapon bearing pivot on torso + independent horizontal turret mounted on group so aim never drifts with lean/bank
+  const weaponMount = new Node();
+  weaponMount.position.set(0.04, 1.32, 0);
+  base.add(weaponMount);
+
+  const turret = new Node();
+  turret.position.set(0.04, 1.32, 0);
+  group.add(turret);
+
+  const headGeo = mergeGeometries([
+    part(G_BEV, IVORY, { x: 0.04, y: 0.06, sx: 0.42, sy: 0.3, sz: 0.38 }),
+    part(G_BEV, SLATE, { x: -0.06, y: 0.18, sx: 0.34, sy: 0.12, sz: 0.32 }),
+    // Side weapon mount arm connecting bearing to gun
+    part(G_BEV, BRASS, { x: 0.12, y: -0.14, z: 0.28, sx: 0.24, sy: 0.16, sz: 0.24 }),
+  ]);
+  turret.add(new MeshNode(headGeo, armorMat));
+  // Expressive glowing panoramic visor
+  addMesh(turret, box(0.12, 0.11, 0.34), visorMat, { x: 0.22, y: 0.07 });
+
+  const rig = buildWeaponRig(weapon, weaponColor);
+  rig.gun.position.set(0.14, -0.12, 0.34);
+  turret.add(rig.gun);
+
+  // Protective Aegis energy sphere
+  const shieldMat = aegisMaterial();
+  const shield = new MeshNode(sphere(1.05, 18, 12), shieldMat);
+  shield.position.set(0, 0.92, 0);
+  shield.visible = false;
+  shield.renderOrder = 5;
   group.add(shield);
+
   const model = {
     group,
     base,
-    turret,
     weaponMount,
-    gun,
-    muzzle,
-    aimAt,
-    recoil: 0,
+    turret,
+    gun: rig.gun,
+    muzzle: rig.muzzle,
     shield,
-    mats: [hullMat, trimMat, mechanismMat, steelMat],
-    glowMat,
-    setWalk,
-    legs,
+    mats: [armorMat, metalMat, rig.bodyMat],
     lean: 0,
     bank: 0,
+    recoil: 0,
+    aimYaw: 0,
+    faceLast: undefined,
+    setWalk(phase, amount, jump, time) {
+      const stride = Math.sin(phase) * 0.55 * amount;
+      const tuck = jump * 0.48;
+      legL.rotation.z = stride - tuck;
+      legR.rotation.z = -stride - tuck;
+      const bob = amount > 0.05 ? Math.abs(Math.cos(phase)) * 0.09 * amount : Math.sin(time * 2.6) * 0.025;
+      return bob;
+    },
+    aimAt(worldAngle, dt = 0) {
+      base.updateLocalMatrix();
+      const e = base.localMatrix.elements;
+      const mx = weaponMount.position.x,
+        my = weaponMount.position.y,
+        mz = weaponMount.position.z;
+      turret.position.set(
+        e[0] * mx + e[4] * my + e[8] * mz + e[12],
+        e[1] * mx + e[5] * my + e[9] * mz + e[13],
+        e[2] * mx + e[6] * my + e[10] * mz + e[14],
+      );
+      const targetYaw = -worldAngle;
+      if (dt > 0) {
+        const diff = angleDiff(this.aimYaw, targetYaw);
+        this.aimYaw += diff * dampFactor(24, dt);
+        this.recoil = Math.max(0, this.recoil - dt * 0.65);
+      } else {
+        this.aimYaw = targetYaw;
+      }
+      turret.rotation.set(0, this.aimYaw, 0);
+      rig.gun.position.x = 0.14 - this.recoil;
+    },
   };
-  aimAt(0);
   return model;
 }
-// Independent silhouettes and mechanisms for each of the six encounters.
-function buildBossModel(type, color) {
-  const finish = BOSS_EFFECTS[type].surface;
-  const group = new Group(),
-    spin = [];
-  const glaze = {
-    warden: 0x8b775d,
-    prism: 0x829fbc,
-    queen: 0x6b956e,
-    core: 0x6561a0,
-    tyrant: 0xb66951,
-    wyrm: 0xaaa074,
-  }[type];
-  const hull = worldMaterial({ surface: finish, color: glaze });
-  const frame = worldMaterial({ surface: "rubber", color: ink });
-  const trim = worldMaterial({ surface: "metal", color: brass });
-  const enamel = worldMaterial({ surface: "armor", color: cream });
-  const glowMat = new MeshBasicMaterial({ color, toneMapped: false });
-  const add = (parent, mat, geo, x = 0, y = 0, z = 0) => {
-    const m = new Mesh(geo, mat);
-    m.position.set(x, y, z);
-    parent.add(m);
-    return m;
-  };
-  const ring = (p, mat, r, t, x, y, z, axis) => {
-    const m = add(p, mat, new TorusGeometry(r, t, 6, 40), x, y, z);
-    if (axis) m.rotation[axis] = Math.PI / 2;
-    return m;
-  };
-  const facet = (p, mat, r, x, y, z, sx, sy, sz) => {
-    const m = add(p, mat, new OctahedronGeometry(r), x, y, z);
-    m.scale.set(sx, sy, sz);
-    return m;
-  };
-  const vessel = (p, mat, r, h, x, y, z) =>
-    add(
-      p,
-      mat,
-      new LatheGeometry(
-        [
-          new Vector2(0, -h * 0.5),
-          new Vector2(r * 0.68, -h * 0.49),
-          new Vector2(r, -h * 0.23),
-          new Vector2(r * 0.98, h * 0.11),
-          new Vector2(r * 0.79, h * 0.35),
-          new Vector2(r * 0.4, h * 0.5),
-          new Vector2(0, h * 0.5),
-        ],
-        18,
-      ),
-      x,
-      y,
-      z,
-    );
-  const revolve = (y, v) => {
-    const g = new Group();
-    g.position.y = y;
-    group.add(g);
-    spin.push({ m: g, ax: "y", v });
-    return g;
-  };
-  if (type === "warden") {
-    vessel(group, hull, 1.38, 2.42, -0.32, 1.6, 0).rotation.z = -0.49;
-    facet(group, enamel, 1.04, 0.72, 1.86, 0, 0.7, 1.13, 1.14);
-    ring(group, trim, 0.58, 0.12, 1.1, 1.91, 0, "y");
-    facet(group, glowMat, 0.38, 1.25, 1.91, 0, 0.66, 1, 1);
-    for (const s of [-1, 1]) {
-      vessel(group, frame, 0.47, 1.14, -0.35, 0.57, s * 0.84).rotation.z = s * 0.27;
-      vessel(group, hull, 0.61, 1.35, 0.15, 1.26, s * 1.19).rotation.x = s * 0.54;
-      facet(group, trim, 0.47, 1.0, 1.07, s * 1.48, 1.54, 0.47, 0.7);
-    }
-  } else if (type === "prism") {
-    vessel(group, frame, 1.08, 0.64, 0, 0.6, 0);
-    facet(group, hull, 1.13, 0, 1.95, 0, 0.84, 1.52, 0.84);
-    facet(group, enamel, 0.89, 0.08, 2.6, 0, 0.78, 1.06, 0.78);
-    facet(group, glowMat, 0.32, 0.55, 2.16, 0, 0.53, 1.43, 1);
-    const halos = revolve(2.15, 0.58);
-    ring(halos, trim, 1.33, 0.06, 0, 0, 0, "x").rotation.z = 0.34;
-    ring(halos, trim, 1.56, 0.048, 0, 0.22, 0).rotation.y = 0.64;
-    for (let i = 0; i < 4; i++) {
-      const a = (i * Math.PI) / 2;
-      facet(halos, hull, 0.46, Math.cos(a) * 1.72, 0.13, Math.sin(a) * 1.72, 0.65, 1.53, 0.65);
-    }
-  } else if (type === "queen") {
-    vessel(group, hull, 1.61, 2.31, -0.57, 1.25, 0).rotation.z = -0.21;
-    vessel(group, enamel, 1.18, 0.61, -0.34, 2.3, 0);
-    facet(group, glowMat, 0.49, 0.36, 2.36, 0, 0.67, 0.81, 1.27);
-    for (const s of [-1, 1]) {
-      for (let i = 0; i < 3; i++) {
-        const arm = add(
-          group,
-          hull,
-          new LatheGeometry(
-            [
-              new Vector2(0, 0),
-              new Vector2(0.42, 0.08),
-              new Vector2(0.37, 0.55),
-              new Vector2(0.15, 1.1),
-              new Vector2(0, 1.32),
-            ],
-            10,
-          ),
-          0.53 - i * 0.66,
-          1.14,
-          s * 0.95,
-        );
-        arm.rotation.x = s * 1.07;
-        arm.rotation.z = (i - 1) * 0.36;
-      }
-      facet(group, trim, 0.68, 0.77, 1.24, s * 1.45, 1.1, 0.6, 0.71);
-    }
-    const stamens = revolve(2.44, 0.31);
-    ring(stamens, trim, 0.8, 0.05, 0, 0, 0, "x");
-    for (let i = 0; i < 6; i++)
-      facet(
-        stamens,
-        glowMat,
-        0.14,
-        Math.cos((i * Math.PI) / 3) * 0.9,
-        0.06,
-        Math.sin((i * Math.PI) / 3) * 0.9,
-        0.8,
-        1.6,
-        0.8,
+
+// ============================================================================
+// ALL 25 DISTINCT ENEMY KITS (body + glow, < 810 tris each, strong silhouettes)
+// ============================================================================
+
+export const RL_MESH_TYPES = [
+  "swarmer",
+  "grunt",
+  "gunner",
+  "bomber",
+  "splitter",
+  "mite",
+  "brute",
+  "sniper",
+  "hive",
+  "bulwark",
+  "striker",
+  "mortar",
+  "mender",
+  "leaper",
+  "turret",
+  "charger",
+  "minebot",
+  "sapper",
+  "phantom",
+  "sentinel",
+  "carrier",
+  "drone",
+  "driller",
+  "beacon",
+  "weaver",
+];
+
+const enemyGeoCache = new Map();
+
+function buildEnemyParts(type, accent) {
+  const dark = 0x222a38;
+  const hull = 0x455568;
+  const plate = 0xd8cdb8;
+  const body = [];
+  const glow = [];
+
+  switch (type) {
+    case "swarmer":
+      // Sleek razor-winged darting insectoid
+      body.push(
+        part(G_OCT, accent, { y: 0.42, sx: 0.95, sy: 0.45, sz: 0.58 }),
+        part(G_BEV, dark, { x: -0.1, y: 0.46, z: -0.34, ry: 0.45, sx: 0.5, sy: 0.08, sz: 0.34 }),
+        part(G_BEV, dark, { x: -0.1, y: 0.46, z: 0.34, ry: -0.45, sx: 0.5, sy: 0.08, sz: 0.34 }),
       );
-  } else if (type === "core") {
-    vessel(group, frame, 1.51, 0.75, 0, 0.57, 0);
-    ring(group, trim, 1.33, 0.077, 0, 0.89, 0, "x");
-    const lock = revolve(2.4, 0.48);
-    facet(lock, glowMat, 0.75, 0, 0, 0, 0.85, 1.28, 0.85);
-    ring(lock, enamel, 1.15, 0.11, 0, 0, 0).rotation.y = 0.3;
-    for (let i = 0; i < 4; i++) {
-      const a = (i * Math.PI) / 2;
-      facet(lock, hull, 0.87, Math.cos(a) * 1.22, -0.12, Math.sin(a) * 1.22, 1.06, 0.52, 1.04);
-    }
-  } else if (type === "tyrant") {
-    vessel(group, frame, 1.66, 1.44, -0.35, 0.86, 0);
-    vessel(group, hull, 1.58, 1.91, -0.32, 1.75, 0).rotation.z = -0.29;
-    ring(group, trim, 1.18, 0.1, -0.38, 2.22, 0, "x");
-    vessel(group, enamel, 0.71, 0.7, 0.53, 2.19, 0).rotation.z = -0.78;
-    facet(group, glowMat, 0.39, 1.14, 2.05, 0, 0.7, 0.83, 1.28);
-    for (const s of [-1, 1]) {
-      facet(group, hull, 0.94, 0.3, 1.08, s * 1.36, 0.78, 1.08, 0.66);
-      facet(group, trim, 0.66, 0.9, 0.6, s * 1.47, 1.41, 0.6, 0.79);
-      facet(group, enamel, 0.56, -0.8, 2.45, s * 0.68, 0.73, 1.75, 0.76);
-    }
-  } else {
-    group.userData.tail = [];
-    for (let i = 0; i < 6; i++) {
-      const segment = new Group();
-      const z = Math.sin(i * 1.25) * 0.48;
-      const size = 1.22 - i * 0.13;
-      segment.position.set(0.75 - i * 0.61, 0.8 + Math.sin(i * 0.76) * 0.38, z);
-      group.add(segment);
-      group.userData.tail.push({ m: segment, z, i });
-      vessel(segment, i % 2 === 0 ? hull : enamel, size * 0.66, 0.81 + i * 0.015, 0, 0, 0).rotation.z = 0.9;
-      ring(segment, trim, size * 0.55, 0.059, 0.14, 0.03, 0, "y");
-      facet(segment, i % 2 === 0 ? glowMat : trim, 0.27, -0.05, size * 0.53, 0, 0.73, 1.57, 0.83);
-    }
-    facet(group, hull, 0.88, 1.35, 1.08, 0, 1.22, 0.79, 0.99);
-    facet(group, glowMat, 0.33, 1.91, 1.25, 0, 0.47, 0.96, 1.15);
+      glow.push(part(G_OCT, 0xffffff, { x: 0.38, y: 0.44, sx: 0.24, sy: 0.18, sz: 0.24 }));
+      break;
+    case "mite":
+      // Tiny spiked skittering broodling
+      body.push(
+        part(G_SPH, accent, { y: 0.26, sx: 0.68, sy: 0.42, sz: 0.56 }),
+        part(G_CONE6, plate, { x: 0.28, y: 0.24, z: -0.14, rz: -1.1, sx: 0.14, sy: 0.26, sz: 0.14 }),
+        part(G_CONE6, plate, { x: 0.28, y: 0.24, z: 0.14, rz: -1.1, sx: 0.14, sy: 0.26, sz: 0.14 }),
+      );
+      glow.push(part(G_OCT, 0xffffff, { x: 0.24, y: 0.32, sx: 0.2, sy: 0.16, sz: 0.22 }));
+      break;
+    case "grunt":
+      // Hunched armored vanguard trooper with crested helm
+      body.push(
+        part(G_BEV, dark, { y: 0.34, sx: 0.62, sy: 0.46, sz: 0.66 }),
+        part(G_BEV, hull, { x: 0.04, y: 0.72, sx: 0.68, sy: 0.48, sz: 0.74 }),
+        part(G_BEV, accent, { x: 0.08, y: 1.04, sx: 0.42, sy: 0.26, sz: 0.4 }),
+      );
+      glow.push(part(G_BOX, 0xffffff, { x: 0.34, y: 0.96, sx: 0.12, sy: 0.12, sz: 0.34 }));
+      break;
+    case "gunner":
+      // Boxy tripod-shouldered plasma trooper with twin arm barrels
+      body.push(
+        part(G_CYL8, dark, { y: 0.34, sx: 0.62, sy: 0.52, sz: 0.62 }),
+        part(G_BEV, hull, { y: 0.78, sx: 0.72, sy: 0.5, sz: 0.86 }),
+        part(G_CYL6, IRON, { x: 0.48, y: 0.76, z: -0.34, rz: Math.PI / 2, sx: 0.16, sy: 0.66, sz: 0.16 }),
+        part(G_CYL6, IRON, { x: 0.48, y: 0.76, z: 0.34, rz: Math.PI / 2, sx: 0.16, sy: 0.66, sz: 0.16 }),
+        part(G_BEV, accent, { x: -0.06, y: 1.12, sx: 0.44, sy: 0.24, sz: 0.5 }),
+      );
+      glow.push(
+        part(G_BOX, 0xffffff, { x: 0.38, y: 0.98, sx: 0.1, sy: 0.12, sz: 0.42 }),
+        part(G_OCT, 0xffffff, { x: 0.82, y: 0.76, z: -0.34, sx: 0.14, sy: 0.14, sz: 0.14 }),
+        part(G_OCT, 0xffffff, { x: 0.82, y: 0.76, z: 0.34, sx: 0.14, sy: 0.14, sz: 0.14 }),
+      );
+      break;
+    case "bomber":
+      // Bulbous volatile-core walking mine with exposed glowing reactor belly
+      body.push(
+        part(G_SPH, dark, { y: 0.64, sx: 0.96, sy: 0.86, sz: 0.96 }),
+        part(G_TOR, plate, { y: 0.66, rx: Math.PI / 2, sx: 1.02, sy: 1.02, sz: 1.02 }),
+        part(G_BEV, IRON, { y: 0.18, z: -0.36, sx: 0.24, sy: 0.34, sz: 0.2 }),
+        part(G_BEV, IRON, { y: 0.18, z: 0.36, sx: 0.24, sy: 0.34, sz: 0.2 }),
+      );
+      glow.push(
+        part(G_SPH, 0xffffff, { x: 0.12, y: 0.68, sx: 0.66, sy: 0.66, sz: 0.66 }),
+        part(G_OCT, 0xffffff, { y: 1.18, sx: 0.28, sy: 0.34, sz: 0.28 }),
+      );
+      break;
+    case "splitter":
+      // Twin-lobed crystalline/organic mitosis pod
+      body.push(
+        part(G_SPH, hull, { y: 0.56, z: -0.26, sx: 0.74, sy: 0.78, sz: 0.64 }),
+        part(G_SPH, hull, { y: 0.56, z: 0.26, sx: 0.74, sy: 0.78, sz: 0.64 }),
+        part(G_BEV, accent, { y: 0.86, sx: 0.54, sy: 0.34, sz: 0.78 }),
+      );
+      glow.push(
+        part(G_OCT, 0xffffff, { x: 0.28, y: 0.6, z: -0.26, sx: 0.24, sy: 0.28, sz: 0.24 }),
+        part(G_OCT, 0xffffff, { x: 0.28, y: 0.6, z: 0.26, sx: 0.24, sy: 0.28, sz: 0.24 }),
+      );
+      break;
+    case "brute":
+      // Huge broad-shouldered horned juggernaut ram
+      body.push(
+        part(G_BEV, dark, { y: 0.45, sx: 0.95, sy: 0.65, sz: 1.15 }),
+        part(G_BEV, hull, { x: 0.08, y: 1.05, sx: 1.12, sy: 0.76, sz: 1.38 }),
+        part(G_BEV, plate, { x: 0.12, y: 1.24, z: -0.68, rx: 0.25, sx: 0.78, sy: 0.46, sz: 0.42 }),
+        part(G_BEV, plate, { x: 0.12, y: 1.24, z: 0.68, rx: -0.25, sx: 0.78, sy: 0.46, sz: 0.42 }),
+        part(G_CONE6, BRASS, { x: 0.64, y: 1.36, z: -0.42, rz: -1.0, sx: 0.24, sy: 0.56, sz: 0.24 }),
+        part(G_CONE6, BRASS, { x: 0.64, y: 1.36, z: 0.42, rz: -1.0, sx: 0.24, sy: 0.56, sz: 0.24 }),
+      );
+      glow.push(part(G_BOX, 0xffffff, { x: 0.66, y: 1.12, sx: 0.14, sy: 0.2, sz: 0.62 }));
+      break;
+    case "sniper":
+      // Tall slender long-barrel marksman spire
+      body.push(
+        part(G_CYL6, dark, { y: 0.52, sx: 0.5, sy: 0.96, sz: 0.5 }),
+        part(G_BEV, hull, { y: 1.12, sx: 0.58, sy: 0.46, sz: 0.52 }),
+        part(G_CYL6, plate, { x: 0.76, y: 1.12, rz: Math.PI / 2, sx: 0.12, sy: 1.28, sz: 0.12 }),
+        part(G_BEV, accent, { x: -0.16, y: 1.44, sx: 0.34, sy: 0.32, sz: 0.26 }),
+      );
+      glow.push(
+        part(G_OCT, 0xffffff, { x: 0.36, y: 1.22, sx: 0.22, sy: 0.22, sz: 0.22 }),
+        part(G_BOX, 0xffffff, { x: 0.85, y: 1.18, sx: 0.75, sy: 0.05, sz: 0.05 }),
+      );
+      break;
+    case "hive":
+      // Towering organic/mechanical brood nest spire
+      body.push(
+        part(G_CYL8, dark, { y: 0.35, sx: 1.25, sy: 0.62, sz: 1.25 }),
+        part(sculptedCap(0.86, 0.78, 71), hull, { y: 0.58 }),
+        part(sculptedCap(0.56, 0.55, 79), accent, { y: 1.18 }),
+      );
+      glow.push(
+        part(G_SPH, 0xffffff, { y: 0.92, sx: 0.52, sy: 0.36, sz: 0.52 }),
+        part(G_OCT, 0xffffff, { y: 1.66, sx: 0.3, sy: 0.42, sz: 0.3 }),
+      );
+      break;
+    case "bulwark":
+      // Heavy fortress walker bearing a broad curved riot-aegis front plate
+      body.push(
+        part(G_BEV, dark, { x: -0.1, y: 0.5, sx: 0.86, sy: 0.72, sz: 0.96 }),
+        part(G_BEV, hull, { x: -0.05, y: 1.05, sx: 0.88, sy: 0.56, sz: 1.02 }),
+        part(G_BEV, plate, { x: 0.58, y: 0.78, sx: 0.22, sy: 1.24, sz: 1.28 }),
+        part(G_BEV, BRASS, { x: 0.66, y: 0.78, sx: 0.12, sy: 0.82, sz: 0.34 }),
+      );
+      glow.push(
+        part(G_BOX, 0xffffff, { x: 0.72, y: 0.78, sx: 0.08, sy: 0.96, sz: 0.14 }),
+        part(G_BOX, 0xffffff, { x: 0.36, y: 1.28, sx: 0.14, sy: 0.12, sz: 0.46 }),
+      );
+      break;
+    case "striker":
+      // Razor-sharp swept-wing assassin blade silhouette
+      body.push(
+        part(G_OCT, dark, { y: 0.78, sx: 1.1, sy: 0.52, sz: 0.6 }),
+        part(G_BEV, plate, { x: 0.1, y: 0.8, z: -0.52, ry: 0.55, sx: 0.92, sy: 0.1, sz: 0.28 }),
+        part(G_BEV, plate, { x: 0.1, y: 0.8, z: 0.52, ry: -0.55, sx: 0.92, sy: 0.1, sz: 0.28 }),
+      );
+      glow.push(part(G_OCT, 0xffffff, { x: 0.48, y: 0.82, sx: 0.32, sy: 0.2, sz: 0.26 }));
+      break;
+    case "mortar":
+      // Squat armored artillery spider with elevated angled howitzer tube
+      body.push(
+        part(G_CYL8, dark, { y: 0.32, sx: 1.12, sy: 0.48, sz: 1.12 }),
+        part(G_BEV, hull, { y: 0.7, sx: 0.86, sy: 0.42, sz: 0.86 }),
+        part(G_CYL8, plate, { x: 0.18, y: 1.12, rz: -0.42, sx: 0.48, sy: 0.88, sz: 0.48 }),
+        part(G_TOR, BRASS, { x: 0.36, y: 1.48, rz: -0.42, rx: Math.PI / 2, sx: 0.58, sy: 0.58, sz: 0.58 }),
+      );
+      glow.push(part(G_SPH, 0xffffff, { x: 0.34, y: 1.48, sx: 0.32, sy: 0.32, sz: 0.32 }));
+      break;
+    case "mender":
+      // Floating clerical/medic obelisk with glowing orbital halo & cross crest
+      body.push(
+        part(G_OCT, plate, { y: 0.88, sx: 0.64, sy: 1.1, sz: 0.64 }),
+        part(G_TOR, hull, { y: 0.92, rx: Math.PI / 2, sx: 1.05, sy: 1.05, sz: 1.05 }),
+      );
+      glow.push(
+        part(G_BOX, 0xffffff, { y: 1.56, sx: 0.12, sy: 0.42, sz: 0.12 }),
+        part(G_BOX, 0xffffff, { y: 1.56, sx: 0.12, sy: 0.12, sz: 0.42 }),
+        part(G_TOR, 0xffffff, { y: 0.92, rx: Math.PI / 2, sx: 1.12, sy: 1.12, sz: 1.12 }),
+      );
+      break;
+    case "leaper":
+      // Coiled spring-legged predator hound crouched to pounce
+      body.push(
+        part(G_BEV, hull, { x: 0.08, y: 0.62, rz: -0.22, sx: 0.92, sy: 0.42, sz: 0.56 }),
+        part(G_BEV, dark, { x: -0.32, y: 0.34, z: -0.32, rz: 0.4, sx: 0.24, sy: 0.62, sz: 0.2 }),
+        part(G_BEV, dark, { x: -0.32, y: 0.34, z: 0.32, rz: 0.4, sx: 0.24, sy: 0.62, sz: 0.2 }),
+        part(G_CONE6, plate, { x: 0.56, y: 0.68, rz: -Math.PI / 2, sx: 0.36, sy: 0.44, sz: 0.36 }),
+      );
+      glow.push(part(G_BOX, 0xffffff, { x: 0.52, y: 0.78, sx: 0.14, sy: 0.12, sz: 0.34 }));
+      break;
+    case "turret":
+      // Fortified armored bunker pedestal with twin heavy rotary cannons
+      body.push(
+        part(G_CYL8, dark, { y: 0.28, sx: 1.18, sy: 0.46, sz: 1.18 }),
+        part(G_BEV, hull, { y: 0.84, sx: 0.84, sy: 0.56, sz: 0.84 }),
+        part(G_CYL6, plate, { x: 0.62, y: 0.88, z: -0.22, rz: Math.PI / 2, sx: 0.18, sy: 0.84, sz: 0.18 }),
+        part(G_CYL6, plate, { x: 0.62, y: 0.88, z: 0.22, rz: Math.PI / 2, sx: 0.18, sy: 0.84, sz: 0.18 }),
+      );
+      glow.push(part(G_BOX, 0xffffff, { x: 0.44, y: 1.02, sx: 0.12, sy: 0.18, sz: 0.54 }));
+      break;
+    case "charger":
+      // Low-slung wedge battering-ram chariot with jet thrusters
+      body.push(
+        part(G_CONE6, plate, { x: 0.26, y: 0.52, rz: -Math.PI / 2, sx: 0.86, sy: 1.12, sz: 0.96 }),
+        part(G_BEV, dark, { x: -0.34, y: 0.46, sx: 0.56, sy: 0.56, sz: 0.92 }),
+      );
+      glow.push(
+        part(G_BOX, 0xffffff, { x: -0.62, y: 0.48, sx: 0.14, sy: 0.32, sz: 0.62 }),
+        part(G_OCT, 0xffffff, { x: 0.62, y: 0.58, sx: 0.22, sy: 0.22, sz: 0.22 }),
+      );
+      break;
+    case "minebot":
+      // Flat octagonal spider-layer carrying glowing ordinance dome
+      body.push(
+        part(G_CYL8, dark, { y: 0.26, sx: 0.98, sy: 0.32, sz: 0.98 }),
+        part(G_BEV, hull, { y: 0.54, sx: 0.72, sy: 0.3, sz: 0.72 }),
+        part(G_TOR, BRASS, { y: 0.54, rx: Math.PI / 2, sx: 0.86, sy: 0.86, sz: 0.86 }),
+      );
+      glow.push(part(G_SPH, 0xffffff, { y: 0.78, sx: 0.4, sy: 0.28, sz: 0.4 }));
+      break;
+    case "sapper":
+      // Agile demolition grenadier with glowing charge pack
+      body.push(
+        part(G_BEV, dark, { y: 0.44, sx: 0.58, sy: 0.56, sz: 0.62 }),
+        part(G_BEV, hull, { x: 0.08, y: 0.88, sx: 0.54, sy: 0.42, sz: 0.66 }),
+        part(G_CYL6, COPPER, { x: -0.28, y: 0.84, sx: 0.34, sy: 0.52, sz: 0.46 }),
+      );
+      glow.push(
+        part(G_BOX, 0xffffff, { x: 0.36, y: 0.94, sx: 0.1, sy: 0.12, sz: 0.36 }),
+        part(G_OCT, 0xffffff, { x: -0.32, y: 1.18, sx: 0.24, sy: 0.24, sz: 0.24 }),
+      );
+      break;
+    case "phantom":
+      // Tall hooded spectral wraith with floating cowl and trailing mantle
+      body.push(
+        part(G_CONE6, dark, { y: 0.72, sx: 0.78, sy: 1.24, sz: 0.78 }),
+        part(G_OCT, hull, { y: 1.38, sx: 0.56, sy: 0.62, sz: 0.56 }),
+      );
+      glow.push(
+        part(G_OCT, 0xffffff, { x: 0.24, y: 1.36, sx: 0.24, sy: 0.26, sz: 0.32 }),
+        part(G_TOR, 0xffffff, { y: 0.5, rx: Math.PI / 2, sx: 0.92, sy: 0.92, sz: 0.92 }),
+      );
+      break;
+    case "sentinel":
+      // Floating monolithic beam-eye obelisk flanked by twin focusing fins
+      body.push(
+        part(G_BEV, dark, { y: 0.96, sx: 0.64, sy: 1.18, sz: 0.64 }),
+        part(G_BEV, plate, { y: 1.0, z: -0.52, sx: 0.46, sy: 0.96, sz: 0.16 }),
+        part(G_BEV, plate, { y: 1.0, z: 0.52, sx: 0.46, sy: 0.96, sz: 0.16 }),
+      );
+      glow.push(part(G_SPH, 0xffffff, { x: 0.3, y: 1.04, sx: 0.42, sy: 0.42, sz: 0.42 }));
+      break;
+    case "carrier":
+      // Broad hovering drone-mothership catamaran hull
+      body.push(
+        part(G_BEV, dark, { y: 0.88, sx: 1.24, sy: 0.44, sz: 1.46 }),
+        part(G_BEV, hull, { x: 0.1, y: 1.18, sx: 0.88, sy: 0.34, sz: 0.82 }),
+        part(G_BEV, plate, { x: 0.15, y: 0.88, z: -0.78, sx: 1.1, sy: 0.32, sz: 0.26 }),
+        part(G_BEV, plate, { x: 0.15, y: 0.88, z: 0.78, sx: 1.1, sy: 0.32, sz: 0.26 }),
+      );
+      glow.push(
+        part(G_BOX, 0xffffff, { x: 0.64, y: 0.88, sx: 0.12, sy: 0.2, sz: 0.92 }),
+        part(G_OCT, 0xffffff, { y: 1.45, sx: 0.36, sy: 0.28, sz: 0.36 }),
+      );
+      break;
+    case "drone":
+      // Compact sleek hovering striker-orb with delta wingtips
+      body.push(
+        part(G_SPH, hull, { y: 0.88, sx: 0.56, sy: 0.48, sz: 0.56 }),
+        part(G_BEV, plate, { y: 0.88, z: -0.38, sx: 0.38, sy: 0.1, sz: 0.36 }),
+        part(G_BEV, plate, { y: 0.88, z: 0.38, sx: 0.38, sy: 0.1, sz: 0.36 }),
+      );
+      glow.push(part(G_OCT, 0xffffff, { x: 0.28, y: 0.88, sx: 0.22, sy: 0.22, sz: 0.22 }));
+      break;
+    case "driller":
+      // Armored subterranean burrower with massive conical spiral drill nose
+      body.push(
+        part(G_CYL8, dark, { x: -0.18, y: 0.56, rz: Math.PI / 2, sx: 0.88, sy: 0.82, sz: 0.88 }),
+        part(G_CONE6, BRASS, { x: 0.58, y: 0.56, rz: -Math.PI / 2, sx: 0.78, sy: 0.92, sz: 0.78 }),
+        part(G_TOR, plate, { x: 0.18, y: 0.56, ry: Math.PI / 2, sx: 0.92, sy: 0.92, sz: 0.92 }),
+      );
+      glow.push(part(G_TOR, 0xffffff, { x: 0.46, y: 0.56, ry: Math.PI / 2, sx: 0.56, sy: 0.56, sz: 0.56 }));
+      break;
+    case "beacon":
+      // Tall crystalline relay pylon pulsing with rally aura rings
+      body.push(
+        part(G_CYL6, dark, { y: 0.34, sx: 0.94, sy: 0.54, sz: 0.94 }),
+        part(G_CYL6, plate, { y: 1.05, sx: 0.44, sy: 1.1, sz: 0.44 }),
+      );
+      glow.push(
+        part(G_OCT, 0xffffff, { y: 1.82, sx: 0.44, sy: 0.64, sz: 0.44 }),
+        part(G_TOR, 0xffffff, { y: 1.24, rx: Math.PI / 2, sx: 0.86, sy: 0.86, sz: 0.86 }),
+      );
+      break;
+    case "weaver":
+      // Ornate geometric astral caster with orbiting arcane ring
+      body.push(
+        part(G_OCT, dark, { y: 0.96, sx: 0.64, sy: 1.06, sz: 0.64 }),
+        part(G_TOR, plate, { y: 0.96, rx: 0.45, rz: 0.35, sx: 1.08, sy: 1.08, sz: 1.08 }),
+      );
+      glow.push(
+        part(G_OCT, 0xffffff, { x: 0.24, y: 1.02, sx: 0.3, sy: 0.3, sz: 0.3 }),
+        part(G_TOR, 0xffffff, { y: 0.96, rx: -0.45, rz: -0.35, sx: 1.15, sy: 1.15, sz: 1.15 }),
+      );
+      break;
+    default:
+      body.push(part(G_BEV, hull, { y: 0.5, sx: 0.8, sy: 0.8, sz: 0.8 }));
+      glow.push(part(G_OCT, 0xffffff, { x: 0.42, y: 0.6, sx: 0.22, sy: 0.22, sz: 0.22 }));
   }
-  mergeStaticMeshes(group);
-  const mats = [hull, frame, trim, enamel].filter((mat) => {
-    let used = false;
-    group.traverse((o) => {
-      if (o.material === mat) used = true;
-    });
-    if (!used) mat.dispose();
-    return used;
+  return { body: mergeGeometries(body), glow: mergeGeometries(glow) };
+}
+
+export function enemyGeometry(type) {
+  let cached = enemyGeoCache.get(type);
+  if (cached) return cached;
+  const def = enemyDefs[type] || { r: 0.6, color: 0xffffff };
+  const built = buildEnemyParts(type, def.color);
+  // Scale geometry proportionally to enemy's authored base radius so silhouette matches collision feel
+  const s = Math.max(0.55, def.r * 1.18);
+  built.body.scale(s, s, s);
+  built.glow.scale(s, s, s);
+  enemyGeoCache.set(type, built);
+  return built;
+}
+
+// ============================================================================
+// ALL 6 MONUMENTAL ARTICULATED BIOME BOSSES
+// ============================================================================
+
+export function buildBossModel(type, accentHex = 0xff6644) {
+  const group = new Node();
+  group.rotation.order = "YZX";
+  const bodyMat = worldMaterial({
+    surface: enemySurface(type),
+    vertexColors: true,
+    biomeSkin: true,
   });
-  group.userData.fadeMats = mats;
-  for (const m of [...mats, glowMat]) m.transparent = true;
+  const glowMat = emissiveMaterial({
+    color: accentHex,
+    emissiveIntensity: 1.75,
+    transparent: true,
+    opacity: 1,
+  });
+  const mats = [bodyMat];
+  const fadeMats = [bodyMat];
+  const spin = [];
+
+  if (type === "warden") {
+    // BLACKOUT CITY — Ironclad Siege Warden Juggernaut
+    const hull = mergeGeometries([
+      part(G_BEV, 0x1d2b38, { y: 0.72, sx: 1.9, sy: 1.25, sz: 2.2 }),
+      part(G_BEV, 0x334d5c, { x: 0.1, y: 1.88, sx: 2.1, sy: 1.35, sz: 2.65 }),
+      // Towering armored pauldrons with brass chevron trim
+      part(G_BEV, 0x263d4a, { y: 2.38, z: -1.55, rx: 0.24, sx: 1.55, sy: 1.05, sz: 0.92 }),
+      part(G_BEV, 0x263d4a, { y: 2.38, z: 1.55, rx: -0.24, sx: 1.55, sy: 1.05, sz: 0.92 }),
+      part(G_BEV, BRASS, { x: 0.2, y: 2.86, z: -1.55, sx: 1.15, sy: 0.22, sz: 0.7 }),
+      part(G_BEV, BRASS, { x: 0.2, y: 2.86, z: 1.55, sx: 1.15, sy: 0.22, sz: 0.7 }),
+      // Twin heavy arm siege cannons
+      part(G_CYL8, IRON, { x: 1.35, y: 1.65, z: -1.48, rz: Math.PI / 2, sx: 0.48, sy: 1.95, sz: 0.48 }),
+      part(G_CYL8, IRON, { x: 1.35, y: 1.65, z: 1.48, rz: Math.PI / 2, sx: 0.48, sy: 1.95, sz: 0.48 }),
+      // Crested sentinel head
+      part(G_BEV, IVORY, { x: 0.24, y: 2.82, sx: 1.0, sy: 0.72, sz: 1.08 }),
+    ]);
+    group.add(new MeshNode(hull, bodyMat));
+    const glowGeo = mergeGeometries([
+      part(G_BOX, 0xffffff, { x: 0.78, y: 2.84, sx: 0.18, sy: 0.22, sz: 0.92 }),
+      part(G_OCT, 0xffffff, { x: 1.16, y: 1.85, sx: 0.44, sy: 0.62, sz: 0.68 }),
+      part(G_CYL6, 0xffffff, { x: 2.34, y: 1.65, z: -1.48, rz: Math.PI / 2, sx: 0.34, sy: 0.12, sz: 0.34 }),
+      part(G_CYL6, 0xffffff, { x: 2.34, y: 1.65, z: 1.48, rz: Math.PI / 2, sx: 0.34, sy: 0.12, sz: 0.34 }),
+    ]);
+    group.add(new MeshNode(glowGeo, glowMat));
+    // Spinning Warden radar halo behind shoulders
+    const halo = addMesh(group, torus(1.42, 0.08, 6, 20), glowMat, { x: -0.65, y: 2.95, ry: Math.PI / 2 });
+    spin.push({ m: halo, ax: "x", v: 1.4 });
+  } else if (type === "queen") {
+    // THE GLOWMARSH — Bioluminescent Brood Matriarch
+    const hull = mergeGeometries([
+      part(G_SPH, 0x264438, { x: -0.45, y: 1.18, sx: 2.6, sy: 1.55, sz: 2.25 }),
+      part(G_BEV, 0x3b6c58, { x: 0.92, y: 1.42, sx: 1.48, sy: 1.12, sz: 1.65 }),
+      // Broad sculpted fungal crown carapace
+      part(sculptedCap(1.85, 1.05, 313), 0x4db88d, { x: -0.25, y: 1.78 }),
+      // Six splayed chitinous limbs
+      ...[-1, 1].flatMap((s) =>
+        [-0.75, 0.05, 0.78].map((lx) =>
+          part(G_BEV, 0x1c3128, { x: lx, y: 0.56, z: s * 1.42, rx: s * 0.55, sx: 0.34, sy: 1.24, sz: 0.34 }),
+        ),
+      ),
+    ]);
+    group.add(new MeshNode(hull, bodyMat));
+    const glowGeo = mergeGeometries([
+      part(G_SPH, 0xffffff, { x: -0.95, y: 1.35, z: -0.78, sx: 0.65, sy: 0.55, sz: 0.65 }),
+      part(G_SPH, 0xffffff, { x: -0.95, y: 1.35, z: 0.78, sx: 0.65, sy: 0.55, sz: 0.65 }),
+      part(G_SPH, 0xffffff, { x: 1.68, y: 1.56, z: -0.42, sx: 0.34, sy: 0.28, sz: 0.34 }),
+      part(G_SPH, 0xffffff, { x: 1.68, y: 1.56, z: 0.42, sx: 0.34, sy: 0.28, sz: 0.34 }),
+      part(G_TOR, 0xffffff, { x: -0.25, y: 1.84, rx: Math.PI / 2, sx: 2.65, sy: 2.65, sz: 2.65 }),
+    ]);
+    group.add(new MeshNode(glowGeo, glowMat));
+    const crown = addMesh(group, octahedron(0.62), glowMat, { x: -0.25, y: 3.15, sx: 0.9, sy: 1.4, sz: 0.9 });
+    spin.push({ m: crown, ax: "y", v: 1.6 });
+  } else if (type === "prism") {
+    // THE AURORA SHELF — Crystalline Frost Prism Cathedral
+    const iceMat = worldMaterial({
+      surface: "ice",
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.84,
+      biomeSkin: true,
+      userData: { opacity: 0.84 },
+    });
+    mats.push(iceMat);
+    fadeMats.push(iceMat);
+    const coreCrystal = mergeGeometries([
+      part(sculptedCrystal(1.9, 3.6, 1.9, 411), 0x1d4e78, { y: 0.35 }),
+      part(G_OCT, 0x3b86b8, { y: 2.15, sx: 1.85, sy: 2.45, sz: 1.85 }),
+    ]);
+    group.add(new MeshNode(coreCrystal, iceMat));
+    const ringA = new Node();
+    ringA.position.set(0, 2.0, 0);
+    const ringAGeo = mergeGeometries(
+      Array.from({ length: 6 }, (_, i) => {
+        const a = (i / 6) * TAU;
+        return part(sculptedCrystal(0.55, 1.45, 0.55, 420 + i), 0x266494, {
+          x: Math.cos(a) * 1.9,
+          y: -0.5,
+          z: Math.sin(a) * 1.9,
+          ry: a,
+          rz: 0.28,
+        });
+      }),
+    );
+    ringA.add(new MeshNode(ringAGeo, bodyMat));
+    group.add(ringA);
+    spin.push({ m: ringA, ax: "y", v: 1.1 });
+
+    const ringB = addMesh(group, torus(1.95, 0.08, 6, 24), glowMat, { y: 2.0, rx: 0.52 });
+    spin.push({ m: ringB, ax: "z", v: -1.45 });
+    addMesh(group, octahedron(0.82), glowMat, { y: 2.05, sx: 1, sy: 1.5, sz: 1 });
+  } else if (type === "core") {
+    // THE SHATTERED CORE — Final Boss: Abyssal Rift Astrolabe Sovereign
+    const plinth = mergeGeometries([
+      part(G_OCT, 0x261e48, { y: 2.4, sx: 1.95, sy: 2.35, sz: 1.95 }),
+      ...Array.from({ length: 4 }, (_, i) => {
+        const a = (i / 4) * TAU;
+        return part(sculptedCrystal(0.75, 2.2, 0.75, 510 + i), 0x3f3670, {
+          x: Math.cos(a) * 1.65,
+          y: 0.95,
+          z: Math.sin(a) * 1.65,
+          ry: a,
+        });
+      }),
+    ]);
+    group.add(new MeshNode(plinth, bodyMat));
+    const heart = addMesh(group, icosahedron(0.95, 1), glowMat, { y: 2.4 });
+    spin.push({ m: heart, ax: "y", v: 1.2 });
+
+    const r1 = addMesh(group, torus(1.85, 0.11, 6, 28), glowMat, { y: 2.4, rx: 0.55 });
+    const r2 = addMesh(group, torus(2.38, 0.09, 6, 28), worldMaterial({ color: BRASS, surface: "metal" }), {
+      y: 2.4,
+      rz: 0.85,
+    });
+    const r3 = addMesh(group, torus(2.82, 0.07, 6, 30), glowMat, { y: 2.4, rx: -0.68 });
+    spin.push({ m: r1, ax: "y", v: 1.5 }, { m: r2, ax: "x", v: -1.1 }, { m: r3, ax: "z", v: 0.9 });
+  } else if (type === "tyrant") {
+    // ASHFALL CALDERA — Volcanic Basalt Furnace Titan
+    const hull = mergeGeometries([
+      part(G_BEV, 0x2a1c1e, { y: 0.78, sx: 2.05, sy: 1.35, sz: 2.35 }),
+      part(G_BEV, 0x472928, { x: 0.12, y: 1.98, sx: 2.25, sy: 1.48, sz: 2.75 }),
+      // Towering obsidian-horn shoulders
+      part(sculptedCrystal(1.15, 2.1, 1.15, 601), 0x3b2324, { x: -0.1, y: 2.1, z: -1.55, rx: -0.4 }),
+      part(sculptedCrystal(1.15, 2.1, 1.15, 602), 0x3b2324, { x: -0.1, y: 2.1, z: 1.55, rx: 0.4 }),
+      // Heavy siege gauntlets
+      part(G_BEV, 0x5c342e, { x: 1.15, y: 1.38, z: -1.48, sx: 1.28, sy: 0.92, sz: 0.92 }),
+      part(G_BEV, 0x5c342e, { x: 1.15, y: 1.38, z: 1.48, sx: 1.28, sy: 0.92, sz: 0.92 }),
+      // Horned forge helm
+      part(G_BEV, 0x321e20, { x: 0.35, y: 2.95, sx: 1.12, sy: 0.82, sz: 1.12 }),
+    ]);
+    group.add(new MeshNode(hull, bodyMat));
+    const forgeGlow = mergeGeometries([
+      part(G_SPH, 0xffffff, { x: 1.15, y: 1.98, sx: 0.95, sy: 0.95, sz: 1.12 }),
+      part(G_BOX, 0xffffff, { x: 0.94, y: 2.98, sx: 0.16, sy: 0.24, sz: 0.84 }),
+      part(G_OCT, 0xffffff, { x: 1.72, y: 1.38, z: -1.48, sx: 0.45, sy: 0.45, sz: 0.45 }),
+      part(G_OCT, 0xffffff, { x: 1.72, y: 1.38, z: 1.48, sx: 0.45, sy: 0.45, sz: 0.45 }),
+    ]);
+    group.add(new MeshNode(forgeGlow, glowMat));
+    const crown = addMesh(group, torus(1.22, 0.09, 6, 20), glowMat, { y: 3.55, rx: Math.PI / 2 });
+    spin.push({ m: crown, ax: "z", v: 1.3 });
+  } else {
+    // THE GLASS FLATS — Articulated Vitrified Glasswyrm Leviathan (burnished obsidian-bronze armor + vivid turquoise glass crests)
+    const head = mergeGeometries([
+      part(G_BEV, 0x5e3824, { x: 0.55, y: 1.15, sx: 1.85, sy: 1.1, sz: 1.48 }),
+      part(sculptedCrystal(0.95, 1.85, 0.72, 701), 0x30c8b8, { x: -0.1, y: 1.35, z: -0.78, rx: -0.45, rz: 0.32 }),
+      part(sculptedCrystal(0.95, 1.85, 0.72, 702), 0x30c8b8, { x: -0.1, y: 1.35, z: 0.78, rx: 0.45, rz: 0.32 }),
+      part(G_CONE6, 0x8a5832, { x: 1.65, y: 1.05, rz: -Math.PI / 2, sx: 0.85, sy: 1.1, sz: 0.95 }),
+    ]);
+    group.add(new MeshNode(head, bodyMat));
+    const eyes = mergeGeometries([
+      part(G_OCT, 0xffffff, { x: 1.25, y: 1.35, z: -0.58, sx: 0.38, sy: 0.24, sz: 0.26 }),
+      part(G_OCT, 0xffffff, { x: 1.25, y: 1.35, z: 0.58, sx: 0.38, sy: 0.24, sz: 0.26 }),
+      part(G_OCT, 0xffffff, { x: 0.35, y: 2.02, sx: 0.48, sy: 0.65, sz: 0.48 }),
+    ]);
+    group.add(new MeshNode(eyes, glowMat));
+
+    // Articulated undulating armored tail segments
+    const tail = [];
+    for (let i = 1; i <= 5; i++) {
+      const sc = 1 - i * 0.13;
+      const seg = new Node();
+      seg.position.set(-i * 0.95, 0.95 - i * 0.06, 0);
+      const segGeo = mergeGeometries([
+        part(G_BEV, i % 2 ? 0x70452b : 0x452b1e, { sx: 0.96 * sc, sy: 0.92 * sc, sz: 1.28 * sc }),
+        part(sculptedCrystal(0.45 * sc, 1.1 * sc, 0.45 * sc, 710 + i), 0x34ccba, { y: 0.38 * sc }),
+      ]);
+      seg.add(new MeshNode(segGeo, bodyMat));
+      seg.add(
+        new MeshNode(part(G_OCT, 0xffffff, { y: 0.72 * sc, sx: 0.26 * sc, sy: 0.34 * sc, sz: 0.26 * sc }), glowMat),
+      );
+      group.add(seg);
+      tail.push({ m: seg, z: 0, i });
+    }
+    group.userData.tail = tail;
+  }
+
+  group.userData.fadeMats = fadeMats;
   return { group, mats, glowMat, spin };
 }
 
-function rocketProjectileGeometry() {
-  return mergeParts([
-    shell(cream, 0.089, 0.49, { x: 0.043, rz: -Math.PI / 2 }),
-    jewel(brass, 0.16, { x: 0.18, sx: 1.03, sy: 0.55, sz: 0.55 }),
-    collar(0x8c4932, 0.072, 0.014, { x: -0.11, ry: Math.PI / 2 }),
-    ...both((side) => [jewel(0x456660, 0.14, { x: -0.167, z: side * 0.085, sy: 0.23, sx: 0.9 })]),
-  ]);
-}
-function wingDroneGeometry() {
-  return mergeParts([
-    shell(0x9ab8a5, 0.24, 0.24, { y: 0.9, sz: 0.74 }),
-    jewel(cream, 0.22, { x: 0.15, y: 0.94, sx: 1.27, sy: 0.42, sz: 0.52 }),
-    ...both((side) => [jewel(brass, 0.21, { x: -0.15, y: 0.89, z: side * 0.18, ry: side * 0.48, sy: 0.18, sz: 1.18 })]),
-  ]);
-}
-function orbitBladeGeometry() {
-  const shape = new Shape();
-  shape.moveTo(0.58, 0);
-  shape.quadraticCurveTo(0.1, 0.27, -0.19, 0.13);
-  shape.quadraticCurveTo(-0.065, 0, -0.19, -0.13);
-  shape.quadraticCurveTo(0.18, -0.21, 0.58, 0);
-  const geom = new ExtrudeGeometry(shape, { depth: 0.06, bevelEnabled: false, curveSegments: 5 });
-  return geom.rotateX(Math.PI / 2).translate(0, 0.62, 0);
-}
-function shardGeometry() {
-  return new OctahedronGeometry(0.23).scale(0.62, 1.49, 0.9).rotateY(0.36);
-}
-function healCrossGeometry() {
-  return mergeParts([
-    collar(0xbbeece, 0.273, 0.024, {}),
-    ...Array.from({ length: 4 }, (_, i) => {
-      const a = (i * Math.PI) / 2;
-      return jewel(0xffffff, 0.15, { x: Math.cos(a) * 0.129, y: Math.sin(a) * 0.129, rz: a, sz: 0.38 });
-    }),
+// ============================================================================
+// SHARED COMBAT KIT GEOMETRIES
+// ============================================================================
+
+export function wingDroneGeometry() {
+  return mergeGeometries([
+    part(G_OCT, IVORY, { y: 0.85, sx: 0.45, sy: 0.26, sz: 0.38 }),
+    part(G_BEV, BRASS, { x: -0.08, y: 0.85, z: -0.26, ry: 0.35, sx: 0.38, sy: 0.08, sz: 0.24 }),
+    part(G_BEV, BRASS, { x: -0.08, y: 0.85, z: 0.26, ry: -0.35, sx: 0.38, sy: 0.08, sz: 0.24 }),
   ]);
 }
 
-export {
-  rocketProjectileGeometry,
-  meshPart,
-  mergeParts,
-  box,
-  debrisGeometry,
-  discGeometry,
-  enemyGeometry,
-  shardGeometry,
-  orbitBladeGeometry,
-  buildBossModel,
-  shieldArcGeometry,
-  healCrossGeometry,
-  buildPlayerModel,
-  wingDroneGeometry,
-};
+export function orbitBladeGeometry() {
+  return mergeGeometries([
+    part(G_OCT, IVORY, { y: 0.62, sx: 0.72, sy: 0.12, sz: 0.34 }),
+    part(G_BEV, BRASS, { x: -0.18, y: 0.62, sx: 0.32, sy: 0.14, sz: 0.18 }),
+  ]);
+}
+
+export function rocketProjectileGeometry() {
+  return mergeGeometries([
+    part(G_CYL8, IVORY, { rz: Math.PI / 2, sx: 0.22, sy: 0.68, sz: 0.22 }),
+    part(G_CONE6, FINISH.vermilion, { x: 0.42, rz: -Math.PI / 2, sx: 0.22, sy: 0.26, sz: 0.22 }),
+    part(G_BEV, SLATE, { x: -0.28, sx: 0.2, sy: 0.06, sz: 0.42 }),
+    part(G_BEV, SLATE, { x: -0.28, sx: 0.2, sy: 0.42, sz: 0.06 }),
+  ]);
+}
+
+export function discGeometry() {
+  return mergeGeometries([
+    part(torus(0.75, 0.14, 5, 16), IVORY, { rx: Math.PI / 2 }),
+    part(cylinder(0.45, 0.45, 0.12, 8), BRASS, {}),
+  ]);
+}
+
+export function shardGeometry() {
+  return octahedron(0.32).scale(0.85, 1.45, 0.85);
+}
+
+export function healCrossGeometry() {
+  return mergeGeometries([
+    part(G_BEV, 0x72ffbe, { sx: 0.56, sy: 0.18, sz: 0.18 }),
+    part(G_BEV, 0x72ffbe, { sx: 0.18, sy: 0.56, sz: 0.18 }),
+    part(G_BEV, 0x72ffbe, { sx: 0.18, sy: 0.18, sz: 0.56 }),
+  ]);
+}
+
+export function shieldArcGeometry() {
+  const segs = 12;
+  const parts = [];
+  for (let i = 0; i < segs; i++) {
+    const a = -0.82 + (i / (segs - 1)) * 1.64;
+    parts.push(
+      part(G_BOX, 0xffffff, {
+        x: Math.cos(a) * 1.25,
+        y: 0.86,
+        z: Math.sin(a) * 1.25,
+        ry: -a,
+        sx: 0.1,
+        sy: 1.25,
+        sz: 0.24,
+      }),
+    );
+  }
+  return mergeGeometries(parts);
+}
+
+export function debrisGeometry() {
+  return octahedron(0.5);
+}

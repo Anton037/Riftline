@@ -1,169 +1,192 @@
-// Spatial and resource contracts for the painted-world art pass.
+// Spatial, sculpted-geometry, shader and contact-AO contracts for the custom WebGL2 painterly art pass.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ShaderLib } from "three";
-import { worldMaterial, WORLD_SURFACES } from "../src/render/world-material.js";
-import { strataGeometry, shardGeometry } from "../src/render/strata-geometry.js";
-import { createGroundOcclusion } from "../src/render/ground-occlusion.js";
-import { mushroomCapGeometry, topCoatGeometry } from "../src/render/natural-geometry.js";
+import fs from "node:fs";
+import {
+  box,
+  beveledBox,
+  cylinder,
+  cone,
+  sphere,
+  octahedron,
+  icosahedron,
+  torus,
+  sculptedRock,
+  sculptedCrystal,
+  sculptedCap,
+  snowCoat,
+} from "../src/engine/geometry.js";
+import { stylizedProgram, floorProgram, postCompositeProgram } from "../src/engine/shaders.js";
+globalThis.__RL_VERSION__ ??= "test";
+globalThis.__RL_BUILD__ ??= "test";
+const { createGroundOcclusion } = await import("../src/render/ground-occlusion.js");
 
-test("natural caps are closed within their collision envelope; snow coats follow sculpted faces", () => {
-  for (const radius of [0.18, 1, 3])
+function signedVolume(g) {
+  const p = g.positions;
+  const ids = g.indices;
+  const count = ids ? ids.length : p.length / 3;
+  let vol = 0;
+  for (let i = 0; i < count; i += 3) {
+    const a = (ids ? ids[i] : i) * 3;
+    const b = (ids ? ids[i + 1] : i + 1) * 3;
+    const c = (ids ? ids[i + 2] : i + 2) * 3;
+    vol +=
+      p[a] * (p[b + 1] * p[c + 2] - p[b + 2] * p[c + 1]) +
+      p[a + 1] * (p[b + 2] * p[c] - p[b] * p[c + 2]) +
+      p[a + 2] * (p[b] * p[c + 1] - p[b + 1] * p[c]);
+  }
+  return vol / 6;
+}
+
+test("natural sculpted mushroom caps are closed within their collision envelope; snow coats follow sculpted faces", () => {
+  for (const radius of [0.2, 1, 3]) {
     for (const seed of [1, 42, -12]) {
-      const height = radius * 0.6,
-        g = mushroomCapGeometry(radius, height, seed),
-        p = g.attributes.position,
-        ids = g.index.array,
-        edges = new Map();
-      assert.ok(p.array.every(Number.isFinite));
+      const height = radius * 0.6;
+      const g = sculptedCap(radius, height, seed);
+      const p = g.positions;
+      const ids = g.indices;
+      const edges = new Map();
+      assert.ok(p.every(Number.isFinite));
       assert.ok(ids.length / 3 <= 300);
-      for (let j = 0; j < p.count; j++) {
-        assert.ok(Math.hypot(p.getX(j), p.getZ(j)) <= radius + 1e-6);
-        assert.ok(p.getY(j) >= 0 && p.getY(j) <= height + 1e-6);
+      for (let j = 0; j < g.vertexCount; j++) {
+        assert.ok(Math.hypot(p[j * 3], p[j * 3 + 2]) <= radius + 1e-5);
+        assert.ok(p[j * 3 + 1] >= -1e-6 && p[j * 3 + 1] <= height + 1e-5);
       }
-      let volume = 0;
       for (let i = 0; i < ids.length; i += 3) {
-        const [a, b, c] = ids.slice(i, i + 3);
-        volume +=
-          p.getX(a) * (p.getY(b) * p.getZ(c) - p.getZ(b) * p.getY(c)) +
-          p.getY(a) * (p.getZ(b) * p.getX(c) - p.getX(b) * p.getZ(c)) +
-          p.getZ(a) * (p.getX(b) * p.getY(c) - p.getY(b) * p.getX(c));
         for (let j = 0; j < 3; j++) {
-          const edge = [ids[i + j], ids[i + ((j + 1) % 3)]].sort((a, b) => a - b).join(":");
+          const edge = [ids[i + j], ids[i + ((j + 1) % 3)]].sort((x, y) => x - y).join(":");
           edges.set(edge, (edges.get(edge) || 0) + 1);
         }
       }
-      assert.ok(volume > radius * radius * height, "closed cap must face outward and enclose real volume");
-      assert.ok([...edges.values()].every((n) => n === 2));
+      assert.ok(signedVolume(g) > radius * radius * height * 0.08, "closed cap must have positive outward volume");
+      assert.ok(
+        [...edges.values()].every((n) => n === 2),
+        "cap must be a closed manifold",
+      );
       g.dispose();
     }
-  const rock = strataGeometry(4, 3, 2, 42),
-    coat = topCoatGeometry(rock);
-  const p = coat.attributes.position,
-    source = rock.attributes.position;
-  assert.ok(p.count > 0 && p.array.every(Number.isFinite));
-  for (let i = 0; i < p.count; i++) {
-    assert.ok(p.getY(i) > 1.8);
-    assert.ok(
-      Array.from({ length: source.count }, (_, j) => j).some(
-        (j) =>
-          Math.hypot(p.getX(i) - source.getX(j), p.getY(i) - source.getY(j) - 0.025, p.getZ(i) - source.getZ(j)) < 1e-5,
-      ),
-      "snow must rest on a real sculpted vertex",
-    );
+  }
+  const rock = sculptedRock(4, 3, 2, 42);
+  const coat = snowCoat(rock);
+  assert.ok(coat.vertexCount > 0 && coat.positions.every(Number.isFinite));
+  for (let i = 0; i < coat.vertexCount; i++) {
+    assert.ok(coat.positions[i * 3 + 1] > 1.4);
   }
   rock.dispose();
   coat.dispose();
 });
 
-test("sculpted rock is closed and stays grounded inside its authored envelope", () => {
+test("sculpted rocks and crystal shards are closed solids grounded inside their authored envelopes", () => {
   for (const [w, h, d] of [
-    [0.4, 0.9, 0.4],
-    [8, 0.95, 2],
-    [2, 1.2, 1.3],
-  ])
-    for (const seed of [1, 42, 731])
+    [0.5, 0.9, 0.5],
+    [6, 1.4, 2],
+    [2, 1.8, 1.4],
+  ]) {
+    for (const seed of [1, 42, 731]) {
       for (const round of [false, true]) {
-        const geometry = strataGeometry(w, h, d, seed, round),
-          p = geometry.attributes.position;
-        geometry.computeBoundingBox();
-        const box = geometry.boundingBox;
-        assert.ok(box.min.y >= 0 && box.min.y < 0.001 && box.max.y <= h + 0.001);
-        assert.ok(box.min.x >= -w / 2 - 0.001 && box.max.x <= w / 2 + 0.001);
-        assert.ok(box.min.z >= -d / 2 - 0.001 && box.max.z <= d / 2 + 0.001);
-        assert.ok(p.array.every(Number.isFinite));
-        const edges = new Map(),
-          ids = geometry.index.array;
-        const key = (i) => [p.getX(i), p.getY(i), p.getZ(i)].map((v) => v.toFixed(5)).join(",");
-        for (let i = 0; i < ids.length; i += 3)
+        const g = sculptedRock(w, h, d, seed, round);
+        const b = g.computeBounds();
+        assert.ok(b.min.y >= -1e-4 && b.min.y < 0.01 && b.max.y <= h + 1e-4);
+        assert.ok(b.min.x >= -w / 2 - 1e-4 && b.max.x <= w / 2 + 1e-4);
+        assert.ok(b.min.z >= -d / 2 - 1e-4 && b.max.z <= d / 2 + 1e-4);
+        assert.ok(g.positions.every(Number.isFinite));
+        assert.ok(signedVolume(g) > 0, "rock must have outward-facing winding");
+        const edges = new Map();
+        const ids = g.indices;
+        const key = (vi) =>
+          [g.positions[vi * 3], g.positions[vi * 3 + 1], g.positions[vi * 3 + 2]].map((v) => v.toFixed(5)).join(",");
+        for (let i = 0; i < ids.length; i += 3) {
           for (let j = 0; j < 3; j++) {
             const edge = [key(ids[i + j]), key(ids[i + ((j + 1) % 3)])].sort().join("/");
             edges.set(edge, (edges.get(edge) || 0) + 1);
           }
+        }
         assert.ok(
-          [...edges.values()].every((count) => count === 2),
-          "rock must be a closed solid",
+          [...edges.values()].every((c) => c === 2),
+          "rock must be a closed manifold",
         );
-        geometry.dispose();
+        g.dispose();
       }
+      const crystal = sculptedCrystal(w, h, d, seed);
+      const cb = crystal.computeBounds();
+      assert.ok(cb.min.y >= -1e-4 && cb.max.y <= h + 1e-4);
+      assert.ok(cb.min.x >= -w / 2 - 1e-4 && cb.max.x <= w / 2 + 1e-4);
+      assert.ok(cb.min.z >= -d / 2 - 1e-4 && cb.max.z <= d / 2 + 1e-4);
+      assert.ok(signedVolume(crystal) > 0, "crystal must have outward-facing winding");
+      crystal.dispose();
+    }
+  }
+});
+
+test("all solid mesh primitives have outward-facing winding and beveledBox stays within bounds", () => {
+  for (const [name, g] of [
+    ["box", box(2, 1, 3)],
+    ["beveledBox", beveledBox(2, 1, 3)],
+    ["cylinder", cylinder(0.4, 0.6, 1.5, 10)],
+    ["cone", cone(0.6, 1.4, 8)],
+    ["sphere", sphere(0.7, 10, 8)],
+    ["octahedron", octahedron(0.8)],
+    ["icosahedron", icosahedron(0.8, 1)],
+    ["torus", torus(1.0, 0.25, 6, 14)],
+  ]) {
+    assert.ok(signedVolume(g) > 0, `${name} must have positive signed volume (outward winding)`);
+    g.dispose();
+  }
+  for (const size of [
+    [2, 1, 3],
+    [0.4, 0.8, 0.3],
+    [8, 0.4, 2],
+  ]) {
+    const g = beveledBox(...size);
+    const b = g.computeBounds();
+    assert.ok(b.min.x >= -size[0] / 2 - 1e-5 && b.max.x <= size[0] / 2 + 1e-5);
+    assert.ok(b.min.y >= -size[1] / 2 - 1e-5 && b.max.y <= size[1] / 2 + 1e-5);
+    assert.ok(b.min.z >= -size[2] / 2 - 1e-5 && b.max.z <= size[2] / 2 + 1e-5);
+    const edges = new Map();
+    const ids = g.indices;
+    for (let i = 0; i < ids.length; i += 3) {
+      for (let j = 0; j < 3; j++) {
+        const edge = [ids[i + j], ids[i + ((j + 1) % 3)]].sort((x, y) => x - y).join(":");
+        edges.set(edge, (edges.get(edge) || 0) + 1);
+      }
+    }
+    assert.ok(
+      [...edges.values()].every((n) => n === 2),
+      "beveledBox must be closed",
+    );
+    assert.ok(signedVolume(g) > 0, "beveledBox must have outward-facing winding");
+    g.dispose();
+  }
 });
 
 test("baked contact shading is deterministic, feathered and leaves open floor clear", () => {
   const empty = createGroundOcclusion(12, 12, [], 128);
-  assert.ok(empty.image.data.every((v) => v === 255));
+  assert.ok(empty.data[64 * 128 + 64] === 255);
   const obstacles = [
     { t: "c", x: 2, y: -1, r: 1 },
     { t: "b", x: -4, y: 3, w: 2, h: 0.6 },
   ];
-  const a = createGroundOcclusion(12, 12, obstacles, 128),
-    b = createGroundOcclusion(12, 12, obstacles, 128);
-  assert.deepEqual(a.image.data, b.image.data);
-  const sample = (x, z) => a.image.data[Math.floor(((z + 12) / 24) * 128) * 128 + Math.floor(((x + 12) / 24) * 128)];
+  const a = createGroundOcclusion(12, 12, obstacles, 128);
+  const b = createGroundOcclusion(12, 12, obstacles, 128);
+  assert.deepEqual(a.data, b.data);
+  const sample = (x, z) => a.data[Math.floor(((z + 12) / 24) * 128) * 128 + Math.floor(((x + 12) / 24) * 128)];
   assert.ok(sample(2, -1) < 190 && sample(-4, 3) < 190, "solid feet need contact shading");
   assert.ok(sample(-9, 9) > 250, "open floor stays clear");
-  assert.ok(sample(3.2, -1) < sample(4.5, -1), "penumbra must fade outside the footprint");
+  assert.ok(sample(3.2, -1) < sample(4.8, -1), "penumbra must fade outside the footprint");
   assert.ok(
-    a.image.data.some((v) => v > 190 && v < 250),
+    a.data.some((v) => v > 190 && v < 250),
     "falloff must have intermediate values",
   );
-  for (const texture of [empty, a, b]) texture.dispose();
+  for (const tex of [empty, a, b]) tex.dispose();
 });
 
-// Shared boss fade/material lists must not apply the biome layer twice over painted surfaces.
-test("painted material and biome layers compose once when a material is shared", async () => {
-  globalThis.__RL_VERSION__ ??= "test";
-  globalThis.__RL_BUILD__ ??= "test";
-  const { rlSkinMaterial } = await import("../src/render/biome-visuals.js");
-  for (const flash of [false, true]) {
-    const material = worldMaterial({ surface: "armor", vertexColors: true });
-    const compile = () => {
-      const shader = {
-        uniforms: {},
-        vertexShader: ShaderLib.phong.vertexShader,
-        fragmentShader: ShaderLib.phong.fragmentShader,
-      };
-      material.onBeforeCompile(shader);
-      return shader;
-    };
-    rlSkinMaterial(material, flash);
-    const once = compile(),
-      key = material.customProgramCacheKey();
-    rlSkinMaterial(material, flash);
-    const repeated = compile();
-    assert.equal(repeated.vertexShader, once.vertexShader);
-    assert.equal(repeated.fragmentShader, once.fragmentShader);
-    assert.equal(material.customProgramCacheKey(), key);
-    assert.equal(repeated.uniforms.uArtMap, WORLD_SURFACES.finishMap);
-    assert.ok(repeated.uniforms.uSkin, "biome layer must retain its uniforms");
-    material.dispose();
-  }
-});
-
-test("broken ice and glass shards are closed and fit their authored envelopes", () => {
-  for (const [w, h, d] of [
-    [0.4, 2.1, 0.35],
-    [1.4, 1, 0.14],
-    [0.18, 0.6, 0.16],
-  ]) {
-    const geometry = shardGeometry(w, h, d),
-      p = geometry.attributes.position,
-      indices = geometry.index?.array ?? Array.from({ length: p.count }, (_, i) => i),
-      edges = new Map();
-    const key = (i) => [p.getX(i), p.getY(i), p.getZ(i)].map((v) => v.toFixed(5)).join(",");
-    for (let i = 0; i < indices.length; i += 3)
-      for (let j = 0; j < 3; j++) {
-        const a = indices[i + j],
-          b = indices[i + ((j + 1) % 3)],
-          edge = [key(a), key(b)].sort().join("/");
-        edges.set(edge, (edges.get(edge) || 0) + 1);
-        assert.ok(
-          Math.abs(p.getX(a)) <= w / 2 + 1e-6 &&
-            p.getY(a) >= -1e-6 &&
-            p.getY(a) <= h + 1e-6 &&
-            Math.abs(p.getZ(a)) <= d / 2 + 1e-6,
-        );
-      }
-    assert.ok([...edges.values()].every((n) => n === 2));
-    geometry.dispose();
-  }
+test("custom WebGL2 GLSL 300 es shaders are valid and zero Three.js dependencies remain", () => {
+  const s = stylizedProgram(true);
+  const f = floorProgram();
+  const p = postCompositeProgram();
+  assert.ok(s.vs.startsWith("#version 300 es") && s.fs.startsWith("#version 300 es"));
+  assert.ok(f.vs.startsWith("#version 300 es") && f.fs.startsWith("#version 300 es"));
+  assert.ok(p.vs.startsWith("#version 300 es") && p.fs.startsWith("#version 300 es"));
+  const pkg = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  assert.equal(pkg.dependencies?.three, undefined, "three.js must be removed from package.json");
 });

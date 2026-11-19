@@ -46,7 +46,6 @@ import { makePacer, paceFrame } from "./render/pacing.js";
 import { threatMods, milestones, threatLevels } from "./data/progression.js";
 import { upgradesById } from "./data/upgrades.js";
 import { Renderer } from "./render/renderer.js";
-import "./render/biome-visuals.js";
 import { Overlay } from "./render/overlay.js";
 
 const RL_INTRO = { queue: [], last: 0 };

@@ -1,141 +1,77 @@
-// Bounded soft material smoke: one instanced alpha pass, independent of bright combat particles.
-import {
-  CanvasTexture,
-  PlaneGeometry,
-  InstancedMesh,
-  InstancedBufferAttribute,
-  DynamicDrawUsage,
-  ShaderMaterial,
-  UniformsUtils,
-  UniformsLib,
-  Color,
-} from "three";
-const CAPACITY = 48;
-function smokeTexture() {
-  const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = 128;
-  const ctx = canvas.getContext("2d"),
-    image = ctx.createImageData(128, 128);
-  const hash = (x, y) => {
-    const n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
-    return n - Math.floor(n);
-  };
-  const noise = (x, y) => {
-    const a = Math.floor(x),
-      b = Math.floor(y),
-      fx = x - a,
-      fy = y - b,
-      u = fx * fx * (3 - 2 * fx),
-      v = fy * fy * (3 - 2 * fy);
-    return (
-      (hash(a, b) * (1 - u) + hash(a + 1, b) * u) * (1 - v) + (hash(a, b + 1) * (1 - u) + hash(a + 1, b + 1) * u) * v
-    );
-  };
-  for (let y = 0; y < 128; y++)
-    for (let x = 0; x < 128; x++) {
-      const u = (x - 64) / 58,
-        v = (y - 64) / 58,
-        r = u * u + v * v;
-      const grain = noise(x / 19, y / 19) * 0.65 + noise(x / 7 + 9, y / 7) * 0.35;
-      const angle = Math.atan2(v, u);
-      const layers = 0.63 + 0.37 * Math.cos(18 * r + 3 * Math.sin(angle * 4) + grain * 2.8);
-      const alpha = Math.max(0, 1 - r) ** 1.9 * Math.max(0, grain - 0.12) * layers * 2.25;
-      const i = (y * 128 + x) * 4;
-      image.data[i] = image.data[i + 1] = image.data[i + 2] = 255;
-      image.data[i + 3] = Math.round(Math.min(1, alpha) * 255);
-    }
-  ctx.putImageData(image, 0, 0);
-  return new CanvasTexture(canvas);
-}
+// Stylized painterly billowing smoke puffs rendered as a single GPU-instanced quad pool.
+
+import { Color } from "../engine/math.js";
+import { plane } from "../engine/geometry.js";
+import { Material } from "../engine/scene.js";
+
+const MAX = 180;
+const _col = new Color();
+
 export class SmokeView {
-  constructor(scene) {
-    const geometry = new PlaneGeometry(1, 1);
-    this.tint = new InstancedBufferAttribute(new Float32Array(CAPACITY * 4), 4);
-    this.tint.setUsage(DynamicDrawUsage);
-    geometry.setAttribute("aTint", this.tint);
-    const material = new ShaderMaterial({
+  constructor(renderer, Pool) {
+    this.r = renderer;
+    const mat = new Material({
+      shader: "smoke",
       transparent: true,
       depthWrite: false,
+      doubleSide: true,
       fog: true,
-      uniforms: UniformsUtils.merge([UniformsLib.fog, { uSmoke: { value: smokeTexture() } }]),
-      vertexShader: `#include <common>
-#include <fog_pars_vertex>
-attribute vec4 aTint;varying vec2 vUv;varying vec4 vTint;
-void main(){vUv=uv;vTint=aTint;vec4 mvPosition=modelViewMatrix*instanceMatrix*vec4(position,1.0);gl_Position=projectionMatrix*mvPosition;
-#include <fog_vertex>
-}`,
-      fragmentShader: `#include <common>
-#include <fog_pars_fragment>
-uniform sampler2D uSmoke;varying vec2 vUv;varying vec4 vTint;
-void main(){gl_FragColor=vec4(vTint.rgb,texture2D(uSmoke,vUv).a*vTint.a);
-#include <fog_fragment>
-#include <tonemapping_fragment>
-#include <colorspace_fragment>
-}`,
     });
-    this.mesh = new InstancedMesh(geometry, material, CAPACITY);
-    this.mesh.instanceMatrix.setUsage(DynamicDrawUsage);
-    this.mesh.frustumCulled = false;
-    this.mesh.renderOrder = 3;
-    this.mesh.count = 0;
-    this.mesh.visible = false;
-    scene.add(this.mesh);
-    this.puffs = [];
-  }
-  emit(x, y, z, size = 0.4, color = 0xba9e86, life = 0.45) {
-    if (this.puffs.length >= CAPACITY) return;
-    this.puffs.push({ x, y, z, size, color: new Color(color), life, max: life, angle: this.puffs.length * 2.4 });
+    this.pool = new Pool(plane(1, 1, 1, 1), mat, MAX, { flash: true });
+    this.pool.mesh.renderOrder = 4;
+    renderer.scene.add(this.pool.mesh);
+    this.list = [];
+    this.puffs = this.list;
   }
   clear() {
-    this.puffs.length = 0;
-    this.mesh.count = 0;
-    this.mesh.visible = false;
+    this.list.length = 0;
   }
-  update(dt, b) {
-    const m = this.mesh.instanceMatrix.array,
-      t = this.tint.array;
-    let count = 0;
-    for (const p of this.puffs) {
+  emit(x, y, z, size = 0.4, hex = 0x8d9596, opacity = 0.55) {
+    if (this.list.length >= MAX) this.list.shift();
+    _col.setHex(hex);
+    this.list.push({
+      x,
+      y,
+      z,
+      vx: (Math.random() - 0.5) * 0.6,
+      vy: 0.55 + Math.random() * 0.45,
+      vz: (Math.random() - 0.5) * 0.6,
+      s0: size,
+      life: 0.65 + Math.random() * 0.4,
+      max: 0.95,
+      r: _col.r,
+      g: _col.g,
+      b: _col.b,
+      a: opacity,
+      rot: Math.random() * 6.283,
+      spin: (Math.random() - 0.5) * 1.4,
+    });
+    const last = this.list[this.list.length - 1];
+    last.max = last.life;
+  }
+  update(dt, basis) {
+    const pool = this.pool;
+    pool.begin();
+    let keep = 0;
+    for (let i = 0; i < this.list.length; i++) {
+      const p = this.list[i];
       p.life -= dt;
       if (p.life <= 0) continue;
-      const age = 1 - p.life / p.max,
-        size = p.size * (0.65 + age * 1.4),
-        c = Math.cos(p.angle),
-        s = Math.sin(p.angle),
-        off = count * 16;
-      p.y += dt * 0.5;
-      m[off] = (b.rx * c + b.ux * s) * size;
-      m[off + 1] = (b.ry * c + b.uy * s) * size;
-      m[off + 2] = (b.rz * c + b.uz * s) * size;
-      m[off + 3] = 0;
-      m[off + 4] = (b.ux * c - b.rx * s) * size;
-      m[off + 5] = (b.uy * c - b.ry * s) * size;
-      m[off + 6] = (b.uz * c - b.rz * s) * size;
-      m[off + 7] = 0;
-      m[off + 8] = b.fx * size;
-      m[off + 9] = b.fy * size;
-      m[off + 10] = b.fz * size;
-      m[off + 11] = 0;
-      m[off + 12] = p.x;
-      m[off + 13] = p.y;
-      m[off + 14] = p.z;
-      m[off + 15] = 1;
-      t[count * 4] = p.color.r;
-      t[count * 4 + 1] = p.color.g;
-      t[count * 4 + 2] = p.color.b;
-      t[count * 4 + 3] = Math.sin(age * Math.PI) * 0.32;
-      this.puffs[count++] = p;
+      this.list[keep++] = p;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.z += p.vz * dt;
+      p.rot += p.spin * dt;
+      const t = 1 - p.life / p.max;
+      const size = p.s0 * (0.75 + t * 1.45);
+      const alpha = p.a * Math.sin(Math.min(1, t * 4) * Math.PI * 0.5) * (1 - t);
+      const idx = pool.bb(p.x, p.y, p.z, size, basis, p.rot);
+      if (idx >= 0) {
+        pool.col(idx, p.r, p.g, p.b);
+        pool.flash(idx, alpha);
+      }
     }
-    this.puffs.length = count;
-    this.mesh.count = count;
-    this.mesh.visible = count > 0;
-    if (count) {
-      this.mesh.instanceMatrix.clearUpdateRanges();
-      this.mesh.instanceMatrix.addUpdateRange(0, count * 16);
-      this.mesh.instanceMatrix.needsUpdate = true;
-      this.tint.clearUpdateRanges();
-      this.tint.addUpdateRange(0, count * 4);
-      this.tint.needsUpdate = true;
-    }
+    this.list.length = keep;
+    pool.end();
   }
 }
