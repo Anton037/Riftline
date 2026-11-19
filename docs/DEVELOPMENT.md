@@ -23,8 +23,9 @@ Python 3, Pillow and NumPy. Arena biomes, actors, bosses and combat VFX are asse
 `src/engine/` and respect the existing simulation footprints.
 
 The short synthesized sample bank and its clip offsets are generated with
-`python tools/build-audio-bank.py` using Python 3. `src/audio/score.js` defines the title, arena and
-boss score and `src/audio/physical-voices.js` defines material and spatial cues. Asset credits
+`python tools/build-audio-bank.py` using Python 3. `src/audio/score.js` defines the cozy title, biome and
+boss score, `src/audio/physical-voices.js` and `src/audio/sound.js` define acoustic material voices and
+musical UI/reward chimes, and `src/audio/place.js` drives spatial biome soundscapes. Asset credits
 and third-party notices ship under `public/`.
 
 ## Verification

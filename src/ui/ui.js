@@ -129,6 +129,23 @@ function iconSvg(name, cls = "") {
   return `<svg class="ico ${cls}" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
 }
 const getById = (id) => document.getElementById(id),
+  BIOME_THEME_COLOR = {
+    city: "#17232e",
+    shelf: "#15314d",
+    marsh: "#132c22",
+    core: "#1b1336",
+    caldera: "#241310",
+    flats: "#3b2617",
+  },
+  setBiomeTheme = (id) => {
+    const app = getById("app");
+    if (app) {
+      if (id) app.dataset.biome = id;
+      else delete app.dataset.biome;
+    }
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", BIOME_THEME_COLOR[id] || "#161522");
+  },
   menuScreens = ["home", "workshop", "records", "news", "settings"],
   formatTenths = (value) => (Math.round(value * 10 + 1e-6) / 10).toString(),
   formatPercent = (value) => Math.round(value * 100) + "%",
@@ -466,8 +483,7 @@ const getById = (id) => document.getElementById(id),
       for (let id of menuScreens) getById(id).hidden = id !== screen;
       this.screen = screen;
       if (menuScreens.includes(screen) && !this.rlFromPause) {
-        const app = getById("app");
-        if (app) delete app.dataset.biome;
+        setBiomeTheme("");
       }
       if (screen === "home") {
         this.stack = [];
@@ -965,11 +981,7 @@ const getById = (id) => document.getElementById(id),
         biomeId = world.arena?.biome?.id || "",
         hp = Math.max(0, Math.ceil(player.hp));
       update("biome", biomeId, (id) => {
-        const app = getById("app");
-        if (app) {
-          if (id) app.dataset.biome = id;
-          else delete app.dataset.biome;
-        }
+        setBiomeTheme(id);
       });
       update("hp", hp + "/" + stats.maxHp, (text) => {
         getById("hpNum").textContent = text;

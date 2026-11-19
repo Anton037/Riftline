@@ -4,6 +4,17 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "4.5.0",
+    title: "Cozy biome worlds, adaptive HUD and musical soundscapes",
+    items: [
+      "Every biome now has its own mood, seamless painterly floors, native traps, organic hazards, and weather.",
+      "The HUD, boss bar, menus, and upgrade cards use rounded storybook frames that adapt to each biome.",
+      "All 25 enemies, six bosses, and the walker gain richer miniature detail, biome weathering, and punchier effects.",
+      "A new cozy score, handcrafted acoustic instruments, musical UI chimes, and biome soundscapes accompany play.",
+      "WebGL2 shader, shadow, and instancing optimizations cut uniform and program overhead across busy waves.",
+    ],
+  },
+  {
     version: "4.4.1",
     title: "Steady lamps and engraved combat cues",
     items: [
@@ -42,17 +53,6 @@ export const WHATS_NEW = [
       "Aegis reacts to absorbed hits; Event Collapse and portals gain clearer, deeper effects.",
       "Natural glaciers, distant northern lights, sculpted Marsh fungi and clearer City edges bring the scenery together.",
       "Arena changes throw up brief material dust instead of glowing obstacle rings.",
-    ],
-  },
-  {
-    version: "4.2.0",
-    title: "Weapons with character, bosses with identity",
-    items: [
-      "Arc Caster lightning branches through the air, Ember Jet flames flow, and every weapon has its own shot treatment.",
-      "The Ash Tyrant becomes a basalt colossus with molten cinders, volcanic summons and magma bombs.",
-      "Boss attacks keep their own materials, sounds and colors, including when enraged.",
-      "Painted models gain surface relief; hit flashes preserve their finish and biome traps fit their surroundings.",
-      "A focused game: upgrades and achievements stay; Codex, challenges, pacts and training are removed.",
     ],
   },
 ];
