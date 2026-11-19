@@ -1050,6 +1050,142 @@ const SoundEngine = class {
   }
   _play(id, arg) {
     this.physical.play(this, id, arg);
+    this._cozyChime(id, arg);
+  }
+  /* Warm musical chimes layered gently onto UI, pickups, upgrade rarities, readiness & clear moments
+     so menus, rewards and combat milestones feel cozy, charming and immediately legible by ear. */
+  _cozyChime(id, arg) {
+    const note = (midi) => 440 * 2 ** ((midi - 69) / 12);
+    const bell = (midi, dur, wave, vol, delay = 0, pan = 0) =>
+      this.tone(note(midi), dur, wave, vol, {
+        at: delay,
+        attack: 0.008,
+        lp: 3800,
+        pan,
+        rev: 0.16,
+      });
+    switch (id) {
+      case "click":
+        if (this.gate("chime:click", 0.045)) bell(74, 0.085, "kalimba", 0.036);
+        break;
+      case "deny":
+      case "gadgetNo":
+        if (this.gate("chime:deny", 0.08)) {
+          bell(64, 0.11, "marimba", 0.048, 0, -0.1);
+          bell(60, 0.14, "marimba", 0.045, 0.065, 0.1);
+        }
+        break;
+      case "offer":
+        if (this.gate("chime:offer", 0.12)) {
+          bell(69, 0.2, "harp", 0.048, 0, -0.18);
+          bell(74, 0.24, "harp", 0.052, 0.055, 0);
+          bell(78, 0.3, "celesta", 0.046, 0.11, 0.18);
+        }
+        break;
+      case "reroll":
+        if (this.gate("chime:reroll", 0.1)) {
+          bell(74, 0.14, "kalimba", 0.045, 0, -0.2);
+          bell(76, 0.15, "kalimba", 0.046, 0.045, 0);
+          bell(81, 0.2, "celesta", 0.048, 0.09, 0.2);
+        }
+        break;
+      case "pick": {
+        if (!this.gate("chime:pick", 0.08)) break;
+        const r = Math.max(1, Math.min(6, Number(arg) || 1));
+        const chord =
+          r >= 5
+            ? [62, 69, 74, 78, 86]
+            : r === 4
+              ? [69, 74, 78, 83, 86]
+              : r === 3
+                ? [74, 78, 81, 85]
+                : r === 2
+                  ? [74, 78, 81]
+                  : [74, 81];
+        const wave = r >= 4 ? "celesta" : r >= 2 ? "harp" : "kalimba";
+        for (let i = 0; i < chord.length; i++) {
+          bell(chord[i], 0.26 + i * 0.04, wave, 0.052, i * 0.048, (i - (chord.length - 1) / 2) * 0.16);
+        }
+        break;
+      }
+      case "shard":
+        if (this.gate("chime:shard", 0.055)) {
+          const step = ((this.shardStep = ((this.shardStep || 0) + 1) % 5), [74, 76, 78, 81, 83][this.shardStep]);
+          bell(step, 0.13, "celesta", 0.042);
+        }
+        break;
+      case "heal":
+      case "heart":
+        if (this.gate("chime:heal", 0.1)) {
+          bell(66, 0.22, "harp", 0.05, 0, -0.15);
+          bell(73, 0.28, "celesta", 0.048, 0.065, 0.15);
+        }
+        break;
+      case "buy":
+      case "supply":
+      case "bounty":
+      case "tribute":
+        if (this.gate("chime:buy", 0.1)) {
+          bell(71, 0.18, "kalimba", 0.05, 0, -0.15);
+          bell(76, 0.22, "harp", 0.052, 0.055, 0);
+          bell(83, 0.28, "celesta", 0.048, 0.11, 0.15);
+        }
+        break;
+      case "ready":
+      case "novaReady":
+      case "gadgetReady":
+        if (this.gate("chime:ready", 0.12)) {
+          const base = id === "novaReady" ? 76 : id === "gadgetReady" ? 73 : 74;
+          bell(base, 0.16, "celesta", 0.044, 0, -0.12);
+          bell(base + 7, 0.22, "celesta", 0.048, 0.05, 0.12);
+        }
+        break;
+      case "combo":
+        if (this.gate("chime:combo", 0.08)) {
+          const lift = Math.max(0, Math.min(12, Number(arg) || 0));
+          const scale = [74, 76, 78, 81, 83, 86, 88];
+          bell(scale[lift % scale.length], 0.18, "kalimba", 0.048);
+        }
+        break;
+      case "wave":
+        if (this.gate("chime:wave", 0.2)) {
+          bell(57, 0.34, "brass", 0.048, 0, -0.15);
+          bell(64, 0.38, "harp", 0.046, 0.06, 0.15);
+        }
+        break;
+      case "cleared":
+        if (this.gate("chime:cleared", 0.2)) {
+          const notes = arg ? [69, 73, 76, 81] : [69, 73, 76];
+          for (let i = 0; i < notes.length; i++) {
+            bell(
+              notes[i],
+              0.3 + i * 0.04,
+              i === notes.length - 1 ? "celesta" : "harp",
+              0.054,
+              i * 0.06,
+              (i - 1) * 0.18,
+            );
+          }
+        }
+        break;
+      case "bossCleared":
+      case "evolve":
+      case "victory":
+        if (this.gate("chime:fanfare", 0.25)) {
+          const notes = [62, 66, 69, 74, 78];
+          for (let i = 0; i < notes.length; i++) {
+            bell(
+              notes[i],
+              0.38 + i * 0.05,
+              i === 0 ? "brass" : i < 3 ? "harp" : "celesta",
+              0.058,
+              i * 0.07,
+              (i - 2) * 0.18,
+            );
+          }
+        }
+        break;
+    }
   }
   consume(events, listener) {
     if (!this.live()) return;

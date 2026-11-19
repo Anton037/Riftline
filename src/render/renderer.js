@@ -69,6 +69,23 @@ const BOSS_PORTAL = {
   wyrm: [hexColor(0xffd27a), hexColor(0x76e8d4)],
 };
 
+const BIOME_ENEMY_DRESS = {
+  city: [0.97, 0.98, 1.03],
+  shelf: [0.94, 1.01, 1.07],
+  marsh: [0.94, 1.04, 0.97],
+  core: [1.03, 0.96, 1.07],
+  caldera: [1.07, 0.97, 0.92],
+  flats: [1.06, 1.02, 0.93],
+};
+const BIOME_PORTAL_ACCENT = {
+  city: hexColor(0xf2be72),
+  shelf: hexColor(0x9ceeff),
+  marsh: hexColor(0x7cf8b2),
+  core: hexColor(0xd29cff),
+  caldera: hexColor(0xffa248),
+  flats: hexColor(0x68f0de),
+};
+
 const STEP_LOOK = {
   asphalt: { color: hexColor(0x788898), up: 1.1, life: 0.28, size: 0.14, grav: 4 },
   snow: { color: hexColor(0xe6f8ff), up: 1.4, life: 0.35, size: 0.18, grav: 3 },
@@ -740,7 +757,8 @@ export class Renderer {
               0.075,
               muzzle.y,
             );
-            this.emit(muzzle.x, muzzle.y, muzzle.z, dirX * 4, 0, dirZ * 4, 0.09, 0.54, color, { drag: 0 });
+            this.emit(muzzle.x, muzzle.y, muzzle.z, dirX * 4.5, 0, dirZ * 4.5, 0.095, 0.62, color, { drag: 0 });
+            this.emit(muzzle.x, muzzle.y, muzzle.z, dirX * 2.2, 0, dirZ * 2.2, 0.055, 0.36, whiteColor, { drag: 0 });
           }
           if (["pulse", "scatter", "rocket", "flame"].includes(def.id)) {
             this.smokeView.emit(muzzle.x, muzzle.y, muzzle.z, def.id === "scatter" ? 0.5 : 0.3, 0x9da7a8, 0.35);
@@ -826,25 +844,54 @@ export class Renderer {
               { armor: 0xdec48f, organic: 0x62c478, stone: 0x9c8c78, energy: 0xbe8cff, crystal: 0xb6f2ff }[material] ||
                 0xffffff,
             );
-            const n = ev.crit ? 5 : 3;
-            for (let j = 0; hard && j < n; j++) {
-              const angle = a + (j / Math.max(1, n - 1) - 0.5) * 1.8;
-              const length = ev.crit ? 0.68 : 0.36;
+            const n = ev.crit ? 6 : hard ? 3 : 2;
+            for (let j = 0; j < n; j++) {
+              const angle = ev.crit ? a + (j / n) * TAU : a + (j / Math.max(1, n - 1) - 0.5) * 1.75;
+              const length = ev.crit ? 0.78 : hard ? 0.42 : 0.28;
               this.line(
                 ev.x,
                 ev.y,
                 ev.x + Math.cos(angle) * length,
                 ev.y + Math.sin(angle) * length,
                 ev.crit ? goldColor : impactColor,
-                ev.crit ? 0.13 : 0.08,
-                0.026,
-                0.65,
+                ev.crit ? 0.14 : 0.085,
+                ev.crit ? 0.036 : 0.026,
+                0.68,
               );
             }
-            this.burst(ev.x, ev.y, 0.6, ev.crit ? 4 : 2, hard ? 5 : 2.4, impactColor, 0.18, 0.19, {
-              spark: hard,
-              drag: 6,
-            });
+            this.emit(
+              ev.x,
+              0.72,
+              ev.y,
+              0,
+              0,
+              0,
+              ev.crit ? 0.11 : 0.075,
+              ev.crit ? 0.68 : 0.4,
+              ev.crit ? goldColor : impactColor,
+              {
+                drag: 0,
+              },
+            );
+            if (ev.crit) {
+              this.ring(ev.x, ev.y, 0.14, 0.84, goldColor, 0.16, 0.08);
+              this.addShake(0.022 * shakeK);
+            }
+            this.burst(
+              ev.x,
+              ev.y,
+              0.65,
+              ev.crit ? 6 : 3,
+              hard ? 5.6 : 3.2,
+              ev.crit ? goldColor : impactColor,
+              0.2,
+              0.22,
+              {
+                spark: hard || ev.crit,
+                up: ev.crit ? 2.4 : 1.2,
+                drag: 5.5,
+              },
+            );
           }
           break;
         }
@@ -881,15 +928,23 @@ export class Renderer {
           if (ev.boss) {
             this.ring(ev.x, ev.y, 0.2, 1.6 * scale, color, 0.38);
             this.emit(ev.x, 0.8, ev.y, 0, 0, 0, 0.14, 2.3 * scale, color, { drag: 0 });
-          } else if (material !== "energy") {
-            this.smokeView.emit(
-              ev.x,
-              0.6,
-              ev.y,
-              0.6 * scale,
-              enemySurface(ev.type) === "organic" ? 0x527a60 : 0x8a9296,
-              0.52,
-            );
+          } else {
+            this.ring(ev.x, ev.y, 0.15, 0.95 + ev.r * 1.2, color, 0.22, 0.08);
+            this.emit(ev.x, 0.65, ev.y, 0, 0, 0, 0.1, 0.8 + scale * 0.52, whiteColor, { drag: 0 });
+            if (ev.elite) {
+              this.ring(ev.x, ev.y, 0.25, 2.35, goldColor, 0.32, 0.12);
+              this.burst(ev.x, ev.y, 0.8, 10, 6.5, goldColor, 0.38, 0.22, { spark: true, up: 3.2, drag: 3.5 });
+            }
+            if (material !== "energy") {
+              this.smokeView.emit(
+                ev.x,
+                0.6,
+                ev.y,
+                0.62 * scale,
+                enemySurface(ev.type) === "organic" ? 0x527a60 : 0x8a9296,
+                0.52,
+              );
+            }
           }
           if (ev.type === "queen") {
             for (let j = 0; j < 14; j++)
@@ -995,9 +1050,13 @@ export class Renderer {
                     ? hexColor(0x9eeeff)
                     : hexColor(0xff5a5a);
           const radius = ev.r;
-          this.burst(ev.x, ev.y, 0.5, Math.round(6 + radius * 5), radius * 5, color, 0.45, 0.5 + radius * 0.12);
-          this.emit(ev.x, 0.6, ev.y, 0, 0, 0, 0.15, radius * 2.4, color, { drag: 0 });
-          this.ring(ev.x, ev.y, radius * 0.3, radius, color, 0.3);
+          this.burst(ev.x, ev.y, 0.5, Math.round(8 + radius * 6), radius * 5.4, color, 0.48, 0.54 + radius * 0.12, {
+            spark: true,
+            up: 2.2,
+          });
+          this.emit(ev.x, 0.6, ev.y, 0, 0, 0, 0.16, radius * 2.5, color, { drag: 0 });
+          this.emit(ev.x, 0.68, ev.y, 0, 0, 0, 0.09, radius * 1.45, whiteColor, { drag: 0 });
+          this.ring(ev.x, ev.y, radius * 0.25, radius * 1.08, color, 0.32, 0.12);
           this.addShake(
             (ev.kind === "payload"
               ? 0.02
@@ -1108,12 +1167,14 @@ export class Renderer {
           const p = world.player;
           const a = Math.atan2(p.vy, p.vx);
           const copper = hexColor(FINISH.copper);
+          this.line(p.x, p.y, p.x - Math.cos(a) * 1.45, p.y - Math.sin(a) * 1.45, whiteColor, 0.2, 0.085, 0.55, 0);
           for (const side of [-1, 1]) {
-            const x = p.x - Math.sin(a) * side * 0.3;
-            const z = p.y + Math.cos(a) * side * 0.3;
-            this.line(x, z, x - Math.cos(a) * 1.15, z - Math.sin(a) * 1.15, copper, 0.25, 0.068, 0.12, side * 0.16);
+            const x = p.x - Math.sin(a) * side * 0.32;
+            const z = p.y + Math.cos(a) * side * 0.32;
+            this.line(x, z, x - Math.cos(a) * 1.25, z - Math.sin(a) * 1.25, copper, 0.26, 0.072, 0.28, side * 0.18);
           }
-          this.ring(p.x, p.y, 0.22, 0.84, hexColor(FINISH.brass), 0.27, 0.06);
+          this.ring(p.x, p.y, 0.22, 0.96, hexColor(FINISH.brass), 0.28, 0.08);
+          this.burst(p.x, p.y, 0.35, 6, 3.8, hexColor(FINISH.brass), 0.24, 0.16, { spark: true, up: 1.5, drag: 4 });
           break;
         }
         case "step":
@@ -1172,16 +1233,20 @@ export class Renderer {
         case "spawn": {
           const def = enemyDefs[ev.type];
           const color = ev.elite ? goldColor : hexColor(def ? def.color : 0xffffff);
+          const biomePortal = BIOME_PORTAL_ACCENT[world.arena?.biome?.id] || color;
           const size = def ? def.r : 0.6;
           if (size < 0.6) {
             this.ring(ev.x, ev.y, 0.14, 1.05, color, 0.22);
             this.burst(ev.x, ev.y, 0.25, 6, 9, color, 0.45, 0.22, { up: 1 });
           } else if (size >= 0.85) {
             this.ring(ev.x, ev.y, 0.3, 2.4, color, 0.55);
+            this.ring(ev.x, ev.y, 0.2, 1.65, biomePortal, 0.34, 0.08);
             this.burst(ev.x, ev.y, 0.5, 10, 3, color, 0.35, 0.45, { up: 2.5 });
+            this.burst(ev.x, ev.y, 0.4, 5, 3.6, biomePortal, 0.32, 0.22, { spark: true, up: 3.2 });
           } else {
             this.ring(ev.x, ev.y, 0.2, 1.4, color, 0.3);
             this.burst(ev.x, ev.y, 0.3, 8, 4, color, 0.4, 0.3, { up: 5 });
+            this.burst(ev.x, ev.y, 0.3, 3, 3.2, biomePortal, 0.28, 0.18, { spark: true, up: 2.8 });
           }
           break;
         }
@@ -1685,7 +1750,11 @@ export class Renderer {
       else if (enemy.corrode) pools.body.col(bodyIdx, 0.85, 1.3, 0.62);
       else if (tint) pools.body.col(bodyIdx, 0.55 + tint.r * 0.7, 0.55 + tint.g * 0.7, 0.55 + tint.b * 0.7);
       else if (enemy.elite) pools.body.col(bodyIdx, 1.25, 1.06, 0.72);
-      else pools.body.col(bodyIdx, 1, 1, 1);
+      else {
+        const dress = BIOME_ENEMY_DRESS[world.arena?.biome?.id];
+        if (dress) pools.body.col(bodyIdx, dress[0], dress[1], dress[2]);
+        else pools.body.col(bodyIdx, 1, 1, 1);
+      }
 
       const glowIdx = pools.glow.yr(enemy.x, lift, enemy.y, angle, scale, scaleY, scale, pitch, roll);
       let glowK = 1.05;
@@ -1730,18 +1799,18 @@ export class Renderer {
       }
       if (enemy.rallyT > 0 && !enemy.champion && Math.random() < dt * 6)
         this.emit(enemy.x, 0.3, enemy.y, 0, 1.5, 0, 0.35, 0.3, goldColor, { drag: 1 });
-      if (tint && Math.random() < dt * 5)
+      if (tint && Math.random() < dt * 8)
         this.emit(
-          enemy.x + (Math.random() - 0.5) * enemy.r,
-          0.5,
-          enemy.y + (Math.random() - 0.5) * enemy.r,
-          0,
-          1,
-          0,
-          0.4,
-          0.25,
+          enemy.x + (Math.random() - 0.5) * enemy.r * 1.15,
+          0.42 + Math.random() * 0.4,
+          enemy.y + (Math.random() - 0.5) * enemy.r * 1.15,
+          (Math.random() - 0.5) * 0.6,
+          1.15,
+          (Math.random() - 0.5) * 0.6,
+          0.42,
+          0.22,
           tint,
-          { drag: 1 },
+          { spark: enemy.variant !== "corrosive", drag: 1.4 },
         );
 
       this.shadows.y(enemy.x, 0.022, enemy.y, 0, enemy.r * 2.8 * scale);
@@ -1910,15 +1979,42 @@ export class Renderer {
         const color = shardColors[pickup.v] || shardColors[1];
         const scale = pickup.v >= 25 ? 1.8 : pickup.v >= 5 ? 1.35 : 1;
         this.shardPool.colC(this.shardPool.y(pickup.x, lift, pickup.y, time * 3 + pickup.id, scale), color, 1);
-        this.sprites.colC(this.sprites.bb(pickup.x, lift, pickup.y, 0.95 * scale, basis), color, 0.5);
+        this.sprites.colC(this.sprites.bb(pickup.x, lift, pickup.y, 1.05 * scale, basis), color, 0.58);
+        if (pickup.v >= 5) {
+          this.ringPool.colC(
+            this.ringPool.y(pickup.x, 0.045, pickup.y, -time * 1.6 + pickup.id, 0.42 * scale),
+            color,
+            0.34,
+          );
+          if (Math.random() < dt * 5)
+            this.emit(pickup.x, lift + 0.15, pickup.y, 0, 0.9, 0, 0.34, 0.14 * scale, color, { spark: true, drag: 2 });
+        }
       } else {
         if (pickup.t > 11 && !pickup.pull && Math.floor(time * (pickup.t > 13 ? 12 : 6)) % 2) continue;
         this.healPool.colC(this.healPool.y(pickup.x, lift + 0.2, pickup.y, time * 2, 1), healColor, 1);
-        this.sprites.colC(
-          this.sprites.bb(pickup.x, lift + 0.2, pickup.y, 1.65, basis),
+        this.ringPool.colC(
+          this.ringPool.y(pickup.x, 0.045, pickup.y, time * 1.5, 0.62 + Math.sin(time * 4) * 0.06),
           healColor,
-          0.55 + Math.sin(time * 6) * 0.15,
+          0.38,
         );
+        this.sprites.colC(
+          this.sprites.bb(pickup.x, lift + 0.2, pickup.y, 1.75, basis),
+          healColor,
+          0.6 + Math.sin(time * 6) * 0.15,
+        );
+        if (Math.random() < dt * 6)
+          this.emit(
+            pickup.x + (Math.random() - 0.5) * 0.35,
+            lift + 0.25,
+            pickup.y + (Math.random() - 0.5) * 0.35,
+            0,
+            1.1,
+            0,
+            0.38,
+            0.16,
+            healColor,
+            { spark: true, drag: 2 },
+          );
       }
     }
 
@@ -1955,7 +2051,15 @@ export class Renderer {
           ? goldColor
           : hexColor(enemyDefs[marker.type] ? enemyDefs[marker.type].color : 0xffffff);
       const size = marker.fake ? 2.2 : 1.2 - k * 0.5;
+      const biomePortal = BIOME_PORTAL_ACCENT[world.arena?.biome?.id] || color;
       this.ringPool.colC(this.ringPool.y(marker.x, 0.05, marker.y, time * 2, size), color, 0.55 + k * 0.6);
+      if (!marker.fake && !marker.boss) {
+        this.ringPool.colC(
+          this.ringPool.y(marker.x, 0.046, marker.y, -time * 1.5, size * 1.18),
+          biomePortal,
+          0.26 + k * 0.28,
+        );
+      }
       const call = marker.boss && BOSS_PORTAL[marker.boss];
       const rim = call?.[0] ?? color;
       const inlay = call?.[1] ?? whiteColor;

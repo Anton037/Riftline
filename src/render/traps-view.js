@@ -35,25 +35,27 @@ const ARMING = hex(FINISH.copper);
 const TRIGGER = hex(0xcfd8e6);
 
 const easeOut = (k) => 1 - (1 - k) * (1 - k);
-const metal = 0xd8a268;
-const plate = 0x26353a;
 const facets = (n, fn) => Array.from({ length: n }, (_, i) => fn((i * TAU) / n, i));
 const disk = (r, h, color, y, n = 12) => meshPart(cylinder(r * 0.93, r, h, n), color, { y });
 const gem = (r, color, p) => meshPart(octahedron(r), color, p);
 const bezel = (r, w, color, y, n = 20) => meshPart(torus(r, w, 5, n), color, { y, rx: Math.PI / 2 });
 
-function tile(color, glowColor, slots, shape) {
+function tile(baseCol, color, trimCol, glowColor, slots, shape) {
   return {
-    body: [disk(0.97, 0.1, plate, 0.05, 12), disk(0.84, 0.085, color, 0.103, slots), bezel(0.87, 0.034, metal, 0.138)],
+    body: [
+      disk(0.96, 0.09, baseCol, 0.045, Math.max(8, slots)),
+      disk(0.82, 0.08, color, 0.095, slots),
+      bezel(0.85, 0.032, trimCol, 0.128, Math.max(16, slots * 2)),
+    ],
     glow: facets(slots, (a) =>
-      gem(0.13, glowColor, {
-        x: Math.cos(a) * 0.68,
-        z: Math.sin(a) * 0.68,
-        y: 0.153,
+      gem(0.12, glowColor, {
+        x: Math.cos(a) * 0.66,
+        z: Math.sin(a) * 0.66,
+        y: 0.142,
         ry: -a,
-        sx: 1.1,
-        sy: 0.18,
-        sz: 0.48,
+        sx: 1.05,
+        sy: 0.16,
+        sz: 0.44,
       }),
     ),
     ...(shape ? { mover: shape } : {}),
@@ -73,55 +75,64 @@ function obelisk(color, n) {
   );
 }
 
-function emitter(color, accent, h, profile) {
+function emitter(baseCol, color, trimCol, accent, h, profile) {
   return {
     body: [
-      disk(0.66, 0.16, plate, 0.08, 8),
+      disk(0.66, 0.16, baseCol, 0.08, 8),
       disk(0.52, 0.15, color, 0.21, profile),
       disk(0.24, h, color, h * 0.5 + 0.27, profile),
-      bezel(0.31, 0.05, metal, h * 0.4 + 0.26, 16),
+      bezel(0.31, 0.05, trimCol, h * 0.4 + 0.26, 16),
     ],
     glow: facets(4, (a) => gem(0.095, accent, { x: Math.cos(a) * 0.52, z: Math.sin(a) * 0.52, y: 0.22, sy: 0.45 })),
     mover: [
-      disk(0.36, 0.22, plate, 0, profile),
+      disk(0.36, 0.22, baseCol, 0, profile),
       gem(0.48, color, { x: 0.17, sy: 0.61, sz: 0.84, ry: TAU / profile }),
-      meshPart(torus(0.22, 0.042, 5, profile * 3), metal, { x: 0.43, ry: Math.PI / 2 }),
+      meshPart(torus(0.22, 0.042, 5, profile * 3), trimCol, { x: 0.43, ry: Math.PI / 2 }),
     ],
     moverGlow: [gem(0.16, accent, { x: 0.46, sx: 0.38 }), gem(0.075, accent, { x: 0.08, y: 0.3, sy: 1.28 })],
   };
 }
 
-function mine(color, sides, profile) {
+function mine(baseCol, color, trimCol, sides, profile) {
   return {
     body: [
-      disk(0.34, 0.1, plate, 0.055, sides),
+      disk(0.34, 0.1, baseCol, 0.055, sides),
       disk(0.27, 0.15, color, 0.147, sides),
-      bezel(0.235, 0.026, metal, 0.2, 16),
+      bezel(0.235, 0.026, trimCol, 0.2, 16),
       ...facets(sides, (a) =>
         gem(0.085, color, { y: 0.12, x: Math.cos(a) * 0.3, z: Math.sin(a) * 0.3, sy: 0.7, ry: -a }),
       ),
     ],
     glow: [gem(0.11, 0xffffff, { y: 0.24, sy: 0.58 }), bezel(0.22, 0.015, 0xffffff, 0.21, 16)],
-    ...(profile ? { mover: [gem(0.12, color, { y: 0.09, sy: 1.33 }), bezel(0.16, 0.022, metal, 0.07, 12)] } : {}),
+    ...(profile ? { mover: [gem(0.12, color, { y: 0.09, sy: 1.33 }), bezel(0.16, 0.022, trimCol, 0.07, 12)] } : {}),
   };
 }
 
+// Biome-native floor plates, beam emitters & proximity mines (every biome uses its own stone/ice/moss/obsidian/basalt/sandstone)
 const MODELS = {
-  plate: () => tile(0x3a5d66, 0x98f2dc, 8),
-  icespike: () => tile(0x6488a8, 0xe0f6ff, 6, obelisk(0xb2e2fc, 5)),
-  geyser: () => tile(0x3e6a4a, 0xb8f8a4, 5, [gem(0.65, 0x76d688, { y: 0.38, sy: 0.65 })]),
-  riftburst: () => tile(0x523c7a, 0xe0b4ff, 6, obelisk(0xb282e8, 3)),
-  pyro: () => tile(0x8a4228, 0xffb868, 5, [gem(0.62, 0xe67c46, { y: 0.33, sy: 0.62 })]),
-  sunspike: () => tile(0x9a784c, 0xffe09e, 8, obelisk(0xeac474, 6)),
-  laser: () => emitter(0x587676, 0xff9a70, 0.72, 6),
-  magma: () => emitter(0x883b30, 0xffaa70, 0.24, 5),
-  rift: () => emitter(0x62488e, 0xeeb4ff, 0.59, 4),
-  mine: () => mine(0x8a7060, 6, false),
-  frost: () => mine(0x86aec8, 8, true),
-  spore: () => mine(0x528a62, 5, true),
-  riftmine: () => mine(0x8254a4, 4, true),
-  embermine: () => mine(0xa85844, 5, false),
-  glassmine: () => mine(0xc29e62, 7, true),
+  // City: rain-darkened slate & warm antique brass
+  plate: () => tile(0x1f2e3a, 0x335464, 0xe0a65c, 0x86f0dc, 8),
+  // Shelf: frosted glacial stone, snow-blue plate & silver-ice crystal bezel
+  icespike: () => tile(0x5a86a8, 0x9ad0ec, 0xd8f4ff, 0xe8fbff, 6, obelisk(0xb2e6ff, 5)),
+  // Marsh: mossy bog stone, velvety lichen plate & soft glowing moss-root rim
+  geyser: () => tile(0x213d30, 0x3c7654, 0x62be82, 0xb8ffa8, 7, [gem(0.62, 0x72df8e, { y: 0.36, sy: 0.62 })]),
+  // Core: deep midnight obsidian, carved amethyst stone & radiant lavender rim
+  riftburst: () => tile(0x16102c, 0x2c1f50, 0x9c6cf0, 0xe4b8ff, 6, obelisk(0xb682f2, 4)),
+  // Caldera: dark charred volcanic basalt, glowing ember-slag rim & molten core
+  pyro: () => tile(0x231719, 0x562b22, 0xb85228, 0xffb85e, 6, [gem(0.6, 0xf27836, { y: 0.32, sy: 0.6 })]),
+  // Flats: warm sunlit terracotta-ochre sandstone, golden sand inlay & turquoise desert-glass rim
+  sunspike: () => tile(0x9a7446, 0xd8b474, 0x4fd4c2, 0xffe498, 8, obelisk(0x52d4c2, 6)),
+  // Beam emitters (biome-native pedestals)
+  laser: () => emitter(0x1f2e3a, 0x385864, 0xe0a65c, 0xffa674, 0.72, 6),
+  magma: () => emitter(0x231719, 0x6c2f24, 0xc85c2a, 0xffb266, 0.24, 5),
+  rift: () => emitter(0x1d163a, 0x523a82, 0xc290ff, 0xf2b8ff, 0.59, 4),
+  // Proximity mines (biome-native shells)
+  mine: () => mine(0x20303c, 0x506c7a, 0xe0a65c, 6, false),
+  frost: () => mine(0x5480a4, 0x94cce8, 0xdcf6ff, 8, true),
+  spore: () => mine(0x213c2e, 0x44825a, 0x78dc98, 6, true),
+  riftmine: () => mine(0x1d163a, 0x5c3e92, 0xd098ff, 5, true),
+  embermine: () => mine(0x24171a, 0x7a3426, 0xe0682c, 6, false),
+  glassmine: () => mine(0x9a7448, 0xd4ae70, 0x50d4c2, 7, true),
 };
 const MAX = { floor: 12, beam: 8, mine: 16 };
 

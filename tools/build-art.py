@@ -68,12 +68,12 @@ def make_terrain_atlas():
     atlas = Image.new("RGB", (size * 3, size * 2))
     specs = [
         # (base_rgb, warm_tint, cool_tint, angle, spread, seed)
-        ((42, 62, 74), (72, 92, 98), (22, 34, 48), 18, 22, 101),    # city: rain-washed teal-slate flagstones
-        ((96, 134, 158), (156, 198, 218), (54, 78, 114), -24, 16, 202),  # shelf: glacier snow & ice striations
-        ((32, 64, 54), (78, 122, 92), (16, 36, 38), 10, 48, 303),   # marsh: mossy peat & damp bog
-        ((52, 46, 84), (104, 82, 146), (26, 22, 52), 45, 32, 404),  # core: obsidian-amethyst fractured stone
-        ((62, 44, 42), (118, 66, 48), (34, 24, 28), -12, 38, 505),  # caldera: volcanic basalt & ash
-        ((146, 118, 86), (198, 166, 118), (98, 78, 62), 6, 14, 606),  # flats: wind-swept ochre sandstone & glass
+        ((30, 48, 60), (56, 76, 86), (14, 24, 38), 18, 24, 101),         # city: deeper cozy rain-washed slate flagstones
+        ((150, 188, 212), (218, 238, 248), (94, 130, 168), -22, 18, 202), # shelf: bright sunlit alpine snow & frost drifts
+        ((34, 70, 56), (86, 132, 96), (18, 40, 40), 10, 48, 303),         # marsh: cozy mossy peat & damp twilight bog
+        ((34, 28, 66), (76, 58, 122), (16, 12, 38), 45, 32, 404),         # core: deep velvety midnight obsidian stone
+        ((38, 26, 28), (74, 42, 36), (18, 12, 16), -12, 38, 505),         # caldera: dark charred volcanic basalt & ash
+        ((184, 150, 108), (232, 200, 146), (132, 102, 74), 6, 14, 606),   # flats: bright sun-baked ochre sandstone dunes
     ]
     y, x = np.mgrid[0:size, 0:size] / size
     for idx, (base, warm, cool, angle, spread, seed) in enumerate(specs):
@@ -160,23 +160,24 @@ def make_vfx_atlas():
     r = np.sqrt(u * u + v * v)
     ang = np.arctan2(v, u)
 
-    # (0,0) Painterly glow orb: crisp bright core + subtle star/brush aura
-    wobble = 1.0 + 0.06 * np.cos(ang * 5.0) + 0.04 * np.sin(ang * 3.0 + 1.1)
+    # (0,0) Painterly glow orb: punchier crisp luminous heart + soft painterly halo
+    wobble = 1.0 + 0.05 * np.cos(ang * 5.0) + 0.03 * np.sin(ang * 3.0 + 1.1)
     rr = r / wobble
-    core = np.clip(1.0 - rr / 0.45, 0.0, 1.0) ** 1.6
-    halo = np.clip(1.0 - rr, 0.0, 1.0) ** 2.4
-    alpha0 = np.clip(core * 0.8 + halo * 0.72, 0.0, 1.0)
-    lum0 = np.clip(0.75 + core * 0.25, 0.0, 1.0)
+    core = np.clip(1.0 - rr / 0.42, 0.0, 1.0) ** 1.35
+    halo = np.clip(1.0 - rr, 0.0, 1.0) ** 2.2
+    alpha0 = np.clip(core * 0.92 + halo * 0.72, 0.0, 1.0)
+    lum0 = np.clip(0.78 + core * 0.22, 0.0, 1.0)
     q0 = np.dstack([lum0, lum0, lum0, alpha0]) * 255.0
     atlas.paste(Image.fromarray(q0.astype("uint8"), "RGBA"), (0, 0))
 
-    # (1,0) Sharp kinetic spark / stylized diamond streak
+    # (1,0) Punchy kinetic star-spark / stylized 4-point impact flash
     rx = np.abs(u)
     ry = np.abs(v)
-    diamond = np.clip(1.0 - (rx / 0.22 + ry / 0.92), 0.0, 1.0) ** 1.2
-    flare = np.clip(1.0 - np.sqrt((rx / 0.16) ** 2 + (ry / 0.88) ** 2), 0.0, 1.0) ** 1.8
-    cross = np.clip(1.0 - (rx / 0.52 + ry / 0.14), 0.0, 1.0) ** 1.6 * 0.55
-    alpha1 = np.clip(np.maximum(diamond, flare) + cross, 0.0, 1.0)
+    diamond = np.clip(1.0 - (rx / 0.24 + ry / 0.94), 0.0, 1.0) ** 1.1
+    flare = np.clip(1.0 - np.sqrt((rx / 0.18) ** 2 + (ry / 0.90) ** 2), 0.0, 1.0) ** 1.6
+    cross = np.clip(1.0 - (rx / 0.62 + ry / 0.16), 0.0, 1.0) ** 1.35 * 0.72
+    center = np.clip(1.0 - r / 0.30, 0.0, 1.0) ** 1.5 * 0.85
+    alpha1 = np.clip(np.maximum(diamond, flare) + cross + center, 0.0, 1.0)
     q1 = np.dstack([np.ones_like(alpha1), np.ones_like(alpha1), np.ones_like(alpha1), alpha1]) * 255.0
     atlas.paste(Image.fromarray(q1.astype("uint8"), "RGBA"), (q, 0))
 
@@ -244,28 +245,55 @@ def orbital_emblem(draw, cx, cy, unit, opacity=1.0):
 
 
 def make_title_chart():
+    """Warm storybook-diorama twilight meadow/aurora/lantern backdrop for the Home screen."""
     rng = np.random.default_rng(6171)
     w, h = 1728, 1080
     cx, cy, radius = 557, 521, 355
     y, x = np.mgrid[0:h, 0:w]
+    yn = y / h
+    xn = x / w
     dist = np.sqrt(((x - cx) / w) ** 2 + ((y - cy) / h) ** 2)
-    warm_glow = np.exp(-((x - cx) / 480) ** 2 - ((y - cy - 60) / 510) ** 2)
-    cool_glow = np.exp(-((x - cx * 2.1) / 620) ** 2 - ((y - cy * 0.5) / 480) ** 2)
-    grain = rng.normal(0, 1.4, (h, w))
-    r_ch = 11 + warm_glow * 34 + cool_glow * 6 - dist * 7 + grain
-    g_ch = 18 + warm_glow * 24 + cool_glow * 26 - dist * 6 + grain
-    b_ch = 30 + warm_glow * 18 + cool_glow * 38 - dist * 8 + grain
+    # Warm golden-hour hearth glow behind title + soft twilight-mint aurora ribbon + velvety dusk sky
+    warm_glow = np.exp(-((x - cx) / 540) ** 2 - ((y - cy - 40) / 480) ** 2)
+    aurora_band = np.exp(-((yn - (0.28 + 0.07 * np.sin(xn * 5.2 + 0.4))) / 0.16) ** 2) * (0.45 + 0.55 * np.sin(xn * 3.1))
+    sunset_horizon = np.exp(-((yn - 0.84) / 0.26) ** 2)
+    grain = rng.normal(0, 1.3, (h, w))
+    r_ch = 24 + warm_glow * 52 + sunset_horizon * 42 + aurora_band * 12 - dist * 10 + grain
+    g_ch = 28 + warm_glow * 40 + sunset_horizon * 26 + aurora_band * 36 - dist * 9 + grain
+    b_ch = 44 + warm_glow * 24 + sunset_horizon * 18 + aurora_band * 40 - dist * 12 + grain
     bg = Image.fromarray(np.dstack([r_ch, g_ch, b_ch]).clip(0, 255).astype("uint8")).convert("RGBA")
+
+    # Soft layered storybook silhouettes along the bottom (distant cozy hills & lantern glow)
+    hills = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    hdraw = ImageDraw.Draw(hills, "RGBA")
+    for layer_i, (base_y, amp, freq, phase, col) in enumerate([
+        (0.79, 0.055, 2.2, 0.3, (28, 38, 52, 160)),
+        (0.86, 0.042, 3.1, 1.6, (22, 33, 44, 210)),
+        (0.92, 0.028, 4.4, 2.8, (17, 26, 34, 245)),
+    ]):
+        pts = [(0, h)]
+        for px in range(0, w + 16, 16):
+            t = px / w
+            py = int(h * (base_y + amp * math.sin(t * TAU * freq + phase) + amp * 0.4 * math.cos(t * TAU * freq * 1.9)))
+            pts.append((px, py))
+        pts.append((w, h))
+        hdraw.polygon(pts, fill=col)
+    bg.alpha_composite(hills.filter(ImageFilter.GaussianBlur(2)))
+
+    # Soft golden storybook compass halo behind the Riftline logo (softer, warmer, less clinical)
     trace = Image.new("RGBA", (w, h))
     draw = ImageDraw.Draw(trace, "RGBA")
-    orbital_emblem(draw, cx, cy, radius, 0.88)
-    for _ in range(420):
-        px, py = rng.integers([0, 0], [w, h])
-        if (px - cx) ** 2 + (py - cy) ** 2 < radius ** 2 * 0.08:
+    orbital_emblem(draw, cx, cy, radius, 0.62)
+    # Cozy floating fireflies / lantern motes across the twilight sky
+    for _ in range(180):
+        px, py = rng.integers([40, 40], [w - 40, h - 40])
+        if (px - cx) ** 2 + (py - cy) ** 2 < radius ** 2 * 0.06:
             continue
-        c = (255, 224, 168) if rng.random() < 0.6 else (120, 232, 220)
-        draw.point((int(px), int(py)), fill=(*c, int(rng.integers(24, 135))))
-    bg.alpha_composite(trace.filter(ImageFilter.GaussianBlur(8)))
+        r_dot = int(rng.integers(2, 5))
+        c = (255, 232, 174) if rng.random() < 0.62 else (142, 242, 214) if rng.random() < 0.7 else (246, 174, 152)
+        a = int(rng.integers(55, 175))
+        draw.ellipse((int(px) - r_dot, int(py) - r_dot, int(px) + r_dot, int(py) + r_dot), fill=(*c, a))
+    bg.alpha_composite(trace.filter(ImageFilter.GaussianBlur(9)))
     bg.alpha_composite(trace)
     bg.convert("RGB").save(PUBLIC / "textures" / "title-chart.webp", "WEBP", quality=90, method=6)
 

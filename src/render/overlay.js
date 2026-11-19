@@ -4,6 +4,32 @@ import { enemyDefs, bossDefs } from "../data/enemies.js";
 import { clamp } from "../core/util.js";
 import { RL_INPUT } from "../ui/input.js";
 
+const BIOME_RETICLE = {
+  city: "rgba(130,244,218,0.92)",
+  shelf: "rgba(38,142,216,0.92)",
+  marsh: "rgba(140,255,176,0.92)",
+  core: "rgba(228,176,255,0.92)",
+  caldera: "rgba(255,196,104,0.94)",
+  flats: "rgba(36,158,154,0.92)",
+};
+
+function fillPill(ctx, x, y, w, h) {
+  if (w <= 0 || h <= 0) return;
+  const r = Math.min(h * 0.5, w * 0.5);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h);
+  ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+  ctx.fill();
+}
+
 const healthBarTypes = {
     brute: 1,
     hive: 1,
@@ -132,21 +158,23 @@ const healthBarTypes = {
         project(target.x, 0.6, target.y)
       ) {
         renderer.project(target.x + target.r, 0.6, target.y, this.tmp2);
-        let size = Math.max(12, Math.abs(this.tmp2.x - pos.x) * 1.5 + 6),
-          spin = this.time * 2.2,
-          tick = size * 0.45;
+        let size = Math.max(13, Math.abs(this.tmp2.x - pos.x) * 1.48 + 6),
+          spin = this.time * 1.85,
+          reticleCol = BIOME_RETICLE[world.arena?.biome?.id] || "rgba(130,244,218,0.92)";
         ctx.save();
         ctx.translate(pos.x, pos.y);
         ctx.rotate(spin);
-        ctx.strokeStyle = "rgba(102,235,216,0.88)";
-        ctx.lineWidth = 2.4;
-        for (let i = 0; i < 4; i++) {
-          ctx.rotate(Math.PI / 2);
-          ctx.beginPath();
-          ctx.moveTo(size, -tick * 0.5);
-          ctx.lineTo(size, 0);
-          ctx.lineTo(size - tick * 0.5, 0);
-          ctx.stroke();
+        ctx.lineCap = "round";
+        for (let pass = 0; pass < 2; pass++) {
+          ctx.strokeStyle = pass === 0 ? "rgba(12,14,24,0.58)" : reticleCol;
+          ctx.lineWidth = pass === 0 ? 4.6 : 2.5;
+          for (let i = 0; i < 4; i++) {
+            const a0 = i * (Math.PI / 2) - 0.34;
+            const a1 = a0 + 0.68;
+            ctx.beginPath();
+            ctx.arc(0, 0, size, a0, a1);
+            ctx.stroke();
+          }
         }
         ctx.restore();
       }
@@ -158,15 +186,18 @@ const healthBarTypes = {
           !project(enemy.x, 1.2 + enemy.r * 1.4, enemy.y)
         )
           continue;
-        let width = 20 + enemy.r * 16,
-          hpFrac = clamp(enemy.hp / enemy.maxHp, 0, 1);
-        ctx.fillStyle = "rgba(10,8,16,0.78)";
-        ctx.fillRect(pos.x - width / 2 - 1.5, pos.y - 1.5, width + 3, 6);
-        ctx.fillStyle = enemy.elite ? "#f8c86a" : "#ff685c";
-        ctx.fillRect(pos.x - width / 2, pos.y, width * hpFrac, 3);
+        let width = 22 + enemy.r * 16,
+          hpFrac = clamp(enemy.hp / enemy.maxHp, 0, 1),
+          x0 = pos.x - width / 2;
+        ctx.fillStyle = "rgba(14,12,22,0.84)";
+        fillPill(ctx, x0 - 2, pos.y - 2, width + 4, 8);
+        ctx.fillStyle = enemy.elite ? "#ffd26e" : "#ff7264";
+        fillPill(ctx, x0, pos.y, Math.max(4, width * hpFrac), 4);
         if (enemy.shieldMax > 0 && enemy.shield > 0) {
-          ctx.fillStyle = "#88f0ff";
-          ctx.fillRect(pos.x - width / 2, pos.y - 4.5, width * (enemy.shield / enemy.shieldMax), 2.5);
+          ctx.fillStyle = "rgba(14,12,22,0.78)";
+          fillPill(ctx, x0 - 1.5, pos.y - 6.5, width + 3, 5);
+          ctx.fillStyle = "#8cf4ff";
+          fillPill(ctx, x0, pos.y - 5.5, Math.max(3, width * (enemy.shield / enemy.shieldMax)), 3);
         }
       }
       ctx.textAlign = "center";
@@ -176,17 +207,17 @@ const healthBarTypes = {
         // 3.0.0: the size follows the number (a maxed Railgun shot is bigger than a Pulse hit) and a new number
         // pops in for a moment
         let alpha = clamp(num.life / 0.35, 0, 1),
-          pop = 1 + Math.max(0, 1 - (renderer.time - num.t0) / 0.12) * 0.34,
+          pop = 1 + Math.max(0, 1 - (renderer.time - num.t0) / 0.14) * (num.crit ? 0.52 : 0.36),
           fontSize =
-            Math.min(25, (num.crit ? 15 : num.burn ? 9.5 : 11.5) + 3.4 * Math.log10(1 + Math.max(0, num.v))) * pop;
+            Math.min(28, (num.crit ? 16.5 : num.burn ? 10 : 12) + 3.5 * Math.log10(1 + Math.max(0, num.v))) * pop;
         ctx.font = `700 ${fontSize}px "Instrument Sans", system-ui, sans-serif`;
-        let text = String(Math.max(1, Math.round(num.v)));
+        let text = String(Math.max(1, Math.round(num.v))) + (num.crit ? "!" : "");
         ctx.globalAlpha = alpha;
         ctx.lineJoin = "round";
-        ctx.lineWidth = 3.8;
-        ctx.strokeStyle = "rgba(12,8,18,0.92)";
+        ctx.lineWidth = num.crit ? 4.4 : 3.8;
+        ctx.strokeStyle = num.crit ? "rgba(46,20,8,0.92)" : "rgba(14,12,24,0.92)";
         ctx.strokeText(text, pos.x, pos.y);
-        ctx.fillStyle = num.crit ? "#ffd46e" : num.burn ? "#ff8a3a" : num.shield ? "#92f0ff" : "#fcf2dc";
+        ctx.fillStyle = num.crit ? "#ffe074" : num.burn ? "#ff9244" : num.shield ? "#94f4ff" : "#fff7e4";
         ctx.fillText(text, pos.x, pos.y);
       }
       ctx.globalAlpha = 1;

@@ -104,124 +104,169 @@ function buildCover(view, biomeId, obstacles, rng) {
     const rad = isCircle ? obs.r : Math.min(obs.w, obs.h);
 
     if (biomeId === "city") {
-      // Neo-noir stepped brutalist architectural pylon / cover wall with glowing amber-brass inlay & lantern crown
+      // Cozy rain-dappled dusk courtyard lantern pillar / tiled garden shrine wall with warm glowing paper windows
       const h = isCircle ? 2.55 : 2.05;
-      const plinth = isCircle ? cylinder(rad * 0.96, rad * 0.99, 0.36, 8) : beveledBox(w * 0.99, 0.36, d * 0.99, 0.12);
-      place(props, plinth, baseMat("metal", 0x1c2a35), obs.x, 0.18, obs.y);
+      const plinth = isCircle ? cylinder(rad * 0.94, rad * 0.98, 0.38, 8) : beveledBox(w * 0.98, 0.38, d * 0.98, 0.12);
+      place(props, plinth, baseMat("stone", 0x1a2733), obs.x, 0.19, obs.y);
       const body = isCircle
-        ? cylinder(rad * 0.78, rad * 0.88, h - 0.52, 8)
-        : beveledBox(w * 0.88, h - 0.52, d * 0.88, 0.14);
-      place(props, body, baseMat("armor", look.body), obs.x, 0.36 + (h - 0.52) * 0.5, obs.y);
-      const cap = isCircle ? cylinder(rad * 0.84, rad * 0.76, 0.24, 8) : beveledBox(w * 0.92, 0.24, d * 0.92, 0.08);
-      place(props, cap, baseMat("metal", 0x263b48), obs.x, h - 0.06, obs.y);
-      // Glowing warm amber-gold architectural trim band cleanly inset within bevel profile
-      const band = isCircle ? cylinder(rad * 0.85, rad * 0.85, 0.11, 8) : beveledBox(w * 0.9, 0.11, d * 0.9, 0.04);
-      place(props, band, glowMat(look.trim, 1.5), obs.x, h * 0.58, obs.y);
+        ? cylinder(rad * 0.76, rad * 0.86, h - 0.56, 8)
+        : beveledBox(w * 0.86, h - 0.56, d * 0.86, 0.14);
+      place(props, body, baseMat("armor", look.body), obs.x, 0.38 + (h - 0.56) * 0.5, obs.y);
+      // Shingled cozy eaves & brass collar
+      const eave = isCircle ? cylinder(rad * 0.68, rad * 0.94, 0.26, 8) : beveledBox(w * 0.95, 0.24, d * 0.95, 0.08);
+      place(props, eave, baseMat("metal", 0x223646), obs.x, h - 0.06, obs.y);
+      const band = isCircle ? cylinder(rad * 0.83, rad * 0.83, 0.1, 8) : beveledBox(w * 0.88, 0.1, d * 0.88, 0.04);
+      place(props, band, glowMat(look.trim, 1.45), obs.x, h * 0.56, obs.y);
       if (isCircle) {
-        // Rooftop lantern finial
-        const lamp = cylinder(rad * 0.28, rad * 0.34, 0.4, 6);
-        place(props, lamp, glowMat(look.light, 1.5), obs.x, h + 0.22, obs.y);
-        const roof = cylinder(rad * 0.14, rad * 0.5, 0.22, 6).toFlatShaded();
-        place(props, roof, baseMat("metal", 0x223644), obs.x, h + 0.52, obs.y);
+        // Warm paper-glass rooftop lantern with overhanging dark tile hat (clean clearance, zero overlap)
+        const lamp = cylinder(rad * 0.27, rad * 0.31, 0.34, 6);
+        place(props, lamp, glowMat(look.light, 1.75), obs.x, h + 0.22, obs.y);
+        const roof = cylinder(rad * 0.08, rad * 0.64, 0.3, 6).toFlatShaded();
+        place(props, roof, baseMat("stone", 0x1d303e), obs.x, h + 0.54, obs.y);
+      } else {
+        // Cozy glowing side windows inset along the wall top
+        const longAxis = Math.max(obs.w, obs.h);
+        const span = Math.max(0, longAxis - 0.42);
+        for (const s of [-0.55, 0.55]) {
+          const lx = obs.x + (obs.w > obs.h ? s * span : 0);
+          const lz = obs.y + (obs.h >= obs.w ? s * span : 0);
+          place(props, beveledBox(0.32, 0.28, 0.32, 0.06), glowMat(look.light, 1.65), lx, h + 0.18, lz);
+          place(props, cone(0.28, 0.18, 4), baseMat("metal", 0x1d303e), lx, h + 0.38, lz, Math.PI / 4);
+        }
       }
     } else if (biomeId === "shelf") {
-      // Sculpted glacial rock monolith topped with snow blanket & crystalline sapphire-cyan ice spire
-      const h = isCircle ? 2.6 : 1.95;
-      const rock = sculptedRock(w * 0.98, h, d * 0.98, seed, isCircle);
-      place(props, rock, baseMat("stone", 0x3b5e7c), obs.x, 0, obs.y);
-      const coat = snowCoat(rock, 0.025, 0.44);
+      // Cozy sunlit alpine snow cairn topped with plush snow blanket & faceted glacier ice crystals
+      const h = isCircle ? 2.5 : 1.9;
+      const rock = sculptedRock(w * 0.96, h, d * 0.96, seed, isCircle);
+      place(props, rock, baseMat("stone", 0x5c8ab0), obs.x, 0, obs.y);
+      const coat = snowCoat(rock, 0.068, 0.42);
       if (coat.vertexCount > 0) {
-        place(props, coat, baseMat("ice", 0xdaf2fc), obs.x, 0, obs.y);
+        place(props, coat, baseMat("ice", 0xf0fbff), obs.x, 0, obs.y);
       }
-      const shard = sculptedCrystal(rad * 0.78, h * 0.72, rad * 0.78, seed + 7);
-      place(props, shard, baseMat("crystal", 0x4db6df), obs.x, h * 0.45, obs.y, rng.range(0, TAU));
-      const core = octahedron(rad * 0.22);
-      place(props, core, glowMat(look.accent, 1.5), obs.x, h * 0.98, obs.y, 0, 1, 1.5, 1);
+      const shard = sculptedCrystal(rad * 0.72, h * 0.78, rad * 0.72, seed + 7);
+      place(props, shard, baseMat("crystal", 0x62ccf0), obs.x, h * 0.42, obs.y, rng.range(0, TAU));
+      if (isCircle) {
+        const subShard = sculptedCrystal(rad * 0.38, h * 0.5, rad * 0.38, seed + 29);
+        place(props, subShard, baseMat("crystal", 0x8be4ff), obs.x + rad * 0.22, h * 0.28, obs.y - rad * 0.18, 0.5);
+      }
+      const core = octahedron(rad * 0.24);
+      place(props, core, glowMat(look.accent, 1.55), obs.x, h * 0.98, obs.y, 0, 1, 1.45, 1);
     } else if (biomeId === "marsh") {
-      // Mossy carved swamp ruin crowned with layered glowing bioluminescent mushroom caps
-      const h = isCircle ? 1.85 : 1.55;
-      const stone = sculptedRock(w * 0.96, h, d * 0.96, seed, isCircle);
-      place(props, stone, baseMat("stone", 0x2a493f), obs.x, 0, obs.y);
+      // Cozy mossy swamp stone crowned with cute spotted glowing mushrooms & tiny companion shrooms inside footprint
+      const h = isCircle ? 1.75 : 1.45;
+      const stone = sculptedRock(w * 0.94, h, d * 0.94, seed, isCircle);
+      place(props, stone, baseMat("stone", 0x2c5242), obs.x, 0, obs.y);
       if (isCircle) {
         const stem = lathe(
           [
-            [rad * 0.22, 0],
-            [rad * 0.16, 0.55],
-            [rad * 0.26, 0.9],
+            [rad * 0.26, 0],
+            [rad * 0.18, 0.52],
+            [rad * 0.28, 0.88],
           ],
           8,
         );
-        place(props, stem, baseMat("organic", 0x3c6052), obs.x, h * 0.78, obs.y);
-        const cap = sculptedCap(rad * 0.94, rad * 0.56, seed + 13);
-        place(props, cap, baseMat("organic", 0x45ab82), obs.x, h + 0.42, obs.y);
-        const gill = cylinder(rad * 0.62, rad * 0.45, 0.1, 10);
-        place(props, gill, glowMat(look.accent, 1.5), obs.x, h + 0.44, obs.y);
+        place(props, stem, baseMat("organic", 0x628a70), obs.x, h * 0.76, obs.y);
+        const cap = sculptedCap(rad * 0.92, rad * 0.58, seed + 13);
+        place(props, cap, baseMat("organic", 0x4bc08e), obs.x, h + 0.36, obs.y);
+        const gill = cylinder(rad * 0.64, rad * 0.44, 0.1, 10);
+        place(props, gill, glowMat(look.accent, 1.55), obs.x, h + 0.38, obs.y);
+        // Cute glowing cap spots nestled on top of the mushroom cap
+        for (let sp = 0; sp < 4; sp++) {
+          const sa = (sp / 4) * TAU + seed;
+          const sr = rad * 0.42;
+          place(
+            props,
+            octahedron(rad * 0.13),
+            glowMat(look.light, 1.35),
+            obs.x + Math.cos(sa) * sr,
+            h + 0.36 + rad * 0.42,
+            obs.y + Math.sin(sa) * sr,
+            sa,
+            1,
+            0.45,
+            1,
+          );
+        }
       } else {
-        // Pair of glowing fungal clusters safely inside moss wall footprint
+        // Pair of cute spotted glowing mushrooms safely inside moss wall footprint
         const longAxis = Math.max(obs.w, obs.h);
-        const cr = Math.min(rad * 0.85, longAxis * 0.44, 0.62);
-        const span = Math.max(0, longAxis - cr - 0.04);
-        for (const s of [-0.75, 0.75]) {
+        const cr = Math.min(rad * 0.84, longAxis * 0.42, 0.6);
+        const span = Math.max(0, longAxis - cr - 0.06);
+        for (const s of [-0.72, 0.72]) {
           const mx = obs.x + (obs.w > obs.h ? s * span : 0);
           const mz = obs.y + (obs.h >= obs.w ? s * span : 0);
           place(
             props,
-            sculptedCap(cr, cr * 0.6, seed + (s > 0 ? 5 : 11)),
-            baseMat("organic", 0x4bb488),
+            sculptedCap(cr, cr * 0.62, seed + (s > 0 ? 5 : 11)),
+            baseMat("organic", 0x4fc492),
             mx,
-            h * 0.85,
+            h * 0.82,
             mz,
           );
-          place(props, cylinder(cr * 0.55, cr * 0.35, 0.08, 8), glowMat(look.accent, 1.5), mx, h * 0.86, mz);
+          place(props, cylinder(cr * 0.54, cr * 0.34, 0.08, 8), glowMat(look.accent, 1.55), mx, h * 0.83, mz);
+          place(
+            props,
+            octahedron(cr * 0.18),
+            glowMat(look.light, 1.3),
+            mx,
+            h * 0.82 + cr * 0.54,
+            mz,
+            0,
+            1.1,
+            0.45,
+            1.1,
+          );
         }
       }
     } else if (biomeId === "core") {
-      // Fractured obsidian monolith with faceted amethyst crystal crest & hovering rift gem (batched for zero extra calls)
-      const h = isCircle ? 2.45 : 2.1;
-      const monolith = sculptedRock(w * 0.96, h * 0.82, d * 0.96, seed, isCircle);
-      place(props, monolith, baseMat("basalt", 0x2b2450), obs.x, 0, obs.y);
-      const crystal = sculptedCrystal(rad * 0.68, h * 0.74, rad * 0.68, seed + 17);
-      place(props, crystal, baseMat("crystal", 0x7650c4), obs.x, h * 0.42, obs.y, rng.range(0, TAU));
+      // Deep obsidian altar monolith with faceted radiant amethyst crystal spire & hovering rift gem
+      const h = isCircle ? 2.45 : 2.05;
+      const monolith = sculptedRock(w * 0.94, h * 0.8, d * 0.94, seed, isCircle);
+      place(props, monolith, baseMat("basalt", 0x201942), obs.x, 0, obs.y);
+      const crystal = sculptedCrystal(rad * 0.66, h * 0.76, rad * 0.66, seed + 17);
+      place(props, crystal, baseMat("crystal", 0x7a54cc), obs.x, h * 0.42, obs.y, rng.range(0, TAU));
       if (isCircle) {
-        const ring = torus(rad * 0.64, 0.065, 5, 16);
-        place(props, ring, glowMat(look.trim, 1.5), obs.x, h * 0.58, obs.y, 0, 1, 1, 1, Math.PI / 2);
+        const ring = torus(rad * 0.62, 0.06, 5, 16);
+        place(props, ring, glowMat(look.trim, 1.6), obs.x, h * 0.62, obs.y, 0, 1, 1, 1, Math.PI / 2);
       } else {
-        const vein = sculptedCrystal(rad * 0.42, h * 0.55, rad * 0.42, seed + 29);
-        place(props, vein, glowMat(look.trim, 1.5), obs.x, h * 0.52, obs.y, rng.range(0, TAU));
+        const vein = sculptedCrystal(rad * 0.42, h * 0.58, rad * 0.42, seed + 29);
+        place(props, vein, glowMat(look.trim, 1.6), obs.x, h * 0.5, obs.y, rng.range(0, TAU));
       }
-      const gem = octahedron(rad * 0.42)
+      const gem = octahedron(rad * 0.4)
         .scale(0.85, 1.45, 0.85)
         .translate(obs.x, h + 0.34, obs.y);
       (i % 2 ? coreGemPartsB : coreGemPartsA).push(gem);
     } else if (biomeId === "caldera") {
-      // Sculpted charred basalt crags with glowing volcanic magma crystal spires nestled inside footprint
-      const h = isCircle ? 2.5 : 2.05;
-      const ridge = sculptedRock(w * 0.98, h, d * 0.98, seed, isCircle);
-      place(props, ridge, baseMat("basalt", 0x362425), obs.x, 0, obs.y);
-      const spire = sculptedRock(w * 0.6, h * 1.24, d * 0.6, seed + 19, true);
-      place(props, spire, baseMat("basalt", 0x4c2e2b), obs.x, 0, obs.y);
-      const vent = sculptedCrystal(rad * 0.44, h * 0.58, rad * 0.44, seed + 31);
-      place(props, vent, glowMat(0xff6b20, 1.5), obs.x, h * 0.48, obs.y, rng.range(0, TAU));
-      place(props, octahedron(rad * 0.24), glowMat(look.accent, 1.5), obs.x, h * 0.96, obs.y, 0, 1, 0.72, 1);
+      // Dark charred basalt crags split by warm incandescent orange-gold magma crystal veins
+      const h = isCircle ? 2.5 : 2.0;
+      const ridge = sculptedRock(w * 0.96, h, d * 0.96, seed, isCircle);
+      place(props, ridge, baseMat("basalt", 0x26191b), obs.x, 0, obs.y);
+      const spire = sculptedRock(w * 0.58, h * 1.24, d * 0.58, seed + 19, true);
+      place(props, spire, baseMat("basalt", 0x3b2222), obs.x, 0, obs.y);
+      const vent = sculptedCrystal(rad * 0.46, h * 0.62, rad * 0.46, seed + 31);
+      place(props, vent, glowMat(0xff6b1c, 1.75), obs.x, h * 0.48, obs.y, rng.range(0, TAU));
+      place(props, octahedron(rad * 0.26), glowMat(look.accent, 1.7), obs.x, h * 1.0, obs.y, 0, 1, 0.78, 1);
     } else {
-      // Glass Flats: wind-carved ochre sandstone mesa + integrated vitrified turquoise crystal clusters (no flat slab collar)
+      // Glass Flats: warm layered terracotta-ochre sandstone mesa & gleaming clustered turquoise desert-glass crystals
       const h = isCircle ? 2.3 : 1.85;
-      const mesa = sculptedRock(w * 0.98, h, d * 0.98, seed, isCircle);
-      place(props, mesa, baseMat("sandstone", 0xb88b54), obs.x, 0, obs.y);
-      const glass = sculptedCrystal(rad * 0.74, h * 0.82, rad * 0.74, seed + 23);
-      place(props, glass, baseMat("crystal", 0x48b8aa), obs.x, h * 0.48, obs.y, rng.range(0, TAU));
+      const baseMesa = sculptedRock(w * 0.96, h * 0.55, d * 0.96, seed, isCircle);
+      place(props, baseMesa, baseMat("sandstone", 0xba844e), obs.x, 0, obs.y);
+      const topMesa = sculptedRock(w * 0.78, h * 0.96, d * 0.78, seed + 5, isCircle);
+      place(props, topMesa, baseMat("sandstone", 0xdeb878), obs.x, 0, obs.y);
+      const glass = sculptedCrystal(rad * 0.68, h * 0.84, rad * 0.68, seed + 23);
+      place(props, glass, baseMat("crystal", 0x4cd6c6), obs.x, h * 0.44, obs.y, rng.range(0, TAU));
       if (!isCircle) {
         const longAxis = Math.max(obs.w, obs.h);
-        const span = Math.max(0, longAxis - rad * 0.55 - 0.12);
-        for (const s of [-0.65, 0.65]) {
+        const span = Math.max(0, longAxis - rad * 0.58 - 0.14);
+        for (const s of [-0.62, 0.62]) {
           const sx = obs.x + (obs.w > obs.h ? s * span : 0);
           const sz = obs.y + (obs.h >= obs.w ? s * span : 0);
-          const sub = sculptedCrystal(rad * 0.44, h * 0.66, rad * 0.44, seed + (s > 0 ? 41 : 47));
-          place(props, sub, glowMat(look.trim, 1.5), sx, h * 0.44, sz, s * 0.6);
+          const sub = sculptedCrystal(rad * 0.42, h * 0.68, rad * 0.42, seed + (s > 0 ? 41 : 47));
+          place(props, sub, glowMat(look.trim, 1.55), sx, h * 0.42, sz, s * 0.6);
         }
       } else {
-        const ring = torus(rad * 0.62, 0.055, 5, 16);
-        place(props, ring, glowMat(look.trim, 1.5), obs.x, h * 0.62, obs.y, 0, 1, 1, 1, Math.PI / 2);
+        const sideGem = sculptedCrystal(rad * 0.36, h * 0.55, rad * 0.36, seed + 53);
+        place(props, sideGem, glowMat(look.trim, 1.5), obs.x + rad * 0.24, h * 0.36, obs.y - rad * 0.18, 0.7);
       }
     }
   }
@@ -296,8 +341,8 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
   // Biome-specific exterior vistas & signature landmarks (all strictly outside [-W-2.5, W+2.5] x [-H-2.5, H+2.5])
   let lampLens = null;
   if (biome.id === "city") {
-    // Glowing warm amber gallery streetlamps along perimeter + dramatic neo-noir skyscraper skyline beyond
-    lampLens = emissiveMaterial({ color: look.light, emissiveIntensity: 1.65 });
+    // Glowing warm amber gallery streetlamps along all four parapets + cozy twilight skyline beyond
+    lampLens = emissiveMaterial({ color: look.light, emissiveIntensity: 1.75 });
     for (let i = -2; i <= 2; i++) {
       if (i === 0) continue;
       for (const sz of [-1, 1]) {
@@ -305,7 +350,14 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
         const lz = sz * (H + 1.75);
         place(props, cylinder(0.14, 0.22, 3.6, 6), darkMat, lx, 1.8, lz);
         place(props, box(0.55, 0.34, 0.55), lampLens, lx, 3.7, lz);
-        place(props, cone(0.52, 0.35, 4), darkMat, lx, 4.02, lz, Math.PI / 4);
+        place(props, cone(0.54, 0.35, 4), darkMat, lx, 4.02, lz, Math.PI / 4);
+      }
+      for (const sx of [-1, 1]) {
+        const lx = sx * (W + 1.75);
+        const lz = i * (H * 0.38);
+        place(props, cylinder(0.14, 0.22, 3.6, 6), darkMat, lx, 1.8, lz);
+        place(props, box(0.55, 0.34, 0.55), lampLens, lx, 3.7, lz);
+        place(props, cone(0.54, 0.35, 4), darkMat, lx, 4.02, lz, Math.PI / 4);
       }
     }
     // Skyline towers framing North, West, East horizon
@@ -337,10 +389,17 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
       const w = rng.range(2.4, 4.6);
       const peak = sculptedRock(w, h, w, i * 31 + 7, true);
       place(props, peak, iceMat, px, -0.2, pz, rng.range(0, TAU));
-      const cap = snowCoat(peak, 0.03, 0.42);
+      const cap = snowCoat(peak, 0.068, 0.42);
       if (cap.vertexCount > 0) place(props, cap, snowMat, px, -0.2, pz);
       if (i % 3 === 0) {
         place(props, sculptedCrystal(1.3, h * 0.65, 1.3, i * 19), accentGlow, px * 0.92, 0, pz * 0.92, a);
+      } else if (i % 3 === 1 && Math.abs(px * 0.9) >= W + 4.2 && Math.abs(pz * 0.9) >= H + 4.2) {
+        // Cute cozy snow-frosted alpine pine tree silhouette outside snowfield border
+        const tx = px * 0.9,
+          tz = pz * 0.9;
+        place(props, cylinder(0.18, 0.28, 1.4, 6), darkMat, tx, 0.7, tz);
+        place(props, cone(1.35, 2.2, 7), snowMat, tx, 2.1, tz);
+        place(props, cone(1.02, 1.8, 7), snowMat, tx, 3.3, tz);
       }
     }
   } else if (biome.id === "marsh") {

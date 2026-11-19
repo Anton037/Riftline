@@ -39,23 +39,25 @@ const inscribed = (color, r, w, y, segs = 24) => meshPart(torus(r, w, 5, segs), 
 const baseDisk = (color, r, h, y, segs = 12) => meshPart(cylinder(r * 0.91, r, h, segs), color, { y });
 
 const MODELS = {
+  // Caldera: chunky dark volcanic basalt crater rim with nestled ember crevices
   nozzle: () => ({
     body: [
-      inscribed(0x4a2d28, 0.91, 0.095, 0.055, 18),
-      ...Array.from({ length: 9 }, (_, i) => {
-        const a = (i * TAU) / 9;
-        return fac(0xa66644, 0.16, {
-          x: Math.cos(a) * 0.91,
-          z: Math.sin(a) * 0.91,
-          y: 0.075,
+      inscribed(0x28191a, 0.93, 0.12, 0.06, 16),
+      ...Array.from({ length: 10 }, (_, i) => {
+        const a = (i * TAU) / 10;
+        const h = i % 2 ? 0.11 : 0.08;
+        return meshPart(icosahedron(0.19, 0), i % 3 ? 0x352020 : 0x4d2a24, {
+          x: Math.cos(a) * 0.93,
+          z: Math.sin(a) * 0.93,
+          y: h,
           ry: -a,
-          sx: 0.8,
-          sy: 0.48,
-          sz: 1.6,
+          sx: 0.85,
+          sy: 0.62,
+          sz: 1.35,
         });
       }),
     ],
-    glow: [inscribed(0xff8440, 0.82, 0.022, 0.08, 18)],
+    glow: [inscribed(0xff7e30, 0.84, 0.028, 0.082, 18)],
   }),
   dome: () => ({
     glow: [
@@ -63,27 +65,28 @@ const MODELS = {
       meshPart(icosahedron(0.62, 1), 0xffcf88, { y: 0.44, sy: 0.58 }),
     ],
   }),
+  // City: recessed rain-slate & antique brass street inlay
   collar: () => ({
     body: [
-      baseDisk(0x325254, 1.05, 0.09, 0.045),
-      baseDisk(0x1f2d32, 0.87, 0.05, 0.09),
-      inscribed(0xd49d64, 0.91, 0.026, 0.12, 18),
+      baseDisk(0x20323e, 1.04, 0.085, 0.042, 12),
+      baseDisk(0x16222c, 0.87, 0.048, 0.085, 12),
+      inscribed(0xdfa65e, 0.91, 0.028, 0.115, 18),
     ],
-    glow: [inscribed(0x70e8d4, 0.79, 0.045, 0.085, 18)],
+    glow: [inscribed(0x70e8d4, 0.79, 0.042, 0.085, 18)],
   }),
   cover: () => ({
     body: [
-      baseDisk(0x486666, 0.81, 0.075, 0.044, 8),
+      baseDisk(0x324f5e, 0.81, 0.072, 0.044, 8),
       ...Array.from({ length: 8 }, (_, i) => {
         const a = (i * TAU) / 8;
-        return fac(0xd4a470, 0.21, {
+        return fac(0xdfa864, 0.19, {
           x: Math.cos(a) * 0.54,
           z: Math.sin(a) * 0.54,
           y: 0.095,
           ry: -a,
-          sx: 1.2,
+          sx: 1.15,
           sy: 0.14,
-          sz: 0.45,
+          sz: 0.42,
         });
       }),
     ],
@@ -93,32 +96,44 @@ const MODELS = {
     body: [fac(FINISH.copper, 0.26, { y: 0.34, sy: 1.7, sx: 0.64, sz: 0.6 })],
     glow: [fac(FINISH.ivory, 0.09, { y: 0.74, sy: 1.45, sx: 0.52, sz: 0.52 })],
   }),
+  // Shelf: cute beveled glacier crystals & snow-dusted rim stones
   shard: () => ({
     body: [
-      fac(0xbce8f8, 0.85, { y: 0.48, sy: 0.65, sz: 0.66, rz: -0.17 }),
-      fac(0x72a6cc, 0.72, { x: 0.22, y: 0.32, sy: 0.42, sx: 0.49, ry: 0.34 }),
+      meshPart(icosahedron(0.68, 0), 0xdaf4ff, { y: 0.4, sy: 0.62, sz: 0.68, rz: -0.14 }),
+      fac(0x78bce0, 0.62, { x: 0.2, y: 0.34, sy: 0.48, sx: 0.5, ry: 0.34 }),
     ],
   }),
+  // Flats: warm sunlit swirling sand ribbons
   funnel: () => ({
-    body: [meshPart(dustRibbon(0.16), 0xa87c54), meshPart(dustRibbon(Math.PI * 0.85), 0xdcb884)],
-    glow: [meshPart(dustRibbon(Math.PI * 1.46), 0xf6d8a6)],
+    body: [meshPart(dustRibbon(0.16), 0xc49a68), meshPart(dustRibbon(Math.PI * 0.85), 0xeed09a)],
+    glow: [meshPart(dustRibbon(Math.PI * 1.46), 0xfff0c2)],
   }),
+  // Marsh: cozy rounded mossy bog-stones & floating lily-pad tufts (replacing jagged green spikes!)
   bank: () => ({
-    body: Array.from({ length: 10 }, (_, i) => {
-      const a = (i * TAU) / 10;
-      return fac(i % 3 ? 0x1f3628 : 0x2e503a, 0.2, {
-        x: Math.cos(a) * 1.08,
-        z: Math.sin(a) * 1.08,
-        y: 0.036,
-        ry: -a,
-        sy: 0.28,
-        sz: 1.45,
-      });
-    }),
+    body: [
+      ...Array.from({ length: 12 }, (_, i) => {
+        const a = (i * TAU) / 12;
+        const r = i % 2 ? 1.03 : 0.99;
+        return meshPart(icosahedron(0.18, 0), i % 3 === 0 ? 0x2d5842 : i % 3 === 1 ? 0x3b7252 : 0x244636, {
+          x: Math.cos(a) * r,
+          z: Math.sin(a) * r,
+          y: 0.055,
+          ry: -a,
+          sx: 1.05,
+          sy: 0.42,
+          sz: 1.35,
+        });
+      }),
+      ...Array.from({ length: 4 }, (_, i) => {
+        const a = (i * TAU) / 4 + 0.4;
+        return baseDisk(0x4ea66c, 0.24, 0.032, 0.045, 7).translate(Math.cos(a) * 0.88, 0, Math.sin(a) * 0.88);
+      }),
+    ],
   }),
-  bubble: () => ({ glow: [fac(0xffffff, 1, { sy: 0.83 })] }),
+  bubble: () => ({ glow: [meshPart(icosahedron(1, 0), 0xffffff, { sy: 0.84 })] }),
+  // Core: carved midnight-obsidian floating rune stones
   stone: () => ({
-    body: [baseDisk(0x3a3056, 0.16, 0.24, -0.06, 5), fac(0x644c8e, 0.19, { y: 0.06, sy: 1.6 })],
+    body: [baseDisk(0x281e4a, 0.16, 0.24, -0.06, 5), fac(0x5a428e, 0.19, { y: 0.06, sy: 1.6 })],
     glow: [fac(0xffffff, 0.08, { y: 0.16, z: 0.11, sz: 0.3, sy: 1.45 })],
   }),
 };

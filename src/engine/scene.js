@@ -114,15 +114,48 @@ export class Node {
     for (let i = 0; i < this.children.length; i++) this.children[i].traverse(fn);
   }
   updateLocalMatrix() {
-    _q.setFromEuler(this.rotation);
-    this.localMatrix.compose(this.position, _q, this.scale);
+    const r = this.rotation;
+    const p = this.position;
+    const s = this.scale;
+    if (r.x === 0 && r.y === 0 && r.z === 0) {
+      const e = this.localMatrix.elements;
+      e[0] = s.x;
+      e[1] = 0;
+      e[2] = 0;
+      e[3] = 0;
+      e[4] = 0;
+      e[5] = s.y;
+      e[6] = 0;
+      e[7] = 0;
+      e[8] = 0;
+      e[9] = 0;
+      e[10] = s.z;
+      e[11] = 0;
+      e[12] = p.x;
+      e[13] = p.y;
+      e[14] = p.z;
+      e[15] = 1;
+      this._isIdentity = p.x === 0 && p.y === 0 && p.z === 0 && s.x === 1 && s.y === 1 && s.z === 1;
+      return;
+    }
+    this._isIdentity = false;
+    _q.setFromEuler(r);
+    this.localMatrix.compose(p, _q, s);
   }
   updateWorldMatrix(updateChildren = true) {
     this.updateLocalMatrix();
-    if (this.parent) this.worldMatrix.multiplyMatrices(this.parent.worldMatrix, this.localMatrix);
-    else this.worldMatrix.copy(this.localMatrix);
+    if (this.parent) {
+      if (this._isIdentity) this.worldMatrix.copy(this.parent.worldMatrix);
+      else if (this.parent._worldIdentity) this.worldMatrix.copy(this.localMatrix);
+      else this.worldMatrix.multiplyMatrices(this.parent.worldMatrix, this.localMatrix);
+      this._worldIdentity = this._isIdentity && !!this.parent._worldIdentity;
+    } else {
+      this.worldMatrix.copy(this.localMatrix);
+      this._worldIdentity = this._isIdentity;
+    }
     if (updateChildren) {
-      for (let i = 0; i < this.children.length; i++) this.children[i].updateWorldMatrix(true);
+      const ch = this.children;
+      for (let i = 0; i < ch.length; i++) ch[i].updateWorldMatrix(true);
     }
   }
   getWorldPosition(out = new Vec3()) {

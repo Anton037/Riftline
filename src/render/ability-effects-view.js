@@ -123,16 +123,21 @@ export class AbilityEffectsView {
       r.burst(
         ev.x,
         ev.y,
-        0.8,
-        kind === 0 ? 18 : 12,
-        kind === 1 ? 3.5 : 8.5,
+        0.85,
+        kind === 0 ? 24 : 16,
+        kind === 1 ? 4.2 : 9.4,
         kind === 0 ? CYAN : kind === 1 ? VIOLET : GOLD,
-        0.4,
-        0.13,
-        { spark: true, drag: 4, grav: 2 },
+        0.46,
+        0.15,
+        { spark: true, up: 3.4, drag: 3.6, grav: 2 },
       );
-      r.flash(ev.x, ev.y, ev.r * 1.05, kind === 0 ? 0.85 : 0.55, kind === 0 ? CYAN : kind === 1 ? VIOLET : GOLD, 6);
-      r.addShake((kind === 0 ? 0.32 : kind === 1 ? 0.2 : 0.1) * shake);
+      if (kind === 0) {
+        r.emit(ev.x, 0.9, ev.y, 0, 0, 0, 0.14, ev.r * 0.72, CYAN, { drag: 0 });
+      } else if (kind === 1) {
+        r.emit(ev.x, 1.1, ev.y, 0, 0, 0, 0.14, ev.r * 0.58, VIOLET, { drag: 0 });
+      }
+      r.flash(ev.x, ev.y, ev.r * 1.15, kind === 0 ? 1.0 : 0.7, kind === 0 ? CYAN : kind === 1 ? VIOLET : GOLD, 5.5);
+      r.addShake((kind === 0 ? 0.38 : kind === 1 ? 0.24 : 0.12) * shake);
       return true;
     }
     if (ev.k === "singularity" || ev.k === "singOpen" || ev.k === "implode") {

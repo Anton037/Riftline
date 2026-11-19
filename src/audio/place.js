@@ -73,73 +73,73 @@ const PLACE = Object.fromEntries(
 const SCAPE = {
   city: {
     bed: [
-      ["lampBuzz", 6, 12, 0.39],
-      ["galleryChime", 13, 23, 0.23, 0.34],
+      ["rainDrop", 4.5, 8.5, 0.32],
+      ["galleryChime", 10, 19, 0.27, 0.34],
     ],
     far: [
-      { id: "clunk", every: [18, 36] },
-      { id: "kilnResonance", every: [32, 68], big: true },
-      { id: "stoneEcho", every: [24, 48] },
+      { id: "kilnResonance", every: [28, 56], big: true },
+      { id: "stoneEcho", every: [22, 44] },
+      { id: "gutter", every: [24, 48] },
     ],
   },
   shelf: {
     bed: [
-      ["wind", 4.4, 8.8, 0.43],
-      ["iceTink", 9, 16, 0.24],
+      ["wind", 4.8, 9.2, 0.36],
+      ["iceTink", 8, 15, 0.25],
     ],
     far: [
-      { id: "icicles", every: [16, 34] },
-      { id: "crystals", every: [28, 52] },
-      { id: "groan", every: [32, 61], big: true },
-      { id: "avalanche", every: [68, 130], big: true },
+      { id: "icicles", every: [15, 32] },
+      { id: "crystals", every: [24, 46] },
+      { id: "groan", every: [34, 62], big: true },
+      { id: "avalanche", every: [72, 130], big: true },
     ],
   },
   marsh: {
     bed: [
-      ["drip", 4.0, 8.0, 0.37, 0],
-      ["acidBubble", 6, 11, 0.28, 0.35],
+      ["drip", 4.2, 8.2, 0.34, 0],
+      ["cricket", 7, 13, 0.24, 0.35],
     ],
     far: [
-      { id: "frogs", every: [23, 49] },
-      { id: "bird", every: [36, 68] },
-      { id: "splash", every: [25, 60] },
-      { id: "breath", every: [40, 64], big: true },
+      { id: "frogs", every: [20, 42] },
+      { id: "bird", every: [30, 58] },
+      { id: "splash", every: [26, 56] },
+      { id: "breath", every: [42, 66], big: true },
     ],
   },
   flats: {
     bed: [
-      ["heatHiss", 4.8, 8.9, 0.34, 0],
-      ["devilMoan", 9, 16, 0.31],
+      ["glassPing", 6.5, 12.5, 0.28, 0],
+      ["gust", 8, 15, 0.28],
     ],
     far: [
-      { id: "glassPing", every: [17, 34] },
-      { id: "gust", every: [24, 54] },
-      { id: "dustRush", every: [41, 65], big: true },
-      { id: "crystals", every: [30, 58] },
+      { id: "crystals", every: [18, 36] },
+      { id: "chirp", every: [26, 52] },
+      { id: "dustRush", every: [42, 66], big: true },
+      { id: "shimmer", every: [28, 54] },
     ],
   },
   core: {
     bed: [
-      ["gravityHum", 6.5, 11.5, 0.4, 0.5],
-      ["shimmer", 9.5, 17, 0.27],
+      ["gravityHum", 6.8, 12.0, 0.35, 0.5],
+      ["shimmer", 8.5, 15.5, 0.28],
     ],
     far: [
-      { id: "reversed", every: [20, 47] },
+      { id: "crystals", every: [18, 38] },
       { id: "stoneEcho", every: [24, 48] },
-      { id: "metal", every: [32, 64] },
-      { id: "swell", every: [37, 61], big: true },
+      { id: "reversed", every: [26, 52] },
+      { id: "swell", every: [38, 62], big: true },
     ],
   },
   caldera: {
     bed: [
-      ["calderaRumble", 4.5, 8, 0.43],
-      ["fumarole", 8, 13, 0.34, 0],
+      ["emberPop", 4.2, 8.4, 0.34],
+      ["calderaRumble", 6.5, 11.5, 0.36, 0],
     ],
     far: [
-      { id: "emberPop", every: [16, 36] },
-      { id: "cinderGust", every: [32, 64] },
-      { id: "rockFall", every: [26, 50] },
-      { id: "farBoom", every: [41, 76], big: true },
+      { id: "fumarole", every: [18, 36] },
+      { id: "cinderGust", every: [30, 58] },
+      { id: "rockFall", every: [28, 52] },
+      { id: "farBoom", every: [44, 78], big: true },
     ],
   },
 };

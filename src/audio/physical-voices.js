@@ -86,35 +86,46 @@ const P = {
     gate: 0.035,
     lowpass: 2200,
   },
-  pulse: { dur: 0.19, sample: "report", body: 155, air: 0.09, grain: 0.12, gain: 0.3, gate: 0.045 },
-  scatter: { dur: 0.38, sample: "shotgun", body: 78, air: 0.3, grain: 0.22, gain: 0.46, gate: 0.08 },
+  pulse: { dur: 0.19, sample: "report", body: 185, air: 0.055, grain: 0.05, gain: 0.29, gate: 0.045, lowpass: 3100 },
+  scatter: { dur: 0.36, sample: "shotgun", body: 92, air: 0.18, grain: 0.11, gain: 0.43, gate: 0.08, lowpass: 2800 },
   tesla: {
     dur: 0.19,
     sample: "metal",
     recordGain: 0.08,
-    body: 640,
-    air: 0.42,
-    grain: 0.2,
-    arc: 0.65,
-    lowpass: 2200,
-    gain: 0.3,
+    body: 520,
+    air: 0.22,
+    grain: 0.1,
+    arc: 0.38,
+    lowpass: 2400,
+    gain: 0.28,
     gate: 0.045,
   },
   chain: {
     dur: 0.14,
     sample: "soft",
     recordGain: 0,
-    body: 760,
-    air: 0.35,
-    grain: 0.16,
-    arc: 0.5,
-    gain: 0.18,
+    body: 620,
+    air: 0.18,
+    grain: 0.08,
+    arc: 0.3,
+    lowpass: 2800,
+    gain: 0.17,
     gate: 0.05,
   },
-  rail: { dur: 0.53, sample: "rifle", body: 63, air: 0.26, grain: 0.13, gain: 0.48, gate: 0.09 },
-  rocket: { dur: 0.45, sample: "heavy", body: 84, air: 0.4, grain: 0.1, gain: 0.38, gate: 0.08 },
-  disc: { dur: 0.27, sample: "blade", body: 470, air: 0.09, grain: 0.1, gain: 0.25, gate: 0.06 },
-  flame: { dur: 0.23, sample: "soft", body: 125, air: 0.5, grain: 0.12, gain: 0.26, gate: 0.07, hold: true },
+  rail: { dur: 0.5, sample: "rifle", body: 74, air: 0.16, grain: 0.07, gain: 0.45, gate: 0.09, lowpass: 3200 },
+  rocket: { dur: 0.44, sample: "heavy", body: 88, air: 0.24, grain: 0.06, gain: 0.36, gate: 0.08, lowpass: 2500 },
+  disc: { dur: 0.27, sample: "blade", body: 420, air: 0.06, grain: 0.05, gain: 0.24, gate: 0.06, lowpass: 3600 },
+  flame: {
+    dur: 0.23,
+    sample: "soft",
+    body: 128,
+    air: 0.44,
+    grain: 0.08,
+    gain: 0.26,
+    gate: 0.07,
+    lowpass: 1900,
+    hold: true,
+  },
   eshotGunner: { dur: 0.16, sample: "report", body: 180, air: 0.08, grain: 0.06, gain: 0.2, gate: 0.07, lowpass: 3200 },
   snipe: { dur: 0.29, sample: "rifle", body: 120, air: 0.18, grain: 0.04, gain: 0.27, gate: 0.12 },
   eshotTurret: { dur: 0.28, sample: "heavy", body: 96, air: 0.12, grain: 0.08, gain: 0.25, gate: 0.1, lowpass: 2400 },
@@ -271,31 +282,50 @@ const P = {
   bcLock: { dur: 0.26, sample: "plate", body: 320, air: 0.08, grain: 0.05, gain: 0.27, gate: 0.05, lowpass: 3400 },
   bcShatter: { dur: 0.38, sample: "glass", body: 760, air: 0.12, grain: 0.18, gain: 0.25, gate: 0.04, lowpass: 6200 },
   event: { dur: 1.25, sample: "heavy", body: 58, air: 0.32, grain: 0.1, gain: 0.33, gate: 0.4 },
-  impact: { dur: 0.16, sample: "metal", body: 230, air: 0.1, grain: 0.05, gain: 0.19, gate: 0.025 },
-  hitArmor: { dur: 0.13, sample: "heavy", body: 135, air: 0.035, grain: 0.015, gain: 0.2, gate: 0.035, lowpass: 2200 },
-  hitOrganic: { dur: 0.14, sample: "flesh", body: 95, air: 0.05, grain: 0.025, gain: 0.21, gate: 0.035, lowpass: 1800 },
-  hitStone: { dur: 0.16, sample: "wood", body: 110, air: 0.07, grain: 0.065, gain: 0.2, gate: 0.035, lowpass: 2600 },
+  impact: { dur: 0.16, sample: "wood", body: 220, air: 0.06, grain: 0.03, gain: 0.19, gate: 0.025, lowpass: 2800 },
+  hitArmor: { dur: 0.13, sample: "heavy", body: 148, air: 0.028, grain: 0.012, gain: 0.2, gate: 0.035, lowpass: 2200 },
+  hitOrganic: {
+    dur: 0.14,
+    sample: "flesh",
+    body: 108,
+    air: 0.038,
+    grain: 0.018,
+    gain: 0.21,
+    gate: 0.035,
+    lowpass: 1800,
+  },
+  hitStone: { dur: 0.16, sample: "wood", body: 124, air: 0.05, grain: 0.04, gain: 0.2, gate: 0.035, lowpass: 2400 },
   hitCrystal: {
     dur: 0.17,
     sample: "glass",
-    body: 480,
-    air: 0.07,
-    grain: 0.035,
-    gain: 0.17,
+    body: 523,
+    air: 0.045,
+    grain: 0.022,
+    gain: 0.18,
     gate: 0.035,
-    lowpass: 6000,
+    lowpass: 5200,
   },
-  hitEnergy: { dur: 0.14, sample: "soft", body: 180, air: 0.16, grain: 0.03, gain: 0.2, gate: 0.035, lowpass: 1600 },
-  organic: { dur: 0.29, sample: "flesh", body: 95, air: 0.13, grain: 0.1, gain: 0.25, gate: 0.035 },
-  armor: { dur: 0.4, sample: "plate", body: 135, air: 0.12, grain: 0.08, gain: 0.28, gate: 0.04 },
-  glass: { dur: 0.4, sample: "glass", body: 710, air: 0.15, grain: 0.2, gain: 0.24, gate: 0.045 },
-  debris: { dur: 0.44, sample: "heavy", body: 115, air: 0.16, grain: 0.15, gain: 0.25, gate: 0.04 },
-  boom: { dur: 0.82, sample: "heavy", body: 52, air: 0.46, grain: 0.07, gain: 0.47, gate: 0.09 },
-  wind: { dur: 0.43, sample: "soft", body: 180, air: 0.32, grain: 0.08, gain: 0.21, gate: 0.09 },
-  warning: { dur: 0.65, sample: "metal", body: 610, air: 0.17, grain: 0.12, gain: 0.25, gate: 0.14, warn: true },
-  ui: { dur: 0.11, sample: "metal", body: 480, air: 0.04, grain: 0.03, gain: 0.14, gate: 0.06 },
-  reward: { dur: 0.55, sample: "glass", body: 810, air: 0.04, grain: 0.02, gain: 0.22, gate: 0.09 },
-  step: { dur: 0.22, sample: "concrete", body: 125, air: 0.06, grain: 0.03, gain: 0.23, gate: 0.045 },
+  hitEnergy: { dur: 0.14, sample: "soft", body: 196, air: 0.11, grain: 0.02, gain: 0.2, gate: 0.035, lowpass: 1800 },
+  organic: { dur: 0.29, sample: "flesh", body: 104, air: 0.09, grain: 0.06, gain: 0.24, gate: 0.035, lowpass: 2200 },
+  armor: { dur: 0.38, sample: "plate", body: 146, air: 0.08, grain: 0.05, gain: 0.26, gate: 0.04, lowpass: 2600 },
+  glass: { dur: 0.4, sample: "glass", body: 660, air: 0.09, grain: 0.1, gain: 0.23, gate: 0.045, lowpass: 5400 },
+  debris: { dur: 0.42, sample: "wood", body: 128, air: 0.1, grain: 0.09, gain: 0.24, gate: 0.04, lowpass: 2400 },
+  boom: { dur: 0.8, sample: "heavy", body: 55, air: 0.32, grain: 0.05, gain: 0.45, gate: 0.09, lowpass: 2100 },
+  wind: { dur: 0.42, sample: "soft", body: 196, air: 0.24, grain: 0.04, gain: 0.2, gate: 0.09, lowpass: 2200 },
+  warning: {
+    dur: 0.65,
+    sample: "plate",
+    body: 494,
+    air: 0.09,
+    grain: 0.05,
+    gain: 0.24,
+    gate: 0.14,
+    warn: true,
+    lowpass: 3400,
+  },
+  ui: { dur: 0.11, sample: "wood", body: 330, air: 0.02, grain: 0.012, gain: 0.13, gate: 0.055, lowpass: 2500 },
+  reward: { dur: 0.52, sample: "glass", body: 659, air: 0.025, grain: 0.012, gain: 0.2, gate: 0.08, lowpass: 4800 },
+  step: { dur: 0.21, sample: "concrete", body: 136, air: 0.045, grain: 0.022, gain: 0.21, gate: 0.045, lowpass: 2200 },
   room: { dur: 0.8, sample: "soft", body: 76, air: 0.4, grain: 0.09, gain: 0.16, gate: 0.08 },
   rain: { dur: 0.24, model: "rain", body: 1200, gain: 0.16, gate: 0 },
   water: { dur: 0.42, model: "water", body: 260, gain: 0.18, gate: 0 },
@@ -545,42 +575,40 @@ export class PhysicalVoices {
       low += 0.035 * (noise - low);
       band += center * (noise - band);
       if (p.model) {
-        // Soft, inharmonic air and resonator tones give place events their own signature.
+        // Warm, soothing procedural air, water droplet & glazed ceramic wind-chime resonators
         const bell = Math.sin(Math.PI * x) ** 2;
-        const flit = 0.5 + 0.5 * Math.sin(t * (18 + p.body * 0.013));
-        const drift = mechanical ? 0.11 * Math.cos(t * 7) : 0.075 * Math.sin(t * 11 + x * 4);
-        phase += (Math.PI * 2 * p.body * (0.84 + drift + (liquid ? 0.22 * Math.exp(-t * 28) : 0))) / rate;
+        const flit = 0.5 + 0.5 * Math.sin(t * (14 + p.body * 0.011));
+        const drift = mechanical ? 0.055 * Math.cos(t * 5.5) : 0.048 * Math.sin(t * 9 + x * 3.2);
+        phase += (Math.PI * 2 * p.body * (0.92 + drift + (liquid ? 0.18 * Math.exp(-t * 24) : 0))) / rate;
         const resonator =
-          Math.sin(phase + 0.82 * Math.sin(phase * 1.384)) * 0.22 + Math.sin(phase * 2.65 + 0.2) * 0.038;
+          Math.sin(phase + 0.42 * Math.sin(phase * 1.498)) * 0.22 + Math.sin(phase * 1.998 + 0.15) * 0.045;
         const value = ceramic
-          ? (Math.sin(phase) * 0.17 * Math.exp(-t * 3.7) +
-              Math.sin(phase * 2.68 + 0.18) * 0.11 * Math.exp(-t * 7.6) +
-              Math.sin(phase * 4.07) * 0.04 * Math.exp(-t * 14)) *
-            (0.9 + 0.1 * flit)
+          ? (Math.sin(phase) * 0.19 * Math.exp(-t * 3.4) +
+              Math.sin(phase * 1.996 + 0.14) * 0.1 * Math.exp(-t * 6.8) +
+              Math.sin(phase * 2.992) * 0.038 * Math.exp(-t * 12)) *
+            (0.92 + 0.08 * flit)
           : airy
-            ? (low * 0.47 + band * 0.49) * bell * (0.7 + 0.3 * flit)
+            ? (low * 0.56 + band * 0.38) * bell * (0.74 + 0.26 * flit)
             : liquid
-              ? (resonator * 0.69 + band * 0.29) * Math.exp(-t * 19) * (0.65 + 0.35 * flit)
-              : (resonator * (mechanical ? 0.64 : 1) + band * (mechanical ? 0.22 : 0.063)) *
-                bell *
-                (0.32 + 0.68 * flit);
+              ? (resonator * 0.74 + band * 0.22) * Math.exp(-t * 17) * (0.7 + 0.3 * flit)
+              : (resonator * (mechanical ? 0.72 : 1) + band * (mechanical ? 0.14 : 0.048)) * bell * (0.4 + 0.6 * flit);
         data[i] = value * Math.min(1, t / 0.009, (p.dur - t) / 0.024);
         continue;
       }
-      const attack = Math.min(1, t / (p.warn ? 0.04 : p.hold ? 0.012 : 0.002));
+      const attack = Math.min(1, t / (p.warn ? 0.042 : p.hold ? 0.014 : 0.003));
       const tail = Math.min(1, (p.dur - t) / 0.025);
       const envelope = p.warn
-        ? (0.2 + x * 0.8) * (0.6 + 0.4 * Math.sin(t * (10 + variant) * Math.PI * 2) ** 2)
+        ? (0.24 + x * 0.76) * (0.66 + 0.34 * Math.sin(t * (8.5 + variant) * Math.PI * 2) ** 2)
         : p.hold
           ? Math.sin(Math.PI * x) ** 0.5
-          : Math.exp(-t / (p.dur * 0.22));
-      const sweep = p.warn ? 0.64 + 0.49 * x + Math.floor(x * 4) * 0.045 : 0.88 + 0.41 * Math.exp(-t * 31);
+          : Math.exp(-t / (p.dur * 0.24));
+      const sweep = p.warn ? 0.74 + 0.38 * x + Math.floor(x * 4) * 0.035 : 0.92 + 0.28 * Math.exp(-t * 28);
       phase += (Math.PI * 2 * p.body * sweep) / rate;
-      const shimmer = Math.sin(phase * 1.73) * (0.68 + 0.32 * Math.cos(t * 21));
+      const shimmer = Math.sin(phase * 1.498) * (0.72 + 0.28 * Math.cos(t * 16));
       const modes =
-        Math.sin(phase + shimmer * 0.9) * 0.17 +
-        Math.sin(phase * 2.43 + 0.2) * 0.061 +
-        Math.sin(phase * 3.92) * 0.033 * Math.exp(-t * 7);
+        Math.sin(phase + shimmer * 0.38) * 0.18 +
+        Math.sin(phase * 1.998 + 0.16) * 0.064 +
+        Math.sin(phase * 2.996) * 0.028 * Math.exp(-t * 8);
       const air = (band - low) * p.air * (p.warn ? envelope : Math.exp(-t / (p.dur * 0.38)));
       const grains = noise * (Math.sin(t * 611 + variant) > 0.7 ? 1 : 0.1) * p.grain * Math.exp(-t * 22);
       let recorded = 0;
@@ -662,13 +690,17 @@ export function setNaturalWave(ctx, oscillator, shape) {
     const real = new Float32Array(24),
       imag = new Float32Array(24);
     const partials = {
-      ceramic: [1, 0.05, 0.41, 0.18, 0.08, 0.046, 0.06],
-      reed: [1, 0.045, 0.23, 0.019, 0.12, 0.04, 0.064],
-      brass: [1, 0.39, 0.31, 0.19, 0.091, 0.071, 0.041],
-      bow: [1, 0.23, 0.11, 0.07, 0.036, 0.031, 0.012],
-      triangle: [1, 0, 0.115, 0, 0.037],
-      square: [1, 0, 0.29, 0, 0.147, 0, 0.076],
-      sawtooth: [1, 0.35, 0.2, 0.11, 0.08, 0.057, 0.037],
+      ceramic: [1, 0.08, 0.29, 0.12, 0.05, 0.025],
+      kalimba: [1, 0.14, 0.26, 0.05, 0.08, 0.02],
+      celesta: [1, 0.07, 0.21, 0.13, 0.05, 0.024],
+      harp: [1, 0.42, 0.23, 0.11, 0.055, 0.026, 0.012],
+      marimba: [1, 0.04, 0.02, 0.25, 0.02, 0.01, 0.035],
+      reed: [1, 0.12, 0.22, 0.04, 0.09, 0.03],
+      brass: [1, 0.45, 0.25, 0.12, 0.05, 0.024],
+      bow: [1, 0.32, 0.15, 0.075, 0.035, 0.018],
+      triangle: [1, 0, 0.111, 0, 0.04],
+      square: [1, 0, 0.24, 0, 0.11, 0, 0.05],
+      sawtooth: [1, 0.32, 0.18, 0.09, 0.05, 0.03],
     }[shape];
     if (partials) imag.set(partials, 1);
     else imag[1] = 1;

@@ -176,8 +176,9 @@ in float vFlash;
 out vec4 fragColor;
 
 vec3 sampleSurface(vec2 uv) {
+  vec2 scale = vec2(0.988) / vec2(3.0, 2.0);
   vec2 tileUv = (uSurfaceTile + mix(vec2(0.006), vec2(0.994), fract(uv))) / vec2(3.0, 2.0);
-  return texture(uSurfaceAtlas, tileUv).rgb;
+  return textureGrad(uSurfaceAtlas, tileUv, dFdx(uv) * scale, dFdy(uv) * scale).rgb;
 }
 
 void main() {
@@ -204,48 +205,53 @@ void main() {
   // Crisp painted highlight stroke lift on bevels & ridges
   albedo += albedo * smoothstep(0.64, 0.92, glint) * 0.24;
 
-  // Subtle biome bounce tint on actors without washing out their silhouette colors
+  // Biome-harmonized glaze & cozy ground-weathering on actors (boots/skirts catch snow, moss, sand, hearth or rain bounce!)
   if (uBiomeSkin > 0.5) {
-    albedo = mix(albedo, albedo * (0.82 + uRimColor * 0.45), 0.14);
+    vec3 biomeTint = 0.80 + uHemiSky * 0.28 + uRimColor * 0.24;
+    albedo = mix(albedo, albedo * biomeTint, 0.22);
+    float footMask = smoothstep(0.58, 0.02, vLocalPos.y) * (0.65 + 0.35 * brush);
+    vec3 weatherCol = mix(uHemiGround, uHemiSky, 0.46) * 0.95 + uRimColor * 0.14;
+    albedo = mix(albedo, mix(albedo, weatherCol, 0.45), footMask * 0.38);
   }
 
-  // Expressive 3-band stylized cel lighting (Hades / Windblown feel)
+  // Expressive 3-band stylized cozy cel lighting with gentle upward warm lift
   float shadow = sampleShadow(vWorldPos, N);
   float rawNdl = dot(N, uSunDir);
-  float celMid = smoothstep(-0.08, 0.12, rawNdl) * mix(0.22, 1.0, shadow);
-  float celHi = smoothstep(0.46, 0.64, rawNdl) * shadow;
-  float cel = celMid * 0.64 + celHi * 0.36;
+  float celMid = smoothstep(-0.10, 0.14, rawNdl) * mix(0.26, 1.0, shadow);
+  float celHi = smoothstep(0.42, 0.64, rawNdl) * shadow;
+  float cel = celMid * 0.62 + celHi * 0.38;
 
-  // Rich hue-shifted cool/warm shadow tint (never muddy grey)
-  vec3 shadowCol = mix(uShadowTint, uHemiGround, 0.38) * 0.85;
-  vec3 keyLight = mix(shadowCol, uSunColor * uSunIntensity * 1.15, cel);
+  // Rich hue-shifted cool/warm shadow tint (never muddy grey) + subtle grounded bottom shading
+  float groundShade = mix(0.86, 1.04, smoothstep(-0.4, 0.6, N.y));
+  vec3 shadowCol = mix(uShadowTint, uHemiGround, 0.42) * 0.88;
+  vec3 keyLight = mix(shadowCol, uSunColor * uSunIntensity * 1.16, cel);
 
   // Hemisphere sky/ground bounce + angled stylized fill light
   float hemiK = N.y * 0.5 + 0.5;
-  vec3 hemi = mix(uHemiGround * 0.55, uHemiSky * 0.88, hemiK) * uHemiIntensity * 0.46;
-  float fillNdl = smoothstep(-0.05, 0.55, dot(N, uFillDir));
-  vec3 fill = uFillColor * uFillIntensity * fillNdl * 0.34;
+  vec3 hemi = mix(uHemiGround * 0.54, uHemiSky * 0.92, hemiK) * uHemiIntensity * 0.48;
+  float fillNdl = smoothstep(-0.08, 0.55, dot(N, uFillDir));
+  vec3 fill = uFillColor * uFillIntensity * fillNdl * 0.36;
 
   // Crisp cel-stepped specular glint (stronger on metal/armor/ice/crystal)
   vec3 H = normalize(uSunDir + V);
   float ndh = max(dot(N, H), 0.0);
   float specRaw = pow(ndh, max(uSpecPower * (1.2 - rough * 0.55), 8.0));
-  float specStep = smoothstep(0.28, 0.46, specRaw) * (0.12 + (1.0 - rough) * 0.48) * shadow;
-  vec3 spec = uSunColor * specStep * (0.5 + glint * 0.65);
+  float specStep = smoothstep(0.24, 0.44, specRaw) * (0.14 + (1.0 - rough) * 0.52) * shadow;
+  vec3 spec = uSunColor * specStep * (0.52 + glint * 0.68);
 
-  // Crisp Fresnel rim light so actors & cover silhouettes pop cleanly against every biome floor
-  float fresnel = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 2.5);
-  float rimMask = smoothstep(0.26, 0.62, fresnel) * (0.4 + 0.6 * max(N.y, 0.0));
-  vec3 rim = uRimColor * rimMask * uRimStrength * 0.82 * (0.55 + 0.45 * (1.0 - uDarkness * 0.6));
+  // Crisp Fresnel rim light so cute actors & cover silhouettes pop cleanly against both bright and dark floors
+  float fresnel = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 2.35);
+  float rimMask = smoothstep(0.24, 0.60, fresnel) * (0.42 + 0.58 * max(N.y, 0.0));
+  vec3 rim = uRimColor * rimMask * uRimStrength * 0.92 * (0.58 + 0.42 * (1.0 - uDarkness * 0.6));
 
-  vec3 lit = albedo * (keyLight + hemi + fill) + spec + rim;
+  vec3 lit = albedo * (keyLight + hemi + fill) * groundShade + spec + rim;
   lit += evalPointLights(vWorldPos, N, albedo);
   lit += uEmissive * uEmissiveIntensity;
 
-  // Punchy hit-flash (crisp warm-white stylized pop)
+  // Punchy hit-flash (crisp warm-cream stylized pop)
   if (vFlash > 0.001) {
     float fl = clamp(vFlash, 0.0, 1.0);
-    lit = mix(lit, vec3(2.2, 1.9, 1.45), fl * 0.82);
+    lit = mix(lit, vec3(2.45, 2.15, 1.65), fl * 0.86);
   }
 
   float alpha = uOpacity;
@@ -315,8 +321,9 @@ float fbm(vec2 p) {
 vec3 sampleTerrainTile(vec2 uv, int tileIdx) {
   float col = float(tileIdx % 3);
   float row = float(tileIdx / 3);
+  vec2 scale = vec2(0.990) / vec2(3.0, 2.0);
   vec2 cell = (vec2(col, row) + mix(vec2(0.005), vec2(0.995), fract(uv))) / vec2(3.0, 2.0);
-  return pow(max(texture(uTerrainAtlas, cell).rgb, vec3(0.0)), vec3(2.2));
+  return pow(max(textureGrad(uTerrainAtlas, cell, dFdx(uv) * scale, dFdy(uv) * scale).rgb, vec3(0.0)), vec3(2.2));
 }
 
 void main() {
@@ -348,59 +355,80 @@ void main() {
   float n2 = fbm(p * 0.42 + vec2(3.2, -1.9));
 
   if (style == 5) {
-    // BLACKOUT CITY: rain-slick dark slate plaza, subtle brass inlay seams, reflective storm puddles
-    float puddle = smoothstep(0.54, 0.67, n1);
-    float ripple = sin(length(fract(p * 0.22) - 0.5) * 28.0 - uTime * 5.0) * 0.5 + 0.5;
-    albedo = mix(albedo * 0.82, albedo * 1.18, smoothstep(0.3, 0.7, n2));
-    albedo = mix(albedo, uFloorTrim * 0.28, gridLine * 0.28 * inside);
-    // Rain puddle specular sky + cyan neon reflection
-    albedo = mix(albedo, mix(albedo * 0.45, uHemiSky * 0.24 + uFloorAccent * 0.16, 0.42 + ripple * 0.08), puddle * inside);
-    specBoost = mix(0.14, 0.65, puddle);
+    // BLACKOUT CITY: cozy rain-dappled slate courtyard, recessed flagstones, subtle organic wet puddles & warm lantern reflections
+    float puddle = smoothstep(0.56, 0.69, n1 + (n2 - 0.5) * 0.22);
+    float stoneVar = hash21(floor(p * 0.25 + 0.5));
+    albedo *= 0.86 + stoneVar * 0.22;
+    // Soft recessed stone mortar & gentle brass corner ticks instead of glaring grid stripes
+    float mortar = gridLine * inside;
+    albedo = mix(albedo, albedo * 0.52, mortar * 0.65);
+    float brassDot = (1.0 - smoothstep(0.015, 0.055, max(cell.x, cell.y))) * inside;
+    albedo = mix(albedo, uFloorTrim * 0.55, brassDot * 0.55);
+    // Natural glossy dark wet-slate puddle reflections with warm streetlamp shimmer
+    float sheen = 0.5 + 0.5 * sin(p.x * 0.9 - p.y * 0.7 + n2 * 4.5 + uTime * 1.4);
+    vec3 reflectCol = albedo * 0.42 + vec3(0.008, 0.016, 0.025) + uFloorTrim * (0.014 + sheen * 0.024);
+    albedo = mix(albedo, reflectCol, puddle * 0.78 * inside);
+    specBoost = mix(0.14, 0.85, puddle);
   } else if (style == 2) {
-    // AURORA SHELF: crisp alpine snow & deep glacial teal-blue fractured ice
-    float icePatch = smoothstep(0.45, 0.63, n1);
-    float crack = 1.0 - smoothstep(0.018, 0.065, abs(sin(p.x * 0.55 + p.y * 0.42 + n2 * 4.5)));
-    albedo = mix(albedo * 1.05, vec3(0.08, 0.30, 0.46), icePatch * 0.58);
-    albedo += vec3(0.16, 0.36, 0.52) * crack * 0.42 * inside;
-    albedo = mix(albedo, uFloorTrim * 0.42, gridLine * 0.14 * inside);
-    float shimmer = smoothstep(0.72, 0.96, sin(p.x * 0.8 - p.y * 0.5 + uTime * 1.4 + n2 * 5.0));
-    emissive += uFloorAccent * shimmer * icePatch * 0.18 * inside;
-    specBoost = mix(0.15, 0.62, icePatch);
+    // AURORA SHELF: bright powdery alpine snow & cozy crystal-blue frozen ponds with delicate aurora shimmer
+    float icePatch = smoothstep(0.50, 0.66, n1);
+    float drift = smoothstep(0.32, 0.76, fbm(p * 0.19 + vec2(0.4, -0.2)));
+    albedo = mix(albedo * 1.12, vec3(0.58, 0.76, 0.88), drift * 0.45);
+    albedo = mix(albedo, vec3(0.16, 0.44, 0.64), icePatch * 0.52);
+    // Soft delicate fracture lines only inside ice patches (not covering snow)
+    float crack = (1.0 - smoothstep(0.014, 0.048, abs(sin(p.x * 0.45 + p.y * 0.38 + n2 * 4.2)))) * icePatch;
+    albedo += vec3(0.24, 0.48, 0.62) * crack * 0.55 * inside;
+    // Faint snow-carved tile guides
+    albedo = mix(albedo, vec3(0.26, 0.46, 0.64), gridLine * 0.12 * inside);
+    float shimmer = smoothstep(0.68, 0.95, sin(p.x * 0.55 - p.y * 0.42 + uTime * 1.2 + n2 * 4.5));
+    emissive += uFloorAccent * shimmer * icePatch * 0.20 * inside;
+    specBoost = mix(0.12, 0.64, icePatch);
   } else if (style == 3) {
-    // GLOWMARSH: deep obsidian-teal bog water, mossy stone patches, vivid mint bioluminescent veins
-    float bogWater = smoothstep(0.52, 0.65, n1);
-    float vein = smoothstep(0.78, 0.93, sin(p.x * 0.6 + n2 * 6.0) * cos(p.y * 0.6 - n1 * 5.0));
-    float tide = 0.65 + 0.35 * sin(uTime * 1.6 + n1 * 4.0);
-    albedo = mix(albedo * 1.05, vec3(0.012, 0.045, 0.042), bogWater * 0.78);
-    albedo = mix(albedo, uFloorTrim * 0.22, gridLine * 0.16 * inside);
-    emissive += uFloorAccent * vein * tide * 0.48 * inside;
-    specBoost = mix(0.1, 0.58, bogWater);
+    // GLOWMARSH: cozy velvety moss turf, dark tranquil bog water, soft warm-mint glowing spore veins
+    float bogWater = smoothstep(0.55, 0.68, n1);
+    float mossTuft = smoothstep(0.38, 0.72, n2);
+    float vein = smoothstep(0.80, 0.94, sin(p.x * 0.52 + n2 * 5.2) * cos(p.y * 0.52 - n1 * 4.8));
+    float tide = 0.68 + 0.32 * sin(uTime * 1.4 + n1 * 3.8);
+    albedo = mix(albedo * 0.86, albedo * 1.22, mossTuft);
+    albedo = mix(albedo, vec3(0.018, 0.062, 0.058), bogWater * 0.72);
+    albedo = mix(albedo, albedo * 0.72, gridLine * 0.22 * inside);
+    emissive += uFloorAccent * vein * tide * (1.0 - bogWater * 0.5) * 0.44 * inside;
+    specBoost = mix(0.08, 0.56, bogWater);
   } else if (style == 4) {
-    // SHATTERED CORE: deep fractured obsidian sanctuary with pulsing violet-magenta rift seams
-    float beat = 0.72 + 0.28 * pow(0.5 + 0.5 * sin(uTime * 2.8), 2.0);
-    float rift = 1.0 - smoothstep(0.018, 0.068, abs(sin(p.x * 0.48 - p.y * 0.44 + n1 * 5.2)));
-    float hexRing = 1.0 - smoothstep(0.016, 0.048, abs(fract(length(p) * 0.14) - 0.5));
-    albedo = mix(albedo * 0.84, albedo * 1.15, smoothstep(0.35, 0.75, n2));
-    albedo = mix(albedo, uFloorTrim * 0.32, gridLine * 0.22 * inside);
-    emissive += mix(uFloorTrim, uFloorAccent, n2) * (rift * 0.72 + hexRing * 0.14) * beat * inside;
-    specBoost = 0.26;
+    // SHATTERED CORE: deep velvety midnight-obsidian flagstones with calm, jewel-like lavender & rose-gold rift veins
+    float beat = 0.74 + 0.26 * pow(0.5 + 0.5 * sin(uTime * 2.2), 2.0);
+    float slab = hash21(floor(p * 0.25 + 0.5));
+    albedo *= 0.68 + slab * 0.22;
+    albedo = mix(albedo, albedo * 0.55, gridLine * 0.45 * inside);
+    // Calm, organic obsidian fissures masked by fbm so they form elegant clusters instead of noisy stripes
+    float riftMask = smoothstep(0.44, 0.66, n1);
+    float rift = (1.0 - smoothstep(0.012, 0.052, abs(sin(p.x * 0.36 - p.y * 0.32 + n2 * 5.0)))) * riftMask;
+    float starDust = smoothstep(0.88, 0.98, vnoise(p * 1.85 + vec2(1.7, -2.3))) * (0.5 + 0.5 * sin(uTime * 2.5 + n2 * 8.0));
+    emissive += mix(uFloorTrim, uFloorAccent, n2) * rift * 0.68 * beat * inside;
+    emissive += uFloorTrim * starDust * 0.42 * inside;
+    specBoost = 0.30;
   } else if (style == 6) {
-    // ASHFALL CALDERA: charred dark volcanic basalt slabs split by molten orange-gold magma veins
-    float magma = 1.0 - smoothstep(0.016, 0.078, abs(sin(p.x * 0.52 + p.y * 0.36 + n1 * 5.8)));
-    float glow = 0.75 + 0.25 * sin(uTime * 2.4 + p.x * 0.4 - p.y * 0.3);
-    albedo = mix(albedo * 0.76, albedo * 1.08, smoothstep(0.3, 0.7, n2));
-    albedo = mix(albedo, uFloorTrim * 0.25, gridLine * 0.16 * inside);
-    emissive += mix(vec3(1.15, 0.14, 0.02), vec3(1.65, 0.72, 0.12), smoothstep(0.35, 0.88, magma * glow)) * magma * 0.92 * inside;
-    specBoost = 0.14;
+    // ASHFALL CALDERA: rich dark charcoal cooled basalt slabs split by warm, varied incandescent magma pockets
+    float slab = hash21(floor(p * 0.25 + 0.5));
+    albedo *= 0.62 + slab * 0.24;
+    albedo = mix(albedo, albedo * 0.52, gridLine * 0.45 * inside);
+    // Natural magma fissures clustered in organic patches so volcanic stone stays dark & moody while lava glows hot!
+    float pocket = smoothstep(0.36, 0.64, n1);
+    float crackLine = 1.0 - smoothstep(0.014, 0.068, abs(sin(p.x * 0.42 + p.y * 0.31 + n2 * 5.4)));
+    float magma = crackLine * (0.28 + 0.72 * pocket);
+    float emberGlow = 0.76 + 0.24 * sin(uTime * 2.2 + p.x * 0.35 - p.y * 0.28);
+    vec3 lavaCol = mix(vec3(1.1, 0.14, 0.02), vec3(1.85, 0.82, 0.14), smoothstep(0.25, 0.85, magma * emberGlow));
+    emissive += lavaCol * magma * 1.05 * inside;
+    specBoost = 0.16;
   } else {
-    // GLASS FLATS: warm sun-baked ochre sandstone & reflective turquoise-tinted vitrified desert glass
-    float glass = smoothstep(0.50, 0.63, n1);
-    float ripple = sin(p.y * 1.8 + n2 * 4.0) * 0.5 + 0.5;
-    albedo = mix(albedo * (0.86 + ripple * 0.18), vec3(0.14, 0.28, 0.28), glass * 0.46);
-    albedo = mix(albedo, uFloorTrim * 0.45, gridLine * 0.22 * inside);
-    float glint = smoothstep(0.76, 0.97, sin(p.x * 0.7 + p.y * 0.5 - uTime * 1.2 + n2 * 4.0));
-    emissive += uFloorAccent * glint * glass * 0.22 * inside;
-    specBoost = mix(0.14, 0.66, glass);
+    // GLASS FLATS: bright sun-baked creamy ochre sandstone dunes & sparkling turquoise vitrified-glass oases
+    float glass = smoothstep(0.52, 0.66, n1);
+    float ripple = sin(p.y * 1.4 + p.x * 0.35 + n2 * 3.5) * 0.5 + 0.5;
+    albedo = mix(albedo * (0.94 + ripple * 0.14), vec3(0.22, 0.52, 0.50), glass * 0.52);
+    albedo = mix(albedo, albedo * 0.84, gridLine * 0.20 * inside);
+    float glint = smoothstep(0.72, 0.96, sin(p.x * 0.65 + p.y * 0.48 - uTime * 1.3 + n2 * 4.2));
+    emissive += uFloorAccent * glint * glass * 0.28 * inside;
+    specBoost = mix(0.14, 0.68, glass);
   }
 
   // Crisp glowing arena perimeter trim + exterior framing vignette
@@ -766,26 +794,43 @@ void main() {
 
   const bodies = {
     molten: `
-      float ribs = 1.0 - smoothstep(0.05, 0.14, abs(sin(a * 8.0 + 3.0 * r - uTime * 1.1 + seed)));
-      float heart = exp(-r * r * 5.0);
-      vec3 dark = vec3(0.14, 0.04, 0.03);
-      vec3 magma = mix(vec3(1.15, 0.34, 0.08), vec3(1.5, 1.08, 0.42), clamp(heart + ribs * 0.5, 0.0, 1.0));
-      col = mix(dark, magma, clamp((ribs * 0.65 + heart * 0.85 + rim * 0.7) * strength, 0.0, 1.0));
+      // Organic bubbling volcanic magma caldera pool with dark cooled crust islands & fiery orange-gold heart
+      float warp = sin(vP.x * 5.2 + seed) * cos(vP.y * 4.8 - seed * 0.7);
+      float crust = smoothstep(0.22, 0.68, sin(r * 7.8 + warp * 2.4 - uTime * 1.1) * 0.5 + 0.5);
+      float heart = exp(-r * r * 4.2) * (0.86 + 0.14 * sin(uTime * 3.2 + seed));
+      float cracks = (1.0 - crust) * (1.0 - r * 0.55);
+      vec3 dark = vec3(0.07, 0.025, 0.02);
+      vec3 lavaRed = vec3(0.96, 0.16, 0.015);
+      vec3 lavaGold = vec3(1.58, 0.62, 0.05);
+      vec3 hotCore = vec3(1.85, 1.05, 0.22);
+      float heat = clamp(heart * 0.88 + cracks * 0.58, 0.0, 1.0);
+      vec3 magma = mix(lavaRed, lavaGold, smoothstep(0.08, 0.72, heat));
+      magma = mix(magma, hotCore, smoothstep(0.76, 1.0, heat));
+      col = mix(dark, magma, clamp((cracks * 0.74 + heart * 0.92 + rim * 0.48) * strength, 0.0, 1.0));
     `,
     ice: `
-      vec2 g = vec2(vP.x + vP.y, vP.y - vP.x);
-      float lines = (1.0 - smoothstep(0.03, 0.09, abs(sin(g.x * 10.0 + seed)))) +
-                    (1.0 - smoothstep(0.03, 0.09, abs(sin(g.y * 10.0))));
-      float facets = pow(abs(cos(a * 3.0 + seed)), 8.0);
-      col = mix(vec3(0.18, 0.38, 0.52), vec3(0.84, 0.98, 1.12), clamp(lines * 0.35 + facets * 0.22 + rim * 0.65, 0.0, 1.0));
-      alpha *= 0.88;
+      // Natural cozy frozen glacier pond with organic crystalline fracture veins & soft snowy frost edge
+      float w1 = sin(vP.x * 4.5 + vP.y * 3.2 + seed);
+      float w2 = cos(vP.x * 3.6 - vP.y * 5.1 + seed * 1.7);
+      float crackA = 1.0 - smoothstep(0.015, 0.065, abs(sin(a * 3.0 + w1 * 1.4 + seed) * r));
+      float crackB = 1.0 - smoothstep(0.02, 0.075, abs(r - 0.52 + w2 * 0.12));
+      float gloss = smoothstep(0.35, 0.85, 0.5 + 0.5 * (w1 * 0.6 + w2 * 0.4));
+      float frostRim = smoothstep(0.72, 0.96, r);
+      vec3 deepIce = vec3(0.18, 0.48, 0.72);
+      vec3 paleIce = vec3(0.62, 0.88, 1.02);
+      vec3 snowEdge = vec3(0.92, 0.98, 1.06);
+      col = mix(deepIce, paleIce, clamp(gloss * 0.55 + crackA * 0.38 + crackB * 0.25, 0.0, 1.0));
+      col = mix(col, snowEdge, clamp(frostRim * 0.78 + rim * 0.45, 0.0, 1.0));
+      alpha *= 0.84;
     `,
     acid: `
-      float rot = a + 0.34 * sin(r * 8.0 - uTime * 1.1 + seed);
-      float veins = 1.0 - smoothstep(0.1, 0.24, abs(sin(rot * 6.0 + 3.0 * r)));
-      vec3 pig = mix(vec3(0.28, 0.86, 0.52), vec3(0.24, 0.88, 1.05), clamp(vI.b, 0.0, 1.0));
-      col = mix(vec3(0.05, 0.16, 0.11), pig * 1.15, 0.32 + veins * 0.45 + rim * 0.35);
-      alpha *= 0.84;
+      // Cozy glowing bioluminescent bog pool with gentle swirling mint ripples
+      float rot = a + 0.45 * sin(r * 6.5 - uTime * 1.0 + seed);
+      float swirl = 0.5 + 0.5 * sin(rot * 4.0 + r * 4.2);
+      float ringGlow = smoothstep(0.65, 0.92, swirl) * (1.0 - r * 0.4);
+      vec3 pig = mix(vec3(0.24, 0.84, 0.54), vec3(0.24, 0.88, 1.05), clamp(vI.b, 0.0, 1.0));
+      col = mix(vec3(0.04, 0.16, 0.12), pig * 1.12, 0.28 + ringGlow * 0.48 + rim * 0.32);
+      alpha *= 0.86;
     `,
     portal: `
       vec3 ribbon = mix(vec3(0.84, 0.45, 1.28), vec3(0.32, 1.08, 0.88), vI.b);
@@ -796,7 +841,7 @@ void main() {
     dust: `
       float ribbons = pow(0.5 + 0.5 * sin(a * 5.0 + log(r + 0.09) * 6.0 - uTime * 3.0 + seed), 4.0);
       float edge = 1.0 - smoothstep(0.45, 0.98, r);
-      col = mix(vec3(0.45, 0.30, 0.18), vec3(0.95, 0.76, 0.46), ribbons);
+      col = mix(vec3(0.54, 0.38, 0.22), vec3(1.02, 0.84, 0.54), ribbons);
       alpha = edge * (ribbons * 0.75 + 0.18) * strength;
     `,
   };

@@ -1,4 +1,4 @@
-"""Synthesize Riftline's original short excitation bank at 22,050 Hz."""
+"""Synthesize Riftline's cozy handcrafted acoustic excitation bank at 22,050 Hz."""
 from pathlib import Path
 import json
 import math
@@ -9,47 +9,56 @@ import wave
 ROOT = Path(__file__).resolve().parent.parent
 RATE = 22050
 TAU = math.tau
-# Clip, length, fundamental, detuned upper modes, brightness, dispersion.
+
+# Clip, length, fundamental (Hz), warm modal overtones, soft velvet breath, modal dispersion.
+# Tuned for tactile, non-fatiguing miniature-world materials: felted kalimba, rosewood marimba,
+# glazed celesta bells, mellow antique brass, clay hand-drums, powdery snow & mossy reeds.
 CLIPS = [
-    ("stylus_tap_000", .19, 482, (1, 2.53, 4.21), .22, .003),
-    ("stylus_tap_001", .21, 531, (1, 2.37, 4.19), .23, .007),
-    ("ceramic_knock_000", .34, 233, (1, 2.19, 3.72), .29, .014),
-    ("ceramic_knock_001", .39, 207, (1, 2.36, 4.15), .32, .012),
-    ("brass_plate", .45, 188, (1, 2.85, 4.09), .11, .007),
-    ("porcelain_burst_000", .37, 617, (1, 1.55, 2.39, 4.24), .29, .016),
-    ("porcelain_burst_001", .42, 587, (1, 1.91, 2.49, 4.53), .35, .023),
-    ("clay_thump", .24, 122, (1, 1.91, 2.57), .36, .016),
-    ("felt_tap", .20, 171, (1, 1.39, 2.18), .26, .008),
-    ("wooden_resonator", .29, 311, (1, 1.57, 3.22), .16, .012),
-    ("stone_step_000", .17, 163, (1, 2.1, 4.7), .43, .011),
-    ("stone_step_001", .18, 177, (1, 2.28, 4.85), .39, .008),
-    ("frost_step", .26, 292, (1, 2.14, 3.37), .68, .027),
-    ("reed_step", .24, 147, (1, 1.91, 3.77), .57, .019),
-    ("panel_step", .21, 196, (1, 2.75, 4.12), .28, .009),
-    ("reed_release", .18, 321, (1, 1.53, 2.74), .35, .009),
-    ("spindle_strike", .36, 361, (1, 2.94, 4.67), .15, .008),
-    ("compressed_coil", .21, 139, (1, 2.37, 4.2), .56, .005),
-    ("split_reed_release", .26, 104, (1, 2.31, 3.64), .53, .017),
+    ("stylus_tap_000", .19, 392, (1, 2.0, 3.01, 4.02), .09, .003),
+    ("stylus_tap_001", .21, 440, (1, 1.99, 2.99, 4.01), .10, .005),
+    ("ceramic_knock_000", .34, 220, (1, 1.98, 2.97, 3.96), .13, .010),
+    ("ceramic_knock_001", .39, 196, (1, 2.01, 3.02, 3.98), .14, .009),
+    ("brass_plate", .45, 175, (1, 1.50, 2.01, 3.01), .07, .006),
+    ("porcelain_burst_000", .37, 523, (1, 1.50, 2.00, 3.01), .12, .012),
+    ("porcelain_burst_001", .42, 587, (1, 1.50, 2.01, 2.99), .14, .015),
+    ("clay_thump", .24, 116, (1, 1.51, 2.03), .16, .011),
+    ("felt_tap", .20, 165, (1, 1.498, 2.00), .10, .006),
+    ("wooden_resonator", .29, 277, (1, 1.50, 2.02, 3.00), .10, .008),
+    ("stone_step_000", .17, 155, (1, 1.62, 2.48), .22, .008),
+    ("stone_step_001", .18, 168, (1, 1.66, 2.54), .20, .007),
+    ("frost_step", .26, 262, (1, 1.75, 2.65), .34, .018),
+    ("reed_step", .24, 142, (1, 1.58, 2.42), .28, .014),
+    ("panel_step", .21, 185, (1, 2.00, 2.98), .15, .007),
+    ("reed_release", .18, 294, (1, 1.50, 2.02), .18, .006),
+    ("spindle_strike", .36, 330, (1, 1.99, 2.98, 4.00), .10, .006),
+    ("compressed_coil", .21, 131, (1, 1.50, 2.01, 3.02), .24, .005),
+    ("split_reed_release", .26, 98, (1, 1.51, 2.02, 2.98), .26, .012),
 ]
 
 
 def render(index, length, f, partials, hiss, scatter):
     rnd = random.Random(2871 + index)
     pcm = []
-    lp = 0
+    lp1 = 0.0
+    lp2 = 0.0
     for i in range(round(RATE * length)):
         t = i / RATE
-        lp += .17 * (rnd.uniform(-1, 1) - lp)
-        y = hiss * lp * math.exp(-t / .033)
+        # Two-pole velvet-filtered onset breath (warm tactile transient, zero harsh sizzle)
+        lp1 += .14 * (rnd.uniform(-1, 1) - lp1)
+        lp2 += .22 * (lp1 - lp2)
+        y = hiss * lp2 * math.exp(-t / .028)
         for k, m in enumerate(partials):
-            d = max(0, t - scatter * k)
-            onset = min(1, d / .003)
-            swing = .016 * (1 - math.exp(-d * 66))
+            d = max(0.0, t - scatter * k)
+            onset = min(1.0, d / .0035)
+            # Gentle acoustic pitch settle on strike
+            swing = .011 * (1.0 - math.exp(-d * 54.0))
+            decay = length * max(.08, .30 - k * .045)
             y += (math.sin(TAU * f * m * (d + swing)) * onset *
-                  math.exp(-d / (length * (.26 - k*.036))) / (1 + k * 1.1))
-        y *= min(1, t/.003, (length-t)/.021)
-        pcm.append(y)
-    peak = max(map(abs, pcm))
+                  math.exp(-d / decay) / (1.0 + k * 1.25))
+        # Smooth zero-crossing start and clean fade-out tail
+        env = min(1.0, t / .0035, (length - t) / .024)
+        pcm.append(y * max(0.0, env))
+    peak = max(map(abs, pcm)) or 1.0
     return [round(y / peak * .74 * 32767) for y in pcm]
 
 

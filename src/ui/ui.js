@@ -465,6 +465,10 @@ const getById = (id) => document.getElementById(id),
       markHomeViewDirty();
       for (let id of menuScreens) getById(id).hidden = id !== screen;
       this.screen = screen;
+      if (menuScreens.includes(screen) && !this.rlFromPause) {
+        const app = getById("app");
+        if (app) delete app.dataset.biome;
+      }
       if (screen === "home") {
         this.stack = [];
         this.renderHome();
@@ -958,7 +962,15 @@ const getById = (id) => document.getElementById(id),
             apply(value);
           }
         },
+        biomeId = world.arena?.biome?.id || "",
         hp = Math.max(0, Math.ceil(player.hp));
+      update("biome", biomeId, (id) => {
+        const app = getById("app");
+        if (app) {
+          if (id) app.dataset.biome = id;
+          else delete app.dataset.biome;
+        }
+      });
       update("hp", hp + "/" + stats.maxHp, (text) => {
         getById("hpNum").textContent = text;
       });

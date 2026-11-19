@@ -72,7 +72,18 @@ function createProgram(gl, vsSrc, fsSrc, label) {
     const name = info.name.replace(/\[0\]$/, "");
     uniforms[name] = gl.getUniformLocation(prog, info.name);
   }
-  return { program: prog, uniforms, label };
+  // Bind static sampler texture units once at program link time
+  gl.useProgram(prog);
+  if (uniforms.uShadowMap) gl.uniform1i(uniforms.uShadowMap, 0);
+  if (uniforms.uTerrainAtlas) gl.uniform1i(uniforms.uTerrainAtlas, 1);
+  if (uniforms.uSurfaceAtlas) gl.uniform1i(uniforms.uSurfaceAtlas, 2);
+  if (uniforms.uVfxAtlas) gl.uniform1i(uniforms.uVfxAtlas, 3);
+  if (uniforms.uOcclusion) gl.uniform1i(uniforms.uOcclusion, 4);
+  if (uniforms.uSrc) gl.uniform1i(uniforms.uSrc, 0);
+  if (uniforms.uScene) gl.uniform1i(uniforms.uScene, 0);
+  if (uniforms.uBloom) gl.uniform1i(uniforms.uBloom, 1);
+  gl.useProgram(null);
+  return { program: prog, uniforms, label, boundFrame: -1, id: 0, cache: Object.create(null), modelIdent: false };
 }
 
 export class WebGL2Engine {
@@ -115,7 +126,8 @@ export class WebGL2Engine {
     this.bloomB = null;
 
     // Preallocated scratch buffers (zero per-frame allocations)
-    this._shadows = [];
+    this._shadowsStatic = [];
+    this._shadowsInst = [];
     this._opaque = [];
     this._trans = [];
     this._pointPos = new Float32Array(32);
@@ -128,13 +140,16 @@ export class WebGL2Engine {
     this._lightProj = new Mat4();
     this._lightSpace = new Mat4();
     this._identity = new Mat4();
+    this._nextProgId = 1;
 
     // Cached GL state
     this._curProg = null;
+    this._curVao = null;
     this._curBlend = "";
     this._curDepthWrite = null;
     this._curDepthTest = null;
     this._curCull = null;
+    this._shadowDepthAttach = [gl.DEPTH_ATTACHMENT];
 
     this._initShadowTarget();
     this._initContextHandlers();
@@ -355,6 +370,8 @@ export class WebGL2Engine {
         }
     }
     p = createProgram(this.gl, src.vs, src.fs, key);
+    this._curProg = null;
+    p.id = this._nextProgId++;
     this.programs.set(key, p);
     return p;
   }
@@ -363,6 +380,13 @@ export class WebGL2Engine {
     if (this._curProg !== p) {
       this.gl.useProgram(p.program);
       this._curProg = p;
+    }
+  }
+
+  _bindVao(vao) {
+    if (this._curVao !== vao) {
+      this.gl.bindVertexArray(vao);
+      this._curVao = vao;
     }
   }
 
@@ -457,6 +481,7 @@ export class WebGL2Engine {
     }
 
     gl.bindVertexArray(null);
+    this._curVao = null;
     geo._gpu = { gl, vao, vboPos, vboNorm, vboUv, vboCol, ibo, indexType, count, version: geo.version };
     return geo._gpu;
   }
@@ -516,6 +541,7 @@ export class WebGL2Engine {
       gl.vertexAttribDivisor(9, 1);
 
       gl.bindVertexArray(null);
+      this._curVao = null;
       node._gpuInst = { gl, vao, matBuf, colBuf, flashBuf, geoVersion: base.version };
       node.dirtyCount = Math.max(node.dirtyCount, node.count);
     }
@@ -524,12 +550,14 @@ export class WebGL2Engine {
       const n = Math.min(node.dirtyCount, node.max);
       const gpu = node._gpuInst;
       gl.bindBuffer(gl.ARRAY_BUFFER, gpu.matBuf);
-      gl.bufferSubData(gl.ARRAY_BUFFER, 0, node.instanceMatrix.subarray(0, n * 16));
-      gl.bindBuffer(gl.ARRAY_BUFFER, gpu.colBuf);
-      gl.bufferSubData(gl.ARRAY_BUFFER, 0, node.instanceColor.subarray(0, n * 3));
+      gl.bufferSubData(gl.ARRAY_BUFFER, 0, node.instanceMatrix, 0, n * 16);
+      if (node.hasColor) {
+        gl.bindBuffer(gl.ARRAY_BUFFER, gpu.colBuf);
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, node.instanceColor, 0, n * 3);
+      }
       if (node.hasFlash) {
         gl.bindBuffer(gl.ARRAY_BUFFER, gpu.flashBuf);
-        gl.bufferSubData(gl.ARRAY_BUFFER, 0, node.instanceFlash.subarray(0, n));
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, node.instanceFlash, 0, n);
       }
       node.dirtyCount = 0;
     }
@@ -568,16 +596,23 @@ export class WebGL2Engine {
 
   _uniformLinear3(loc, col) {
     if (!loc || !col) return;
-    this.gl.uniform3f(
-      loc,
-      Math.pow(Math.max(0, col.r), 2.2),
-      Math.pow(Math.max(0, col.g), 2.2),
-      Math.pow(Math.max(0, col.b), 2.2),
-    );
+    if (col._cr !== col.r || col._cg !== col.g || col._cb !== col.b) {
+      col._cr = col.r;
+      col._cg = col.g;
+      col._cb = col.b;
+      col._lr = col.r > 0 ? Math.pow(col.r, 2.2) : 0;
+      col._lg = col.g > 0 ? Math.pow(col.g, 2.2) : 0;
+      col._lb = col.b > 0 ? Math.pow(col.b, 2.2) : 0;
+    }
+    this.gl.uniform3f(loc, col._lr, col._lg, col._lb);
   }
 
-  _bindCommonUniforms(u, scene, camera) {
+  _bindCommonUniforms(prog, scene, camera) {
+    const frame = this.info.render.frame;
+    if (prog.boundFrame === frame) return;
+    prog.boundFrame = frame;
     const gl = this.gl;
+    const u = prog.uniforms;
     if (u.uViewProj) gl.uniformMatrix4fv(u.uViewProj, false, camera.viewProjMatrix.elements);
     if (u.uLightSpace) gl.uniformMatrix4fv(u.uLightSpace, false, this._lightSpace.elements);
     if (u.uCamPos) gl.uniform3f(u.uCamPos, camera.position.x, camera.position.y, camera.position.z);
@@ -595,69 +630,97 @@ export class WebGL2Engine {
     if (u.uFillIntensity) gl.uniform1f(u.uFillIntensity, scene.fillIntensity);
     this._uniformLinear3(u.uShadowTint, scene.shadowTint);
     this._uniformLinear3(u.uRimColor, scene.rimColor);
-    if (u.uDarkness) gl.uniform1f(u.uDarkness, scene.darkness);
+    this._u1f(prog, "uDarkness", scene.darkness);
     if (u.uBiomeIndex) gl.uniform1i(u.uBiomeIndex, scene.biomeIndex);
     if (u.uPointPos) gl.uniform4fv(u.uPointPos, this._pointPos);
     if (u.uPointCol) gl.uniform4fv(u.uPointCol, this._pointCol);
-    if (u.uShadowMap) gl.uniform1i(u.uShadowMap, 0);
     if (u.uShadowsEnabled) gl.uniform1f(u.uShadowsEnabled, this.shadowMap.enabled ? 1 : 0);
-    if (u.uTerrainAtlas) gl.uniform1i(u.uTerrainAtlas, 1);
     if (u.uTerrainReady) gl.uniform1f(u.uTerrainReady, this.textures.terrain?.ready ? 1 : 0);
-    if (u.uSurfaceAtlas) gl.uniform1i(u.uSurfaceAtlas, 2);
     if (u.uSurfaceReady) gl.uniform1f(u.uSurfaceReady, this.textures.surface?.ready ? 1 : 0);
-    if (u.uVfxAtlas) gl.uniform1i(u.uVfxAtlas, 3);
     if (u.uVfxReady) gl.uniform1f(u.uVfxReady, this.textures.vfx?.ready ? 1 : 0);
-    if (u.uOcclusion) gl.uniform1i(u.uOcclusion, 4);
+  }
+
+  _u1f(prog, name, val) {
+    const loc = prog.uniforms[name];
+    if (loc && prog.cache[name] !== val) {
+      prog.cache[name] = val;
+      this.gl.uniform1f(loc, val);
+    }
+  }
+
+  _u1i(prog, name, val) {
+    const loc = prog.uniforms[name];
+    if (loc && prog.cache[name] !== val) {
+      prog.cache[name] = val;
+      this.gl.uniform1i(loc, val);
+    }
+  }
+
+  _uModel(prog, node) {
+    const loc = prog.uniforms.uModel;
+    if (!loc) return;
+    if (node._worldIdentity) {
+      if (!prog.modelIdent) {
+        this.gl.uniformMatrix4fv(loc, false, this._identity.elements);
+        prog.modelIdent = true;
+      }
+      return;
+    }
+    prog.modelIdent = false;
+    this.gl.uniformMatrix4fv(loc, false, node.worldMatrix.elements);
   }
 
   _drawNode(node, scene, camera) {
     const gl = this.gl;
     const mat = node.material;
     const inst = !!node.isInstancedMesh;
-    const key = inst ? `${mat.shader}_inst` : mat.shader;
-    const prog = this._getProgram(key);
+    const prog = node._cachedProg || this._getProgram(inst ? `${mat.shader}_inst` : mat.shader);
     this._useProgram(prog);
     this._setState(mat);
+    this._bindCommonUniforms(prog, scene, camera);
     const u = prog.uniforms;
-    this._bindCommonUniforms(u, scene, camera);
-    if (u.uModel) gl.uniformMatrix4fv(u.uModel, false, node.worldMatrix.elements);
+    this._uModel(prog, node);
 
     if (mat.shader === "stylized") {
       const spec = SURFACE_SPEC[mat.surface] || SURFACE_SPEC.stone;
-      gl.uniform2f(u.uSurfaceTile, spec[0], spec[1]);
+      if (prog.cache.st0 !== spec[0] || prog.cache.st1 !== spec[1]) {
+        prog.cache.st0 = spec[0];
+        prog.cache.st1 = spec[1];
+        gl.uniform2f(u.uSurfaceTile, spec[0], spec[1]);
+      }
       this._uniformLinear3(u.uBaseColor, mat.color);
       this._uniformLinear3(u.uEmissive, mat.emissive);
-      gl.uniform1f(u.uEmissiveIntensity, mat.emissiveIntensity);
-      gl.uniform1f(u.uOpacity, mat.opacity);
-      gl.uniform1f(u.uRimStrength, mat.rimStrength ?? spec[2]);
-      gl.uniform1f(u.uSpecPower, spec[3]);
-      gl.uniform1f(u.uBiomeSkin, mat.biomeSkin ? 1 : 0);
-      gl.uniform1f(u.uFogEnabled, mat.fog ? 1 : 0);
-      gl.uniform1f(u.uDustFade, mat.surface === "dust" ? 1 : 0);
-      if (u.uUseVertexColors) gl.uniform1f(u.uUseVertexColors, mat.vertexColors ? 1 : 0);
-      if (u.uReedWind) gl.uniform1f(u.uReedWind, mat.reedWind ? 1 : 0);
+      this._u1f(prog, "uEmissiveIntensity", mat.emissiveIntensity);
+      this._u1f(prog, "uOpacity", mat.opacity);
+      this._u1f(prog, "uRimStrength", mat.rimStrength ?? spec[2]);
+      this._u1f(prog, "uSpecPower", spec[3]);
+      this._u1f(prog, "uBiomeSkin", mat.biomeSkin ? 1 : 0);
+      this._u1f(prog, "uFogEnabled", mat.fog ? 1 : 0);
+      this._u1f(prog, "uDustFade", mat.surface === "dust" ? 1 : 0);
+      this._u1f(prog, "uUseVertexColors", mat.vertexColors ? 1 : 0);
+      this._u1f(prog, "uReedWind", mat.reedWind ? 1 : 0);
     } else if (mat.shader === "emissive") {
       this._uniformLinear3(u.uBaseColor, mat.color);
-      gl.uniform1f(u.uEmissiveIntensity, mat.emissiveIntensity);
-      gl.uniform1f(u.uOpacity, mat.opacity);
-      gl.uniform1f(u.uFogEnabled, mat.fog ? 1 : 0);
-      gl.uniform1f(u.uAdditive, mat.additive ? 1 : 0);
-      if (u.uSpriteTile) gl.uniform1i(u.uSpriteTile, mat.spriteTile);
-      if (u.uUseVertexColors) gl.uniform1f(u.uUseVertexColors, mat.vertexColors ? 1 : 0);
+      this._u1f(prog, "uEmissiveIntensity", mat.emissiveIntensity);
+      this._u1f(prog, "uOpacity", mat.opacity);
+      this._u1f(prog, "uFogEnabled", mat.fog ? 1 : 0);
+      this._u1f(prog, "uAdditive", mat.additive ? 1 : 0);
+      this._u1i(prog, "uSpriteTile", mat.spriteTile);
+      this._u1f(prog, "uUseVertexColors", mat.vertexColors ? 1 : 0);
     } else if (mat.shader === "floor") {
       const mu = mat.uniforms;
       if (u.uHalf && mu.uHalf) gl.uniform2f(u.uHalf, mu.uHalf.value.x, mu.uHalf.value.y);
       if (mu.uGlaze) this._uniformLinear3(u.uFloorBase, mu.uGlaze.value);
       if (mu.uGrid) this._uniformLinear3(u.uFloorTrim, mu.uGrid.value);
       if (mu.uAccent) this._uniformLinear3(u.uFloorAccent, mu.uAccent.value);
-      if (u.uPulse && mu.uPulse) gl.uniform1f(u.uPulse, mu.uPulse.value);
-      if (u.uStyle && mu.uStyle) gl.uniform1f(u.uStyle, mu.uStyle.value);
-      if (u.uDarkness && mu.uDark) gl.uniform1f(u.uDarkness, mu.uDark.value);
+      if (mu.uPulse) this._u1f(prog, "uPulse", mu.uPulse.value);
+      if (mu.uStyle) this._u1f(prog, "uStyle", mu.uStyle.value);
+      if (mu.uDark) this._u1f(prog, "uDarkness", mu.uDark.value);
     } else if (mat.shader === "aegis") {
       const mu = mat.uniforms;
       if (mu.uColor) this._uniformLinear3(u.uColor, mu.uColor.value);
-      if (u.uHit && mu.uHit) gl.uniform1f(u.uHit, mu.uHit.value);
-      if (u.uFade && mu.uFade) gl.uniform1f(u.uFade, mu.uFade.value);
+      if (mu.uHit) this._u1f(prog, "uHit", mu.uHit.value);
+      if (mu.uFade) this._u1f(prog, "uFade", mu.uFade.value);
     } else if (mat.shader === "zoneTelegraph") {
       const mu = mat.uniforms;
       if (mu.uWarn) this._uniformLinear3(u.uWarn, mu.uWarn.value);
@@ -665,7 +728,7 @@ export class WebGL2Engine {
 
     if (inst) {
       const { base, inst: gpuInst } = this._ensureInstanced(node);
-      gl.bindVertexArray(gpuInst.vao);
+      this._bindVao(gpuInst.vao);
       if (base.ibo) gl.drawElementsInstanced(gl.TRIANGLES, base.count, base.indexType, 0, node.count);
       else gl.drawArraysInstanced(gl.TRIANGLES, 0, base.count, node.count);
       this.info.render.calls++;
@@ -673,7 +736,7 @@ export class WebGL2Engine {
       this.info.render.instances += node.count;
     } else {
       const base = this._ensureGeometry(node.geometry);
-      gl.bindVertexArray(base.vao);
+      this._bindVao(base.vao);
       if (base.ibo) gl.drawElements(gl.TRIANGLES, base.count, base.indexType, 0);
       else gl.drawArrays(gl.TRIANGLES, 0, base.count);
       this.info.render.calls++;
@@ -686,10 +749,15 @@ export class WebGL2Engine {
     if (!node.visible) return;
     if (node.isMesh && node.geometry && node.material) {
       if (node.isInstancedMesh && node.count <= 0) return;
-      if (node.castShadow && !node.material.transparent && !node.material.additive) {
-        this._shadows.push(node);
+      const mat = node.material;
+      const inst = !!node.isInstancedMesh;
+      const key = inst ? `${mat.shader}_inst` : mat.shader;
+      node._cachedProg = this._getProgram(key);
+      if (node.castShadow && !mat.transparent && !mat.additive) {
+        if (inst) this._shadowsInst.push(node);
+        else this._shadowsStatic.push(node);
       }
-      if (node.material.transparent || node.material.additive) {
+      if (mat.transparent || mat.additive) {
         this._trans.push(node);
       } else {
         this._opaque.push(node);
@@ -718,35 +786,43 @@ export class WebGL2Engine {
       this._pointPos[o + 1] = l.y;
       this._pointPos[o + 2] = l.z;
       this._pointPos[o + 3] = l.radius;
-      this._pointCol[o] = Math.pow(Math.max(0, l.r), 2.2);
-      this._pointCol[o + 1] = Math.pow(Math.max(0, l.g), 2.2);
-      this._pointCol[o + 2] = Math.pow(Math.max(0, l.b), 2.2);
-      this._pointCol[o + 3] = l.intensity;
+      if (l.intensity > 0.001) {
+        this._pointCol[o] = l.r > 0 ? Math.pow(l.r, 2.2) : 0;
+        this._pointCol[o + 1] = l.g > 0 ? Math.pow(l.g, 2.2) : 0;
+        this._pointCol[o + 2] = l.b > 0 ? Math.pow(l.b, 2.2) : 0;
+        this._pointCol[o + 3] = l.intensity;
+      } else {
+        this._pointCol[o + 3] = 0;
+      }
     }
 
-    this._shadows.length = 0;
+    this._shadowsStatic.length = 0;
+    this._shadowsInst.length = 0;
     this._opaque.length = 0;
     this._trans.length = 0;
     this._collect(scene);
 
-    // Sort draw lists by renderOrder (and keep opaque batched cleanly)
-    this._opaque.sort((a, b) => a.renderOrder - b.renderOrder);
+    // Sort draw lists by renderOrder, grouping opaque meshes by shader program to slash state/program switches
+    this._opaque.sort((a, b) => a.renderOrder - b.renderOrder || a._cachedProg.id - b._cachedProg.id);
     this._trans.sort(
-      (a, b) => a.renderOrder - b.renderOrder || (a.material.additive ? 1 : 0) - (b.material.additive ? 1 : 0),
+      (a, b) =>
+        a.renderOrder - b.renderOrder ||
+        (a.material.additive ? 1 : 0) - (b.material.additive ? 1 : 0) ||
+        a._cachedProg.id - b._cachedProg.id,
     );
 
     // Reset cached state each frame
     this._curProg = null;
+    this._curVao = null;
     this._curBlend = "";
     this._curDepthWrite = null;
     this._curDepthTest = null;
     this._curCull = null;
 
-    // 1. Directional Shadow Pass
+    // 1. Directional Shadow Pass (batched static then instanced: max 2 program binds, 2 uLightSpace uploads)
     if (this.shadowMap.enabled && this.shadowTarget) {
       const sz = this.shadowTarget.size;
       const extent = 26;
-      // Texel-snapped directional light frustum around arena center prevents shadow shimmer
       this._lightTarget.set(0, 0, 0);
       this._lightEye.set(scene.sunDir.x * 40, scene.sunDir.y * 40, scene.sunDir.z * 40);
       this._lightCam.lookAtCamera(this._lightEye, this._lightTarget, this._lightUp);
@@ -765,26 +841,30 @@ export class WebGL2Engine {
       gl.polygonOffset(2.0, 2.5);
       gl.clear(gl.DEPTH_BUFFER_BIT);
 
-      const spStatic = this._getProgram("shadow");
-      const spInst = this._getProgram("shadow_inst");
-      for (let i = 0; i < this._shadows.length; i++) {
-        const node = this._shadows[i];
-        if (node.isInstancedMesh) {
-          this._useProgram(spInst);
-          gl.uniformMatrix4fv(spInst.uniforms.uLightSpace, false, this._lightSpace.elements);
-          gl.uniformMatrix4fv(spInst.uniforms.uModel, false, node.worldMatrix.elements);
-          const { base, inst } = this._ensureInstanced(node);
-          gl.bindVertexArray(inst.vao);
-          if (base.ibo) gl.drawElementsInstanced(gl.TRIANGLES, base.count, base.indexType, 0, node.count);
-          else gl.drawArraysInstanced(gl.TRIANGLES, 0, base.count, node.count);
-        } else {
-          this._useProgram(spStatic);
-          gl.uniformMatrix4fv(spStatic.uniforms.uLightSpace, false, this._lightSpace.elements);
+      if (this._shadowsStatic.length) {
+        const spStatic = this._getProgram("shadow");
+        this._useProgram(spStatic);
+        gl.uniformMatrix4fv(spStatic.uniforms.uLightSpace, false, this._lightSpace.elements);
+        for (let i = 0; i < this._shadowsStatic.length; i++) {
+          const node = this._shadowsStatic[i];
           gl.uniformMatrix4fv(spStatic.uniforms.uModel, false, node.worldMatrix.elements);
           const base = this._ensureGeometry(node.geometry);
-          gl.bindVertexArray(base.vao);
+          this._bindVao(base.vao);
           if (base.ibo) gl.drawElements(gl.TRIANGLES, base.count, base.indexType, 0);
           else gl.drawArrays(gl.TRIANGLES, 0, base.count);
+        }
+      }
+      if (this._shadowsInst.length) {
+        const spInst = this._getProgram("shadow_inst");
+        this._useProgram(spInst);
+        gl.uniformMatrix4fv(spInst.uniforms.uLightSpace, false, this._lightSpace.elements);
+        for (let i = 0; i < this._shadowsInst.length; i++) {
+          const node = this._shadowsInst[i];
+          this._uModel(spInst, node);
+          const { base, inst } = this._ensureInstanced(node);
+          this._bindVao(inst.vao);
+          if (base.ibo) gl.drawElementsInstanced(gl.TRIANGLES, base.count, base.indexType, 0, node.count);
+          else gl.drawArraysInstanced(gl.TRIANGLES, 0, base.count, node.count);
         }
       }
       gl.disable(gl.POLYGON_OFFSET_FILL);
@@ -808,12 +888,16 @@ export class WebGL2Engine {
     gl.viewport(0, 0, this.pixelWidth, this.pixelHeight);
     gl.depthMask(true);
     gl.enable(gl.DEPTH_TEST);
-    gl.clearColor(
-      Math.pow(Math.max(0, this.clearColor.r), 2.2),
-      Math.pow(Math.max(0, this.clearColor.g), 2.2),
-      Math.pow(Math.max(0, this.clearColor.b), 2.2),
-      1,
-    );
+    const cc = this.clearColor;
+    if (cc._cr !== cc.r || cc._cg !== cc.g || cc._cb !== cc.b) {
+      cc._cr = cc.r;
+      cc._cg = cc.g;
+      cc._cb = cc.b;
+      cc._lr = cc.r > 0 ? Math.pow(cc.r, 2.2) : 0;
+      cc._lg = cc.g > 0 ? Math.pow(cc.g, 2.2) : 0;
+      cc._lb = cc.b > 0 ? Math.pow(cc.b, 2.2) : 0;
+    }
+    gl.clearColor(cc._lr, cc._lg, cc._lb, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     this._curBlend = "";
     this._curDepthWrite = true;
@@ -825,11 +909,13 @@ export class WebGL2Engine {
 
     // 3. Selective Dual-Kawase Bloom + Stylized ACES Tone-Map Composite Pass
     if (usePost) {
+      // Hint mobile TBDR GPUs that offscreen depth buffer does not need to be stored back to RAM
+      if (gl.invalidateFramebuffer) gl.invalidateFramebuffer(gl.FRAMEBUFFER, this._shadowDepthAttach);
       gl.disable(gl.DEPTH_TEST);
       gl.depthMask(false);
       gl.disable(gl.BLEND);
       gl.disable(gl.CULL_FACE);
-      gl.bindVertexArray(this.dummyVao);
+      this._bindVao(this.dummyVao);
 
       // Prefilter bright emissives -> bloomA (half-res)
       const pre = this._getProgram("bloomPrefilter");
@@ -838,7 +924,6 @@ export class WebGL2Engine {
       gl.viewport(0, 0, this.bloomA.width, this.bloomA.height);
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, this.hdrTarget.tex);
-      gl.uniform1i(pre.uniforms.uSrc, 0);
       gl.uniform1f(pre.uniforms.uThreshold, scene.bloomThreshold);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
 
@@ -849,7 +934,6 @@ export class WebGL2Engine {
       gl.viewport(0, 0, this.bloomB.width, this.bloomB.height);
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, this.bloomA.tex);
-      gl.uniform1i(kaw.uniforms.uSrc, 0);
       gl.uniform1f(kaw.uniforms.uOffset, 1.25);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
 
@@ -868,15 +952,13 @@ export class WebGL2Engine {
       gl.viewport(0, 0, this.pixelWidth, this.pixelHeight);
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, this.hdrTarget.tex);
-      gl.uniform1i(comp.uniforms.uScene, 0);
       gl.activeTexture(gl.TEXTURE1);
       gl.bindTexture(gl.TEXTURE_2D, this.bloomA.tex);
-      gl.uniform1i(comp.uniforms.uBloom, 1);
       gl.uniform1f(comp.uniforms.uBloomStrength, scene.bloomStrength);
       gl.uniform1f(comp.uniforms.uFlash, this.flash);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     }
 
-    gl.bindVertexArray(null);
+    this._bindVao(null);
   }
 }
