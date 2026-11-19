@@ -2,18 +2,25 @@
 
 ## Code and assets
 
-The game uses ES modules, Three.js and WebAudio. `src/main.js` owns the application lifecycle and
-connects the simulation, rendering, audio, input and UI systems. `build.js` bundles the application and
-copies the public assets into `dist/`. `npm run dev` watches source, public assets and package metadata;
-rebuilds are serialized to avoid overlapping writes.
+The game uses ES modules, a custom zero-dependency WebGL2 (`#version 300 es`) engine (`src/engine/`) and WebAudio.
+`src/main.js` owns the application lifecycle and connects the simulation, rendering, audio, input and UI systems.
+`build.js` bundles the application and copies the public assets into `dist/`. `npm run dev` watches source, public
+assets and package metadata; rebuilds are serialized to avoid overlapping writes.
+
+`src/engine/` provides allocation-free math (`math.js`), outward-wound procedural and sculpted mesh builders
+(`geometry.js`), GPU-instanced pools and material-bucketed static mesh batching (`scene.js`), linear-HDR GLSL 300 es
+stylized painterly / cel-shaded shaders (`shaders.js`), and the WebGL2 renderer (`webgl2.js`) with a 1024×1024
+directional PCF shadow map, 8 dynamic combat point lights, dual-Kawase selective bloom, ACES filmic tone mapping and
+context-loss recovery.
 
 Keep gameplay randomness in the seeded simulation. Cosmetic randomness belongs in rendering and audio.
 Save compatibility and stable seeded layouts have active regression fixtures in `tests/fixtures/`.
 These fixtures protect existing progress and world generation.
 
-The title illustration, terrain and finish atlases, and install icons are generated with
-`python tools/build-art.py` using Python 3, Pillow and NumPy. Arena, actor and effect meshes are
-assembled in `src/render/`. Their geometry follows the existing simulation footprints.
+The title emblem (`title-chart.webp`), painterly terrain, surface and VFX atlases (`terrain-atlas.webp`,
+`surface-atlas.webp`, `vfx-atlas.webp`), and install icons are generated with `python tools/build-art.py` using
+Python 3, Pillow and NumPy. Arena biomes, actors, bosses and combat VFX are assembled in `src/render/` on top of
+`src/engine/` and respect the existing simulation footprints.
 
 The short synthesized sample bank and its clip offsets are generated with
 `python tools/build-audio-bank.py` using Python 3. `src/audio/score.js` defines the title, arena and

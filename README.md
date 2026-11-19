@@ -59,11 +59,12 @@ Generated verification output belongs in the ignored `verification-output/` dire
 |---|---|
 | `src/core/` | Deterministic simulation, combat, waves, maps and saves |
 | `src/data/` | Weapons, actors, biomes, upgrades and progression |
-| `src/render/` | Three.js models, materials, scenery and effects |
+| `src/engine/` | Custom zero-dependency WebGL2 graphics engine (math, geometry, instancing, shaders, shadows, bloom/ACES) |
+| `src/render/` | Stylized painterly / cel-shaded biome arenas, actor and boss models, combat VFX and HUD overlay |
 | `src/audio/` | Synthesized material voices, music and environmental sound |
 | `src/ui/` | Touch and keyboard/mouse input, screens, HUD and haptics |
-| `public/` | Fonts, textures, sound bank, app icons and asset notices |
-| `tests/` | Simulation, geometry, browser and worker tests |
+| `public/` | Fonts, painterly texture atlases, sound bank, app icons and asset notices |
+| `tests/` | Simulation, geometry, shader, browser and worker tests |
 | `tools/`, `scripts/` | Build support, verification and asset generation |
 
 `src/main.js` connects the game systems. `build.js` bundles the game into `dist/`, and `src/sw.js`

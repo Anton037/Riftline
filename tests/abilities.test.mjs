@@ -1,17 +1,17 @@
 // Actual power events and phases must stay distinct, bounded and independent of hostile warnings.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { Group, Mesh } from "three";
+import { MeshNode, Node } from "../src/engine/scene.js";
 globalThis.__RL_VERSION__ ??= "test";
 globalThis.__RL_BUILD__ ??= "test";
 const { World } = await import("../src/core/world.js");
 const { AbilityEffectsView } = await import("../src/render/ability-effects-view.js");
-const { createAurora } = await import("../src/render/aurora.js");
+const { createAurora } = await import("../src/render/arena-view.js");
 const { SoundEngine } = await import("../src/audio/sound.js");
 
 class Pool {
   constructor(geometry, material, max) {
-    this.mesh = new Mesh(geometry, material);
+    this.mesh = new MeshNode(geometry, material);
     this.max = max;
     this.n = 0;
     this.transforms = [];
@@ -36,7 +36,7 @@ function fixture() {
   };
   const r = {
     time: 8,
-    scene: new Group(),
+    scene: new Node(),
     burst() {},
     flash() {},
     addShake() {},
@@ -58,7 +58,6 @@ function fixture() {
   const dispose = () =>
     view.list.forEach((p) => {
       p.mesh.geometry.dispose();
-      p.mesh.material.dispose();
     });
   return { w, r, view, draw, dispose };
 }
@@ -169,16 +168,19 @@ test("enemy blocks never trigger the player's Aegis; a real absorbed hit does", 
 });
 
 test("aurora ribbons remain outside every arena even at shader sway extrema", () => {
-  for (const W of [15, 20])
+  for (const W of [15, 20]) {
     for (const H of [15, 20]) {
-      const mesh = createAurora(W, H),
-        p = mesh.geometry.attributes.position;
-      assert.equal(mesh.geometry.index.count / 3, 1728);
-      assert.ok(p.array.every(Number.isFinite));
-      for (let i = 0; i < p.count; i++) assert.ok(p.getZ(i) + 0.7 < -H - 5);
-      assert.equal(mesh.onBeforeRender, Mesh.prototype.onBeforeRender, "no camera-facing reorientation");
-      assert.equal(mesh.material.depthWrite, false);
-      mesh.geometry.dispose();
-      mesh.material.dispose();
+      const group = createAurora(W, H);
+      assert.ok(group.children.length >= 2);
+      for (const mesh of group.children) {
+        const p = mesh.geometry.positions;
+        assert.ok(p.every(Number.isFinite));
+        for (let i = 0; i < mesh.geometry.vertexCount; i++) {
+          assert.ok(p[i * 3 + 2] + 0.7 < -H - 5, "aurora must stay well beyond north arena edge");
+        }
+        assert.equal(mesh.material.depthWrite, false);
+        mesh.geometry.dispose();
+      }
     }
+  }
 });

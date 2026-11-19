@@ -6,7 +6,7 @@ const BUDGET = 810;
 let over = 0;
 for (const [type, def] of Object.entries(enemyDefs)) {
   const model = enemyGeometry(type, def.color);
-  const tris = Object.values(model).reduce((sum, g) => sum + (g.index?.count ?? g.attributes.position.count) / 3, 0);
+  const tris = model.body.triangleCount + model.glow.triangleCount;
   const flag = tris > BUDGET ? " !! OVER" : "";
   if (tris > BUDGET) over++;
   console.log(`${type.padEnd(10)} ${String(Math.round(tris)).padStart(4)} tris${flag}`);

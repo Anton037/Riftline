@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { createHash } from "node:crypto";
-import { Group, Mesh } from "three";
+import { Node as Group, MeshNode as Mesh } from "../src/engine/scene.js";
 const pkg = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url)));
 globalThis.__RL_VERSION__ = pkg.version;
 globalThis.__RL_BUILD__ = pkg.riftline.build;

@@ -138,8 +138,8 @@ const healthBarTypes = {
         ctx.save();
         ctx.translate(pos.x, pos.y);
         ctx.rotate(spin);
-        ctx.strokeStyle = "rgba(210,250,255,0.75)";
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = "rgba(102,235,216,0.88)";
+        ctx.lineWidth = 2.4;
         for (let i = 0; i < 4; i++) {
           ctx.rotate(Math.PI / 2);
           ctx.beginPath();
@@ -158,15 +158,15 @@ const healthBarTypes = {
           !project(enemy.x, 1.2 + enemy.r * 1.4, enemy.y)
         )
           continue;
-        let width = 18 + enemy.r * 16,
+        let width = 20 + enemy.r * 16,
           hpFrac = clamp(enemy.hp / enemy.maxHp, 0, 1);
-        ctx.fillStyle = "rgba(0,0,0,0.55)";
-        ctx.fillRect(pos.x - width / 2 - 1, pos.y - 1, width + 2, 5);
-        ctx.fillStyle = enemy.elite ? "#efbb7f" : "#ef8e73";
+        ctx.fillStyle = "rgba(10,8,16,0.78)";
+        ctx.fillRect(pos.x - width / 2 - 1.5, pos.y - 1.5, width + 3, 6);
+        ctx.fillStyle = enemy.elite ? "#f8c86a" : "#ff685c";
         ctx.fillRect(pos.x - width / 2, pos.y, width * hpFrac, 3);
         if (enemy.shieldMax > 0 && enemy.shield > 0) {
-          ctx.fillStyle = "#b5dcdc";
-          ctx.fillRect(pos.x - width / 2, pos.y - 4, width * (enemy.shield / enemy.shieldMax), 2);
+          ctx.fillStyle = "#88f0ff";
+          ctx.fillRect(pos.x - width / 2, pos.y - 4.5, width * (enemy.shield / enemy.shieldMax), 2.5);
         }
       }
       ctx.textAlign = "center";
@@ -176,15 +176,17 @@ const healthBarTypes = {
         // 3.0.0: the size follows the number (a maxed Railgun shot is bigger than a Pulse hit) and a new number
         // pops in for a moment
         let alpha = clamp(num.life / 0.35, 0, 1),
-          pop = 1 + Math.max(0, 1 - (renderer.time - num.t0) / 0.12) * 0.3,
-          fontSize = Math.min(24, (num.crit ? 14 : num.burn ? 9 : 11) + 3.4 * Math.log10(1 + Math.max(0, num.v))) * pop;
+          pop = 1 + Math.max(0, 1 - (renderer.time - num.t0) / 0.12) * 0.34,
+          fontSize =
+            Math.min(25, (num.crit ? 15 : num.burn ? 9.5 : 11.5) + 3.4 * Math.log10(1 + Math.max(0, num.v))) * pop;
         ctx.font = `700 ${fontSize}px "Instrument Sans", system-ui, sans-serif`;
         let text = String(Math.max(1, Math.round(num.v)));
         ctx.globalAlpha = alpha;
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = "rgba(6,8,16,0.85)";
+        ctx.lineJoin = "round";
+        ctx.lineWidth = 3.8;
+        ctx.strokeStyle = "rgba(12,8,18,0.92)";
         ctx.strokeText(text, pos.x, pos.y);
-        ctx.fillStyle = num.crit ? "#f4cb8d" : num.burn ? "#ff9a4a" : num.shield ? "#b5dcdc" : "#f9edcf";
+        ctx.fillStyle = num.crit ? "#ffd46e" : num.burn ? "#ff8a3a" : num.shield ? "#92f0ff" : "#fcf2dc";
         ctx.fillText(text, pos.x, pos.y);
       }
       ctx.globalAlpha = 1;

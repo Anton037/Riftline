@@ -119,9 +119,10 @@ has a separate deadline because software rasterisation is much slower. Timing de
 and CI load; these deadlines are not a mobile FPS target.
 
 `node tools/verify.js visual <tag> tablet all 60 overview` captures one centred game view per biome for
-matched art comparisons. The visual checks also require both painted atlases to load and verify that
-sun shadows stay enabled at every FPS setting. `tests/art.test.mjs` checks closed sculpted geometry, deterministic
-feathered ground-contact masks and idempotent paint/biome shader composition on shared boss materials.
+matched art comparisons. The visual checks also require the painterly terrain and surface atlases to load and verify
+that sun shadows stay enabled at every FPS setting. `tests/art.test.mjs` checks closed sculpted geometry, positive
+signed-volume outward winding across all solid primitives, deterministic feathered ground-contact masks, GLSL 300 es
+shader validity and zero Three.js dependencies.
 
 The worker fixture observes registration and controller state synchronously; asynchronous identity replies do not
 serialize lifecycle notifications. Failed activation includes the worker states in its error for diagnosis.
