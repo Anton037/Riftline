@@ -65,8 +65,8 @@ export class BossCardView {
       const pool = new this.Pool(
         mergeGeometries(parts.flat()),
         glow
-          ? emissiveMaterial({ vertexColors: true, emissiveIntensity: 1.55 })
-          : worldMaterial({ surface, vertexColors: true, ...(lit ? { emissive, emissiveIntensity: 1.1 } : {}) }),
+          ? emissiveMaterial({ vertexColors: true, emissiveIntensity: 1.16 })
+          : worldMaterial({ surface, vertexColors: true, ...(lit ? { emissive, emissiveIntensity: 0.85 } : {}) }),
         max,
       );
       this.r.scene.add(pool.mesh);

@@ -14,6 +14,7 @@ import {
   sculptedCap,
   meshPart,
   mergeGeometries,
+  Geometry,
 } from "../engine/geometry.js";
 import { MeshNode, Node } from "../engine/scene.js";
 import { worldMaterial, emissiveMaterial, aegisMaterial, enemySurface } from "./materials.js";
@@ -167,7 +168,7 @@ function buildWeaponRig(weapon, accentHex) {
   }
 
   const bodyMat = worldMaterial({ surface: "armor", vertexColors: true });
-  const glowMat = emissiveMaterial({ vertexColors: true, emissiveIntensity: 1.55 });
+  const glowMat = emissiveMaterial({ vertexColors: true, emissiveIntensity: 1.18 });
   gun.add(new MeshNode(mergeGeometries(bodyParts), bodyMat));
   gun.add(new MeshNode(mergeGeometries(glowParts), glowMat));
   const muzzle = new Node();
@@ -184,7 +185,7 @@ export function buildPlayerModel(weapon = "pulse", weaponColor = 0x5ce8ff) {
 
   const armorMat = worldMaterial({ surface: "armor", vertexColors: true });
   const metalMat = worldMaterial({ surface: "metal", vertexColors: true });
-  const visorMat = emissiveMaterial({ color: weaponColor, emissiveIntensity: 1.65 });
+  const visorMat = emissiveMaterial({ color: weaponColor, emissiveIntensity: 1.22 });
 
   // Articulated legs (thigh + shin + armored boot)
   const makeLeg = (side) => {
@@ -202,17 +203,17 @@ export function buildPlayerModel(weapon = "pulse", weaponColor = 0x5ce8ff) {
   const legL = makeLeg(-1);
   const legR = makeLeg(1);
 
-  // Pelvis & stylized cozy heroic torso chassis (clean ivory + teal-slate + warm brass trim + twin pack vents)
+  // Pelvis & stylized heroic torso chassis (clean ivory + teal-slate + warm brass trim + twin pack vents)
   const torsoGeo = mergeGeometries([
     part(G_BEV, SLATE, { y: 0.65, sx: 0.46, sy: 0.22, sz: 0.54 }),
     part(G_BEV, IVORY, { x: 0.03, y: 0.96, sx: 0.56, sy: 0.46, sz: 0.66 }),
     part(G_BEV, COPPER, { x: 0.27, y: 0.96, sx: 0.1, sy: 0.22, sz: 0.34 }),
-    // Sculpted cozy shoulder pauldrons with warm brass rims
+    // Sculpted shoulder pauldrons with warm brass rims
     part(G_BEV, SLATE, { x: 0.0, y: 1.08, z: -0.43, rx: 0.22, sx: 0.44, sy: 0.24, sz: 0.3 }),
     part(G_BEV, SLATE, { x: 0.0, y: 1.08, z: 0.43, rx: -0.22, sx: 0.44, sy: 0.24, sz: 0.3 }),
     part(G_BEV, BRASS, { x: 0.02, y: 1.18, z: -0.43, rx: 0.22, sx: 0.32, sy: 0.06, sz: 0.2 }),
     part(G_BEV, BRASS, { x: 0.02, y: 1.18, z: 0.43, rx: -0.22, sx: 0.32, sy: 0.06, sz: 0.2 }),
-    // Cozy twin-pod thruster backpack & brass collar
+    // Twin-pod thruster backpack & brass collar
     part(G_BEV, IRON, { x: -0.32, y: 0.96, sx: 0.28, sy: 0.42, sz: 0.44 }),
     part(G_CYL6, SLATE, { x: -0.4, y: 0.98, z: -0.15, sx: 0.16, sy: 0.34, sz: 0.16 }),
     part(G_CYL6, SLATE, { x: -0.4, y: 0.98, z: 0.15, sx: 0.16, sy: 0.34, sz: 0.16 }),
@@ -220,13 +221,13 @@ export function buildPlayerModel(weapon = "pulse", weaponColor = 0x5ce8ff) {
   ]);
   base.add(new MeshNode(torsoGeo, armorMat));
 
-  // Back thruster vents glow + cute chest core pip
+  // Back thruster vents glow + chest core pip
   const thrusterGeo = mergeGeometries([
     part(G_OCT, weaponColor, { x: -0.46, y: 0.84, z: -0.15, sx: 0.13, sy: 0.16, sz: 0.13 }),
     part(G_OCT, weaponColor, { x: -0.46, y: 0.84, z: 0.15, sx: 0.13, sy: 0.16, sz: 0.13 }),
     part(G_OCT, weaponColor, { x: 0.33, y: 0.96, sx: 0.08, sy: 0.1, sz: 0.12 }),
   ]);
-  base.add(new MeshNode(thrusterGeo, emissiveMaterial({ vertexColors: true, emissiveIntensity: 1.5 })));
+  base.add(new MeshNode(thrusterGeo, emissiveMaterial({ vertexColors: true, emissiveIntensity: 1.15 })));
 
   // Weapon bearing pivot on torso + independent horizontal turret mounted on group so aim never drifts with lean/bank
   const weaponMount = new Node();
@@ -348,7 +349,7 @@ const enemyGeoCache = new Map();
 function buildEnemyParts(type, accent) {
   const dark = 0x222c3c;
   const hull = 0x485b70;
-  const plate = 0xe2d6be;
+  const plate = 0xd2c4aa;
   const body = [];
   const glow = [];
 
@@ -898,7 +899,7 @@ export function buildBossModel(type, accentHex = 0xff6644) {
   });
   const glowMat = emissiveMaterial({
     color: accentHex,
-    emissiveIntensity: 1.75,
+    emissiveIntensity: 1.18,
     transparent: true,
     opacity: 1,
   });
@@ -915,7 +916,7 @@ export function buildBossModel(type, accentHex = 0xff6644) {
       part(G_BEV, 0x1d2b38, { y: 0.96, sx: 1.9, sy: 1.0, sz: 2.25 }),
       part(G_BEV, 0x334d5c, { x: 0.1, y: 1.92, sx: 2.1, sy: 1.32, sz: 2.68 }),
       part(G_BEV, BRASS, { x: 0.96, y: 1.92, sx: 0.4, sy: 0.92, sz: 1.4 }),
-      // Towering armored pauldrons with brass chevron trim & lantern finials
+      // Towering armored pauldrons with burnished brass trim
       part(G_BEV, 0x263d4a, { y: 2.42, z: -1.58, rx: 0.24, sx: 1.58, sy: 1.06, sz: 0.94 }),
       part(G_BEV, 0x263d4a, { y: 2.42, z: 1.58, rx: -0.24, sx: 1.58, sy: 1.06, sz: 0.94 }),
       part(G_BEV, BRASS, { x: 0.2, y: 2.92, z: -1.58, sx: 1.18, sy: 0.22, sz: 0.72 }),
@@ -942,21 +943,21 @@ export function buildBossModel(type, accentHex = 0xff6644) {
     const halo = addMesh(group, torus(1.42, 0.08, 6, 20), glowMat, { x: -0.65, y: 2.95, ry: Math.PI / 2 });
     spin.push({ m: halo, ax: "x", v: 1.4 });
   } else if (type === "queen") {
-    // THE GLOWMARSH — Cozy Storybook Bioluminescent Mushroom Brood Matriarch
+    // THE GLOWMARSH — Bioluminescent Mushroom Brood Matriarch
     const hull = mergeGeometries([
-      part(G_SPH, 0x244638, { x: -0.45, y: 1.18, sx: 2.6, sy: 1.55, sz: 2.25 }),
-      part(G_BEV, 0x3b7058, { x: 0.96, y: 1.42, sx: 1.48, sy: 1.12, sz: 1.65 }),
-      // Cute mandibles & antennae
-      part(G_CONE6, 0x72b88e, { x: 1.88, y: 1.2, z: -0.52, rz: -1.2, sx: 0.28, sy: 0.68, sz: 0.28 }),
-      part(G_CONE6, 0x72b88e, { x: 1.88, y: 1.2, z: 0.52, rz: -1.2, sx: 0.28, sy: 0.68, sz: 0.28 }),
-      // Broad sculpted fungal crown carapace + cozy side companion caps
-      part(sculptedCap(1.9, 1.08, 313), 0x4cc290, { x: -0.25, y: 1.78 }),
-      part(sculptedCap(0.68, 0.44, 325), 0x62d6a0, { x: -1.05, y: 1.88, z: -0.92 }),
-      part(sculptedCap(0.68, 0.44, 331), 0x62d6a0, { x: -1.05, y: 1.88, z: 0.92 }),
+      part(G_SPH, 0x1e3c30, { x: -0.45, y: 1.18, sx: 2.6, sy: 1.55, sz: 2.25 }),
+      part(G_BEV, 0x305e4a, { x: 0.96, y: 1.42, sx: 1.48, sy: 1.12, sz: 1.65 }),
+      // Mandibles & antennae
+      part(G_CONE6, 0x5ea27c, { x: 1.88, y: 1.2, z: -0.52, rz: -1.2, sx: 0.28, sy: 0.68, sz: 0.28 }),
+      part(G_CONE6, 0x5ea27c, { x: 1.88, y: 1.2, z: 0.52, rz: -1.2, sx: 0.28, sy: 0.68, sz: 0.28 }),
+      // Broad sculpted velvety fungal crown carapace + side companion caps
+      part(sculptedCap(1.9, 1.08, 313), 0x32946c, { x: -0.25, y: 1.78 }),
+      part(sculptedCap(0.68, 0.44, 325), 0x42a87c, { x: -1.05, y: 1.88, z: -0.92 }),
+      part(sculptedCap(0.68, 0.44, 331), 0x42a87c, { x: -1.05, y: 1.88, z: 0.92 }),
       // Six splayed chitinous limbs
       ...[-1, 1].flatMap((s) =>
         [-0.75, 0.05, 0.78].map((lx) =>
-          part(G_BEV, 0x1c3128, { x: lx, y: 0.56, z: s * 1.44, rx: s * 0.55, sx: 0.34, sy: 1.26, sz: 0.34 }),
+          part(G_BEV, 0x182b23, { x: lx, y: 0.56, z: s * 1.44, rx: s * 0.55, sx: 0.34, sy: 1.26, sz: 0.34 }),
         ),
       ),
     ]);
@@ -981,24 +982,34 @@ export function buildBossModel(type, accentHex = 0xff6644) {
       part(G_TOR, 0xffffff, { x: -0.25, y: 1.84, rx: Math.PI / 2, sx: 2.65, sy: 2.65, sz: 2.65 }),
     ]);
     group.add(new MeshNode(glowGeo, glowMat));
-    const crown = addMesh(group, octahedron(0.62), glowMat, { x: -0.25, y: 3.18, sx: 0.9, sy: 1.4, sz: 0.9 });
+    const crownMat = worldMaterial({
+      color: 0x62e8a8,
+      surface: "crystal",
+      emissive: 0x1e7850,
+      emissiveIntensity: 0.65,
+      transparent: true,
+      opacity: 1,
+    });
+    mats.push(crownMat);
+    fadeMats.push(crownMat);
+    const crown = addMesh(group, octahedron(0.62), crownMat, { x: -0.25, y: 3.18, sx: 0.9, sy: 1.4, sz: 0.9 });
     spin.push({ m: crown, ax: "y", v: 1.6 });
   } else if (type === "prism") {
-    // THE AURORA SHELF — Crystalline Frost Prism Cathedral
+    // THE AURORA SHELF — Crystalline Frost Prism Cathedral (rich sapphire facets contrasting crisply against snow)
     const iceMat = worldMaterial({
       surface: "ice",
       vertexColors: true,
       transparent: true,
-      opacity: 0.86,
+      opacity: 0.9,
       biomeSkin: true,
-      userData: { opacity: 0.86 },
+      userData: { opacity: 0.9 },
     });
     mats.push(iceMat);
     fadeMats.push(iceMat);
     const coreCrystal = mergeGeometries([
-      part(sculptedCrystal(1.9, 3.6, 1.9, 411), 0x266294, { y: 0.35 }),
-      part(G_OCT, 0x52a6d8, { y: 2.15, sx: 1.85, sy: 2.45, sz: 1.85 }),
-      part(G_OCT, 0xd8f4ff, { y: 3.65, sx: 0.72, sy: 1.05, sz: 0.72 }),
+      part(sculptedCrystal(1.9, 3.6, 1.9, 411), 0x184b7a, { y: 0.35 }),
+      part(G_OCT, 0x307eb4, { y: 2.15, sx: 1.85, sy: 2.45, sz: 1.85 }),
+      part(G_OCT, 0x86cceb, { y: 3.65, sx: 0.72, sy: 1.05, sz: 0.72 }),
     ]);
     group.add(new MeshNode(coreCrystal, iceMat));
     const ringA = new Node();
@@ -1006,7 +1017,7 @@ export function buildBossModel(type, accentHex = 0xff6644) {
     const ringAGeo = mergeGeometries(
       Array.from({ length: 6 }, (_, i) => {
         const a = (i / 6) * TAU;
-        return part(sculptedCrystal(0.56, 1.5, 0.56, 420 + i), i % 2 ? 0x3b84b8 : 0x6cc2e8, {
+        return part(sculptedCrystal(0.56, 1.5, 0.56, 420 + i), i % 2 ? 0x226094 : 0x4298c8, {
           x: Math.cos(a) * 1.92,
           y: -0.5,
           z: Math.sin(a) * 1.92,
@@ -1037,7 +1048,17 @@ export function buildBossModel(type, accentHex = 0xff6644) {
       }),
     ]);
     group.add(new MeshNode(plinth, bodyMat));
-    const heart = addMesh(group, icosahedron(0.95, 1), glowMat, { y: 2.4 });
+    const heartMat = worldMaterial({
+      color: 0xa664f0,
+      surface: "crystal",
+      emissive: 0x581e98,
+      emissiveIntensity: 0.72,
+      transparent: true,
+      opacity: 1,
+    });
+    mats.push(heartMat);
+    fadeMats.push(heartMat);
+    const heart = addMesh(group, icosahedron(0.95, 1), heartMat, { y: 2.4 });
     spin.push({ m: heart, ax: "y", v: 1.2 });
 
     const r1 = addMesh(group, torus(1.85, 0.11, 6, 28), glowMat, { y: 2.4, rx: 0.55 });
@@ -1080,14 +1101,14 @@ export function buildBossModel(type, accentHex = 0xff6644) {
     const crown = addMesh(group, torus(1.22, 0.09, 6, 20), glowMat, { y: 3.6, rx: Math.PI / 2 });
     spin.push({ m: crown, ax: "z", v: 1.3 });
   } else {
-    // THE GLASS FLATS — Articulated Vitrified Glasswyrm Leviathan (burnished terracotta-bronze scales + gleaming turquoise glass crests)
+    // THE GLASS FLATS — Articulated Vitrified Glasswyrm Leviathan (burnished terracotta-bronze scales + jewel turquoise crests)
     const head = mergeGeometries([
-      part(G_BEV, 0x6c4228, { x: 0.55, y: 1.15, sx: 1.88, sy: 1.12, sz: 1.52 }),
+      part(G_BEV, 0x623b24, { x: 0.55, y: 1.15, sx: 1.88, sy: 1.12, sz: 1.52 }),
       part(G_BEV, BRASS, { x: 0.72, y: 1.56, sx: 1.12, sy: 0.24, sz: 1.08 }),
-      part(sculptedCrystal(0.95, 1.9, 0.72, 701), 0x38d8c6, { x: -0.1, y: 1.35, z: -0.82, rx: -0.45, rz: 0.32 }),
-      part(sculptedCrystal(0.95, 1.9, 0.72, 702), 0x38d8c6, { x: -0.1, y: 1.35, z: 0.82, rx: 0.45, rz: 0.32 }),
-      part(G_CONE6, 0x9c6838, { x: 1.68, y: 1.06, rz: -Math.PI / 2, sx: 0.86, sy: 1.14, sz: 0.96 }),
-      // Cute fierce bronze mandibles
+      part(sculptedCrystal(0.95, 1.9, 0.72, 701), 0x20a094, { x: -0.1, y: 1.35, z: -0.82, rx: -0.45, rz: 0.32 }),
+      part(sculptedCrystal(0.95, 1.9, 0.72, 702), 0x20a094, { x: -0.1, y: 1.35, z: 0.82, rx: 0.45, rz: 0.32 }),
+      part(G_CONE6, 0x8a5b32, { x: 1.68, y: 1.06, rz: -Math.PI / 2, sx: 0.86, sy: 1.14, sz: 0.96 }),
+      // Fierce bronze mandibles
       part(G_CONE6, BRASS, { x: 1.54, y: 0.88, z: -0.54, rz: -1.35, sx: 0.24, sy: 0.62, sz: 0.24 }),
       part(G_CONE6, BRASS, { x: 1.54, y: 0.88, z: 0.54, rz: -1.35, sx: 0.24, sy: 0.62, sz: 0.24 }),
     ]);
@@ -1106,8 +1127,8 @@ export function buildBossModel(type, accentHex = 0xff6644) {
       const seg = new Node();
       seg.position.set(-i * 0.95, 0.95 - i * 0.06, 0);
       const segGeo = mergeGeometries([
-        part(G_BEV, i % 2 ? 0x7c4c2e : 0x4e3020, { sx: 0.98 * sc, sy: 0.94 * sc, sz: 1.32 * sc }),
-        part(sculptedCrystal(0.46 * sc, 1.15 * sc, 0.46 * sc, 710 + i), 0x3adcc8, { y: 0.38 * sc }),
+        part(G_BEV, i % 2 ? 0x704328 : 0x482c1d, { sx: 0.98 * sc, sy: 0.94 * sc, sz: 1.32 * sc }),
+        part(sculptedCrystal(0.46 * sc, 1.15 * sc, 0.46 * sc, 710 + i), 0x26aea2, { y: 0.38 * sc }),
       ]);
       seg.add(new MeshNode(segGeo, bodyMat));
       seg.add(
@@ -1171,23 +1192,45 @@ export function healCrossGeometry() {
 }
 
 export function shieldArcGeometry() {
-  const segs = 12;
-  const parts = [];
-  for (let i = 0; i < segs; i++) {
-    const a = -0.82 + (i / (segs - 1)) * 1.64;
-    parts.push(
-      part(G_BOX, 0xffffff, {
-        x: Math.cos(a) * 1.25,
-        y: 0.86,
-        z: Math.sin(a) * 1.25,
-        ry: -a,
-        sx: 0.1,
-        sy: 1.25,
-        sz: 0.24,
-      }),
-    );
+  // Seamless curved energy buckler with brighter top/bottom energy rims (zero overlapping seams)
+  const segs = 16;
+  const rows = 4;
+  const r = 1.24;
+  const y0 = 0.24;
+  const h = 1.24;
+  const pos = [];
+  const norm = [];
+  const uv = [];
+  const col = [];
+  const idx = [];
+  for (let ry = 0; ry <= rows; ry++) {
+    const v = ry / rows;
+    const y = y0 + v * h;
+    const bulge = 1 + Math.sin(v * Math.PI) * 0.06;
+    const edgeGlow = ry === 0 || ry === rows ? 1.0 : 0.72;
+    for (let i = 0; i <= segs; i++) {
+      const u = i / segs;
+      const a = -0.84 + u * 1.68;
+      const ca = Math.cos(a),
+        sa = Math.sin(a);
+      pos.push(ca * r * bulge, y, sa * r * bulge);
+      norm.push(ca, 0, sa);
+      uv.push(u, v);
+      const sideGlow = i === 0 || i === segs ? 1.0 : edgeGlow;
+      col.push(sideGlow * 0.86, sideGlow * 0.96, sideGlow);
+    }
   }
-  return mergeGeometries(parts);
+  const stride = segs + 1;
+  for (let ry = 0; ry < rows; ry++) {
+    for (let i = 0; i < segs; i++) {
+      const a = ry * stride + i;
+      const b = a + 1;
+      const c = a + stride;
+      const d = c + 1;
+      idx.push(a, b, c, b, d, c);
+    }
+  }
+  return new Geometry(pos, norm, uv, idx, col);
 }
 
 export function debrisGeometry() {

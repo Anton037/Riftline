@@ -96,25 +96,25 @@ const MODELS = {
     body: [fac(FINISH.copper, 0.26, { y: 0.34, sy: 1.7, sx: 0.64, sz: 0.6 })],
     glow: [fac(FINISH.ivory, 0.09, { y: 0.74, sy: 1.45, sx: 0.52, sz: 0.52 })],
   }),
-  // Shelf: cute beveled glacier crystals & snow-dusted rim stones
+  // Shelf: beveled glacier crystals & slate-ice rim stones
   shard: () => ({
     body: [
-      meshPart(icosahedron(0.68, 0), 0xdaf4ff, { y: 0.4, sy: 0.62, sz: 0.68, rz: -0.14 }),
-      fac(0x78bce0, 0.62, { x: 0.2, y: 0.34, sy: 0.48, sx: 0.5, ry: 0.34 }),
+      meshPart(icosahedron(0.68, 0), 0x8cc8e8, { y: 0.4, sy: 0.62, sz: 0.68, rz: -0.14 }),
+      fac(0x3a7cac, 0.62, { x: 0.2, y: 0.34, sy: 0.48, sx: 0.5, ry: 0.34 }),
     ],
   }),
-  // Flats: warm sunlit swirling sand ribbons
+  // Flats: warm terracotta-ochre swirling sand ribbons
   funnel: () => ({
-    body: [meshPart(dustRibbon(0.16), 0xc49a68), meshPart(dustRibbon(Math.PI * 0.85), 0xeed09a)],
-    glow: [meshPart(dustRibbon(Math.PI * 1.46), 0xfff0c2)],
+    body: [meshPart(dustRibbon(0.16), 0x8e643c), meshPart(dustRibbon(Math.PI * 0.85), 0xbe9058)],
+    glow: [meshPart(dustRibbon(Math.PI * 1.46), 0xe2bc7e)],
   }),
-  // Marsh: cozy rounded mossy bog-stones & floating lily-pad tufts (replacing jagged green spikes!)
+  // Marsh: rounded mossy bog-stones & floating lily-pad tufts
   bank: () => ({
     body: [
       ...Array.from({ length: 12 }, (_, i) => {
         const a = (i * TAU) / 12;
         const r = i % 2 ? 1.03 : 0.99;
-        return meshPart(icosahedron(0.18, 0), i % 3 === 0 ? 0x2d5842 : i % 3 === 1 ? 0x3b7252 : 0x244636, {
+        return meshPart(icosahedron(0.18, 0), i % 3 === 0 ? 0x264c38 : i % 3 === 1 ? 0x326246 : 0x1e3c2e, {
           x: Math.cos(a) * r,
           z: Math.sin(a) * r,
           y: 0.055,
@@ -126,7 +126,7 @@ const MODELS = {
       }),
       ...Array.from({ length: 4 }, (_, i) => {
         const a = (i * TAU) / 4 + 0.4;
-        return baseDisk(0x4ea66c, 0.24, 0.032, 0.045, 7).translate(Math.cos(a) * 0.88, 0, Math.sin(a) * 0.88);
+        return baseDisk(0x3b8654, 0.24, 0.032, 0.045, 7).translate(Math.cos(a) * 0.88, 0, Math.sin(a) * 0.88);
       }),
     ],
   }),
@@ -181,10 +181,10 @@ export class HazardView {
       const mat = glow
         ? emissiveMaterial({
             vertexColors: true,
-            emissiveIntensity: name === "funnel" ? 0.9 : 1.5,
+            emissiveIntensity: name === "funnel" ? 0.72 : 1.16,
             transparent: true,
             depthWrite: false,
-            opacity: name === "funnel" ? 0.24 : 1,
+            opacity: name === "funnel" ? 0.22 : 1,
             doubleSide: name === "funnel",
           })
         : worldMaterial({

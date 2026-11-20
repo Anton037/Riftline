@@ -111,28 +111,28 @@ function mine(baseCol, color, trimCol, sides, profile) {
 // Biome-native floor plates, beam emitters & proximity mines (every biome uses its own stone/ice/moss/obsidian/basalt/sandstone)
 const MODELS = {
   // City: rain-darkened slate & warm antique brass
-  plate: () => tile(0x1f2e3a, 0x335464, 0xe0a65c, 0x86f0dc, 8),
-  // Shelf: frosted glacial stone, snow-blue plate & silver-ice crystal bezel
-  icespike: () => tile(0x5a86a8, 0x9ad0ec, 0xd8f4ff, 0xe8fbff, 6, obelisk(0xb2e6ff, 5)),
+  plate: () => tile(0x1f2e3a, 0x335464, 0xd89c52, 0x6cdcc8, 8),
+  // Shelf: deep glacial sapphire stone, slate-blue plate & crisp ice crystal bezel
+  icespike: () => tile(0x26486a, 0x4b82aa, 0x8cccee, 0xb6e4fa, 6, obelisk(0x6eb8e4, 5)),
   // Marsh: mossy bog stone, velvety lichen plate & soft glowing moss-root rim
-  geyser: () => tile(0x213d30, 0x3c7654, 0x62be82, 0xb8ffa8, 7, [gem(0.62, 0x72df8e, { y: 0.36, sy: 0.62 })]),
+  geyser: () => tile(0x1b3428, 0x2f6044, 0x4ea86e, 0x8ae88e, 7, [gem(0.62, 0x56be74, { y: 0.36, sy: 0.62 })]),
   // Core: deep midnight obsidian, carved amethyst stone & radiant lavender rim
-  riftburst: () => tile(0x16102c, 0x2c1f50, 0x9c6cf0, 0xe4b8ff, 6, obelisk(0xb682f2, 4)),
+  riftburst: () => tile(0x16102c, 0x2c1f50, 0x8c5ee0, 0xcba0f4, 6, obelisk(0x9a6ad8, 4)),
   // Caldera: dark charred volcanic basalt, glowing ember-slag rim & molten core
-  pyro: () => tile(0x231719, 0x562b22, 0xb85228, 0xffb85e, 6, [gem(0.6, 0xf27836, { y: 0.32, sy: 0.6 })]),
-  // Flats: warm sunlit terracotta-ochre sandstone, golden sand inlay & turquoise desert-glass rim
-  sunspike: () => tile(0x9a7446, 0xd8b474, 0x4fd4c2, 0xffe498, 8, obelisk(0x52d4c2, 6)),
+  pyro: () => tile(0x231719, 0x562b22, 0xb85228, 0xee9c46, 6, [gem(0.6, 0xe46a2c, { y: 0.32, sy: 0.6 })]),
+  // Flats: warm terracotta-umber stone, burnished ochre inlay & deep jewel turquoise rim
+  sunspike: () => tile(0x5e3d24, 0x9c7242, 0x26a89a, 0xe8bc66, 8, obelisk(0x28a89c, 6)),
   // Beam emitters (biome-native pedestals)
-  laser: () => emitter(0x1f2e3a, 0x385864, 0xe0a65c, 0xffa674, 0.72, 6),
-  magma: () => emitter(0x231719, 0x6c2f24, 0xc85c2a, 0xffb266, 0.24, 5),
-  rift: () => emitter(0x1d163a, 0x523a82, 0xc290ff, 0xf2b8ff, 0.59, 4),
+  laser: () => emitter(0x1f2e3a, 0x385864, 0xd89c52, 0xf29460, 0.72, 6),
+  magma: () => emitter(0x231719, 0x6c2f24, 0xc85c2a, 0xee9a4e, 0.24, 5),
+  rift: () => emitter(0x1d163a, 0x523a82, 0xb07ee8, 0xdba0ee, 0.59, 4),
   // Proximity mines (biome-native shells)
-  mine: () => mine(0x20303c, 0x506c7a, 0xe0a65c, 6, false),
-  frost: () => mine(0x5480a4, 0x94cce8, 0xdcf6ff, 8, true),
-  spore: () => mine(0x213c2e, 0x44825a, 0x78dc98, 6, true),
-  riftmine: () => mine(0x1d163a, 0x5c3e92, 0xd098ff, 5, true),
-  embermine: () => mine(0x24171a, 0x7a3426, 0xe0682c, 6, false),
-  glassmine: () => mine(0x9a7448, 0xd4ae70, 0x50d4c2, 7, true),
+  mine: () => mine(0x20303c, 0x506c7a, 0xd89c52, 6, false),
+  frost: () => mine(0x284c70, 0x4c88b2, 0x94d2f0, 8, true),
+  spore: () => mine(0x1c3428, 0x366c4a, 0x5ec27e, 6, true),
+  riftmine: () => mine(0x1d163a, 0x5c3e92, 0xbe86f0, 5, true),
+  embermine: () => mine(0x24171a, 0x7a3426, 0xd65e24, 6, false),
+  glassmine: () => mine(0x5e3e24, 0x986e40, 0x28a89a, 7, true),
 };
 const MAX = { floor: 12, beam: 8, mine: 16 };
 
@@ -151,7 +151,7 @@ export class TrapView {
     const m = MODELS[name]();
     const mk = (parts, glow) => {
       const mat = glow
-        ? emissiveMaterial({ vertexColors: true, emissiveIntensity: 1.55 })
+        ? emissiveMaterial({ vertexColors: true, emissiveIntensity: 1.14 })
         : worldMaterial({
             color: 0xffffff,
             vertexColors: true,
@@ -450,6 +450,11 @@ export class TrapView {
         r.emit(beam.x + ca * d, 0.8, beam.y + sa * d, ca, 1.5, sa, 0.4, 0.14, look.main, { drag: 2, grav: -1 });
       }
     } else if (beam.skin === "rift") {
+      r.warningEdges.colC(
+        r.warningEdges.seg(beam.x, beam.y, ex, ez, 0.96, beam.w * 1.04, beam.w * 0.42),
+        hex(0x1b0b34),
+        0.66,
+      );
       let px = beam.x,
         pz = beam.y;
       for (let i = 1; i <= 8; i++) {
@@ -457,15 +462,20 @@ export class TrapView {
         const off = Math.sin(time * 9 + i * 1.3) * beam.w * 0.45 * (i < 8 ? 1 : 0);
         const qx = beam.x + ca * along - sa * off;
         const qz = beam.y + sa * along + ca * off;
-        b.colC(b.seg(px, pz, qx, qz, 1, beam.w * sheen, beam.w * 0.6), look.main, 0.8);
+        b.colC(b.seg(px, pz, qx, qz, 1, beam.w * 0.88 * sheen, beam.w * 0.52), look.main, 0.56);
         px = qx;
         pz = qz;
       }
-      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.3, beam.w * 0.3), WHITE, 1.1);
+      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.24, beam.w * 0.24), WHITE, 0.72);
     } else if (beam.skin === "cryo") {
-      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * (0.92 + sheen * 0.08), beam.w * 0.7), look.main, 0.62);
-      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.42, beam.w * 0.36), look.alt, 0.9);
-      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.16, beam.w * 0.16), WHITE, 1.1);
+      r.warningEdges.colC(
+        r.warningEdges.seg(beam.x, beam.y, ex, ez, 0.96, beam.w * 1.06, beam.w * 0.48),
+        hex(0x0b2a4c),
+        0.74,
+      );
+      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * (0.86 + sheen * 0.06), beam.w * 0.58), look.main, 0.48);
+      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.36, beam.w * 0.3), look.alt, 0.58);
+      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.14, beam.w * 0.14), WHITE, 0.72);
       const n = Math.max(4, Math.round(len / 1.4));
       const reach = Math.max(0.22, beam.w * 0.75);
       const thin = Math.max(0.05, beam.w * 0.09);
@@ -485,12 +495,17 @@ export class TrapView {
               thin,
               thin * 0.5,
             ),
-            look.alt,
-            0.85,
+            look.main,
+            0.64,
           );
         }
       }
     } else if (beam.skin === "acid") {
+      r.warningEdges.colC(
+        r.warningEdges.seg(beam.x, beam.y, ex, ez, 0.96, beam.w * 1.02, beam.w * 0.44),
+        hex(0x08261a),
+        0.64,
+      );
       let px = beam.x,
         pz = beam.y;
       for (let i = 1; i <= 6; i++) {
@@ -498,12 +513,17 @@ export class TrapView {
         const qx = beam.x + ca * along;
         const qz = beam.y + sa * along;
         const swell = 0.8 + 0.3 * Math.sin(time * 14 - i * 1.6);
-        b.colC(b.seg(px, pz, qx, qz, 1, beam.w * swell * sheen, beam.w * 0.6), look.main, 0.75);
+        b.colC(b.seg(px, pz, qx, qz, 1, beam.w * swell * sheen, beam.w * 0.52), look.main, 0.55);
         px = qx;
         pz = qz;
       }
-      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.3, beam.w * 0.3), look.alt, 1.05);
+      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.26, beam.w * 0.26), look.alt, 0.72);
     } else if (beam.skin === "sun") {
+      r.warningEdges.colC(
+        r.warningEdges.seg(beam.x, beam.y, ex, ez, 0.96, beam.w * 1.12, beam.w * 0.48),
+        hex(0x4a1d08),
+        0.74,
+      );
       let px = beam.x,
         pz = beam.y;
       for (let i = 1; i <= 7; i++) {
@@ -512,24 +532,24 @@ export class TrapView {
         const qx = beam.x + ca * along - sa * off;
         const qz = beam.y + sa * along + ca * off;
         b.colC(
-          b.seg(px, pz, qx, qz, 1, beam.w * (1.3 + 0.14 * Math.sin(time * 8 - i)) * sheen, beam.w * 0.7),
+          b.seg(px, pz, qx, qz, 1, beam.w * (1.12 + 0.12 * Math.sin(time * 8 - i)) * sheen, beam.w * 0.56),
           look.main,
-          0.9,
+          0.56,
         );
         px = qx;
         pz = qz;
       }
-      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.34, beam.w * 0.34), look.alt, 1.0);
-      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.14, beam.w * 0.14), WHITE, 1.15);
+      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.3, beam.w * 0.3), look.alt, 0.64);
+      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.12, beam.w * 0.12), WHITE, 0.72);
     } else {
       r.warningEdges.colC(r.warningEdges.seg(beam.x, beam.y, ex, ez, 0.055, beam.w, 0.04), hex(FINISH.ink), 0.78);
-      b.colC(b.seg(beam.x, beam.y, ex, ez, 0.75, beam.w * 0.24, beam.w * 0.14), WHITE, 0.9);
+      b.colC(b.seg(beam.x, beam.y, ex, ez, 0.75, beam.w * 0.22, beam.w * 0.14), WHITE, 0.72);
       for (const side of [-1, 1]) {
         const o = side * beam.w * 0.42;
-        b.colC(b.seg(beam.x - sa * o, beam.y + ca * o, ex - sa * o, ez + ca * o, 0.74, 0.09, 0.065), look.main, 0.92);
+        b.colC(b.seg(beam.x - sa * o, beam.y + ca * o, ex - sa * o, ez + ca * o, 0.74, 0.09, 0.065), look.main, 0.76);
       }
     }
-    r.sprites.colC(r.sprites.bb(ex, 1, ez, 1.2, r.B), look.main, 0.45);
+    r.sprites.colC(r.sprites.bb(ex, 1, ez, 1.05, r.B), look.main, 0.36);
     if (Math.random() < dt * 28) {
       r.emit(
         ex,

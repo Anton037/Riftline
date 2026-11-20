@@ -25,17 +25,17 @@ import {
 
 // Surface atlas tile (col, row), rim strength, specular exponent
 const SURFACE_SPEC = {
-  metal: [0, 0, 0.42, 48],
-  armor: [1, 0, 0.46, 36],
-  organic: [2, 0, 0.34, 20],
-  rubber: [0, 1, 0.16, 12],
-  basalt: [0, 1, 0.24, 18],
-  wood: [1, 1, 0.22, 18],
-  stone: [1, 1, 0.28, 22],
-  sandstone: [1, 1, 0.26, 20],
-  ice: [2, 1, 0.56, 68],
-  crystal: [2, 1, 0.62, 76],
-  dust: [0, 1, 0.08, 10],
+  metal: [0, 0, 0.36, 52],
+  armor: [1, 0, 0.38, 40],
+  organic: [2, 0, 0.24, 24],
+  rubber: [0, 1, 0.14, 14],
+  basalt: [0, 1, 0.18, 22],
+  wood: [1, 1, 0.18, 20],
+  stone: [1, 1, 0.2, 26],
+  sandstone: [1, 1, 0.18, 24],
+  ice: [2, 1, 0.44, 72],
+  crystal: [2, 1, 0.48, 80],
+  dust: [0, 1, 0.08, 12],
 };
 
 function compileShader(gl, type, src, label) {

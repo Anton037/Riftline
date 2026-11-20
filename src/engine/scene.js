@@ -367,20 +367,20 @@ export class Scene extends Node {
     this.fogFar = 72;
     this.sunDir = new Vec3(0.45, 0.82, 0.35).normalize();
     this.sunColor = new Color(0xffe6c4);
-    this.sunIntensity = 1.9;
+    this.sunIntensity = 1.42;
     this.hemiSky = new Color(0x88c4d8);
     this.hemiGround = new Color(0x3a2b36);
-    this.hemiIntensity = 1.0;
+    this.hemiIntensity = 0.85;
     this.fillDir = new Vec3(-0.6, 0.45, -0.65).normalize();
     this.fillColor = new Color(0x6ec8d8);
-    this.fillIntensity = 0.65;
+    this.fillIntensity = 0.52;
     this.shadowTint = new Color(0x1f2342);
     this.rimColor = new Color(0x9be2e8);
     this.biomeIndex = 0;
     this.darkness = 0;
     this.time = 0;
-    this.bloomStrength = 0.42;
-    this.bloomThreshold = 0.92;
+    this.bloomStrength = 0.28;
+    this.bloomThreshold = 1.22;
     this.pointLights = Array.from({ length: 8 }, () => ({
       x: 0,
       y: 1.5,

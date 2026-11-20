@@ -68,12 +68,12 @@ def make_terrain_atlas():
     atlas = Image.new("RGB", (size * 3, size * 2))
     specs = [
         # (base_rgb, warm_tint, cool_tint, angle, spread, seed)
-        ((30, 48, 60), (56, 76, 86), (14, 24, 38), 18, 24, 101),         # city: deeper cozy rain-washed slate flagstones
-        ((150, 188, 212), (218, 238, 248), (94, 130, 168), -22, 18, 202), # shelf: bright sunlit alpine snow & frost drifts
-        ((34, 70, 56), (86, 132, 96), (18, 40, 40), 10, 48, 303),         # marsh: cozy mossy peat & damp twilight bog
-        ((34, 28, 66), (76, 58, 122), (16, 12, 38), 45, 32, 404),         # core: deep velvety midnight obsidian stone
-        ((38, 26, 28), (74, 42, 36), (18, 12, 16), -12, 38, 505),         # caldera: dark charred volcanic basalt & ash
-        ((184, 150, 108), (232, 200, 146), (132, 102, 74), 6, 14, 606),   # flats: bright sun-baked ochre sandstone dunes
+        ((34, 52, 66), (58, 78, 92), (18, 28, 42), 18, 24, 101),          # city: rain-washed slate flagstones
+        ((104, 138, 166), (146, 178, 202), (62, 92, 126), -22, 18, 202),  # shelf: alpine twilight powder snow & sastrugi
+        ((30, 62, 50), (68, 108, 78), (16, 36, 36), 10, 48, 303),         # marsh: velvety mossy peat & damp twilight bog
+        ((30, 24, 58), (56, 44, 94), (16, 12, 34), 45, 32, 404),          # core: deep velvety midnight obsidian stone
+        ((36, 26, 28), (64, 40, 36), (18, 13, 17), -12, 38, 505),         # caldera: dark charred volcanic basalt & ash
+        ((142, 104, 68), (178, 138, 92), (96, 68, 48), 6, 14, 606),       # flats: golden-hour terracotta-ochre sandstone dunes
     ]
     y, x = np.mgrid[0:size, 0:size] / size
     for idx, (base, warm, cool, angle, spread, seed) in enumerate(specs):
@@ -81,26 +81,26 @@ def make_terrain_atlas():
         fine = periodic_fbm(size, 3, seed + 17, anisotropy=(2.0, 2.0))
         strokes = brush_strokes(size, 420, seed + 33, angle, spread, (0.06, 0.22), (0.008, 0.026), 1.0)
         # Subtle gouache paper tooth
-        tooth = np.random.default_rng(seed + 99).normal(0, 0.035, (size, size)).astype(np.float32)
+        tooth = np.random.default_rng(seed + 99).normal(0, 0.032, (size, size)).astype(np.float32)
         # Biome-specific subtle motif baked cleanly into the brushwork
         motif = np.zeros((size, size), dtype=np.float32)
         if idx == 0:  # city paving slabs
             gx = np.abs(np.sin(TAU * x * 4.0))
             gy = np.abs(np.sin(TAU * y * 4.0))
             seam = np.minimum(gx, gy)
-            motif = np.where(seam < 0.045, -0.32, 0.06 * np.cos(TAU * (x * 2 + y)))
+            motif = np.where(seam < 0.045, -0.28, 0.05 * np.cos(TAU * (x * 2 + y)))
         elif idx == 1:  # shelf wind-carved sastrugi drifts
-            motif = 0.28 * np.sin(TAU * (x * 2.0 + y * 1.0 + fbm * 0.35))
+            motif = 0.24 * np.sin(TAU * (x * 2.0 + y * 1.0 + fbm * 0.35))
         elif idx == 2:  # marsh tangled bog ripples
-            motif = 0.25 * np.sin(TAU * (x * 3.0 - y * 2.0 + fbm * 0.6))
-        elif idx == 3:  # core crystalline facets
-            motif = 0.28 * (np.abs(np.cos(TAU * (x * 3 + y * 2))) - 0.5)
+            motif = 0.22 * np.sin(TAU * (x * 3.0 - y * 2.0 + fbm * 0.6))
+        elif idx == 3:  # core subtle carved obsidian facets
+            motif = 0.14 * (np.abs(np.cos(TAU * (x * 3 + y * 2))) - 0.5)
         elif idx == 4:  # caldera cooled basalt crust ridges
-            motif = 0.26 * np.cos(TAU * (x * 3 - y * 3 + fbm * 0.45))
-        elif idx == 5:  # flats dune ripples
-            motif = 0.24 * np.sin(TAU * (y * 6.0 + fbm * 0.3))
+            motif = 0.24 * np.cos(TAU * (x * 3 - y * 3 + fbm * 0.45))
+        elif idx == 5:  # flats wind-sculpted sandstone ripples
+            motif = 0.22 * np.sin(TAU * (y * 6.0 + fbm * 0.3))
 
-        t = np.clip(0.5 + fbm * 0.36 + strokes * 0.24 + fine * 0.12 + motif * 0.42 + tooth, 0.0, 1.0)
+        t = np.clip(0.5 + fbm * 0.34 + strokes * 0.22 + fine * 0.12 + motif * 0.38 + tooth, 0.0, 1.0)
         base_v = np.array(base, dtype=np.float32)[None, None, :]
         warm_v = np.array(warm, dtype=np.float32)[None, None, :]
         cool_v = np.array(cool, dtype=np.float32)[None, None, :]
@@ -124,23 +124,23 @@ def make_surface_atlas():
     atlas = Image.new("RGB", (size * 3, size * 2))
     configs = [
         # (angle, spread, stroke_count, ridge_freq, roughness_base, seed)
-        (0, 8, 520, 10, 0.28, 701),     # metal: crisp directional brushed grain
+        (0, 8, 520, 10, 0.26, 701),     # metal: crisp directional brushed grain
         (32, 26, 380, 6, 0.38, 702),    # armor: sculpted painted ceramic-enamel brushwork
-        (74, 42, 460, 8, 0.56, 703),    # organic: living striated chitin / moss bark
-        (-18, 55, 500, 5, 0.78, 704),   # basalt/rubber: matte volcanic stone grain
-        (14, 30, 440, 7, 0.66, 705),    # stone/wood/sandstone: carved masonry brushwork
-        (-45, 18, 360, 11, 0.18, 706),  # ice/crystal: sharp faceted crystalline streaks
+        (74, 42, 460, 8, 0.68, 703),    # organic: matte velvety chitin / mushroom cap / bark
+        (-18, 55, 500, 5, 0.84, 704),   # basalt/rubber: matte volcanic stone grain
+        (14, 30, 440, 7, 0.74, 705),    # stone/wood/sandstone: carved masonry brushwork
+        (-45, 18, 360, 11, 0.16, 706),  # ice/crystal: sharp faceted crystalline streaks
     ]
     y, x = np.mgrid[0:size, 0:size] / size
     for idx, (ang, spread, count, rfreq, rough_base, seed) in enumerate(configs):
         fbm = periodic_fbm(size, 4, seed)
         strokes = brush_strokes(size, count, seed + 11, ang, spread, (0.05, 0.24), (0.006, 0.022), 1.0)
-        tooth = np.random.default_rng(seed + 29).normal(0, 0.04, (size, size)).astype(np.float32)
-        val = np.clip(0.54 + fbm * 0.22 + strokes * 0.26 + tooth, 0.0, 1.0)
-        rough = np.clip(rough_base + fbm * 0.16 - strokes * 0.14, 0.05, 0.98)
+        tooth = np.random.default_rng(seed + 29).normal(0, 0.036, (size, size)).astype(np.float32)
+        val = np.clip(0.50 + fbm * 0.18 + strokes * 0.20 + tooth, 0.0, 1.0)
+        rough = np.clip(rough_base + fbm * 0.14 - strokes * 0.10, 0.05, 0.98)
         band = np.abs(np.cos(TAU * (x * rfreq * math.cos(math.radians(ang)) +
                                     y * rfreq * math.sin(math.radians(ang)) + fbm * 0.4)))
-        glint = np.clip((band ** 6) * 0.65 + np.maximum(0.0, strokes) * 0.45, 0.0, 1.0)
+        glint = np.clip((band ** 7) * 0.45 + np.maximum(0.0, strokes) * 0.30, 0.0, 1.0)
         rgb = np.dstack([val * 255.0, rough * 255.0, glint * 255.0])
         tile = Image.fromarray(np.clip(rgb, 0, 255).astype("uint8"))
         atlas.paste(tile, (size * (idx % 3), size * (idx // 3)))

@@ -124,9 +124,9 @@ const RL_MOTION = {
 };
 const RL_MOTION_NONE = { ref: 5, f: 1, roll: 0.06, lean: 0.06, bounce: 0.06, hover: 0, hf: 0, breath: 0.02, bf: 2 };
 
-const RL_WHITEOUT_FOG = [0.7, 1.12];
-const RL_WHITEOUT_TINT = new Color(0xe2f2fa);
-const RL_WHITEOUT_SNOW = new Color(0xffffff);
+const RL_WHITEOUT_FOG = [0.85, 1.55];
+const RL_WHITEOUT_TINT = new Color(0x6e94b8);
+const RL_WHITEOUT_SNOW = new Color(0xd6eefc);
 
 function flashOrder(a, b) {
   return b.i - a.i;
@@ -284,9 +284,9 @@ export class Renderer {
       0,
       { color: false },
     );
-    this.sprites = this._addPool(quad, additiveMaterial(0, 0.9, 1.35), 2200, 5);
-    this.sparks = this._addPool(quad, additiveMaterial(1, 0.95, 1.65), 1400, 5);
-    this.beams = this._addPool(box(1, 1, 1).translate(0.5, 0, 0), additiveMaterial(-1, 0.92, 1.45), 900, 4);
+    this.sprites = this._addPool(quad, additiveMaterial(0, 0.85, 1.08), 2200, 5);
+    this.sparks = this._addPool(quad, additiveMaterial(1, 0.92, 1.24), 1400, 5);
+    this.beams = this._addPool(box(1, 1, 1).translate(0.5, 0, 0), additiveMaterial(-1, 0.88, 1.12), 900, 4);
     this.warningEdges = this._addPool(
       box(1, 1, 1).translate(0.5, 0, 0),
       emissiveMaterial({
@@ -300,17 +300,17 @@ export class Renderer {
       240,
       3,
     );
-    this.ringPool = this._addPool(ring(0.87, 1, 36), additiveMaterial(-1, 0.9, 1.35), 260, 3);
-    this.discs = this._addPool(disc(1, 32), additiveMaterial(-1, 0.85, 1.1), 160, 2);
+    this.ringPool = this._addPool(ring(0.87, 1, 36), additiveMaterial(-1, 0.86, 1.1), 260, 3);
+    this.discs = this._addPool(disc(1, 32), additiveMaterial(-1, 0.8, 0.92), 160, 2);
     this.columns = this._addPool(
       cylinder(0.65, 1, 1, 14, true).translate(0, 0.5, 0),
-      additiveMaterial(-1, 0.85, 1.45),
+      additiveMaterial(-1, 0.76, 1.05),
       96,
       4,
     );
     this.ebCore = this._addPool(
       octahedron(0.6),
-      emissiveMaterial({ color: 0xffffff, emissiveIntensity: 1.65, fog: false }),
+      emissiveMaterial({ color: 0xffffff, emissiveIntensity: 1.22, fog: false }),
       520,
       3,
     );
@@ -331,19 +331,19 @@ export class Renderer {
     );
     this.shardPool = this._addPool(
       shardGeometry(),
-      emissiveMaterial({ color: 0xffffff, emissiveIntensity: 1.45 }),
+      worldMaterial({ surface: "crystal", color: 0xffffff, emissive: 0x14181e, emissiveIntensity: 0.45 }),
       260,
       2,
     );
     this.healPool = this._addPool(
       healCrossGeometry(),
-      emissiveMaterial({ color: 0xffffff, emissiveIntensity: 1.55 }),
+      emissiveMaterial({ color: 0xffffff, emissiveIntensity: 1.22 }),
       48,
       2,
     );
     this.blades = this._addPool(
       orbitBladeGeometry(),
-      emissiveMaterial({ color: 0xffffff, emissiveIntensity: 1.5, vertexColors: true }),
+      emissiveMaterial({ color: 0xffffff, emissiveIntensity: 1.18, vertexColors: true }),
       48,
       2,
     );
@@ -353,10 +353,11 @@ export class Renderer {
       shieldArcGeometry(),
       emissiveMaterial({
         color: 0xffffff,
-        emissiveIntensity: 1.55,
-        opacity: 0.72,
+        emissiveIntensity: 1.12,
+        opacity: 0.74,
         transparent: true,
-        additive: true,
+        additive: false,
+        vertexColors: true,
         depthWrite: false,
         doubleSide: true,
       }),
@@ -373,7 +374,7 @@ export class Renderer {
         vertexColors: true,
         biomeSkin: true,
       });
-      const glowMat = emissiveMaterial({ color: 0xffffff, emissiveIntensity: 1.7, vertexColors: true });
+      const glowMat = emissiveMaterial({ color: 0xffffff, emissiveIntensity: 1.18, vertexColors: true });
       const cap = type === "swarmer" || type === "mite" ? 180 : 96;
       const body = this._addPool(kit.body, bodyMat, cap, 1, { flash: true });
       body.mesh.castShadow = true;
@@ -465,7 +466,7 @@ export class Renderer {
     if (whiteK > 0 && biome.id === "shelf") {
       s.fogNear += (dist * RL_WHITEOUT_FOG[0] - s.fogNear) * whiteK;
       s.fogFar += (dist * RL_WHITEOUT_FOG[1] - s.fogFar) * whiteK;
-      s.fogColor.lerp(RL_WHITEOUT_TINT, 0.85 * whiteK);
+      s.fogColor.lerp(RL_WHITEOUT_TINT, 0.72 * whiteK);
       s.clearColor.copy(s.fogColor);
       this.engine.setClearColor(s.fogColor, 1);
     }
@@ -608,8 +609,8 @@ export class Renderer {
       lights[0].r = this._muzzleCol.r;
       lights[0].g = this._muzzleCol.g;
       lights[0].b = this._muzzleCol.b;
-      lights[0].radius = 6.5;
-      lights[0].intensity = this.muzzle * 1.4;
+      lights[0].radius = 5.5;
+      lights[0].intensity = this.muzzle * 0.85;
     } else {
       lights[0].intensity = 0;
     }
@@ -625,8 +626,8 @@ export class Renderer {
         slot.r = f.col.r;
         slot.g = f.col.g;
         slot.b = f.col.b;
-        slot.radius = Math.max(2.5, f.r * 2.2);
-        slot.intensity = Math.min(2.2, f.i * 1.35);
+        slot.radius = Math.max(2.5, f.r * 2.0);
+        slot.intensity = Math.min(1.5, f.i * 1.05);
       } else {
         slot.intensity = 0;
       }
@@ -635,9 +636,9 @@ export class Renderer {
     const dark = this.rlBlackK || 0;
     this.scene.darkness = dark;
     if (dark > 0) {
-      this.scene.hemiIntensity *= 1 - 0.65 * dark;
-      this.scene.sunIntensity *= 1 - 0.72 * dark;
-      this.scene.fillIntensity *= 1 - 0.72 * dark;
+      this.scene.hemiIntensity *= 1 - 0.48 * dark;
+      this.scene.sunIntensity *= 1 - 0.56 * dark;
+      this.scene.fillIntensity *= 1 - 0.5 * dark;
     }
   }
 
@@ -700,7 +701,7 @@ export class Renderer {
                 muzzle.y,
               );
             }
-            this.emit(muzzle.x, muzzle.y, muzzle.z, dirX * 4.5, 0, dirZ * 4.5, 0.1, 0.85, color, { drag: 0 });
+            this.emit(muzzle.x, muzzle.y, muzzle.z, dirX * 4.5, 0, dirZ * 4.5, 0.085, 0.52, color, { drag: 0 });
           } else if (muzzleKind === "rail") {
             const perpX = -dirZ,
               perpZ = dirX;
@@ -717,7 +718,7 @@ export class Renderer {
               );
             }
             this.ring(muzzle.x + dirX * 0.15, muzzle.z + dirZ * 0.15, 0.12, 0.85, color, 0.14);
-            this.emit(muzzle.x, muzzle.y, muzzle.z, dirX * 5, 0, dirZ * 5, 0.1, 0.65, whiteColor, { drag: 0 });
+            this.emit(muzzle.x, muzzle.y, muzzle.z, dirX * 5, 0, dirZ * 5, 0.08, 0.42, whiteColor, { drag: 0 });
           } else if (muzzleKind === "backblast") {
             this.line(
               muzzle.x,
@@ -731,7 +732,7 @@ export class Renderer {
             );
             const backX = muzzle.x - dirX * 0.62,
               backZ = muzzle.z - dirZ * 0.62;
-            this.emit(backX, muzzle.y, backZ, -dirX * 3.2, 0.35, -dirZ * 3.2, 0.18, 0.55, color, { drag: 3 });
+            this.emit(backX, muzzle.y, backZ, -dirX * 3.2, 0.35, -dirZ * 3.2, 0.18, 0.45, color, { drag: 3 });
             this.smokeView.emit(backX, muzzle.y, backZ, 0.44, 0x9da7a8, 0.4);
           } else if (muzzleKind === "fire") {
             this.emit(
@@ -742,7 +743,7 @@ export class Renderer {
               0.3,
               dirZ * 3.5,
               0.08,
-              0.34,
+              0.28,
               whiteColor,
               { drag: 2 },
             );
@@ -753,12 +754,12 @@ export class Renderer {
               muzzle.x + dirX * 0.34,
               muzzle.z + dirZ * 0.34,
               whiteColor,
+              0.055,
               0.06,
-              0.075,
               muzzle.y,
             );
-            this.emit(muzzle.x, muzzle.y, muzzle.z, dirX * 4.5, 0, dirZ * 4.5, 0.095, 0.62, color, { drag: 0 });
-            this.emit(muzzle.x, muzzle.y, muzzle.z, dirX * 2.2, 0, dirZ * 2.2, 0.055, 0.36, whiteColor, { drag: 0 });
+            this.emit(muzzle.x, muzzle.y, muzzle.z, dirX * 4.5, 0, dirZ * 4.5, 0.08, 0.42, color, { drag: 0 });
+            this.emit(muzzle.x, muzzle.y, muzzle.z, dirX * 2.2, 0, dirZ * 2.2, 0.045, 0.24, whiteColor, { drag: 0 });
           }
           if (["pulse", "scatter", "rocket", "flame"].includes(def.id)) {
             this.smokeView.emit(muzzle.x, muzzle.y, muzzle.z, def.id === "scatter" ? 0.5 : 0.3, 0x9da7a8, 0.35);
@@ -1646,9 +1647,9 @@ export class Renderer {
         }
       }
       this.sprites.colC(
-        this.sprites.bb(player.x, 0.22, player.y, 2.1, basis),
+        this.sprites.bb(player.x, 0.22, player.y, 1.9, basis),
         hexColor(weaponDefs[world.weapon].color),
-        0.34,
+        0.2,
       );
       if (player.dashT > 0 && dt > 0 && Math.random() < dt * 65) {
         this.emit(
@@ -1815,9 +1816,9 @@ export class Renderer {
 
       this.shadows.y(enemy.x, 0.022, enemy.y, 0, enemy.r * 2.8 * scale);
       this.sprites.colC(
-        this.sprites.bb(enemy.x, 0.35, enemy.y, enemy.r * (enemy.elite ? 4.2 : 3.2) * scale, basis),
+        this.sprites.bb(enemy.x, 0.35, enemy.y, enemy.r * (enemy.elite ? 3.8 : 2.8) * scale, basis),
         enemy.elite ? goldColor : pools.color,
-        enemy.elite ? 0.24 : 0.09,
+        enemy.elite ? 0.15 : 0.055,
       );
       if (enemy.burnT > 0 && Math.random() < dt * 14)
         this.emit(
@@ -2112,8 +2113,13 @@ export class Renderer {
       if (beam.live && beam.skin && this.trapView.drawBeam(beam, ex, ez, len, time, dt)) continue;
       if (beam.live) {
         const beamCol = beam.color ? hexColor(beam.color) : beamColor;
-        this.beams.colC(this.beams.seg(beam.x, beam.y, ex, ez, 0.72, beam.w, beam.w * 0.2), beamCol, 0.78);
-        this.beams.colC(this.beams.seg(beam.x, beam.y, ex, ez, 0.75, beam.w * 0.22, beam.w * 0.13), whiteColor, 0.95);
+        this.warningEdges.colC(
+          this.warningEdges.seg(beam.x, beam.y, ex, ez, 0.7, beam.w * 1.06, beam.w * 0.16),
+          warningDark,
+          0.62,
+        );
+        this.beams.colC(this.beams.seg(beam.x, beam.y, ex, ez, 0.72, beam.w * 0.88, beam.w * 0.18), beamCol, 0.58);
+        this.beams.colC(this.beams.seg(beam.x, beam.y, ex, ez, 0.75, beam.w * 0.18, beam.w * 0.11), whiteColor, 0.68);
         if (Math.random() < dt * 14) {
           const along = Math.random() * len;
           this.emit(
@@ -2124,7 +2130,7 @@ export class Renderer {
             2,
             (Math.random() - 0.5) * 4,
             0.3,
-            0.4,
+            0.32,
             beam.color ? beamCol : hexColor(0xff5268),
           );
         }

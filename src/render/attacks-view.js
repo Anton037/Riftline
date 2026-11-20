@@ -20,7 +20,7 @@ const FIRE = new Color(0xff8a2a);
 const FIRE_HOT = new Color(0xffda7a);
 const SMOKE = new Color(0x4a4440);
 const ARC = new Color(FINISH.brass);
-const FROST_SHOT = new Color(0x8fe8ff);
+const FROST_SHOT = new Color(0x28a4f0);
 const RIFT_RIM_SHOT = new Color(FINISH.lavender);
 
 const SHOT = {
@@ -36,11 +36,11 @@ const SHOT = {
 
 const DUST = {
   city: new Color(0x6a7686),
-  shelf: new Color(0xdff6ff),
+  shelf: new Color(0x9ec8e2),
   marsh: new Color(0x2f4238),
   core: new Color(0x64429e),
   caldera: new Color(0x7c6a5c),
-  flats: new Color(0xdec89e),
+  flats: new Color(0xb69464),
 };
 
 const Z = { crack: 0, lavaCrack: 1, molten: 2, frost: 3, acid: 4, rift: 5, target: 6, burn: 7, glass: 8 };
@@ -55,7 +55,7 @@ const fac = (c, r, p) => meshPart(octahedron(r), c, p);
 const ringM = (c, r, w, p, n = 16) => meshPart(torus(r, w, 5, n), c, p);
 const ringT = (r, y) => ringM(0xffffff, r, 0.022, { y, rx: Math.PI / 2 });
 const BASALT = 0x3b2c32;
-const PORCELAIN = 0xe4cda4;
+const PORCELAIN = 0xd6bfa0;
 const COPPER = 0xc97652;
 
 const MODELS = {
@@ -85,14 +85,14 @@ const MODELS = {
   }),
   spike: () => ({
     body: [
-      fac(0xb2e6fa, 0.7, { y: 0.51, sx: 0.8, sy: 0.74, sz: 0.66, rz: -0.3 }),
-      fac(0x7ca6c4, 0.6, { x: 0.22, y: 0.33, sy: 0.52, sx: 0.63, rz: 0.34 }),
+      fac(0x4692c8, 0.7, { y: 0.51, sx: 0.8, sy: 0.74, sz: 0.66, rz: -0.3 }),
+      fac(0x255a88, 0.6, { x: 0.22, y: 0.33, sy: 0.52, sx: 0.63, rz: 0.34 }),
     ],
   }),
   crystal: () => ({
     body: [
-      fac(0x9ed6f0, 1, { sx: 1.65, sy: 0.6, sz: 0.73, rx: 0.36 }),
-      fac(0x76a2c4, 0.65, { x: -0.66, z: 0.14, sx: 1.07, sy: 0.56, sz: 0.73, ry: 0.26 }),
+      fac(0x2268a4, 1, { sx: 1.65, sy: 0.6, sz: 0.73, rx: 0.36 }),
+      fac(0x164470, 0.65, { x: -0.66, z: 0.14, sx: 1.07, sy: 0.56, sz: 0.73, ry: 0.26 }),
     ],
     glow: [fac(0xffffff, 0.63, { x: 0.61, y: 0.07, sx: 1.5, sy: 0.31, sz: 0.46 })],
   }),
@@ -108,8 +108,8 @@ const MODELS = {
   }),
   glasshot: () => ({
     body: [
-      fac(0xe2be74, 1, { sx: 2.1, sy: 0.39, sz: 0.54, rx: 0.42 }),
-      fac(PORCELAIN, 0.54, { x: -0.64, z: 0.31, sx: 1.52, sy: 0.22, ry: -0.27 }),
+      fac(0x9a4c1c, 1, { sx: 2.1, sy: 0.39, sz: 0.54, rx: 0.42 }),
+      fac(0x208e84, 0.54, { x: -0.64, z: 0.31, sx: 1.52, sy: 0.22, ry: -0.27 }),
     ],
     glow: [fac(0xffffff, 0.75, { x: 0.9, sx: 1.56, sy: 0.16, sz: 0.19 })],
   }),
@@ -167,7 +167,7 @@ export class AttackView {
     const m = MODELS[name]();
     const mk = (parts, glow) => {
       const mat = glow
-        ? emissiveMaterial({ vertexColors: true, emissiveIntensity: 1.6 })
+        ? emissiveMaterial({ vertexColors: true, emissiveIntensity: 1.18 })
         : worldMaterial({
             color: 0xffffff,
             vertexColors: true,
@@ -274,8 +274,6 @@ export class AttackView {
       r.shadows.y(x, 0.03, z, 0, rr * 2.4);
       const idx = pool.y(x, 0.045, z, 0, rr);
       if (idx >= 0) pool.col(idx, k, seed, look / 8);
-      r.ringPool.colC(r.ringPool.y(x, 0.052, z, 0, rr), warn, 0.78 + 0.22 * k);
-      r.ringPool.colC(r.ringPool.y(x, 0.05, z, 0, Math.max(0.05, rr * k)), warn, 0.35);
       this.zoneDetail(hazard, look, k, seed, dt, time, biome);
     }
   }
@@ -670,8 +668,8 @@ export class AttackView {
         sa = Math.sin(angle);
       const chance = (rate) => Math.random() < dt * rate;
       r.shadows.y(shot.x, 0.035, shot.y, 0, Math.max(0.45, shot.r * 3.5));
-      let halo = 3.6,
-        light = 0.42;
+      let halo = 2.8,
+        light = 0.28;
       switch (kind) {
         case "bolt":
         case "fast":
@@ -682,7 +680,7 @@ export class AttackView {
           r.beams.colC(
             r.beams.seg(shot.x - ca * len, shot.y - sa * len, shot.x, shot.y, h, heavy ? 0.085 : 0.04, 0.045),
             color,
-            0.9,
+            0.78,
           );
           if (heavy && chance(7)) r.emit(shot.x, h, shot.y, 0, 0.3, 0, 0.16, 0.1, color, { spark: true, drag: 5 });
           break;
@@ -692,7 +690,7 @@ export class AttackView {
             s = shot.r * 1.4,
             roll = time * 5 + shot.x;
           P.body.col(P.body.yr(shot.x, h, shot.y, angle, s, s, s, 0, roll), 1, 1, 1);
-          P.glow.colC(P.glow.yr(shot.x, h, shot.y, angle, s, s, s, 0, roll), ICE, 0.95);
+          P.glow.colC(P.glow.yr(shot.x, h, shot.y, angle, s, s, s, 0, roll), FROST_SHOT, 0.9);
           break;
         }
         case "weaver": {

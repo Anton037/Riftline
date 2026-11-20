@@ -26,7 +26,7 @@ export class WeaponEffectsView {
     return pool;
   }
   segments() {
-    return (this.segmentsPool ||= this.add(box(1, 1, 1).translate(0.5, 0, 0), additiveMaterial(-1, 1, 1.45), 4096));
+    return (this.segmentsPool ||= this.add(box(1, 1, 1).translate(0.5, 0, 0), additiveMaterial(-1, 0.92, 1.14), 4096));
   }
   flames() {
     if (!this.flamePool) {
