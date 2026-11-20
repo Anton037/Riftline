@@ -1,7 +1,7 @@
 // Lightweight scene graph, materials, GPU-instanced pools and static mesh batching for Riftline's WebGL2 engine.
 
 import { Color, Euler, Mat4, Quat, Vec3 } from "./math.js";
-import { mergeGeometries } from "./geometry.js";
+import { Geometry } from "./geometry.js";
 
 const _q = new Quat();
 const _tmpCol = new Color();
@@ -444,33 +444,113 @@ export function mergeStaticNodes(root, keep = new Set()) {
     for (const c of [...node.children]) collect(c);
   };
   collect(root);
+  const rel = new Mat4();
   for (const bucket of buckets.values()) {
     if (bucket.nodes.length < 2) continue;
-    const geos = [];
+    let totalV = 0;
+    let totalI = 0;
     for (const node of bucket.nodes) {
-      const g = node.geometry.clone();
-      const rel = new Mat4().multiplyMatrices(rootInv, node.worldMatrix);
-      g.applyMatrix4(rel);
+      const g = node.geometry;
+      const v = g.vertexCount;
+      totalV += v;
+      totalI += g.indices ? g.indices.length : v;
+    }
+    const outP = new Float32Array(totalV * 3);
+    const outN = new Float32Array(totalV * 3);
+    const outU = new Float32Array(totalV * 2);
+    const outC = new Float32Array(totalV * 3);
+    const outI = totalV > 65535 ? new Uint32Array(totalI) : new Uint16Array(totalI);
+    let vOff = 0;
+    let iOff = 0;
+    for (const node of bucket.nodes) {
+      const g = node.geometry;
+      const p = g.positions;
+      const nrm = g.normals;
+      const uv = g.uvs;
+      const srcC = g.colors;
+      const idx = g.indices;
+      const vCount = g.vertexCount;
+      rel.multiplyMatrices(rootInv, node.worldMatrix);
+      const e = rel.elements;
+      const a00 = e[0],
+        a01 = e[4],
+        a02 = e[8];
+      const a10 = e[1],
+        a11 = e[5],
+        a12 = e[9];
+      const a20 = e[2],
+        a21 = e[6],
+        a22 = e[10];
+      const b01 = a22 * a11 - a12 * a21;
+      const b11 = -a22 * a10 + a12 * a20;
+      const b21 = a21 * a10 - a11 * a20;
+      const det = a00 * b01 + a01 * b11 + a02 * b21 || 1;
+      const id = 1 / det;
+      const n00 = b01 * id,
+        n01 = b11 * id,
+        n02 = b21 * id;
+      const n10 = (-a22 * a01 + a02 * a21) * id,
+        n11 = (a22 * a00 - a02 * a20) * id,
+        n12 = (-a21 * a00 + a01 * a20) * id;
+      const n20 = (a12 * a01 - a02 * a11) * id,
+        n21 = (-a12 * a00 + a02 * a10) * id,
+        n22 = (a11 * a00 - a01 * a10) * id;
       const col = node.material.color;
-      const n = g.vertexCount;
-      if (!g.colors) {
-        g.colors = new Float32Array(n * 3);
-        for (let i = 0; i < n; i++) {
-          g.colors[i * 3] = col.r;
-          g.colors[i * 3 + 1] = col.g;
-          g.colors[i * 3 + 2] = col.b;
-        }
-      } else {
-        for (let i = 0; i < n; i++) {
-          g.colors[i * 3] *= col.r;
-          g.colors[i * 3 + 1] *= col.g;
-          g.colors[i * 3 + 2] *= col.b;
+      const cr = col.r,
+        cg = col.g,
+        cb = col.b;
+      for (let i = 0; i < vCount; i++) {
+        const s3 = i * 3;
+        const d3 = (vOff + i) * 3;
+        const x = p[s3],
+          y = p[s3 + 1],
+          z = p[s3 + 2];
+        outP[d3] = a00 * x + a01 * y + a02 * z + e[12];
+        outP[d3 + 1] = a10 * x + a11 * y + a12 * z + e[13];
+        outP[d3 + 2] = a20 * x + a21 * y + a22 * z + e[14];
+        const nx = nrm[s3],
+          ny = nrm[s3 + 1],
+          nz = nrm[s3 + 2];
+        const rx = n00 * nx + n01 * ny + n02 * nz;
+        const ry = n10 * nx + n11 * ny + n12 * nz;
+        const rz = n20 * nx + n21 * ny + n22 * nz;
+        const l = Math.hypot(rx, ry, rz) || 1;
+        outN[d3] = rx / l;
+        outN[d3 + 1] = ry / l;
+        outN[d3 + 2] = rz / l;
+        const s2 = i * 2;
+        const d2 = (vOff + i) * 2;
+        outU[d2] = uv[s2];
+        outU[d2 + 1] = uv[s2 + 1];
+        if (srcC) {
+          outC[d3] = srcC[s3] * cr;
+          outC[d3 + 1] = srcC[s3 + 1] * cg;
+          outC[d3 + 2] = srcC[s3 + 2] * cb;
+        } else {
+          outC[d3] = cr;
+          outC[d3 + 1] = cg;
+          outC[d3 + 2] = cb;
         }
       }
-      geos.push(g);
+      if (idx) {
+        if (det < 0) {
+          for (let i = 0; i < idx.length; i += 3) {
+            outI[iOff + i] = idx[i] + vOff;
+            outI[iOff + i + 1] = idx[i + 2] + vOff;
+            outI[iOff + i + 2] = idx[i + 1] + vOff;
+          }
+        } else {
+          for (let i = 0; i < idx.length; i++) outI[iOff + i] = idx[i] + vOff;
+        }
+        iOff += idx.length;
+      } else {
+        for (let i = 0; i < vCount; i++) outI[iOff + i] = vOff + i;
+        iOff += vCount;
+      }
+      vOff += vCount;
       toRemove.push(node);
     }
-    const mergedGeo = mergeGeometries(geos);
+    const mergedGeo = new Geometry(outP, outN, outU, outI, outC);
     const mergedMat = new Material({
       shader: bucket.sample.shader,
       color: 0xffffff,

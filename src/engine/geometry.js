@@ -47,9 +47,11 @@ export class Geometry {
     return this.indices ? this.indices.length / 3 : this.positions.length / 9;
   }
   computeBounds() {
+    if (this.bounds && this._boundsVersion === this.version) return this.bounds;
     const b = (this.bounds ||= new Box3()).makeEmpty();
     const p = this.positions;
     for (let i = 0; i < p.length; i += 3) b.expandByXYZ(p[i], p[i + 1], p[i + 2]);
+    this._boundsVersion = this.version;
     return b;
   }
   clone() {
@@ -331,6 +333,7 @@ export class Geometry {
     return new Geometry(outP, outN, outU, outI, outC);
   }
   dispose() {
+    if (this.shared) return;
     if (this._gpu) {
       const { gl, vao, vboPos, vboNorm, vboUv, vboCol, ibo } = this._gpu;
       if (gl && !gl.isContextLost()) {

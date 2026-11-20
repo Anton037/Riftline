@@ -15,32 +15,53 @@ function obstacleDistance(x, z, obs) {
 }
 
 export function createGroundOcclusion(halfW, halfH, obstacles = [], size = 128) {
-  const data = new Uint8Array(size * size);
+  const occBuf = new Float32Array(size * size);
+  occBuf.fill(1);
   const feather = 1.65;
   const wallFeather = 1.4;
+  const spanW = halfW * 2;
+  const spanH = halfH * 2;
+
   for (let row = 0; row < size; row++) {
-    const z = ((row + 0.5) / size) * (halfH * 2) - halfH;
+    const z = ((row + 0.5) / size) * spanH - halfH;
+    const dzWall = halfH - Math.abs(z);
     for (let col = 0; col < size; col++) {
-      const x = ((col + 0.5) / size) * (halfW * 2) - halfW;
-      let occ = 1;
-      // Subtle contact darkening along perimeter walls
-      const wallD = Math.min(halfW - Math.abs(x), halfH - Math.abs(z));
+      const x = ((col + 0.5) / size) * spanW - halfW;
+      const wallD = Math.min(halfW - Math.abs(x), dzWall);
       if (wallD < wallFeather) {
         const t = clamp(wallD / wallFeather, 0, 1);
-        occ = Math.min(occ, 0.58 + 0.42 * (t * t * (3 - 2 * t)));
+        occBuf[row * size + col] = 0.58 + 0.42 * (t * t * (3 - 2 * t));
       }
-      // Feathered ambient occlusion around every cover obstacle
-      for (let i = 0; i < obstacles.length; i++) {
-        const d = obstacleDistance(x, z, obstacles[i]);
+    }
+  }
+
+  // Stamp feathered contact AO strictly within each obstacle's local pixel AABB
+  for (let i = 0; i < obstacles.length; i++) {
+    const obs = obstacles[i];
+    const rx = (obs.t === "c" ? obs.r : obs.w) + feather;
+    const rz = (obs.t === "c" ? obs.r : obs.h) + feather;
+    const cMin = Math.max(0, Math.floor(((obs.x - rx + halfW) / spanW) * size));
+    const cMax = Math.min(size - 1, Math.ceil(((obs.x + rx + halfW) / spanW) * size));
+    const rMin = Math.max(0, Math.floor(((obs.y - rz + halfH) / spanH) * size));
+    const rMax = Math.min(size - 1, Math.ceil(((obs.y + rz + halfH) / spanH) * size));
+    for (let row = rMin; row <= rMax; row++) {
+      const z = ((row + 0.5) / size) * spanH - halfH;
+      const rowOff = row * size;
+      for (let col = cMin; col <= cMax; col++) {
+        const x = ((col + 0.5) / size) * spanW - halfW;
+        const d = obstacleDistance(x, z, obs);
         if (d < feather) {
           const t = clamp((d + 0.35) / (feather + 0.35), 0, 1);
           const smooth = t * t * (3 - 2 * t);
-          occ = Math.min(occ, 0.32 + 0.68 * smooth);
+          const v = 0.32 + 0.68 * smooth;
+          if (v < occBuf[rowOff + col]) occBuf[rowOff + col] = v;
         }
       }
-      data[row * size + col] = Math.round(clamp(occ, 0, 1) * 255);
     }
   }
+
+  const data = new Uint8Array(size * size);
+  for (let i = 0; i < data.length; i++) data[i] = Math.round(clamp(occBuf[i], 0, 1) * 255);
   return new Texture2D({
     width: size,
     height: size,

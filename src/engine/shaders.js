@@ -369,6 +369,8 @@ void main() {
   vec2 edgeDist = uHalf - abs(p);
   float edgeMin = min(edgeDist.x, edgeDist.y);
   float inside = smoothstep(-0.12, 0.14, edgeMin);
+  float outMask = 1.0 - inside;
+  float outDist = max(0.0, -edgeMin);
   vec2 rel = abs(p) / max(uHalf, vec2(1.0));
   float rNorm = max(rel.x, rel.y);
   // Calm walkable combat interior (r < 0.82) vs rich perimeter borders (edgeMin < 2.8)
@@ -377,7 +379,7 @@ void main() {
   float detailAmt = mix(1.0, 0.54, centerCalm);
   float emissiveCalm = mix(1.0, 0.48, centerCalm);
   vec2 occUv = (p + uHalf) / max(uHalf * 2.0, vec2(1.0));
-  float occ = (inside > 0.05) ? texture(uOcclusion, clamp(occUv, 0.0, 1.0)).r : 0.72;
+  float occ = (inside > 0.05) ? texture(uOcclusion, clamp(occUv, 0.0, 1.0)).r : 0.86;
 
   int style = int(uStyle + 0.5);
   // Map biome style to terrain atlas tile (0=city, 1=shelf, 2=marsh, 3=core, 4=caldera, 5=flats)
@@ -391,7 +393,9 @@ void main() {
   }
   vec3 albedo = mix(uFloorBase, brush, mix(0.76, 0.56, centerCalm));
   vec3 emissive = vec3(0.0);
+  vec3 extEmissive = vec3(0.0);
   float specBoost = 0.05;
+  float extScale = 0.82;
 
   // Subtle architectural tile seams so movement speed reads clearly without visual clutter
   vec2 cell = abs(fract(p * 0.25 + 0.5) - 0.5);
@@ -400,7 +404,7 @@ void main() {
   float n2 = fbm(p * 0.42 + vec2(3.2, -1.9));
 
   if (style == 5) {
-    // BLACKOUT CITY: calm rain-dappled courtyard flagstones with mirror puddles near borders & brass rivets
+    // BLACKOUT CITY: calm rain-dappled courtyard flagstones inside; canal moat & cobbled lantern quays outside
     float puddle = smoothstep(0.56, 0.70, n1 + (n2 - 0.5) * 0.20) * mix(1.0, 0.56, centerCalm);
     float stoneVar = hash21(floor(p * 0.25 + 0.5));
     albedo *= 0.92 + stoneVar * 0.13 * detailAmt;
@@ -411,34 +415,85 @@ void main() {
     float sheen = 0.5 + 0.5 * sin(p.x * 0.9 - p.y * 0.7 + n2 * 4.5 + uTime * 1.4);
     vec3 reflectCol = albedo * 0.48 + vec3(0.012, 0.028, 0.048) + uHemiSky * (0.010 + sheen * 0.016);
     albedo = mix(albedo, reflectCol, puddle * 0.66 * inside);
-    specBoost = mix(0.07, 0.48, puddle);
+    specBoost = mix(0.07, 0.48, puddle * inside);
+
+    if (outMask > 0.001) {
+      float canal = smoothstep(1.15, 1.65, outDist) * (1.0 - smoothstep(6.7, 7.25, outDist));
+      float quayCurb = exp(-pow((outDist - 1.35) * 3.8, 2.0)) + exp(-pow((outDist - 7.05) * 3.8, 2.0));
+      vec2 wc = floor(p * 1.65);
+      float wSeed = hash21(wc);
+      float dropR = length(fract(p * 1.65) - 0.5);
+      float dropLife = fract(uTime * 0.55 + wSeed * 7.3);
+      float rainRing = step(0.62, wSeed) * exp(-pow((dropR - dropLife * 0.44) * 28.0, 2.0)) * (1.0 - dropLife) * (1.0 - dropR * 2.0);
+      float wave = sin(p.x * 1.6 + p.y * 1.1 - uTime * 1.6 + n2 * 3.2) * 0.5 + 0.5;
+      vec3 waterCol = mix(vec3(0.012, 0.036, 0.060), vec3(0.024, 0.072, 0.105), wave * 0.55 + n1 * 0.45);
+      vec2 cobbleCell = abs(fract(p * 0.55) - 0.5);
+      float cobbleSeam = 1.0 - smoothstep(0.02, 0.06, min(cobbleCell.x, cobbleCell.y));
+      vec3 quayCol = mix(vec3(0.042, 0.065, 0.092), vec3(0.072, 0.102, 0.136), hash21(floor(p * 0.55)));
+      quayCol *= 1.0 - cobbleSeam * 0.32;
+      vec3 extCol = mix(quayCol, waterCol, canal);
+      extCol = mix(extCol, vec3(0.095, 0.128, 0.162), clamp(quayCurb, 0.0, 1.0) * 0.78);
+      albedo = mix(albedo, extCol, outMask);
+      float bankGlow = smoothstep(4.2, 6.8, outDist) * canal;
+      float amberRefl = (0.35 + 0.65 * smoothstep(0.35, 0.85, sin(p.x * 1.45 + sin(p.y * 2.8 - uTime * 2.0) * 0.55) * 0.5 + 0.5)) * bankGlow;
+      extEmissive += (uFloorTrim * 0.14 * amberRefl + uFloorAccent * 0.11 * max(rainRing, 0.0) * canal) * outMask;
+      specBoost = mix(specBoost, mix(0.18, 0.62, canal), outMask);
+      extScale = 0.92;
+    }
   } else if (style == 2) {
-    // AURORA SHELF: calm velvety alpine snowfield & sapphire glacier ice pockets richer toward perimeter
+    // AURORA SHELF: calm snowfield inside; glowing sapphire glacier fjord & powder-snow benchlands outside
     float icePatch = smoothstep(0.52, 0.68, n1) * mix(1.0, 0.54, centerCalm);
     float drift = smoothstep(0.34, 0.76, fbm(p * 0.19 + vec2(0.4, -0.2)));
     albedo = mix(albedo * 0.94, vec3(0.22, 0.34, 0.46), drift * 0.24 * detailAmt);
-    albedo = mix(albedo, vec3(0.07, 0.20, 0.33), icePatch * 0.52);
+    albedo = mix(albedo, vec3(0.07, 0.20, 0.33), icePatch * 0.52 * inside);
     float iceEdge = crackNet(p * 0.34, 0.42);
     float crack = (1.0 - smoothstep(0.016, 0.056, iceEdge)) * icePatch;
     albedo += vec3(0.08, 0.18, 0.26) * crack * 0.42 * inside;
     albedo = mix(albedo, vec3(0.14, 0.25, 0.38), gridLine * 0.12 * inside);
     float shimmer = smoothstep(0.72, 0.96, sin(p.x * 0.55 - p.y * 0.42 + uTime * 1.2 + n2 * 4.5));
     emissive += uFloorAccent * shimmer * icePatch * 0.09 * inside;
-    specBoost = mix(0.06, 0.38, icePatch);
+    specBoost = mix(0.06, 0.38, icePatch * inside);
+
+    if (outMask > 0.001) {
+      float fjord = smoothstep(1.35, 2.1, outDist) * (1.0 - smoothstep(6.4, 7.6, outDist + (n1 - 0.5) * 1.8));
+      float fjordCrack = 1.0 - smoothstep(0.014, 0.065, crackNet(p * 0.28, 0.48));
+      vec3 fjordCol = mix(vec3(0.042, 0.155, 0.29), vec3(0.10, 0.30, 0.48), n2 * 0.65 + fjordCrack * 0.45);
+      vec3 snowBench = mix(vec3(0.18, 0.30, 0.44), vec3(0.30, 0.45, 0.60), smoothstep(0.28, 0.76, drift));
+      float snowBank = exp(-pow((outDist - 1.55) * 2.2, 2.0)) + exp(-pow((outDist - 7.3) * 1.8, 2.0));
+      vec3 extCol = mix(snowBench, fjordCol, fjord);
+      extCol = mix(extCol, vec3(0.34, 0.50, 0.64), clamp(snowBank, 0.0, 1.0) * 0.55);
+      albedo = mix(albedo, extCol, outMask);
+      extEmissive += mix(uFloorTrim, uFloorAccent, n1) * (fjordCrack * 0.26 + 0.06) * fjord * outMask;
+      specBoost = mix(specBoost, mix(0.14, 0.58, fjord), outMask);
+      extScale = 0.90;
+    }
   } else if (style == 3) {
-    // GLOWMARSH: calm velvety moss turf, tranquil bog pools & glowing mycelium veins enriched near perimeter
+    // GLOWMARSH: calm moss turf inside; bioluminescent twilight bog lagoon & mossy islets outside
     float bogWater = smoothstep(0.56, 0.70, n1) * mix(1.0, 0.54, centerCalm);
     float mossTuft = smoothstep(0.38, 0.72, n2);
     float mycoEdge = crackNet(p * 0.30, 0.72);
     float vein = (1.0 - smoothstep(0.012, 0.052, mycoEdge)) * smoothstep(0.42, 0.70, n2);
     float tide = 0.70 + 0.30 * sin(uTime * 1.4 + n1 * 3.8);
     albedo = mix(albedo * 0.90, albedo * 1.10, mossTuft * detailAmt);
-    albedo = mix(albedo, vec3(0.015, 0.046, 0.044), bogWater * 0.66);
+    albedo = mix(albedo, vec3(0.015, 0.046, 0.044), bogWater * 0.66 * inside);
     albedo = mix(albedo, albedo * 0.78, gridLine * 0.16 * inside);
     emissive += uFloorAccent * vein * tide * (1.0 - bogWater * 0.6) * 0.20 * inside;
-    specBoost = mix(0.05, 0.36, bogWater);
+    specBoost = mix(0.05, 0.36, bogWater * inside);
+
+    if (outMask > 0.001) {
+      float islet = smoothstep(0.58, 0.74, n1 + smoothstep(6.8, 11.5, outDist) * 0.26);
+      float lagoon = smoothstep(1.05, 1.75, outDist) * (1.0 - islet);
+      float ripple = 0.5 + 0.5 * sin(p.x * 1.15 - p.y * 1.2 + uTime * 1.2 + n2 * 4.2);
+      vec3 water = mix(vec3(0.010, 0.044, 0.042), vec3(0.020, 0.085, 0.074), ripple * 0.5 + n2 * 0.5);
+      vec3 mossBank = mix(vec3(0.030, 0.080, 0.052), vec3(0.062, 0.138, 0.084), mossTuft);
+      albedo = mix(albedo, mix(mossBank, water, lagoon), outMask);
+      float bioSwirl = smoothstep(0.74, 0.96, ripple) * lagoon * n2;
+      extEmissive += (uFloorAccent * bioSwirl * 0.13 + uFloorTrim * vein * (1.0 - lagoon) * 0.20 * tide) * outMask;
+      specBoost = mix(specBoost, mix(0.10, 0.52, lagoon), outMask);
+      extScale = 0.90;
+    }
   } else if (style == 4) {
-    // SHATTERED CORE: calm carved midnight-obsidian flagstones with jewel amethyst fissures brighter toward rim
+    // SHATTERED CORE: midnight-obsidian sanctuary island suspended over a starry astral nebula abyss!
     float beat = 0.78 + 0.22 * pow(0.5 + 0.5 * sin(uTime * 2.2), 2.0);
     float slab = hash21(floor(p * 0.25 + 0.5));
     albedo *= 0.90 + slab * 0.14 * detailAmt;
@@ -449,9 +504,34 @@ void main() {
     float starDust = smoothstep(0.93, 0.99, vnoise(p * 1.85 + vec2(1.7, -2.3))) * (0.5 + 0.5 * sin(uTime * 2.5 + n2 * 8.0));
     emissive += mix(uFloorTrim, uFloorAccent, n2) * rift * 0.38 * beat * inside;
     emissive += uFloorTrim * starDust * 0.15 * inside;
-    specBoost = 0.18;
+    specBoost = 0.18 * inside;
+
+    if (outMask > 0.001) {
+      float abyss = smoothstep(0.85, 1.95, outDist);
+      float neb1 = fbm(p * 0.065 + vec2(uTime * 0.014, -uTime * 0.011));
+      float neb2 = fbm(p * 0.13 - vec2(uTime * 0.018, 1.7));
+      vec3 nebula = mix(vec3(0.018, 0.010, 0.052), vec3(0.11, 0.045, 0.22), smoothstep(0.32, 0.78, neb1));
+      nebula += vec3(0.16, 0.042, 0.14) * smoothstep(0.52, 0.86, neb2) * 0.75;
+      // Crisp multi-scale twinkling cosmic starfield + faint golden celestial orbit arcs
+      vec2 sc1 = floor(p * 1.35);
+      vec2 sf1 = fract(p * 1.35) - 0.5;
+      float sh1 = hash21(sc1);
+      float star1 = step(0.91, sh1) * exp(-dot(sf1, sf1) * 42.0) * (0.55 + 0.45 * sin(uTime * 2.4 + sh1 * 40.0));
+      vec2 sc2 = floor(p * 0.62 + 11.3);
+      vec2 sf2 = fract(p * 0.62 + 11.3) - 0.5;
+      float sh2 = hash21(sc2);
+      float star2 = step(0.94, sh2) * exp(-dot(sf2, sf2) * 32.0) * (0.65 + 0.35 * cos(uTime * 1.7 + sh2 * 30.0));
+      float radP = length(p);
+      float maxH = max(uHalf.x, uHalf.y);
+      float orbitLine = exp(-pow((radP - (maxH + 6.4)) * 3.2, 2.0)) + exp(-pow((radP - (maxH + 12.2)) * 2.6, 2.0));
+      vec3 cliffLip = vec3(0.05, 0.035, 0.11);
+      albedo = mix(albedo, mix(cliffLip, vec3(0.008, 0.005, 0.022), abyss), outMask);
+      vec3 starCol = mix(vec3(1.0, 0.88, 0.62), vec3(0.76, 0.88, 1.0), fract(sh1 * 13.7));
+      extEmissive += (nebula + starCol * star1 * 0.95 + uFloorAccent * star2 * 0.85 + vec3(0.55, 0.38, 0.16) * orbitLine * 0.24) * abyss * outMask;
+      extScale = mix(0.75, 0.08, abyss);
+    }
   } else if (style == 6) {
-    // ASHFALL CALDERA: calm charred polygonal basalt interior with glowing magma seams richest along rim
+    // ASHFALL CALDERA: charred basalt platform surrounded by molten magma rivers & volcanic terraces
     float slab = hash21(floor(p * 0.25 + 0.5));
     albedo *= 0.90 + slab * 0.14 * detailAmt;
     albedo = mix(albedo, albedo * 0.68, gridLine * 0.26 * inside);
@@ -462,26 +542,58 @@ void main() {
     float emberGlow = 0.78 + 0.22 * sin(uTime * 2.2 + p.x * 0.35 - p.y * 0.28);
     vec3 lavaCol = mix(vec3(0.80, 0.12, 0.015), vec3(1.32, 0.50, 0.065), smoothstep(0.24, 0.88, magma * emberGlow));
     emissive += lavaCol * magma * 0.68 * inside;
-    specBoost = 0.11;
+    specBoost = 0.11 * inside;
+
+    if (outMask > 0.001) {
+      float moat = smoothstep(1.25, 1.95, outDist) * (1.0 - smoothstep(5.8, 6.9, outDist + (n1 - 0.5) * 1.4));
+      float trib = (1.0 - smoothstep(0.8, 2.2, abs(p.x + sin(p.y * 0.22) * 2.4))) + (1.0 - smoothstep(0.8, 2.2, abs(p.y + cos(p.x * 0.22) * 2.4)));
+      float lavaRiver = clamp(moat + clamp(trib, 0.0, 1.0) * smoothstep(5.5, 8.0, outDist) * 0.72, 0.0, 1.0);
+      float flow = 0.5 + 0.5 * sin(p.x * 0.6 + p.y * 0.5 - uTime * 1.3 + n2 * 4.2);
+      float crust = smoothstep(0.56, 0.82, n2 + (1.0 - lavaRiver) * 0.35);
+      vec3 basaltBank = mix(vec3(0.048, 0.032, 0.034), vec3(0.088, 0.056, 0.054), n1);
+      albedo = mix(albedo, mix(basaltBank, vec3(0.04, 0.02, 0.018), lavaRiver), outMask);
+      vec3 moltenStream = mix(vec3(0.76, 0.11, 0.015), vec3(1.24, 0.44, 0.055), flow);
+      float lavaHeat = lavaRiver * (1.0 - crust * 0.68);
+      extEmissive += (moltenStream * lavaHeat * 0.72 + lavaCol * crackLine * (1.0 - lavaRiver) * 0.36) * outMask;
+      specBoost = mix(specBoost, 0.16, outMask);
+      extScale = 0.86;
+    }
   } else {
-    // GLASS FLATS: calm golden-hour terracotta sandstone interior & turquoise vitrified glass seams near edges
+    // GLASS FLATS: sunlit oasis courtyard inside; sculpted golden sand dunes & turquoise glass lagoons outside
     float glass = smoothstep(0.52, 0.68, n1) * mix(1.0, 0.54, centerCalm);
     float ripple = sin(p.y * 1.4 + p.x * 0.35 + n2 * 3.5) * 0.5 + 0.5;
-    albedo = mix(albedo * (0.92 + ripple * 0.10 * detailAmt), vec3(0.048, 0.20, 0.22), glass * 0.56);
+    albedo = mix(albedo * (0.92 + ripple * 0.10 * detailAmt), vec3(0.048, 0.20, 0.22), glass * 0.56 * inside);
     albedo = mix(albedo, albedo * 0.86, gridLine * 0.15 * inside);
     float glassCrack = (1.0 - smoothstep(0.015, 0.052, crackNet(p * 0.36, 0.35))) * glass;
     albedo += vec3(0.045, 0.14, 0.15) * glassCrack * 0.48 * inside;
     float glint = smoothstep(0.76, 0.96, sin(p.x * 0.65 + p.y * 0.48 - uTime * 1.3 + n2 * 4.2));
     emissive += uFloorAccent * glint * glass * 0.11 * inside;
-    specBoost = mix(0.06, 0.40, glass);
+    specBoost = mix(0.06, 0.40, glass * inside);
+
+    if (outMask > 0.001) {
+      float duneWave = sin(p.y * 0.52 + p.x * 0.22 + fbm(p * 0.11) * 3.4) * 0.5 + 0.5;
+      float duneCrest = pow(duneWave, 1.8);
+      float oasis = smoothstep(0.57, 0.69, fbm(p * 0.12 + vec2(-2.1, 1.4))) * smoothstep(2.0, 3.6, outDist);
+      float shore = exp(-pow((fbm(p * 0.12 + vec2(-2.1, 1.4)) - 0.57) * 26.0, 2.0)) * smoothstep(2.0, 3.6, outDist);
+      vec3 sandCol = mix(vec3(0.18, 0.11, 0.058), vec3(0.36, 0.24, 0.125), duneCrest);
+      vec3 poolCol = mix(vec3(0.032, 0.20, 0.21), vec3(0.075, 0.34, 0.33), 0.5 + 0.5 * sin(p.x * 0.9 + uTime * 1.2 + n2 * 3.0));
+      vec3 extCol = mix(sandCol, poolCol, oasis);
+      extCol = mix(extCol, vec3(0.42, 0.36, 0.24), clamp(shore, 0.0, 1.0) * 0.58);
+      albedo = mix(albedo, extCol, outMask);
+      extEmissive += uFloorTrim * oasis * (0.10 + glint * 0.18) * outMask;
+      specBoost = mix(specBoost, mix(0.08, 0.56, oasis), outMask);
+      extScale = 0.92;
+    }
   }
 
-  // Calm interior emissives & specular glare (~50% softer in central combat space) while keeping perimeter rich
-  emissive *= emissiveCalm;
+  // Calm interior emissives & specular glare (~50% softer in central combat space) while keeping perimeter & exterior rich
+  emissive = emissive * emissiveCalm + extEmissive;
   specBoost *= mix(1.0, 0.52, centerCalm);
 
-  // Handcrafted perimeter border framing & subtle diorama edge darkening
+  // Handcrafted perimeter border framing & subtle wall-base contact shadow right outside the parapet
   albedo *= mix(1.0, 0.84, borderRich * 0.48);
+  float wallApron = exp(-pow((outDist - 0.75) * 1.4, 2.0)) * outMask;
+  albedo *= 1.0 - wallApron * 0.26;
   float border = (1.0 - smoothstep(0.0, 0.34, abs(edgeMin))) * step(-0.2, edgeMin);
   emissive += uFloorTrim * border * 0.34;
   // Wave pulse sweep ring
@@ -491,8 +603,8 @@ void main() {
     emissive += uFloorAccent * ring * 0.82 * inside;
   }
 
-  // Exterior ground darkens gracefully to frame the playable diorama stage
-  albedo *= mix(0.42, 1.0, inside);
+  // Exterior ground maintains natural storybook brightness (except Core's cosmic void)
+  albedo *= mix(extScale, 1.0, inside);
   // Apply baked ground-contact ambient occlusion
   albedo *= mix(0.32, 1.0, occ);
 

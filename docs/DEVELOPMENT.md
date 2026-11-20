@@ -19,7 +19,8 @@ These fixtures protect existing progress and world generation.
 
 The title emblem (`title-chart.webp`), painterly terrain, surface and VFX atlases (`terrain-atlas.webp`,
 `surface-atlas.webp`, `vfx-atlas.webp`), and install icons are generated with `python tools/build-art.py` using
-Python 3, Pillow and NumPy. Arena biomes, actors, bosses and combat VFX are assembled in `src/render/` on top of
+Python 3, Pillow and NumPy. Arena biomes, multi-ring exterior diorama worlds (canals, fjords, bog lagoons, astral
+archipelagos, lava aqueducts and desert oases), actors, bosses and combat VFX are assembled in `src/render/` on top of
 `src/engine/` and respect the existing simulation footprints.
 
 The short synthesized sample bank and its clip offsets are generated with

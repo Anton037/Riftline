@@ -130,12 +130,12 @@ function iconSvg(name, cls = "") {
 }
 const getById = (id) => document.getElementById(id),
   BIOME_THEME_COLOR = {
-    city: "#17232e",
-    shelf: "#15314d",
-    marsh: "#132c22",
-    core: "#1b1336",
-    caldera: "#241310",
-    flats: "#3b2617",
+    city: "#0f1722",
+    shelf: "#0d1929",
+    marsh: "#0c1a15",
+    core: "#120c24",
+    caldera: "#160d0c",
+    flats: "#17110c",
   },
   setBiomeTheme = (id) => {
     const app = getById("app");
@@ -144,7 +144,7 @@ const getById = (id) => document.getElementById(id),
       else delete app.dataset.biome;
     }
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute("content", BIOME_THEME_COLOR[id] || "#161522");
+    if (meta) meta.setAttribute("content", BIOME_THEME_COLOR[id] || "#0d0e17");
   },
   menuScreens = ["home", "workshop", "records", "news", "settings"],
   formatTenths = (value) => (Math.round(value * 10 + 1e-6) / 10).toString(),

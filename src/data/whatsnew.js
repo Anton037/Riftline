@@ -5,13 +5,13 @@ export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
     version: "4.6.0",
-    title: "Storybook diorama graphics, unique models and combat clarity",
+    title: "Storybook diorama worlds, crisp relic cards and combat clarity",
     items: [
       "4x MSAA HDR rendering, 2048 soft hardware-PCF shadows, and delicate dark-ink contours bring every arena to life.",
-      "Play as a cloaked Rift-Artificer with an animated scarf, seven handcrafted magitech weapons, and a crisp foot compass.",
-      "All 25 enemies are rebuilt into five instant-read storybook role families alongside six elevated biome bosses.",
-      "Calmer walkable arena floors, dark-inked enemy projectiles, and disciplined friendly effects keep dense fights readable.",
-      "Every biome gains richer diorama cover, perimeter landmarks, hit-drain health ticks, and sharp off-screen indicators.",
+      "Explore full diorama worlds beyond every arena: canal towns, Nordic lodges, bog huts, astral islands, lava aqueducts, and desert oases.",
+      "Upgrade cards and menus now use high-contrast nocturnal velvet frames, jewel rarity badges, and structured stat pills.",
+      "Play as a cloaked Rift-Artificer with seven magitech weapons against 25 distinct enemy kits and six elevated bosses.",
+      "Calmer walkable floors, dark-inked enemy shots, a hero foot compass, and hit-drain bars keep dense fights readable.",
     ],
   },
   {

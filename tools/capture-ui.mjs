@@ -44,13 +44,14 @@ async function runViewport(label, viewport, touch) {
   await page.evaluate(() => {
     const { game } = window.__riftTest;
     game.world.god = true;
+    game.paused = true;
     game.world.offer = game.world.makeOffer();
-    game.ui.showPause(game.world);
     game.ui.showChoose(game.world);
   });
   await page.waitForTimeout(1200); // let the cards arm (650 ms lock) and the banner settle
   await shoot(page, `${label}-choose`);
   await page.evaluate(() => {
+    window.__riftTest.ui.hideChoose();
     window.__riftTest.ui.showPause(window.__riftTest.game.world);
   });
   await shoot(page, `${label}-pause`);
