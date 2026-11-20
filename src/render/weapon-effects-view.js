@@ -26,7 +26,7 @@ export class WeaponEffectsView {
     return pool;
   }
   segments() {
-    return (this.segmentsPool ||= this.add(box(1, 1, 1).translate(0.5, 0, 0), additiveMaterial(-1, 0.92, 1.14), 4096));
+    return (this.segmentsPool ||= this.add(box(1, 1, 1).translate(0.5, 0, 0), additiveMaterial(-1, 0.84, 1.1), 4096));
   }
   flames() {
     if (!this.flamePool) {
@@ -88,7 +88,7 @@ export class WeaponEffectsView {
     const x = shot.x - Math.cos(angle) * offset;
     const z = shot.y - Math.sin(angle) * offset;
     for (const roll of [0, Math.PI / 2]) {
-      pool.col(pool.yr(x, y, z, angle, length, width, width, 0, roll), age, seed, 0.9);
+      pool.col(pool.yr(x, y, z, angle, length, width, width, 0, roll), age, seed, 0.78);
     }
   }
   flameBeam(beam, len) {

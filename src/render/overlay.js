@@ -98,6 +98,7 @@ const healthBarTypes = {
       this.dprCap = 2;
       this.hurts = [];
       this.callouts = [];
+      this.hpTrails = new WeakMap();
       this.time = 0;
     }
     addHurt(world, x, y) {
@@ -186,15 +187,24 @@ const healthBarTypes = {
           !project(enemy.x, 1.2 + enemy.r * 1.4, enemy.y)
         )
           continue;
-        let width = 22 + enemy.r * 16,
+        let width = 24 + enemy.r * 16,
           hpFrac = clamp(enemy.hp / enemy.maxHp, 0, 1),
           x0 = pos.x - width / 2;
-        ctx.fillStyle = "rgba(14,12,22,0.84)";
-        fillPill(ctx, x0 - 2, pos.y - 2, width + 4, 8);
-        ctx.fillStyle = enemy.elite ? "#ffd26e" : "#ff7264";
-        fillPill(ctx, x0, pos.y, Math.max(4, width * hpFrac), 4);
+        // Smooth hit-drain catchup bar (kept in WeakMap so simulation entities remain pure)
+        let prev = this.hpTrails.get(enemy);
+        if (prev == null || prev < hpFrac) prev = hpFrac;
+        else prev = Math.max(hpFrac, prev - dt * 1.45);
+        this.hpTrails.set(enemy, prev);
+        ctx.fillStyle = "rgba(14,10,22,0.9)";
+        fillPill(ctx, x0 - 2, pos.y - 2, width + 4, 8.5);
+        if (prev > hpFrac + 0.015) {
+          ctx.fillStyle = "rgba(255,236,192,0.88)";
+          fillPill(ctx, x0, pos.y, Math.max(4, width * prev), 4.5);
+        }
+        ctx.fillStyle = enemy.elite ? "#ffd26e" : "#ff6b5e";
+        fillPill(ctx, x0, pos.y, Math.max(4, width * hpFrac), 4.5);
         if (enemy.shieldMax > 0 && enemy.shield > 0) {
-          ctx.fillStyle = "rgba(14,12,22,0.78)";
+          ctx.fillStyle = "rgba(14,10,22,0.84)";
           fillPill(ctx, x0 - 1.5, pos.y - 6.5, width + 3, 5);
           ctx.fillStyle = "#8cf4ff";
           fillPill(ctx, x0, pos.y - 5.5, Math.max(3, width * (enemy.shield / enemy.shieldMax)), 3);
@@ -202,10 +212,29 @@ const healthBarTypes = {
       }
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
+      let heroScreen = null;
+      if (player.alive && renderer.project(player.x, 0.9, player.y, this.tmp2).vis) {
+        heroScreen = { x: this.tmp2.x, y: this.tmp2.y };
+      }
       for (let num of renderer.nums) {
         if (num.life <= 0 || !project(num.x, num.y, num.z)) continue;
-        // 3.0.0: the size follows the number (a maxed Railgun shot is bigger than a Pulse hit) and a new number
-        // pops in for a moment
+        let nx = pos.x,
+          ny = pos.y;
+        // Keep damage numbers clear of the Hero's body so hitbox readability stays unobstructed
+        if (heroScreen) {
+          let hx = nx - heroScreen.x,
+            hy = ny - heroScreen.y,
+            hd = Math.hypot(hx, hy);
+          if (hd < 28) {
+            let push = 28 - hd;
+            if (hd > 0.5) {
+              nx += (hx / hd) * push;
+              ny += (hy / hd) * push;
+            } else {
+              ny -= push;
+            }
+          }
+        }
         let alpha = clamp(num.life / 0.35, 0, 1),
           pop = 1 + Math.max(0, 1 - (renderer.time - num.t0) / 0.14) * (num.crit ? 0.52 : 0.36),
           fontSize =
@@ -216,9 +245,9 @@ const healthBarTypes = {
         ctx.lineJoin = "round";
         ctx.lineWidth = num.crit ? 4.4 : 3.8;
         ctx.strokeStyle = num.crit ? "rgba(46,20,8,0.92)" : "rgba(14,12,24,0.92)";
-        ctx.strokeText(text, pos.x, pos.y);
+        ctx.strokeText(text, nx, ny);
         ctx.fillStyle = num.crit ? "#ffe074" : num.burn ? "#ff9244" : num.shield ? "#94f4ff" : "#fff7e4";
-        ctx.fillText(text, pos.x, pos.y);
+        ctx.fillText(text, nx, ny);
       }
       ctx.globalAlpha = 1;
       let fewEnemies = world.enemies.length <= 6,
@@ -266,7 +295,10 @@ const healthBarTypes = {
         ctx.translate(ax, ay);
         ctx.rotate(Math.atan2(dy, dx));
         ctx.fillStyle = color;
-        ctx.globalAlpha = windingUp ? (Math.floor(this.time * 10) % 2 ? 1 : 0.45) : 0.85;
+        ctx.strokeStyle = "rgba(14,10,22,0.92)";
+        ctx.lineWidth = 2.6;
+        ctx.lineJoin = "round";
+        ctx.globalAlpha = windingUp ? (Math.floor(this.time * 10) % 2 ? 1 : 0.48) : 0.9;
         ctx.beginPath();
         let scale = enemy.boss ? 1.5 : 1;
         ctx.moveTo(10 * scale, 0);
@@ -274,6 +306,7 @@ const healthBarTypes = {
         ctx.lineTo(-3 * scale, 0);
         ctx.lineTo(-6 * scale, 7 * scale);
         ctx.closePath();
+        ctx.stroke();
         ctx.fill();
         ctx.restore();
       }
@@ -297,16 +330,22 @@ const healthBarTypes = {
             edge = Math.min(tx, ty);
           ctx.save();
           ctx.translate(cx + dx * edge, cy + dy * edge);
-          ctx.globalAlpha = 0.6 + Math.sin(this.time * 6) * 0.3;
+          ctx.globalAlpha = 0.65 + Math.sin(this.time * 6) * 0.28;
+          ctx.fillStyle = "rgba(14,10,22,0.88)";
+          ctx.fillRect(-8.5, -4, 17, 8);
+          ctx.fillRect(-4, -8.5, 8, 17);
           ctx.fillStyle = "#6dff8a";
           ctx.fillRect(-7, -2.5, 14, 5);
           ctx.fillRect(-2.5, -7, 5, 14);
           ctx.rotate(Math.atan2(dy, dx));
+          ctx.strokeStyle = "rgba(14,10,22,0.9)";
+          ctx.lineWidth = 2.4;
           ctx.beginPath();
           ctx.moveTo(16, 0);
           ctx.lineTo(10, -5);
           ctx.lineTo(10, 5);
           ctx.closePath();
+          ctx.stroke();
           ctx.fill();
           ctx.restore();
         }

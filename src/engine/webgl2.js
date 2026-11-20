@@ -1,6 +1,6 @@
 // Custom zero-dependency WebGL2 rendering engine for Riftline.
-// Features: directional PCF shadow mapping, stylized cel/painterly forward rendering with 8 dynamic point lights,
-// GPU instancing with partial bufferSubData uploads, HDR offscreen FBO, dual-Kawase selective bloom & ACES tone mapping.
+// Features: 2048 hardware-PCF directional shadow mapping, 4x MSAA HDR offscreen target, stylized storybook
+// gouache/cel forward rendering with 8 dynamic point lights, GPU instancing, dual-Kawase selective bloom & ACES tone mapping.
 
 import { Color, Mat4, Vec3 } from "./math.js";
 import {
@@ -23,19 +23,19 @@ import {
   postCompositeProgram,
 } from "./shaders.js";
 
-// Surface atlas tile (col, row), rim strength, specular exponent
+// Surface atlas tile (col, row), rim strength, specular exponent, delicate dark-ink contour strength
 const SURFACE_SPEC = {
-  metal: [0, 0, 0.36, 52],
-  armor: [1, 0, 0.38, 40],
-  organic: [2, 0, 0.24, 24],
-  rubber: [0, 1, 0.14, 14],
-  basalt: [0, 1, 0.18, 22],
-  wood: [1, 1, 0.18, 20],
-  stone: [1, 1, 0.2, 26],
-  sandstone: [1, 1, 0.18, 24],
-  ice: [2, 1, 0.44, 72],
-  crystal: [2, 1, 0.48, 80],
-  dust: [0, 1, 0.08, 12],
+  metal: [0, 0, 0.36, 56, 0.56],
+  armor: [1, 0, 0.38, 44, 0.62],
+  organic: [2, 0, 0.24, 24, 0.58],
+  rubber: [0, 1, 0.14, 14, 0.48],
+  basalt: [0, 1, 0.18, 22, 0.44],
+  wood: [1, 1, 0.18, 20, 0.5],
+  stone: [1, 1, 0.2, 26, 0.46],
+  sandstone: [1, 1, 0.18, 24, 0.46],
+  ice: [2, 1, 0.44, 72, 0.32],
+  crystal: [2, 1, 0.48, 84, 0.34],
+  dust: [0, 1, 0.08, 12, 0.0],
 };
 
 function compileShader(gl, type, src, label) {
@@ -96,7 +96,7 @@ export class WebGL2Engine {
     this.pixelHeight = 1;
     this.clearColor = new Color(0x0b111c);
     this.clearAlpha = 1;
-    this.shadowMap = { enabled: true, size: opts.shadowSize || 1024 };
+    this.shadowMap = { enabled: true, size: opts.shadowSize || 2048 };
     this.info = { render: { frame: 0, calls: 0, triangles: 0, instances: 0 } };
     this.flash = 0;
     this.postEnabled = opts.post !== false;
@@ -113,14 +113,16 @@ export class WebGL2Engine {
     if (!gl) throw new Error("WebGL2 context unavailable");
     this.gl = gl;
 
-    // Detect HDR half-float FBO support (with graceful RGBA8 fallback for constrained GPUs)
-    this.hdrExt = gl.getExtension("EXT_color_buffer_half_float") || gl.getExtension("EXT_color_buffer_float");
+    // Detect HDR half-float FBO support (prefer EXT_color_buffer_float for multisampled RGBA16F)
+    this.hdrExt = gl.getExtension("EXT_color_buffer_float") || gl.getExtension("EXT_color_buffer_half_float");
     this.linearExt = gl.getExtension("OES_texture_half_float_linear");
 
     this.programs = new Map();
     this.dummyVao = gl.createVertexArray();
     this.whiteTex = this._makeSolidTex(255, 255, 255, 255);
+    this.shadowFallbackTex = this._makeShadowFallbackTex();
     this.shadowTarget = null;
+    this.msaaTarget = null;
     this.hdrTarget = null;
     this.bloomA = null;
     this.bloomB = null;
@@ -150,6 +152,7 @@ export class WebGL2Engine {
     this._curDepthTest = null;
     this._curCull = null;
     this._shadowDepthAttach = [gl.DEPTH_ATTACHMENT];
+    this._msaaInvalidate = [gl.DEPTH_ATTACHMENT, gl.COLOR_ATTACHMENT0];
 
     this._initShadowTarget();
     this._initContextHandlers();
@@ -160,15 +163,20 @@ export class WebGL2Engine {
       e.preventDefault();
       this.programs.clear();
       this.shadowTarget = null;
+      this.msaaTarget = null;
       this.hdrTarget = null;
       this.bloomA = null;
       this.bloomB = null;
       this.whiteTex = null;
+      this.shadowFallbackTex = null;
     });
     this.canvas.addEventListener("webglcontextrestored", () => {
       const gl = this.gl;
+      this.hdrExt = gl.getExtension("EXT_color_buffer_float") || gl.getExtension("EXT_color_buffer_half_float");
+      this.linearExt = gl.getExtension("OES_texture_half_float_linear");
       this.dummyVao = gl.createVertexArray();
       this.whiteTex = this._makeSolidTex(255, 255, 255, 255);
+      this.shadowFallbackTex = this._makeShadowFallbackTex();
       this._initShadowTarget();
       this._initPostTargets();
     });
@@ -220,32 +228,87 @@ export class WebGL2Engine {
     return tex;
   }
 
-  _initShadowTarget() {
+  _makeShadowFallbackTex() {
+    const gl = this.gl;
+    const tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT24, 1, 1, 0, gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_FUNC, gl.LEQUAL);
+    return tex;
+  }
+
+  _initShadowTarget(requestedSize) {
     const gl = this.gl;
     if (this.shadowTarget) {
       gl.deleteFramebuffer(this.shadowTarget.fbo);
       gl.deleteTexture(this.shadowTarget.depthTex);
+      this.shadowTarget = null;
     }
-    const size = this.shadowMap.size;
+    const maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE) || 2048;
+    const size = Math.min(requestedSize || this.shadowMap.size || 2048, maxTex >= 2048 ? 2048 : 1024);
     const depthTex = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, depthTex);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT24, size, size, 0, gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, null);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    // Hardware PCF depth comparison for velvety diorama shadow penumbras
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_FUNC, gl.LEQUAL);
     const fbo = gl.createFramebuffer();
     gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, depthTex, 0);
     gl.drawBuffers([gl.NONE]);
     gl.readBuffer(gl.NONE);
+    const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    this.shadowTarget = { fbo, depthTex, size };
+    if (!ok && size > 1024) {
+      gl.deleteFramebuffer(fbo);
+      gl.deleteTexture(depthTex);
+      this.shadowMap.size = 1024;
+      return this._initShadowTarget(1024);
+    }
+    this.shadowMap.size = size;
+    this.shadowTarget = ok ? { fbo, depthTex, size } : null;
   }
 
-  _createColorTarget(w, h, withDepth) {
+  _createMsaaTarget(w, h, useHalf) {
     const gl = this.gl;
-    const useHalf = !!this.hdrExt;
+    const maxSamples = gl.getParameter(gl.MAX_SAMPLES) || 0;
+    const samples = Math.min(4, maxSamples);
+    if (samples < 2) return null;
+    const internalFmt = useHalf ? gl.RGBA16F : gl.RGBA8;
+    const fbo = gl.createFramebuffer();
+    const colorRb = gl.createRenderbuffer();
+    const depthRb = gl.createRenderbuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+    gl.bindRenderbuffer(gl.RENDERBUFFER, colorRb);
+    gl.renderbufferStorageMultisample(gl.RENDERBUFFER, samples, internalFmt, w, h);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, colorRb);
+    gl.bindRenderbuffer(gl.RENDERBUFFER, depthRb);
+    gl.renderbufferStorageMultisample(gl.RENDERBUFFER, samples, gl.DEPTH_COMPONENT24, w, h);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depthRb);
+    const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+    gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    if (!ok) {
+      gl.deleteFramebuffer(fbo);
+      gl.deleteRenderbuffer(colorRb);
+      gl.deleteRenderbuffer(depthRb);
+      return null;
+    }
+    return { fbo, colorRb, depthRb, width: w, height: h, samples, isHalf: useHalf };
+  }
+
+  _createColorTarget(w, h, withDepth, forceHalf = null) {
+    const gl = this.gl;
+    const useHalf = forceHalf !== null ? forceHalf : !!this.hdrExt;
     const internalFmt = useHalf ? gl.RGBA16F : gl.RGBA8;
     const type = useHalf ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE;
     const filter = !useHalf || this.linearExt ? gl.LINEAR : gl.LINEAR;
@@ -274,26 +337,42 @@ export class WebGL2Engine {
       gl.deleteTexture(tex);
       if (depthRb) gl.deleteRenderbuffer(depthRb);
       this.hdrExt = null;
-      return this._createColorTarget(w, h, withDepth);
+      return this._createColorTarget(w, h, withDepth, false);
     }
-    return { fbo, tex, depthRb, width: w, height: h };
+    return { fbo, tex, depthRb, width: w, height: h, isHalf: useHalf };
   }
 
   _deleteTarget(t) {
     if (!t) return;
     const gl = this.gl;
-    gl.deleteFramebuffer(t.fbo);
-    gl.deleteTexture(t.tex);
+    if (t.fbo) gl.deleteFramebuffer(t.fbo);
+    if (t.tex) gl.deleteTexture(t.tex);
+    if (t.colorRb) gl.deleteRenderbuffer(t.colorRb);
     if (t.depthRb) gl.deleteRenderbuffer(t.depthRb);
   }
 
   _initPostTargets() {
+    this._deleteTarget(this.msaaTarget);
     this._deleteTarget(this.hdrTarget);
     this._deleteTarget(this.bloomA);
     this._deleteTarget(this.bloomB);
+    this.msaaTarget = null;
     const pw = this.pixelWidth,
       ph = this.pixelHeight;
-    this.hdrTarget = this._createColorTarget(pw, ph, true);
+    // Prefer 4x MSAA HDR (RGBA16F), falling back to RGBA8 MSAA or single-sample FBO cleanly
+    let msaa = this.hdrExt ? this._createMsaaTarget(pw, ph, true) : null;
+    if (!msaa) msaa = this._createMsaaTarget(pw, ph, false);
+    let hdr = this._createColorTarget(pw, ph, !msaa, msaa ? msaa.isHalf : !!this.hdrExt);
+    if (msaa && hdr.isHalf !== msaa.isHalf) {
+      this._deleteTarget(msaa);
+      msaa = this._createMsaaTarget(pw, ph, hdr.isHalf);
+      if (!msaa) {
+        this._deleteTarget(hdr);
+        hdr = this._createColorTarget(pw, ph, true, hdr.isHalf);
+      }
+    }
+    this.msaaTarget = msaa;
+    this.hdrTarget = hdr;
     const bw = Math.max(2, pw >> 1),
       bh = Math.max(2, ph >> 1);
     this.bloomA = this._createColorTarget(bw, bh, false);
@@ -694,6 +773,7 @@ export class WebGL2Engine {
       this._u1f(prog, "uOpacity", mat.opacity);
       this._u1f(prog, "uRimStrength", mat.rimStrength ?? spec[2]);
       this._u1f(prog, "uSpecPower", spec[3]);
+      this._u1f(prog, "uInkStrength", mat.inkStrength ?? spec[4]);
       this._u1f(prog, "uBiomeSkin", mat.biomeSkin ? 1 : 0);
       this._u1f(prog, "uFogEnabled", mat.fog ? 1 : 0);
       this._u1f(prog, "uDustFade", mat.surface === "dust" ? 1 : 0);
@@ -838,7 +918,7 @@ export class WebGL2Engine {
       gl.enable(gl.CULL_FACE);
       gl.cullFace(gl.BACK);
       gl.enable(gl.POLYGON_OFFSET_FILL);
-      gl.polygonOffset(2.0, 2.5);
+      gl.polygonOffset(1.6, 2.0);
       gl.clear(gl.DEPTH_BUFFER_BIT);
 
       if (this._shadowsStatic.length) {
@@ -872,7 +952,7 @@ export class WebGL2Engine {
 
     // Bind global texture units: 0=shadow, 1=terrain, 2=surface, 3=vfx, 4=occlusion
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, this.shadowTarget ? this.shadowTarget.depthTex : this.whiteTex);
+    gl.bindTexture(gl.TEXTURE_2D, this.shadowTarget ? this.shadowTarget.depthTex : this.shadowFallbackTex);
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, this._syncTexture(this.textures.terrain));
     gl.activeTexture(gl.TEXTURE2);
@@ -882,9 +962,10 @@ export class WebGL2Engine {
     gl.activeTexture(gl.TEXTURE4);
     gl.bindTexture(gl.TEXTURE_2D, this._syncTexture(this.textures.occlusion));
 
-    // 2. Main Scene Pass (into HDR offscreen FBO if post-processing enabled)
+    // 2. Main Scene Pass (into 4x MSAA HDR renderbuffer when available, else single-sample HDR FBO)
     const usePost = this.postEnabled && this.hdrTarget && this.bloomA && this.bloomB;
-    gl.bindFramebuffer(gl.FRAMEBUFFER, usePost ? this.hdrTarget.fbo : null);
+    const mainFbo = usePost ? (this.msaaTarget ? this.msaaTarget.fbo : this.hdrTarget.fbo) : null;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, mainFbo);
     gl.viewport(0, 0, this.pixelWidth, this.pixelHeight);
     gl.depthMask(true);
     gl.enable(gl.DEPTH_TEST);
@@ -907,10 +988,29 @@ export class WebGL2Engine {
     for (let i = 0; i < this._opaque.length; i++) this._drawNode(this._opaque[i], scene, camera);
     for (let i = 0; i < this._trans.length; i++) this._drawNode(this._trans[i], scene, camera);
 
-    // 3. Selective Dual-Kawase Bloom + Stylized ACES Tone-Map Composite Pass
+    // 3. MSAA Resolve -> Selective Dual-Kawase Bloom -> Stylized ACES Tone-Map Composite Pass
     if (usePost) {
-      // Hint mobile TBDR GPUs that offscreen depth buffer does not need to be stored back to RAM
-      if (gl.invalidateFramebuffer) gl.invalidateFramebuffer(gl.FRAMEBUFFER, this._shadowDepthAttach);
+      if (this.msaaTarget) {
+        gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.msaaTarget.fbo);
+        gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.hdrTarget.fbo);
+        gl.blitFramebuffer(
+          0,
+          0,
+          this.pixelWidth,
+          this.pixelHeight,
+          0,
+          0,
+          this.pixelWidth,
+          this.pixelHeight,
+          gl.COLOR_BUFFER_BIT,
+          gl.NEAREST,
+        );
+        if (gl.invalidateFramebuffer) gl.invalidateFramebuffer(gl.READ_FRAMEBUFFER, this._msaaInvalidate);
+        gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
+      } else if (gl.invalidateFramebuffer) {
+        // Hint mobile TBDR GPUs that offscreen depth buffer does not need to be stored back to RAM
+        gl.invalidateFramebuffer(gl.FRAMEBUFFER, this._shadowDepthAttach);
+      }
       gl.disable(gl.DEPTH_TEST);
       gl.depthMask(false);
       gl.disable(gl.BLEND);

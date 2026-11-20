@@ -2,8 +2,8 @@
 // camera, GPU-instanced pools, particles, biomes, actors, bosses and combat effects.
 
 import { Color, Euler, Mat4, Quat, Vec3, Camera } from "../engine/math.js";
-import { box, cylinder, disc, octahedron, plane, ring } from "../engine/geometry.js";
-import { InstancePool, Scene, Texture2D } from "../engine/scene.js";
+import { box, cylinder, disc, discXY, octahedron, plane, ring, mergeGeometries } from "../engine/geometry.js";
+import { InstancePool, MeshNode, Node, Scene, Texture2D } from "../engine/scene.js";
 import { WebGL2Engine } from "../engine/webgl2.js";
 
 import { SmokeView } from "./smoke-view.js";
@@ -70,12 +70,12 @@ const BOSS_PORTAL = {
 };
 
 const BIOME_ENEMY_DRESS = {
-  city: [0.97, 0.98, 1.03],
-  shelf: [0.94, 1.01, 1.07],
-  marsh: [0.94, 1.04, 0.97],
-  core: [1.03, 0.96, 1.07],
-  caldera: [1.07, 0.97, 0.92],
-  flats: [1.06, 1.02, 0.93],
+  city: [0.99, 0.99, 1.02],
+  shelf: [0.97, 1.0, 1.04],
+  marsh: [0.97, 1.02, 0.99],
+  core: [1.02, 0.98, 1.04],
+  caldera: [1.04, 0.99, 0.96],
+  flats: [1.03, 1.01, 0.97],
 };
 const BIOME_PORTAL_ACCENT = {
   city: hexColor(0xf2be72),
@@ -179,7 +179,7 @@ export class Renderer {
     this.finishAtlasReady = false;
     this.B = { rx: 1, ry: 0, rz: 0, ux: 0, uy: 1, uz: 0, fx: 0, fy: 0, fz: 1 };
 
-    this.engine = new WebGL2Engine(canvas, { shadowSize: 1024, post: true });
+    this.engine = new WebGL2Engine(canvas, { shadowSize: 2048, post: true });
     // Alias for diagnostics, browser tests and verification tools
     this.renderer = this.engine;
     this.scene = new Scene();
@@ -308,12 +308,42 @@ export class Renderer {
       96,
       4,
     );
+    this.ebInk = this._addPool(
+      discXY(0.5, 16),
+      emissiveMaterial({
+        color: FINISH.ink,
+        emissiveIntensity: 1,
+        opacity: 0.92,
+        transparent: true,
+        depthWrite: false,
+        doubleSide: true,
+        fog: false,
+      }),
+      640,
+      6,
+      { color: false },
+    );
+    this.ebBoltInk = this._addPool(
+      box(1, 1, 1).translate(0.5, 0, 0),
+      emissiveMaterial({
+        color: FINISH.ink,
+        emissiveIntensity: 1,
+        opacity: 0.9,
+        transparent: true,
+        depthWrite: false,
+        fog: false,
+      }),
+      360,
+      6,
+      { color: false },
+    );
     this.ebCore = this._addPool(
       octahedron(0.6),
-      emissiveMaterial({ color: 0xffffff, emissiveIntensity: 1.22, fog: false }),
-      520,
-      3,
+      emissiveMaterial({ color: 0xffffff, emissiveIntensity: 1.28, fog: false }),
+      960,
+      7,
     );
+    this._initHeroLocator();
     this.debris = this._addPool(debrisGeometry(), worldMaterial({ surface: "stone", color: 0xffffff }), 320, 1);
     this.debris.mesh.castShadow = true;
 
@@ -392,6 +422,8 @@ export class Renderer {
       this.ringPool,
       this.discs,
       this.columns,
+      this.ebInk,
+      this.ebBoltInk,
       this.ebCore,
       this.debris,
       this.rocketBodies,
@@ -402,6 +434,56 @@ export class Renderer {
       this.wing,
       this.shieldPool,
     ];
+  }
+
+  _initHeroLocator() {
+    // Subtle, always-readable double-hairline warm-ivory & weapon-accent compass ring beneath the Hero's feet
+    const root = new Node();
+    root.visible = false;
+    const inkMat = emissiveMaterial({
+      color: FINISH.ink,
+      emissiveIntensity: 1,
+      opacity: 0.58,
+      transparent: true,
+      depthWrite: false,
+      doubleSide: true,
+      fog: false,
+    });
+    const ivoryMat = emissiveMaterial({
+      color: FINISH.ivory,
+      emissiveIntensity: 1.06,
+      opacity: 0.82,
+      transparent: true,
+      depthWrite: false,
+      doubleSide: true,
+      fog: false,
+    });
+    const accentMat = emissiveMaterial({
+      color: 0x91c9b4,
+      emissiveIntensity: 1.15,
+      opacity: 0.84,
+      transparent: true,
+      depthWrite: false,
+      doubleSide: true,
+      fog: false,
+    });
+    const inkRing = new MeshNode(ring(0.57, 0.72, 36), inkMat);
+    inkRing.renderOrder = 2;
+    const outerRing = new MeshNode(ring(0.62, 0.67, 36), ivoryMat);
+    outerRing.position.y = 0.004;
+    outerRing.renderOrder = 2;
+    const innerCompass = new Node();
+    innerCompass.position.y = 0.008;
+    const pointerGeo = mergeGeometries([
+      ring(0.49, 0.535, 36),
+      octahedron(0.11).scale(1.4, 0.14, 0.72).translate(0.75, 0, 0),
+    ]);
+    const innerMesh = new MeshNode(pointerGeo, accentMat);
+    innerMesh.renderOrder = 2;
+    innerCompass.add(innerMesh);
+    root.add(inkRing, outerRing, innerCompass);
+    this.scene.add(root);
+    this.heroLocator = { root, compass: innerCompass, accentMat };
   }
 
   allPools() {
@@ -1576,6 +1658,7 @@ export class Renderer {
         { drag: 0 },
       );
     }
+    if (this.heroLocator) this.heroLocator.root.visible = false;
     if (this.bossView) this.bossView.group.visible = false;
   }
 
@@ -1585,6 +1668,14 @@ export class Renderer {
     const player = world.player;
     const drone = this.player;
     drone.group.visible = player.alive;
+    if (this.heroLocator) {
+      this.heroLocator.root.visible = player.alive;
+      if (player.alive) {
+        this.heroLocator.root.position.set(player.x, 0.044, player.y);
+        this.heroLocator.compass.rotation.y = -player.aim;
+        this.heroLocator.accentMat.color.setHex(weaponDefs[world.weapon].color);
+      }
+    }
     if (player.alive) {
       drone.base.rotation.y = -player.face;
       const speed = Math.hypot(player.vx, player.vy);
@@ -2271,6 +2362,7 @@ export class Renderer {
       mat.emissive.copy(hexColor(identity.accent)).multiplyScalar(flash * 0.25 + (boss.charging ? 0.06 : 0));
     }
     view.glowMat.color.setHex(boss.shielded ? 0xffffff : boss.enraged ? identity.accent : identity.color);
+    view.glowMat.emissiveIntensity = boss.enraged ? 1.48 + Math.sin(time * 8) * 0.16 : 1.22;
     const alpha = boss.ghost ? 0.14 : 1;
     const dive = boss.type === "wyrm" && boss.diveT > 0 ? 1 : 0;
     if (dive) group.scale.y *= 0.55;

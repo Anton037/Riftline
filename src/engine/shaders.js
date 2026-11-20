@@ -43,24 +43,33 @@ vec3 applyFog(vec3 col, vec3 worldPos) {
 `;
 
 const SHADOW_FN = `
-uniform sampler2D uShadowMap;
+uniform highp sampler2DShadow uShadowMap;
 uniform float uShadowsEnabled;
 float sampleShadow(vec3 worldPos, vec3 worldNormal) {
   if (uShadowsEnabled < 0.5) return 1.0;
-  vec3 biased = worldPos + worldNormal * 0.09 + uSunDir * 0.05;
+  vec3 biased = worldPos + worldNormal * 0.065 + uSunDir * 0.035;
   vec4 lp = uLightSpace * vec4(biased, 1.0);
   vec3 proj = lp.xyz / max(lp.w, 0.0001) * 0.5 + 0.5;
   if (proj.x < 0.01 || proj.x > 0.99 || proj.y < 0.01 || proj.y > 0.99 || proj.z > 0.995) return 1.0;
   vec2 texel = 1.0 / vec2(textureSize(uShadowMap, 0));
-  float bias = max(0.0018 * (1.0 - dot(worldNormal, uSunDir)), 0.0007);
-  float sum = 0.0;
-  for (int x = -1; x <= 1; x++) {
-    for (int y = -1; y <= 1; y++) {
-      float d = texture(uShadowMap, proj.xy + vec2(float(x), float(y)) * texel * 1.25).r;
-      sum += (proj.z - bias <= d) ? 1.0 : 0.0;
-    }
-  }
-  return sum / 9.0;
+  float bias = max(0.0012 * (1.0 - dot(worldNormal, uSunDir)), 0.00045);
+  float zRef = proj.z - bias;
+  // Rotated 9-tap hardware-PCF Poisson disk for velvety storybook diorama penumbras
+  float ang = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) * 6.2831853;
+  float s = sin(ang);
+  float c = cos(ang);
+  mat2 rot = mat2(c, -s, s, c);
+  vec2 spread = texel * 2.15;
+  float sum = texture(uShadowMap, vec3(proj.xy, zRef));
+  sum += texture(uShadowMap, vec3(proj.xy + (rot * vec2( 0.92,  0.18)) * spread, zRef));
+  sum += texture(uShadowMap, vec3(proj.xy + (rot * vec2(-0.88, -0.24)) * spread, zRef));
+  sum += texture(uShadowMap, vec3(proj.xy + (rot * vec2( 0.24, -0.90)) * spread, zRef));
+  sum += texture(uShadowMap, vec3(proj.xy + (rot * vec2(-0.22,  0.88)) * spread, zRef));
+  sum += texture(uShadowMap, vec3(proj.xy + (rot * vec2( 0.58,  0.56)) * spread, zRef));
+  sum += texture(uShadowMap, vec3(proj.xy + (rot * vec2(-0.56,  0.54)) * spread, zRef));
+  sum += texture(uShadowMap, vec3(proj.xy + (rot * vec2( 0.54, -0.58)) * spread, zRef));
+  sum += texture(uShadowMap, vec3(proj.xy + (rot * vec2(-0.54, -0.54)) * spread, zRef));
+  return sum * (1.0 / 9.0);
 }
 `;
 
@@ -163,6 +172,7 @@ uniform float uEmissiveIntensity;
 uniform float uOpacity;
 uniform float uRimStrength;
 uniform float uSpecPower;
+uniform float uInkStrength;
 uniform float uBiomeSkin;
 uniform float uFogEnabled;
 uniform float uDustFade;
@@ -205,50 +215,58 @@ void main() {
   // Subtle painted highlight stroke lift on bevels & ridges
   albedo += albedo * smoothstep(0.68, 0.94, glint) * 0.11;
 
-  // Biome-harmonized glaze & subtle ground-weathering on actors
+  // Gentle biome bounce harmony (~8-10% max) so actors stay vividly distinct from every floor
   if (uBiomeSkin > 0.5) {
-    vec3 biomeTint = 0.84 + uHemiSky * 0.18 + uRimColor * 0.12;
-    albedo = mix(albedo, albedo * biomeTint, 0.20);
-    float footMask = smoothstep(0.58, 0.02, vLocalPos.y) * (0.65 + 0.35 * brush);
-    vec3 weatherCol = mix(uHemiGround, uHemiSky, 0.42) * 0.78 + uRimColor * 0.08;
-    albedo = mix(albedo, mix(albedo, weatherCol, 0.40), footMask * 0.34);
+    vec3 biomeTint = 0.90 + uHemiSky * 0.12 + uRimColor * 0.08;
+    albedo = mix(albedo, albedo * biomeTint, 0.09);
+    float footMask = smoothstep(0.40, 0.02, vLocalPos.y) * (0.65 + 0.35 * brush);
+    vec3 weatherCol = mix(uHemiGround, uHemiSky, 0.45) * 0.80 + uRimColor * 0.06;
+    albedo = mix(albedo, mix(albedo, weatherCol, 0.24), footMask * 0.16);
   }
 
-  // Expressive 3-band stylized cel lighting with calibrated energy conservation
+  // Creamy 3-stop storybook gouache cel-gradient wrap (warm sunlit key, rich cool/plum shadow bounce)
   float shadow = sampleShadow(vWorldPos, N);
   float rawNdl = dot(N, uSunDir);
-  float celMid = smoothstep(-0.10, 0.14, rawNdl) * mix(0.24, 1.0, shadow);
-  float celHi = smoothstep(0.42, 0.66, rawNdl) * shadow;
-  float cel = celMid * 0.64 + celHi * 0.36;
+  float celWarm = smoothstep(-0.18, 0.20, rawNdl) * mix(0.28, 1.0, shadow);
+  float celSun = smoothstep(0.38, 0.72, rawNdl) * shadow;
+  float cel = celWarm * 0.62 + celSun * 0.38;
 
-  // Rich hue-shifted cool/warm shadow tint (never muddy grey) + subtle grounded bottom shading
-  float groundShade = mix(0.84, 1.02, smoothstep(-0.4, 0.6, N.y));
-  vec3 shadowCol = mix(uShadowTint, uHemiGround, 0.40) * 0.82;
+  // Rich hue-shifted cool/plum/indigo shadow bounce + grounded underside shading
+  float groundShade = mix(0.84, 1.03, smoothstep(-0.35, 0.65, N.y));
+  vec3 shadowCol = mix(uShadowTint, uHemiGround, 0.34) * 0.84;
   vec3 keyLight = mix(shadowCol, uSunColor * uSunIntensity * 0.88, cel);
 
   // Hemisphere sky/ground bounce + angled stylized fill light
   float hemiK = N.y * 0.5 + 0.5;
-  vec3 hemi = mix(uHemiGround * 0.46, uHemiSky * 0.74, hemiK) * uHemiIntensity * 0.38;
-  float fillNdl = smoothstep(-0.08, 0.55, dot(N, uFillDir));
+  vec3 hemi = mix(uHemiGround * 0.44, uHemiSky * 0.76, hemiK) * uHemiIntensity * 0.40;
+  float fillNdl = smoothstep(-0.10, 0.58, dot(N, uFillDir));
   vec3 fill = uFillColor * uFillIntensity * fillNdl * 0.26;
 
-  // Material-aware cel specular (matte stone/organic stays velvety; metal/ice/crystal gleams crisply)
+  // Material-aware cel specular + subtle top-down porcelain/brass/crystal sky sheen
   vec3 H = normalize(uSunDir + V);
   float ndh = max(dot(N, H), 0.0);
   float gloss = clamp(1.0 - rough, 0.0, 1.0);
   float gloss2 = gloss * gloss;
   float specExp = max(uSpecPower * (0.65 + gloss * 0.95), 14.0);
   float specRaw = pow(ndh, specExp);
-  float specStep = smoothstep(0.34, 0.58, specRaw) * gloss2 * 0.52 * shadow;
-  vec3 spec = uSunColor * specStep * (0.62 + glint * 0.38);
+  float specStep = smoothstep(0.32, 0.58, specRaw) * gloss2 * 0.50 * shadow;
+  float skySheen = pow(max(N.y, 0.0), 2.4) * gloss2 * 0.14;
+  vec3 spec = uSunColor * specStep * (0.64 + glint * 0.36) + uHemiSky * skySheen;
 
-  // Crisp Fresnel rim light so actor & cover silhouettes separate cleanly without washing out top faces
-  float fresnel = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 2.8);
-  float rimMask = smoothstep(0.32, 0.72, fresnel) * (0.35 + 0.65 * max(N.y, 0.0));
-  vec3 rim = uRimColor * rimMask * uRimStrength * 0.52 * (0.62 + 0.38 * (1.0 - uDarkness * 0.5));
+  // Tight top-edge rim highlight + delicate dark-ink grazing contour for effortless miniature separation
+  float ndv = clamp(dot(N, V), 0.0, 1.0);
+  float fresnel = pow(1.0 - ndv, 2.7);
+  float rimMask = smoothstep(0.34, 0.74, fresnel) * smoothstep(0.06, 0.68, N.y);
+  vec3 rim = uRimColor * rimMask * uRimStrength * 0.54 * (0.64 + 0.36 * (1.0 - uDarkness * 0.5));
 
   vec3 lit = albedo * (keyLight + hemi + fill) * groundShade + spec + rim;
   lit += evalPointLights(vWorldPos, N, albedo);
+
+  float inkMask = smoothstep(0.36, 0.07, ndv) * (1.0 - smoothstep(0.48, 0.85, max(N.y, 0.0)));
+  float inkAmt = inkMask * uInkStrength * (1.0 - uDustFade) * 0.54;
+  vec3 inkCol = mix(vec3(0.015, 0.011, 0.024), uShadowTint * 0.22, 0.44);
+  lit = mix(lit, inkCol, clamp(inkAmt, 0.0, 0.62));
+
   lit += uEmissive * uEmissiveIntensity;
 
   // Punchy hit-flash (crisp warm-cream stylized pop preserving 3D form without blinding whiteout)
@@ -351,6 +369,13 @@ void main() {
   vec2 edgeDist = uHalf - abs(p);
   float edgeMin = min(edgeDist.x, edgeDist.y);
   float inside = smoothstep(-0.12, 0.14, edgeMin);
+  vec2 rel = abs(p) / max(uHalf, vec2(1.0));
+  float rNorm = max(rel.x, rel.y);
+  // Calm walkable combat interior (r < 0.82) vs rich perimeter borders (edgeMin < 2.8)
+  float centerCalm = (1.0 - smoothstep(0.58, 0.84, rNorm)) * inside;
+  float borderRich = (1.0 - smoothstep(0.45, 2.8, edgeMin)) * inside;
+  float detailAmt = mix(1.0, 0.54, centerCalm);
+  float emissiveCalm = mix(1.0, 0.48, centerCalm);
   vec2 occUv = (p + uHalf) / max(uHalf * 2.0, vec2(1.0));
   float occ = (inside > 0.05) ? texture(uOcclusion, clamp(occUv, 0.0, 1.0)).r : 0.72;
 
@@ -362,11 +387,11 @@ void main() {
   if (uTerrainReady > 0.5) {
     vec3 t1 = sampleTerrainTile(p * 0.095, tile);
     vec3 t2 = sampleTerrainTile(p * 0.038 + vec2(0.37, 0.61), tile);
-    brush = mix(t1, t2, 0.42);
+    brush = mix(t1, t2, mix(0.42, 0.62, centerCalm));
   }
-  vec3 albedo = mix(uFloorBase, brush, 0.72);
+  vec3 albedo = mix(uFloorBase, brush, mix(0.76, 0.56, centerCalm));
   vec3 emissive = vec3(0.0);
-  float specBoost = 0.06;
+  float specBoost = 0.05;
 
   // Subtle architectural tile seams so movement speed reads clearly without visual clutter
   vec2 cell = abs(fract(p * 0.25 + 0.5) - 0.5);
@@ -375,87 +400,90 @@ void main() {
   float n2 = fbm(p * 0.42 + vec2(3.2, -1.9));
 
   if (style == 5) {
-    // BLACKOUT CITY: rain-dappled indigo-slate courtyard flagstones with cool twilight sky puddles & subtle brass rivets
-    float puddle = smoothstep(0.55, 0.68, n1 + (n2 - 0.5) * 0.22);
+    // BLACKOUT CITY: calm rain-dappled courtyard flagstones with mirror puddles near borders & brass rivets
+    float puddle = smoothstep(0.56, 0.70, n1 + (n2 - 0.5) * 0.20) * mix(1.0, 0.56, centerCalm);
     float stoneVar = hash21(floor(p * 0.25 + 0.5));
-    albedo *= 0.88 + stoneVar * 0.20;
+    albedo *= 0.92 + stoneVar * 0.13 * detailAmt;
     float mortar = gridLine * inside;
-    albedo = mix(albedo, albedo * 0.56, mortar * 0.58);
-    float brassDot = (1.0 - smoothstep(0.012, 0.036, max(cell.x, cell.y))) * inside;
-    albedo = mix(albedo, uFloorTrim * 0.36, brassDot * 0.34);
-    // Cool mirror-wet indigo puddle reflections with faint rain-ripple sky sheen
+    albedo = mix(albedo, albedo * 0.64, mortar * 0.44);
+    float brassDot = (1.0 - smoothstep(0.012, 0.034, max(cell.x, cell.y))) * inside;
+    albedo = mix(albedo, uFloorTrim * 0.34, brassDot * 0.28);
     float sheen = 0.5 + 0.5 * sin(p.x * 0.9 - p.y * 0.7 + n2 * 4.5 + uTime * 1.4);
-    vec3 reflectCol = albedo * 0.44 + vec3(0.014, 0.032, 0.052) + uHemiSky * (0.012 + sheen * 0.020);
-    albedo = mix(albedo, reflectCol, puddle * 0.74 * inside);
-    specBoost = mix(0.10, 0.64, puddle);
+    vec3 reflectCol = albedo * 0.48 + vec3(0.012, 0.028, 0.048) + uHemiSky * (0.010 + sheen * 0.016);
+    albedo = mix(albedo, reflectCol, puddle * 0.66 * inside);
+    specBoost = mix(0.07, 0.48, puddle);
   } else if (style == 2) {
-    // AURORA SHELF: crisp alpine blue-hour powder snow & deep sapphire glacier ice ponds
-    float icePatch = smoothstep(0.50, 0.66, n1);
-    float drift = smoothstep(0.32, 0.76, fbm(p * 0.19 + vec2(0.4, -0.2)));
-    albedo = mix(albedo * 0.92, vec3(0.24, 0.36, 0.48), drift * 0.34);
-    albedo = mix(albedo, vec3(0.06, 0.20, 0.34), icePatch * 0.60);
-    // Delicate crystalline glacier seams inside ice patches
+    // AURORA SHELF: calm velvety alpine snowfield & sapphire glacier ice pockets richer toward perimeter
+    float icePatch = smoothstep(0.52, 0.68, n1) * mix(1.0, 0.54, centerCalm);
+    float drift = smoothstep(0.34, 0.76, fbm(p * 0.19 + vec2(0.4, -0.2)));
+    albedo = mix(albedo * 0.94, vec3(0.22, 0.34, 0.46), drift * 0.24 * detailAmt);
+    albedo = mix(albedo, vec3(0.07, 0.20, 0.33), icePatch * 0.52);
     float iceEdge = crackNet(p * 0.34, 0.42);
-    float crack = (1.0 - smoothstep(0.016, 0.060, iceEdge)) * icePatch;
-    albedo += vec3(0.10, 0.22, 0.32) * crack * 0.48 * inside;
-    albedo = mix(albedo, vec3(0.14, 0.26, 0.40), gridLine * 0.14 * inside);
-    float shimmer = smoothstep(0.70, 0.96, sin(p.x * 0.55 - p.y * 0.42 + uTime * 1.2 + n2 * 4.5));
-    emissive += uFloorAccent * shimmer * icePatch * 0.11 * inside;
-    specBoost = mix(0.08, 0.52, icePatch);
+    float crack = (1.0 - smoothstep(0.016, 0.056, iceEdge)) * icePatch;
+    albedo += vec3(0.08, 0.18, 0.26) * crack * 0.42 * inside;
+    albedo = mix(albedo, vec3(0.14, 0.25, 0.38), gridLine * 0.12 * inside);
+    float shimmer = smoothstep(0.72, 0.96, sin(p.x * 0.55 - p.y * 0.42 + uTime * 1.2 + n2 * 4.5));
+    emissive += uFloorAccent * shimmer * icePatch * 0.09 * inside;
+    specBoost = mix(0.06, 0.38, icePatch);
   } else if (style == 3) {
-    // GLOWMARSH: velvety deep moss turf, tranquil dark bog water & delicate glowing mycelium threads
-    float bogWater = smoothstep(0.55, 0.68, n1);
+    // GLOWMARSH: calm velvety moss turf, tranquil bog pools & glowing mycelium veins enriched near perimeter
+    float bogWater = smoothstep(0.56, 0.70, n1) * mix(1.0, 0.54, centerCalm);
     float mossTuft = smoothstep(0.38, 0.72, n2);
     float mycoEdge = crackNet(p * 0.30, 0.72);
-    float vein = (1.0 - smoothstep(0.012, 0.055, mycoEdge)) * smoothstep(0.42, 0.70, n2);
-    float tide = 0.68 + 0.32 * sin(uTime * 1.4 + n1 * 3.8);
-    albedo = mix(albedo * 0.86, albedo * 1.14, mossTuft);
-    albedo = mix(albedo, vec3(0.014, 0.048, 0.046), bogWater * 0.72);
-    albedo = mix(albedo, albedo * 0.74, gridLine * 0.18 * inside);
-    emissive += uFloorAccent * vein * tide * (1.0 - bogWater * 0.6) * 0.22 * inside;
-    specBoost = mix(0.06, 0.44, bogWater);
+    float vein = (1.0 - smoothstep(0.012, 0.052, mycoEdge)) * smoothstep(0.42, 0.70, n2);
+    float tide = 0.70 + 0.30 * sin(uTime * 1.4 + n1 * 3.8);
+    albedo = mix(albedo * 0.90, albedo * 1.10, mossTuft * detailAmt);
+    albedo = mix(albedo, vec3(0.015, 0.046, 0.044), bogWater * 0.66);
+    albedo = mix(albedo, albedo * 0.78, gridLine * 0.16 * inside);
+    emissive += uFloorAccent * vein * tide * (1.0 - bogWater * 0.6) * 0.20 * inside;
+    specBoost = mix(0.05, 0.36, bogWater);
   } else if (style == 4) {
-    // SHATTERED CORE: velvety midnight-obsidian fractured flagstones with calm amethyst & rose-gold crevices
-    float beat = 0.76 + 0.24 * pow(0.5 + 0.5 * sin(uTime * 2.2), 2.0);
+    // SHATTERED CORE: calm carved midnight-obsidian flagstones with jewel amethyst fissures brighter toward rim
+    float beat = 0.78 + 0.22 * pow(0.5 + 0.5 * sin(uTime * 2.2), 2.0);
     float slab = hash21(floor(p * 0.25 + 0.5));
-    albedo *= 0.86 + slab * 0.22;
-    albedo = mix(albedo, albedo * 0.66, gridLine * 0.32 * inside);
-    float riftMask = smoothstep(0.36, 0.72, n1);
+    albedo *= 0.90 + slab * 0.14 * detailAmt;
+    albedo = mix(albedo, albedo * 0.72, gridLine * 0.28 * inside);
+    float riftMask = smoothstep(0.38, 0.72, n1);
     float riftEdge = crackNet(p * 0.25, 0.38);
-    float rift = (1.0 - smoothstep(0.011, 0.054, riftEdge)) * (0.16 + 0.84 * riftMask);
-    float starDust = smoothstep(0.92, 0.99, vnoise(p * 1.85 + vec2(1.7, -2.3))) * (0.5 + 0.5 * sin(uTime * 2.5 + n2 * 8.0));
-    emissive += mix(uFloorTrim, uFloorAccent, n2) * rift * 0.42 * beat * inside;
-    emissive += uFloorTrim * starDust * 0.18 * inside;
-    specBoost = 0.24;
+    float rift = (1.0 - smoothstep(0.011, 0.052, riftEdge)) * (0.16 + 0.84 * riftMask);
+    float starDust = smoothstep(0.93, 0.99, vnoise(p * 1.85 + vec2(1.7, -2.3))) * (0.5 + 0.5 * sin(uTime * 2.5 + n2 * 8.0));
+    emissive += mix(uFloorTrim, uFloorAccent, n2) * rift * 0.38 * beat * inside;
+    emissive += uFloorTrim * starDust * 0.15 * inside;
+    specBoost = 0.18;
   } else if (style == 6) {
-    // ASHFALL CALDERA: charred polygonal volcanic basalt plates split by organically modulated magma seams
+    // ASHFALL CALDERA: calm charred polygonal basalt interior with glowing magma seams richest along rim
     float slab = hash21(floor(p * 0.25 + 0.5));
-    albedo *= 0.84 + slab * 0.22;
-    albedo = mix(albedo, albedo * 0.62, gridLine * 0.30 * inside);
-    float pocket = smoothstep(0.32, 0.72, n1);
+    albedo *= 0.90 + slab * 0.14 * detailAmt;
+    albedo = mix(albedo, albedo * 0.68, gridLine * 0.26 * inside);
+    float pocket = smoothstep(0.34, 0.74, n1);
     float basaltEdge = crackNet(p * 0.26, 0.42);
-    float crackLine = 1.0 - smoothstep(0.012, 0.066, basaltEdge);
-    float magma = crackLine * (0.18 + 0.82 * pocket);
-    float emberGlow = 0.76 + 0.24 * sin(uTime * 2.2 + p.x * 0.35 - p.y * 0.28);
-    vec3 lavaCol = mix(vec3(0.84, 0.12, 0.015), vec3(1.38, 0.52, 0.065), smoothstep(0.24, 0.88, magma * emberGlow));
-    emissive += lavaCol * magma * 0.72 * inside;
-    specBoost = 0.14;
+    float crackLine = 1.0 - smoothstep(0.012, 0.062, basaltEdge);
+    float magma = crackLine * (0.16 + 0.84 * pocket);
+    float emberGlow = 0.78 + 0.22 * sin(uTime * 2.2 + p.x * 0.35 - p.y * 0.28);
+    vec3 lavaCol = mix(vec3(0.80, 0.12, 0.015), vec3(1.32, 0.50, 0.065), smoothstep(0.24, 0.88, magma * emberGlow));
+    emissive += lavaCol * magma * 0.68 * inside;
+    specBoost = 0.11;
   } else {
-    // GLASS FLATS: golden-hour terracotta-ochre sandstone dunes & deep jewel-teal vitrified glass oases
-    float glass = smoothstep(0.50, 0.66, n1);
+    // GLASS FLATS: calm golden-hour terracotta sandstone interior & turquoise vitrified glass seams near edges
+    float glass = smoothstep(0.52, 0.68, n1) * mix(1.0, 0.54, centerCalm);
     float ripple = sin(p.y * 1.4 + p.x * 0.35 + n2 * 3.5) * 0.5 + 0.5;
-    albedo = mix(albedo * (0.88 + ripple * 0.14), vec3(0.045, 0.21, 0.23), glass * 0.64);
-    albedo = mix(albedo, albedo * 0.82, gridLine * 0.18 * inside);
-    float glassCrack = (1.0 - smoothstep(0.015, 0.055, crackNet(p * 0.36, 0.35))) * glass;
-    albedo += vec3(0.05, 0.16, 0.17) * glassCrack * 0.55 * inside;
-    float glint = smoothstep(0.74, 0.96, sin(p.x * 0.65 + p.y * 0.48 - uTime * 1.3 + n2 * 4.2));
-    emissive += uFloorAccent * glint * glass * 0.14 * inside;
-    specBoost = mix(0.08, 0.54, glass);
+    albedo = mix(albedo * (0.92 + ripple * 0.10 * detailAmt), vec3(0.048, 0.20, 0.22), glass * 0.56);
+    albedo = mix(albedo, albedo * 0.86, gridLine * 0.15 * inside);
+    float glassCrack = (1.0 - smoothstep(0.015, 0.052, crackNet(p * 0.36, 0.35))) * glass;
+    albedo += vec3(0.045, 0.14, 0.15) * glassCrack * 0.48 * inside;
+    float glint = smoothstep(0.76, 0.96, sin(p.x * 0.65 + p.y * 0.48 - uTime * 1.3 + n2 * 4.2));
+    emissive += uFloorAccent * glint * glass * 0.11 * inside;
+    specBoost = mix(0.06, 0.40, glass);
   }
 
-  // Crisp subtle arena perimeter trim + exterior framing vignette
-  float border = (1.0 - smoothstep(0.0, 0.32, abs(edgeMin))) * step(-0.2, edgeMin);
-  emissive += uFloorTrim * border * 0.32;
+  // Calm interior emissives & specular glare (~50% softer in central combat space) while keeping perimeter rich
+  emissive *= emissiveCalm;
+  specBoost *= mix(1.0, 0.52, centerCalm);
+
+  // Handcrafted perimeter border framing & subtle diorama edge darkening
+  albedo *= mix(1.0, 0.84, borderRich * 0.48);
+  float border = (1.0 - smoothstep(0.0, 0.34, abs(edgeMin))) * step(-0.2, edgeMin);
+  emissive += uFloorTrim * border * 0.34;
   // Wave pulse sweep ring
   if (uPulse > 0.005) {
     float waveR = (1.0 - uPulse) * max(uHalf.x, uHalf.y) * 1.35;
@@ -463,20 +491,20 @@ void main() {
     emissive += uFloorAccent * ring * 0.82 * inside;
   }
 
-  // Exterior ground darkens gracefully to frame the playable arena
-  albedo *= mix(0.44, 1.0, inside);
+  // Exterior ground darkens gracefully to frame the playable diorama stage
+  albedo *= mix(0.42, 1.0, inside);
   // Apply baked ground-contact ambient occlusion
-  albedo *= mix(0.34, 1.0, occ);
+  albedo *= mix(0.32, 1.0, occ);
 
-  // Lighting + crisp real-time directional PCF shadows
+  // Lighting + velvety 2048 hardware-PCF diorama shadows
   vec3 N = vec3(0.0, 1.0, 0.0);
   vec3 V = normalize(uCamPos - vWorldPos);
   float shadow = sampleShadow(vWorldPos, N);
   float darkScale = 1.0 - uDarkness * 0.40;
-  vec3 key = mix(uShadowTint * 0.52, uSunColor * uSunIntensity * 0.64, mix(0.20, 1.0, shadow)) * darkScale;
+  vec3 key = mix(uShadowTint * 0.50, uSunColor * uSunIntensity * 0.62, mix(0.22, 1.0, shadow)) * darkScale;
   vec3 hemi = uHemiSky * uHemiIntensity * 0.32 * darkScale;
   vec3 H = normalize(uSunDir + V);
-  float spec = pow(max(dot(N, H), 0.0), 36.0) * specBoost * 0.52 * shadow * darkScale;
+  float spec = pow(max(dot(N, H), 0.0), 34.0) * specBoost * 0.46 * shadow * darkScale;
 
   vec3 lit = albedo * (key + hemi) + uSunColor * spec;
   lit += evalPointLights(vWorldPos, N, albedo * 1.15);
@@ -676,10 +704,10 @@ void main() {
   float alpha = body * tongues * (1.0 - max(0.0, vState.r) * 0.65) * vState.b;
   if (alpha < 0.02) discard;
   float core = (1.0 - smoothstep(0.01, w * 0.85, edge)) * tongues;
-  // Cel-stepped flame palette: deep crimson outer -> vivid tangerine -> warm amber core
-  vec3 col = mix(vec3(0.76, 0.10, 0.04), vec3(1.12, 0.42, 0.08), smoothstep(0.12, 0.45, core));
-  col = mix(col, vec3(1.38, 1.06, 0.48), smoothstep(0.58, 0.84, core));
-  fragColor = vec4(col, alpha * 0.90);
+  // Crisp cel-stepped gouache flame palette: warm crimson edge -> vivid tangerine -> amber heart (never blinds bullets)
+  vec3 col = mix(vec3(0.76, 0.11, 0.04), vec3(1.10, 0.44, 0.08), smoothstep(0.14, 0.42, core));
+  col = mix(col, vec3(1.32, 1.02, 0.48), smoothstep(0.58, 0.80, core));
+  fragColor = vec4(col, alpha * 0.72);
 }`;
   return { vs, fs };
 }
@@ -1082,11 +1110,11 @@ void main() {
          + texture(uSrc, vUv + vec2(tx.x, -tx.y)).rgb
          + texture(uSrc, vUv + vec2(-tx.x, -tx.y)).rgb) * 0.15;
   float br = max(c.r, max(c.g, c.b));
-  float knee = 0.22;
+  float knee = 0.18;
   float soft = clamp(br - uThreshold + knee, 0.0, 2.0 * knee);
   soft = soft * soft / (4.0 * knee + 1e-4);
   float contrib = max(soft, br - uThreshold) / max(br, 1e-4);
-  fragColor = vec4(min(c * contrib, vec3(2.4)), 1.0);
+  fragColor = vec4(min(c * contrib, vec3(1.85)), 1.0);
 }`;
   return { vs: FULLSCREEN_VS, fs };
 }
@@ -1129,14 +1157,18 @@ void main() {
   vec3 col = hdr + bloom * uBloomStrength;
   // Boss-down celebratory pulse (restrained to avoid screen whiteout)
   col += vec3(uFlash * 0.26);
-  // Calibrated ACES filmic tone map + subtle painterly vibrance
-  col = acesFilm(col * 0.95);
+  // Calibrated ACES filmic tone map + subtle painterly storybook vibrance
+  col = acesFilm(col * 0.96);
   float luma = dot(col, vec3(0.2126, 0.7152, 0.0722));
-  col = mix(vec3(luma), col, 1.07);
-  // Gentle edge framing vignette
+  col = mix(vec3(luma), col, 1.08);
+  // Subtle miniature diorama peripheral depth framing (keeps central combat crisp)
   vec2 q = vUv * 2.0 - 1.0;
-  float vig = 1.0 - dot(q, q) * 0.10;
-  col *= clamp(vig, 0.80, 1.0);
+  float rad2 = dot(q, q);
+  float edgeBand = smoothstep(0.45, 1.65, rad2);
+  float tiltFrame = smoothstep(0.62, 1.0, abs(q.y));
+  float vig = 1.0 - rad2 * 0.085 - tiltFrame * 0.045;
+  col *= clamp(vig, 0.78, 1.0);
+  col = mix(col, col * vec3(0.95, 0.96, 1.03), edgeBand * 0.18);
   // Single clean sRGB gamma encode from linear HDR
   col = pow(max(col, vec3(0.0)), vec3(1.0 / 2.2));
   fragColor = vec4(col, 1.0);

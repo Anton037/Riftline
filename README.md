@@ -59,8 +59,8 @@ Generated verification output belongs in the ignored `verification-output/` dire
 |---|---|
 | `src/core/` | Deterministic simulation, combat, waves, maps and saves |
 | `src/data/` | Weapons, actors, biomes, upgrades and progression |
-| `src/engine/` | Custom zero-dependency WebGL2 graphics engine (math, geometry, instancing, shaders, shadows, bloom/ACES) |
-| `src/render/` | Stylized painterly / cel-shaded biome arenas, biome-harmonized actor & boss models, combat VFX and 2D HUD overlay |
+| `src/engine/` | Custom zero-dependency WebGL2 graphics engine (math, geometry, instancing, 4x MSAA HDR, 2048 hardware-PCF shadows, bloom/ACES) |
+| `src/render/` | Cozy storybook diorama biome arenas, cloaked Rift-Artificer, 5 enemy role families, 6 bosses, dark-inked combat VFX and 2D HUD overlay |
 | `src/audio/` | Cozy acoustic material voices, modal instruments, musical UI chimes, biome scores and spatial soundscapes |
 | `src/ui/` | Biome-adaptive cozy storybook HUD & screens, touch and keyboard/mouse input and haptics |
 | `public/` | Fonts, painterly texture atlases, sound bank, app icons and asset notices |

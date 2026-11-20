@@ -852,6 +852,24 @@ export function disc(r = 1, segs = 32) {
   return new Geometry(pos, norm, uv, idx);
 }
 
+/** Vertical disc in XY plane facing +Z (ideal for crisp camera-facing billboard halos). */
+export function discXY(r = 0.5, segs = 16) {
+  const pos = [0, 0, 0],
+    norm = [0, 0, 1],
+    uv = [0.5, 0.5],
+    idx = [];
+  for (let i = 0; i <= segs; i++) {
+    const a = (i / segs) * TAU;
+    const ca = Math.cos(a),
+      sa = Math.sin(a);
+    pos.push(ca * r, sa * r, 0);
+    norm.push(0, 0, 1);
+    uv.push(0.5 + ca * 0.5, 0.5 + sa * 0.5);
+  }
+  for (let i = 0; i < segs; i++) idx.push(0, i + 1, i + 2);
+  return new Geometry(pos, norm, uv, idx);
+}
+
 /** Horizontal flat ring in XZ plane facing +Y. */
 export function ring(innerR = 0.85, outerR = 1, segs = 36) {
   const pos = [],
@@ -909,6 +927,51 @@ export function lathe(points, segs = 12) {
     }
   }
   const g = new Geometry(pos, norm, uv, idx);
+  g.computeNormals();
+  return g;
+}
+
+/** Closed outward-facing solid of revolution around Y from ascending [[radius, y], ...] profile points. */
+export function closedLathe(points, segs = 10) {
+  const pos = [],
+    uv = [],
+    idx = [];
+  const m = points.length;
+  const ringStarts = [];
+  for (let j = 0; j < m; j++) {
+    const [r, y] = points[j];
+    const v = j / Math.max(1, m - 1);
+    ringStarts.push(pos.length / 3);
+    for (let i = 0; i < segs; i++) {
+      const u = i / segs;
+      const a = u * TAU;
+      pos.push(Math.cos(a) * r, y, Math.sin(a) * r);
+      uv.push(u, v);
+    }
+  }
+  for (let j = 0; j < m - 1; j++) {
+    const a0 = ringStarts[j],
+      b0 = ringStarts[j + 1];
+    for (let i = 0; i < segs; i++) {
+      const ni = (i + 1) % segs;
+      idx.push(a0 + i, b0 + i, a0 + ni, a0 + ni, b0 + i, b0 + ni);
+    }
+  }
+  if (points[0][0] > 1e-4) {
+    const botC = pos.length / 3;
+    pos.push(0, points[0][1], 0);
+    uv.push(0.5, 0);
+    const r0 = ringStarts[0];
+    for (let i = 0; i < segs; i++) idx.push(botC, r0 + i, r0 + ((i + 1) % segs));
+  }
+  if (points[m - 1][0] > 1e-4) {
+    const topC = pos.length / 3;
+    pos.push(0, points[m - 1][1], 0);
+    uv.push(0.5, 1);
+    const rt = ringStarts[m - 1];
+    for (let i = 0; i < segs; i++) idx.push(topC, rt + ((i + 1) % segs), rt + i);
+  }
+  const g = new Geometry(pos, new Float32Array(pos.length), uv, idx);
   g.computeNormals();
   return g;
 }

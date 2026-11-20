@@ -4,6 +4,17 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "4.6.0",
+    title: "Storybook diorama graphics, unique models and combat clarity",
+    items: [
+      "4x MSAA HDR rendering, 2048 soft hardware-PCF shadows, and delicate dark-ink contours bring every arena to life.",
+      "Play as a cloaked Rift-Artificer with an animated scarf, seven handcrafted magitech weapons, and a crisp foot compass.",
+      "All 25 enemies are rebuilt into five instant-read storybook role families alongside six elevated biome bosses.",
+      "Calmer walkable arena floors, dark-inked enemy projectiles, and disciplined friendly effects keep dense fights readable.",
+      "Every biome gains richer diorama cover, perimeter landmarks, hit-drain health ticks, and sharp off-screen indicators.",
+    ],
+  },
+  {
     version: "4.5.0",
     title: "Cozy biome worlds, adaptive HUD and musical soundscapes",
     items: [
@@ -42,17 +53,6 @@ export const WHATS_NEW = [
       "Glasswyrm fights solo with distinct callouts, while Chargers, Drillers, Weavers, Sentinels, Phantoms and Sunstruck foes telegraph clearly.",
       "Heat Sink responds to dust devils and hazards, saved runs preserve boss card counters, and DPS stats reflect full blast damage.",
       "Physical footsteps, Ashfall ambience and boss card sound ducking are tuned across every arena.",
-    ],
-  },
-  {
-    version: "4.3.0",
-    title: "Powerful abilities, a natural frozen horizon",
-    items: [
-      "Nova sends out one rising pressure wave with a single, weighty discharge.",
-      "Singularity suspends a dark core inside swirling matter, with distinct flight, pull and collapse effects.",
-      "Aegis reacts to absorbed hits; Event Collapse and portals gain clearer, deeper effects.",
-      "Natural glaciers, distant northern lights, sculpted Marsh fungi and clearer City edges bring the scenery together.",
-      "Arena changes throw up brief material dust instead of glowing obstacle rings.",
     ],
   },
 ];

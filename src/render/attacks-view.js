@@ -149,6 +149,18 @@ const MODELS = {
 
 const MAX = { zone: 48, mark: 64, part: 140 };
 
+const SHOT_MODELS = new Set([
+  "crystal",
+  "cinder",
+  "glasshot",
+  "weavershot",
+  "pod",
+  "dart",
+  "seal",
+  "spore",
+  "ringshot",
+]);
+
 export class AttackView {
   constructor(r, Pool) {
     this.r = r;
@@ -165,16 +177,18 @@ export class AttackView {
     let set = this.pl[name];
     if (set) return set;
     const m = MODELS[name]();
+    const isShot = SHOT_MODELS.has(name);
     const mk = (parts, glow) => {
       const mat = glow
-        ? emissiveMaterial({ vertexColors: true, emissiveIntensity: 1.18 })
+        ? emissiveMaterial({ vertexColors: true, emissiveIntensity: isShot ? 1.28 : 1.18, fog: !isShot })
         : worldMaterial({
             color: 0xffffff,
             vertexColors: true,
             surface: name === "crystal" || name === "spike" ? "ice" : name === "glasshot" ? "crystal" : "armor",
+            fog: !isShot,
           });
       const pool = new this.Pool(mergeGeometries(parts.flat()), mat, max);
-      pool.mesh.renderOrder = glow ? 3 : 2;
+      pool.mesh.renderOrder = isShot ? (glow ? 7 : 6) : glow ? 3 : 2;
       this.r.scene.add(pool.mesh);
       this.list.push(pool);
       return pool;
@@ -668,19 +682,49 @@ export class AttackView {
         sa = Math.sin(angle);
       const chance = (rate) => Math.random() < dt * rate;
       r.shadows.y(shot.x, 0.035, shot.y, 0, Math.max(0.45, shot.r * 3.5));
-      let halo = 2.8,
-        light = 0.28;
+      // Layer 6: crisp dark-ink outer backing halo behind EVERY enemy & boss projectile so zero shots vanish on snow/sand/VFX
+      const inkX = shot.x - basis.fx * 0.14;
+      const inkY = h - basis.fy * 0.14;
+      const inkZ = shot.y - basis.fz * 0.14;
+      if (r.ebInk) r.ebInk.bb(inkX, inkY, inkZ, Math.max(0.36, shot.r * 2.55), basis);
+      let halo = 2.6,
+        light = 0.24;
       switch (kind) {
         case "bolt":
         case "fast":
         case "turret": {
           const heavy = kind === "turret";
-          const len = shot.r * (kind === "fast" ? 6 : heavy ? 3.8 : 3);
-          r.ebCore.col(r.ebCore.y(shot.x, h, shot.y, angle, len, shot.r * 0.52, shot.r * 0.52), 1, 0.86, 0.78);
+          const len = shot.r * (kind === "fast" ? 5.6 : heavy ? 3.8 : 3.1);
+          if (r.ebBoltInk) {
+            r.ebBoltInk.seg(
+              shot.x - ca * (len * 0.96),
+              shot.y - sa * (len * 0.96),
+              shot.x + ca * (shot.r * 0.7),
+              shot.y + sa * (shot.r * 0.7),
+              h - 0.04,
+              shot.r * (heavy ? 1.5 : 1.25),
+              shot.r * 0.85,
+            );
+          }
+          r.ebCore.colC(r.ebCore.y(shot.x, h, shot.y, angle, len * 0.92, shot.r * 0.74, shot.r * 0.74), color, 1.22);
+          r.ebCore.col(
+            r.ebCore.y(
+              shot.x + ca * shot.r * 0.15,
+              h + 0.03,
+              shot.y + sa * shot.r * 0.15,
+              angle,
+              len * 0.45,
+              shot.r * 0.36,
+              shot.r * 0.36,
+            ),
+            1.0,
+            0.95,
+            0.88,
+          );
           r.beams.colC(
-            r.beams.seg(shot.x - ca * len, shot.y - sa * len, shot.x, shot.y, h, heavy ? 0.085 : 0.04, 0.045),
+            r.beams.seg(shot.x - ca * len, shot.y - sa * len, shot.x, shot.y, h, heavy ? 0.085 : 0.045, 0.045),
             color,
-            0.78,
+            0.72,
           );
           if (heavy && chance(7)) r.emit(shot.x, h, shot.y, 0, 0.3, 0, 0.16, 0.1, color, { spark: true, drag: 5 });
           break;
@@ -766,7 +810,8 @@ export class AttackView {
           break;
         }
         default:
-          r.ebCore.colC(r.ebCore.y(shot.x, h, shot.y, 0, shot.r * 0.82), color, 1.05);
+          r.ebCore.colC(r.ebCore.y(shot.x, h, shot.y, 0, shot.r * 0.88), color, 1.15);
+          r.ebCore.col(r.ebCore.y(shot.x, h + 0.04, shot.y, 0.7, shot.r * 0.44), 1.0, 0.96, 0.9);
       }
       if (shot.frost && kind !== "shard") {
         const P = this.get("crystal"),

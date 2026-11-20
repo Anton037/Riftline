@@ -9,9 +9,9 @@ assets and package metadata; rebuilds are serialized to avoid overlapping writes
 
 `src/engine/` provides allocation-free math (`math.js`), outward-wound procedural and sculpted mesh builders
 (`geometry.js`), GPU-instanced pools and material-bucketed static mesh batching (`scene.js`), linear-HDR GLSL 300 es
-stylized painterly / cel-shaded shaders (`shaders.js`), and the WebGL2 renderer (`webgl2.js`) with a 1024×1024
-directional PCF shadow map, 8 dynamic combat point lights, dual-Kawase selective bloom, ACES filmic tone mapping and
-context-loss recovery.
+storybook diorama / cel-shaded shaders (`shaders.js`), and the WebGL2 renderer (`webgl2.js`) with a 2048×2048
+hardware-PCF directional shadow map, 4× MSAA HDR offscreen rendering, 8 dynamic combat point lights, dual-Kawase
+selective bloom, ACES filmic tone mapping and context-loss recovery.
 
 Keep gameplay randomness in the seeded simulation. Cosmetic randomness belongs in rendering and audio.
 Save compatibility and stable seeded layouts have active regression fixtures in `tests/fixtures/`.

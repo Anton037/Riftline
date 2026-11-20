@@ -28,6 +28,7 @@ export function worldMaterial({
   biomeSkin = false,
   reedWind = false,
   rimStrength = null,
+  inkStrength = null,
   fog = true,
   batchKey = null,
 } = {}) {
@@ -45,6 +46,7 @@ export function worldMaterial({
     biomeSkin,
     reedWind,
     rimStrength,
+    inkStrength,
     fog,
     batchKey,
     userData: { paintedSurface: surface },

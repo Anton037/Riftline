@@ -11,6 +11,7 @@ import {
   octahedron,
   icosahedron,
   torus,
+  closedLathe,
   sculptedRock,
   sculptedCrystal,
   sculptedCap,
@@ -128,6 +129,18 @@ test("all solid mesh primitives have outward-facing winding and beveledBox stays
     ["octahedron", octahedron(0.8)],
     ["icosahedron", icosahedron(0.8, 1)],
     ["torus", torus(1.0, 0.25, 6, 14)],
+    [
+      "closedLathe",
+      closedLathe(
+        [
+          [0.3, 0],
+          [0.5, 0.4],
+          [0.35, 0.8],
+          [0.02, 1.0],
+        ],
+        8,
+      ),
+    ],
   ]) {
     assert.ok(signedVolume(g) > 0, `${name} must have positive signed volume (outward winding)`);
     g.dispose();

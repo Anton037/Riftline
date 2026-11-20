@@ -60,47 +60,47 @@ def brush_strokes(size, count, seed, angle_deg, spread_deg, length_range, width_
 
 
 def make_terrain_atlas():
-    """3x2 seamless painterly terrain atlas (512x512 per biome tile).
+    """3x2 seamless painterly storybook gouache terrain atlas (512x512 per biome tile).
     Order: 0=city, 1=shelf, 2=marsh, 3=core, 4=caldera, 5=flats.
-    R/G/B store rich painterly albedo value+pigment modulation around each biome's signature palette.
+    Calm mid-frequency gouache brushwork so walkable combat floors stay readable while retaining tactile craft.
     """
     size = 512
     atlas = Image.new("RGB", (size * 3, size * 2))
     specs = [
         # (base_rgb, warm_tint, cool_tint, angle, spread, seed)
-        ((34, 52, 66), (58, 78, 92), (18, 28, 42), 18, 24, 101),          # city: rain-washed slate flagstones
-        ((104, 138, 166), (146, 178, 202), (62, 92, 126), -22, 18, 202),  # shelf: alpine twilight powder snow & sastrugi
-        ((30, 62, 50), (68, 108, 78), (16, 36, 36), 10, 48, 303),         # marsh: velvety mossy peat & damp twilight bog
-        ((30, 24, 58), (56, 44, 94), (16, 12, 34), 45, 32, 404),          # core: deep velvety midnight obsidian stone
-        ((36, 26, 28), (64, 40, 36), (18, 13, 17), -12, 38, 505),         # caldera: dark charred volcanic basalt & ash
-        ((142, 104, 68), (178, 138, 92), (96, 68, 48), 6, 14, 606),       # flats: golden-hour terracotta-ochre sandstone dunes
+        ((34, 50, 64), (52, 70, 84), (22, 32, 46), 18, 22, 101),          # city: calm rain-washed courtyard flagstones
+        ((96, 128, 154), (126, 156, 178), (66, 94, 124), -22, 16, 202),   # shelf: velvety blue-hour alpine snowfield
+        ((30, 58, 48), (58, 92, 68), (18, 38, 36), 10, 42, 303),          # marsh: soft velvety moss turf & twilight bog
+        ((30, 24, 56), (50, 40, 84), (18, 14, 36), 45, 28, 404),          # core: calm carved midnight-obsidian flagstones
+        ((38, 27, 29), (58, 39, 36), (22, 15, 19), -12, 34, 505),         # caldera: warm-charred volcanic basalt plates
+        ((134, 98, 66), (162, 124, 84), (98, 70, 50), 6, 14, 606),        # flats: calm golden-hour terracotta sandstone
     ]
     y, x = np.mgrid[0:size, 0:size] / size
     for idx, (base, warm, cool, angle, spread, seed) in enumerate(specs):
         fbm = periodic_fbm(size, 4, seed, anisotropy=(1.2, 0.9))
         fine = periodic_fbm(size, 3, seed + 17, anisotropy=(2.0, 2.0))
-        strokes = brush_strokes(size, 420, seed + 33, angle, spread, (0.06, 0.22), (0.008, 0.026), 1.0)
-        # Subtle gouache paper tooth
-        tooth = np.random.default_rng(seed + 99).normal(0, 0.032, (size, size)).astype(np.float32)
-        # Biome-specific subtle motif baked cleanly into the brushwork
+        strokes = brush_strokes(size, 380, seed + 33, angle, spread, (0.07, 0.24), (0.010, 0.028), 0.82)
+        # Soft gouache watercolor paper tooth (low-noise so floors never sparkle/shimmer)
+        tooth = np.random.default_rng(seed + 99).normal(0, 0.022, (size, size)).astype(np.float32)
+        # Gentle biome-specific handcrafted motif baked cleanly into the brushwork
         motif = np.zeros((size, size), dtype=np.float32)
-        if idx == 0:  # city paving slabs
+        if idx == 0:  # city dressed courtyard paving slabs
             gx = np.abs(np.sin(TAU * x * 4.0))
             gy = np.abs(np.sin(TAU * y * 4.0))
             seam = np.minimum(gx, gy)
-            motif = np.where(seam < 0.045, -0.28, 0.05 * np.cos(TAU * (x * 2 + y)))
-        elif idx == 1:  # shelf wind-carved sastrugi drifts
-            motif = 0.24 * np.sin(TAU * (x * 2.0 + y * 1.0 + fbm * 0.35))
-        elif idx == 2:  # marsh tangled bog ripples
-            motif = 0.22 * np.sin(TAU * (x * 3.0 - y * 2.0 + fbm * 0.6))
-        elif idx == 3:  # core subtle carved obsidian facets
-            motif = 0.14 * (np.abs(np.cos(TAU * (x * 3 + y * 2))) - 0.5)
-        elif idx == 4:  # caldera cooled basalt crust ridges
-            motif = 0.24 * np.cos(TAU * (x * 3 - y * 3 + fbm * 0.45))
-        elif idx == 5:  # flats wind-sculpted sandstone ripples
-            motif = 0.22 * np.sin(TAU * (y * 6.0 + fbm * 0.3))
+            motif = np.where(seam < 0.038, -0.20, 0.04 * np.cos(TAU * (x * 2 + y)))
+        elif idx == 1:  # shelf gentle wind-carved snow drifts
+            motif = 0.16 * np.sin(TAU * (x * 2.0 + y * 1.0 + fbm * 0.30))
+        elif idx == 2:  # marsh soft mossy hummocks
+            motif = 0.15 * np.sin(TAU * (x * 3.0 - y * 2.0 + fbm * 0.5))
+        elif idx == 3:  # core subtle carved sanctuary flagstones
+            motif = 0.11 * (np.abs(np.cos(TAU * (x * 3 + y * 2))) - 0.5)
+        elif idx == 4:  # caldera cooled basalt crust ripples
+            motif = 0.16 * np.cos(TAU * (x * 3 - y * 3 + fbm * 0.40))
+        elif idx == 5:  # flats wind-brushed sandstone ripples
+            motif = 0.15 * np.sin(TAU * (y * 6.0 + fbm * 0.25))
 
-        t = np.clip(0.5 + fbm * 0.34 + strokes * 0.22 + fine * 0.12 + motif * 0.38 + tooth, 0.0, 1.0)
+        t = np.clip(0.5 + fbm * 0.28 + strokes * 0.18 + fine * 0.08 + motif * 0.30 + tooth, 0.0, 1.0)
         base_v = np.array(base, dtype=np.float32)[None, None, :]
         warm_v = np.array(warm, dtype=np.float32)[None, None, :]
         cool_v = np.array(cool, dtype=np.float32)[None, None, :]
@@ -124,23 +124,23 @@ def make_surface_atlas():
     atlas = Image.new("RGB", (size * 3, size * 2))
     configs = [
         # (angle, spread, stroke_count, ridge_freq, roughness_base, seed)
-        (0, 8, 520, 10, 0.26, 701),     # metal: crisp directional brushed grain
-        (32, 26, 380, 6, 0.38, 702),    # armor: sculpted painted ceramic-enamel brushwork
-        (74, 42, 460, 8, 0.68, 703),    # organic: matte velvety chitin / mushroom cap / bark
-        (-18, 55, 500, 5, 0.84, 704),   # basalt/rubber: matte volcanic stone grain
-        (14, 30, 440, 7, 0.74, 705),    # stone/wood/sandstone: carved masonry brushwork
-        (-45, 18, 360, 11, 0.16, 706),  # ice/crystal: sharp faceted crystalline streaks
+        (0, 8, 520, 10, 0.24, 701),     # metal: crisp directional brushed brass/iron grain
+        (32, 24, 360, 5, 0.32, 702),    # armor: smooth glazed porcelain-ceramic & enamel brushwork
+        (74, 38, 440, 7, 0.66, 703),    # organic: velvety chitin / mushroom cap / moss bark
+        (-18, 50, 480, 5, 0.82, 704),   # basalt/rubber: matte hand-carved volcanic stone
+        (14, 28, 420, 6, 0.72, 705),    # stone/wood/sandstone: warm masonry & timber gouache
+        (-45, 16, 360, 11, 0.14, 706),  # ice/crystal: gleaming faceted storybook crystal streaks
     ]
     y, x = np.mgrid[0:size, 0:size] / size
     for idx, (ang, spread, count, rfreq, rough_base, seed) in enumerate(configs):
         fbm = periodic_fbm(size, 4, seed)
-        strokes = brush_strokes(size, count, seed + 11, ang, spread, (0.05, 0.24), (0.006, 0.022), 1.0)
-        tooth = np.random.default_rng(seed + 29).normal(0, 0.036, (size, size)).astype(np.float32)
-        val = np.clip(0.50 + fbm * 0.18 + strokes * 0.20 + tooth, 0.0, 1.0)
-        rough = np.clip(rough_base + fbm * 0.14 - strokes * 0.10, 0.05, 0.98)
+        strokes = brush_strokes(size, count, seed + 11, ang, spread, (0.06, 0.24), (0.007, 0.022), 0.92)
+        tooth = np.random.default_rng(seed + 29).normal(0, 0.026, (size, size)).astype(np.float32)
+        val = np.clip(0.50 + fbm * 0.16 + strokes * 0.18 + tooth, 0.0, 1.0)
+        rough = np.clip(rough_base + fbm * 0.12 - strokes * 0.09, 0.05, 0.98)
         band = np.abs(np.cos(TAU * (x * rfreq * math.cos(math.radians(ang)) +
-                                    y * rfreq * math.sin(math.radians(ang)) + fbm * 0.4)))
-        glint = np.clip((band ** 7) * 0.45 + np.maximum(0.0, strokes) * 0.30, 0.0, 1.0)
+                                    y * rfreq * math.sin(math.radians(ang)) + fbm * 0.35)))
+        glint = np.clip((band ** 7) * 0.42 + np.maximum(0.0, strokes) * 0.28, 0.0, 1.0)
         rgb = np.dstack([val * 255.0, rough * 255.0, glint * 255.0])
         tile = Image.fromarray(np.clip(rgb, 0, 255).astype("uint8"))
         atlas.paste(tile, (size * (idx % 3), size * (idx // 3)))
@@ -181,24 +181,25 @@ def make_vfx_atlas():
     q1 = np.dstack([np.ones_like(alpha1), np.ones_like(alpha1), np.ones_like(alpha1), alpha1]) * 255.0
     atlas.paste(Image.fromarray(q1.astype("uint8"), "RGBA"), (q, 0))
 
-    # (0,1) Stylized billowing smoke cloud (clustered cel-painterly puffs)
+    # (0,1) Stylized storybook gouache smoke puff (crisp cel silhouette with soft internal shading)
     puff = np.zeros((q, q), dtype=np.float32)
-    lobes = [(0.0, 0.0, 0.62), (-0.28, -0.14, 0.42), (0.28, -0.1, 0.44),
-             (-0.18, 0.26, 0.4), (0.22, 0.24, 0.38), (0.0, -0.32, 0.36)]
+    lobes = [(0.0, 0.0, 0.58), (-0.27, -0.14, 0.40), (0.27, -0.10, 0.42),
+             (-0.18, 0.24, 0.38), (0.22, 0.22, 0.36), (0.0, -0.30, 0.34)]
     for lx, ly, lr in lobes:
         d = np.sqrt((u - lx) ** 2 + (v - ly) ** 2) / lr
         puff = np.maximum(puff, np.clip(1.0 - d, 0.0, 1.0))
     noise = periodic_fbm(q, 3, 912)
-    edge = np.clip((puff + noise * 0.12) * 1.45, 0.0, 1.0)
-    alpha2 = np.clip((edge - 0.18) / 0.42, 0.0, 1.0) * np.clip(1.0 - np.maximum(0.0, r - 0.85) / 0.15, 0.0, 1.0)
-    # Internal painterly top-left lighting gradient baked into RGB
-    shade = np.clip(0.68 - u * 0.14 - v * 0.24 + puff * 0.22, 0.35, 1.0)
+    edge = np.clip((puff + noise * 0.09) * 1.55, 0.0, 1.0)
+    alpha2 = np.clip((edge - 0.24) / 0.28, 0.0, 1.0) * np.clip(1.0 - np.maximum(0.0, r - 0.84) / 0.14, 0.0, 1.0)
+    # Soft cel-stepped top-left storybook highlight baked into RGB
+    raw_shade = np.clip(0.66 - u * 0.15 - v * 0.25 + puff * 0.24, 0.34, 1.0)
+    shade = np.clip(0.45 + 0.55 * (1.0 / (1.0 + np.exp(-9.0 * (raw_shade - 0.62)))), 0.38, 1.0)
     q2 = np.dstack([shade, shade, shade, alpha2]) * 255.0
     atlas.paste(Image.fromarray(q2.astype("uint8"), "RGBA"), (0, q))
 
-    # (1,1) Soft ground contact shadow disc
-    alpha3 = np.clip(1.0 - r, 0.0, 1.0) ** 1.9 * 0.72
-    q3 = np.dstack([np.full_like(alpha3, 0.08), np.full_like(alpha3, 0.06), np.full_like(alpha3, 0.12), alpha3]) * 255.0
+    # (1,1) Soft ground contact shadow disc (warm indigo-ink shadow)
+    alpha3 = np.clip(1.0 - r, 0.0, 1.0) ** 1.85 * 0.76
+    q3 = np.dstack([np.full_like(alpha3, 0.06), np.full_like(alpha3, 0.05), np.full_like(alpha3, 0.11), alpha3]) * 255.0
     atlas.paste(Image.fromarray(q3.astype("uint8"), "RGBA"), (q, q))
 
     atlas.save(PUBLIC / "textures" / "vfx-atlas.webp", "WEBP", quality=90, method=6)

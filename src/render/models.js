@@ -1,5 +1,6 @@
-// Ground-up stylized painterly / cel-shaded 3D models for Riftline:
-// articulated Player + 7 custom weapons, all 25 distinct enemy kits, all 6 monumental biome bosses, and combat props.
+// Ground-up Cozy Storybook Magitech 3D models for Riftline v4.6.0:
+// Cloaked Rift-Artificer Hero + 7 handcrafted magitech weapons, 25 enemies across 5 instant-read storybook
+// role families (<= 810 tris each), 6 monumental biome bosses (<= 3500 tris each), and combat props.
 
 import {
   box,
@@ -10,6 +11,7 @@ import {
   octahedron,
   icosahedron,
   torus,
+  closedLathe,
   sculptedCrystal,
   sculptedCap,
   meshPart,
@@ -27,13 +29,24 @@ export function mergeParts(list) {
   return mergeGeometries(list);
 }
 
-const SLATE = 0x263848;
-const IRON = 0x3b4e5e;
-const IVORY = FINISH.ivory;
-const BRASS = FINISH.brass;
-const COPPER = FINISH.copper;
+// Storybook material color families (porcelain, burnished metals, dyed cloth, chitin, wrought iron)
+const IVORY = FINISH.ivory; // 0xeadcc2 warm glazed porcelain
+const CREAM = 0xf4ead6; // bright ceramic highlight
+const BRASS = FINISH.brass; // 0xe2ab56 burnished brass
+const COPPER = FINISH.copper; // 0xd87848 warm hammered copper
+const LEATHER = 0x6c422c; // oiled saddle leather
+const CLOAK_TEAL = 0x265c64; // hero deep sea-teal travel cloak
+const CLOAK_TRIM = 0xd88844; // warm amber hem trim
+const IRON = 0x2c2936; // dark wrought iron (warm plum-charcoal)
+const BRONZE = 0x4b746a; // patinated verdigris bronze
+const VERMILION = 0xb83834; // volatile kettle lacquer red
+const PLUM_ROBE = 0x3b2548; // hooded marksman burgundy-plum cloth
+const NAVY_ROBE = 0x243854; // artillery twilight-indigo cloth
+const CHITIN_DARK = 0x3a2a24; // warm umber critter carapace
+const CHITIN_MOSS = 0x4c6e4e; // organic mossy shell
+const PARCHMENT = 0xeee2c8; // paper-lantern ivory
 
-// Cached primitive geometries reused by kit builders
+// Cached primitive & sculpted storybook lathe geometries reused by kit builders
 const G_BOX = box(1, 1, 1);
 const G_BEV = beveledBox(1, 1, 1, 0.16);
 const G_OCT = octahedron(0.5);
@@ -41,7 +54,88 @@ const G_CYL8 = cylinder(0.5, 0.5, 1, 8);
 const G_CYL6 = cylinder(0.5, 0.5, 1, 6);
 const G_CONE6 = cone(0.5, 1, 6);
 const G_SPH = icosahedron(0.5, 1);
-const G_TOR = torus(0.5, 0.11, 5, 14);
+const G_TOR = torus(0.5, 0.095, 5, 12);
+const G_TOR_SM = torus(0.5, 0.12, 4, 10);
+
+// Curved storybook lathe silhouettes (all closed outward-wound solids)
+const G_HOOD = closedLathe(
+  [
+    [0.48, 0.0],
+    [0.46, 0.24],
+    [0.36, 0.58],
+    [0.2, 0.84],
+    [0.02, 1.0],
+  ],
+  8,
+);
+const G_POT = closedLathe(
+  [
+    [0.3, 0.0],
+    [0.49, 0.26],
+    [0.52, 0.58],
+    [0.38, 0.86],
+    [0.26, 1.0],
+  ],
+  10,
+);
+const G_BELL = closedLathe(
+  [
+    [0.22, 0.0],
+    [0.24, 0.52],
+    [0.36, 0.82],
+    [0.5, 1.0],
+  ],
+  8,
+);
+const G_ROBE = closedLathe(
+  [
+    [0.5, 0.0],
+    [0.44, 0.34],
+    [0.35, 0.72],
+    [0.26, 1.0],
+  ],
+  8,
+);
+const G_BUG = closedLathe(
+  [
+    [0.14, 0.0],
+    [0.44, 0.26],
+    [0.5, 0.56],
+    [0.36, 0.84],
+    [0.1, 1.0],
+  ],
+  8,
+);
+const G_LANTERN = closedLathe(
+  [
+    [0.22, 0.0],
+    [0.44, 0.28],
+    [0.46, 0.72],
+    [0.24, 1.0],
+  ],
+  6,
+);
+const G_DRILL = closedLathe(
+  [
+    [0.48, 0.0],
+    [0.35, 0.28],
+    [0.4, 0.34],
+    [0.25, 0.64],
+    [0.3, 0.68],
+    [0.02, 1.0],
+  ],
+  8,
+);
+const G_DOME = closedLathe(
+  [
+    [0.5, 0.0],
+    [0.48, 0.36],
+    [0.36, 0.74],
+    [0.16, 0.96],
+    [0.02, 1.0],
+  ],
+  8,
+);
 
 const part = (geo, color, p) => meshPart(geo, color, p);
 
@@ -55,120 +149,139 @@ function addMesh(parent, geo, mat, p = {}) {
 }
 
 // ============================================================================
-// PLAYER WALKER + ALL 7 CUSTOM WEAPONS
+// THE HERO — CLOAKED STORYBOOK RIFT-ARTIFICER + 7 HANDCRAFTED MAGITECH WEAPONS
 // ============================================================================
 
 function buildWeaponRig(weapon, accentHex) {
   const gun = new Node();
   const bodyParts = [];
   const glowParts = [];
-  let muzzleX = 0.85;
+  let muzzleX = 0.88;
   let muzzleY = 0.04;
 
   switch (weapon) {
     case "scatter":
-      // Wide heavy double-barrel trench scattergun with brass heat shield
+      // Bell-Blunderbuss: wide flared brass bell muzzle, twin burnished copper side barrels & lantern sight
       bodyParts.push(
-        part(G_BEV, SLATE, { x: 0.16, y: 0.02, sx: 0.56, sy: 0.24, sz: 0.34 }),
-        part(G_CYL8, IRON, { x: 0.54, y: 0.04, z: -0.09, rz: Math.PI / 2, sx: 0.15, sy: 0.52, sz: 0.15 }),
-        part(G_CYL8, IRON, { x: 0.54, y: 0.04, z: 0.09, rz: Math.PI / 2, sx: 0.15, sy: 0.52, sz: 0.15 }),
-        part(G_BEV, BRASS, { x: 0.36, y: 0.12, sx: 0.34, sy: 0.08, sz: 0.32 }),
+        part(G_BEV, LEATHER, { x: 0.06, y: 0.01, sx: 0.42, sy: 0.2, sz: 0.24 }),
+        part(G_CYL8, COPPER, { x: 0.42, y: 0.03, z: -0.1, rz: Math.PI / 2, sx: 0.14, sy: 0.48, sz: 0.14 }),
+        part(G_CYL8, COPPER, { x: 0.42, y: 0.03, z: 0.1, rz: Math.PI / 2, sx: 0.14, sy: 0.48, sz: 0.14 }),
+        part(G_BELL, BRASS, { x: 0.38, y: 0.04, rz: -Math.PI / 2, sx: 0.48, sy: 0.48, sz: 0.48 }),
+        part(G_TOR_SM, IRON, { x: 0.46, y: 0.04, ry: Math.PI / 2, sx: 0.34, sy: 0.34, sz: 0.34 }),
+        part(G_CYL6, BRASS, { x: 0.24, y: 0.19, sx: 0.12, sy: 0.12, sz: 0.12 }),
       );
       glowParts.push(
-        part(G_BOX, accentHex, { x: 0.78, y: 0.04, z: -0.09, sx: 0.06, sy: 0.09, sz: 0.09 }),
-        part(G_BOX, accentHex, { x: 0.78, y: 0.04, z: 0.09, sx: 0.06, sy: 0.09, sz: 0.09 }),
+        part(G_CYL8, accentHex, { x: 0.85, y: 0.04, rz: Math.PI / 2, sx: 0.32, sy: 0.06, sz: 0.32 }),
+        part(G_OCT, accentHex, { x: 0.24, y: 0.26, sx: 0.11, sy: 0.12, sz: 0.11 }),
       );
-      muzzleX = 0.84;
+      muzzleX = 0.88;
       muzzleY = 0.04;
       break;
     case "tesla":
-      // Forked copper Arc Caster emitter prongs with glowing plasma coil rings
+      // Tuning-Fork Storm Staff / Arc Rod crackling between wide curved copper tines
       bodyParts.push(
-        part(G_BEV, SLATE, { x: 0.14, y: 0.02, sx: 0.44, sy: 0.22, sz: 0.28 }),
-        part(G_CYL6, COPPER, { x: 0.48, y: 0.04, z: -0.14, rz: Math.PI / 2, sx: 0.09, sy: 0.58, sz: 0.09 }),
-        part(G_CYL6, COPPER, { x: 0.48, y: 0.04, z: 0.14, rz: Math.PI / 2, sx: 0.09, sy: 0.58, sz: 0.09 }),
-        part(G_CYL6, BRASS, { x: 0.34, y: 0.04, rz: Math.PI / 2, sx: 0.22, sy: 0.14, sz: 0.22 }),
+        part(G_CYL6, LEATHER, { x: 0.1, y: 0.03, rz: Math.PI / 2, sx: 0.14, sy: 0.56, sz: 0.14 }),
+        part(G_POT, BRASS, { x: 0.24, y: 0.03, rz: -Math.PI / 2, sx: 0.32, sy: 0.28, sz: 0.32 }),
+        // Wide curved copper tuning-fork tines
+        part(G_BEV, COPPER, { x: 0.56, y: 0.03, z: -0.17, ry: 0.22, sx: 0.44, sy: 0.09, sz: 0.09 }),
+        part(G_BEV, COPPER, { x: 0.56, y: 0.03, z: 0.17, ry: -0.22, sx: 0.44, sy: 0.09, sz: 0.09 }),
+        part(G_CYL6, COPPER, { x: 0.78, y: 0.03, z: -0.2, rz: Math.PI / 2, sx: 0.08, sy: 0.3, sz: 0.08 }),
+        part(G_CYL6, COPPER, { x: 0.78, y: 0.03, z: 0.2, rz: Math.PI / 2, sx: 0.08, sy: 0.3, sz: 0.08 }),
+        part(G_OCT, BRASS, { x: 0.94, y: 0.03, z: -0.2, sx: 0.11, sy: 0.11, sz: 0.11 }),
+        part(G_OCT, BRASS, { x: 0.94, y: 0.03, z: 0.2, sx: 0.11, sy: 0.11, sz: 0.11 }),
       );
       glowParts.push(
-        part(G_TOR, accentHex, { x: 0.54, y: 0.04, ry: Math.PI / 2, sx: 0.32, sy: 0.32, sz: 0.32 }),
-        part(G_OCT, IVORY, { x: 0.78, y: 0.04, sx: 0.14, sy: 0.14, sz: 0.14 }),
+        part(G_TOR_SM, accentHex, { x: 0.54, y: 0.03, ry: Math.PI / 2, sx: 0.32, sy: 0.32, sz: 0.32 }),
+        part(G_OCT, CREAM, { x: 0.76, y: 0.03, sx: 0.17, sy: 0.17, sz: 0.17 }),
       );
-      muzzleX = 0.84;
-      muzzleY = 0.04;
+      muzzleX = 0.94;
+      muzzleY = 0.03;
       break;
     case "rail":
-      // Long cantilevered electromagnetic Railgun lance with glowing accelerator channel
+      // Sun-Lance / Astral Railcannon: long graceful porcelain-ivory split lance with floating rails & astrolabe breech
       bodyParts.push(
-        part(G_BEV, SLATE, { x: 0.16, y: 0.02, sx: 0.54, sy: 0.24, sz: 0.28 }),
-        part(G_BEV, IVORY, { x: 0.66, y: 0.09, sx: 0.82, sy: 0.09, sz: 0.22 }),
-        part(G_BEV, IVORY, { x: 0.66, y: -0.05, sx: 0.82, sy: 0.09, sz: 0.22 }),
-        part(G_BEV, BRASS, { x: 0.36, y: 0.02, sx: 0.22, sy: 0.28, sz: 0.34 }),
+        part(G_BEV, IRON, { x: 0.14, y: 0.02, sx: 0.48, sy: 0.22, sz: 0.24 }),
+        part(G_TOR_SM, BRASS, { x: 0.38, y: 0.02, ry: Math.PI / 2, sx: 0.42, sy: 0.42, sz: 0.42 }),
+        part(G_BEV, IVORY, { x: 0.74, y: 0.1, sx: 0.88, sy: 0.08, sz: 0.16 }),
+        part(G_BEV, IVORY, { x: 0.74, y: -0.06, sx: 0.88, sy: 0.08, sz: 0.16 }),
+        part(G_CONE6, BRASS, { x: 1.2, y: 0.1, rz: -Math.PI / 2, sx: 0.09, sy: 0.22, sz: 0.09 }),
+        part(G_CONE6, BRASS, { x: 1.2, y: -0.06, rz: -Math.PI / 2, sx: 0.09, sy: 0.22, sz: 0.09 }),
       );
       glowParts.push(
-        part(G_BOX, accentHex, { x: 0.68, y: 0.02, sx: 0.84, sy: 0.06, sz: 0.1 }),
-        part(G_OCT, IVORY, { x: 1.08, y: 0.02, sx: 0.1, sy: 0.1, sz: 0.1 }),
+        part(G_BOX, accentHex, { x: 0.76, y: 0.02, sx: 0.94, sy: 0.065, sz: 0.09 }),
+        part(G_OCT, CREAM, { x: 1.22, y: 0.02, sx: 0.14, sy: 0.14, sz: 0.14 }),
       );
-      muzzleX = 1.12;
+      muzzleX = 1.24;
       muzzleY = 0.02;
       break;
     case "rocket":
-      // Heavy cylindrical salvo launcher pod with flared exhaust bell
+      // Ornate Brass Mortar-Bell / Dragon-Kettle Cannon with riveted iron bands & flared lip
       bodyParts.push(
-        part(G_CYL8, SLATE, { x: 0.24, y: 0.06, rz: Math.PI / 2, sx: 0.34, sy: 0.86, sz: 0.34 }),
-        part(G_CYL8, BRASS, { x: 0.62, y: 0.06, rz: Math.PI / 2, sx: 0.38, sy: 0.14, sz: 0.38 }),
-        part(G_CONE6, IRON, { x: -0.22, y: 0.06, rz: -Math.PI / 2, sx: 0.34, sy: 0.24, sz: 0.34 }),
+        part(G_POT, BRASS, { x: -0.08, y: 0.06, rz: -Math.PI / 2, sx: 0.46, sy: 0.66, sz: 0.46 }),
+        part(G_BELL, COPPER, { x: 0.44, y: 0.06, rz: -Math.PI / 2, sx: 0.48, sy: 0.36, sz: 0.48 }),
+        part(G_TOR_SM, IRON, { x: 0.18, y: 0.06, ry: Math.PI / 2, sx: 0.48, sy: 0.48, sz: 0.48 }),
+        part(G_TOR_SM, IRON, { x: 0.46, y: 0.06, ry: Math.PI / 2, sx: 0.42, sy: 0.42, sz: 0.42 }),
+        part(G_CONE6, IRON, { x: -0.18, y: 0.06, rz: Math.PI / 2, sx: 0.3, sy: 0.22, sz: 0.3 }),
       );
       glowParts.push(
-        part(G_CYL6, accentHex, { x: 0.69, y: 0.06, rz: Math.PI / 2, sx: 0.22, sy: 0.06, sz: 0.22 }),
-        part(G_BOX, accentHex, { x: 0.22, y: 0.24, sx: 0.24, sy: 0.06, sz: 0.12 }),
+        part(G_CYL6, accentHex, { x: 0.8, y: 0.06, rz: Math.PI / 2, sx: 0.28, sy: 0.06, sz: 0.28 }),
+        part(G_OCT, accentHex, { x: 0.18, y: 0.28, sx: 0.16, sy: 0.12, sz: 0.16 }),
       );
-      muzzleX = 0.78;
+      muzzleX = 0.84;
       muzzleY = 0.06;
       break;
     case "disc":
-      // Rotary magnetic crescent sling cradling a luminous saw-disc
+      // Crescent Chakram Loom cradling a gleaming luminous star-glaive
       bodyParts.push(
-        part(G_BEV, SLATE, { x: 0.14, y: 0.02, sx: 0.44, sy: 0.18, sz: 0.36 }),
-        part(G_BEV, BRASS, { x: 0.44, y: 0.02, z: -0.18, ry: 0.26, sx: 0.42, sy: 0.12, sz: 0.1 }),
-        part(G_BEV, BRASS, { x: 0.44, y: 0.02, z: 0.18, ry: -0.26, sx: 0.42, sy: 0.12, sz: 0.1 }),
+        part(G_BEV, LEATHER, { x: 0.1, y: 0.02, sx: 0.38, sy: 0.18, sz: 0.28 }),
+        part(G_BEV, IVORY, { x: 0.4, y: 0.02, z: -0.22, ry: 0.38, sx: 0.48, sy: 0.1, sz: 0.1 }),
+        part(G_BEV, IVORY, { x: 0.4, y: 0.02, z: 0.22, ry: -0.38, sx: 0.48, sy: 0.1, sz: 0.1 }),
+        part(G_CONE6, BRASS, { x: 0.64, y: 0.02, z: -0.28, rz: -Math.PI / 2, sx: 0.1, sy: 0.2, sz: 0.1 }),
+        part(G_CONE6, BRASS, { x: 0.64, y: 0.02, z: 0.28, rz: -Math.PI / 2, sx: 0.1, sy: 0.2, sz: 0.1 }),
       );
       glowParts.push(
-        part(G_TOR, accentHex, { x: 0.5, y: 0.02, rx: Math.PI / 2, sx: 0.38, sy: 0.38, sz: 0.38 }),
-        part(G_CYL8, IVORY, { x: 0.5, y: 0.02, sx: 0.16, sy: 0.05, sz: 0.16 }),
+        part(G_TOR_SM, accentHex, { x: 0.52, y: 0.02, rx: Math.PI / 2, sx: 0.46, sy: 0.46, sz: 0.46 }),
+        part(G_OCT, CREAM, { x: 0.52, y: 0.02, sx: 0.24, sy: 0.08, sz: 0.24 }),
       );
-      muzzleX = 0.78;
-      muzzleY = 0.02;
-      break;
-    case "flame":
-      // Dual-canister thermal projector with wide brass igniter shroud
-      bodyParts.push(
-        part(G_BEV, SLATE, { x: 0.16, y: 0.02, sx: 0.52, sy: 0.24, sz: 0.26 }),
-        part(G_CYL8, COPPER, { x: 0.12, y: 0.08, z: -0.18, rz: Math.PI / 2, sx: 0.17, sy: 0.42, sz: 0.17 }),
-        part(G_CYL8, COPPER, { x: 0.12, y: 0.08, z: 0.18, rz: Math.PI / 2, sx: 0.17, sy: 0.42, sz: 0.17 }),
-        part(G_CONE6, BRASS, { x: 0.58, y: 0.02, rz: Math.PI / 2, sx: 0.3, sy: 0.36, sz: 0.3 }),
-      );
-      glowParts.push(part(G_OCT, accentHex, { x: 0.74, y: 0.02, sx: 0.16, sy: 0.14, sz: 0.14 }));
       muzzleX = 0.82;
       muzzleY = 0.02;
       break;
-    default:
-      // Pulse Carbine: crisp sculpted energy rifle with luminous core strip
+    case "flame":
+      // Salamander Brazier Censer with twin copper oil flasks & sculpted ornamental nozzle
       bodyParts.push(
-        part(G_BEV, SLATE, { x: 0.18, y: 0.02, sx: 0.56, sy: 0.22, sz: 0.24 }),
-        part(G_BEV, IVORY, { x: 0.56, y: 0.04, sx: 0.42, sy: 0.14, sz: 0.18 }),
-        part(G_BEV, BRASS, { x: 0.34, y: 0.13, sx: 0.28, sy: 0.07, sz: 0.18 }),
+        part(G_BEV, IRON, { x: 0.16, y: 0.02, sx: 0.48, sy: 0.2, sz: 0.22 }),
+        part(G_POT, COPPER, { x: -0.04, y: 0.06, z: -0.2, rz: -Math.PI / 2, sx: 0.24, sy: 0.42, sz: 0.24 }),
+        part(G_POT, COPPER, { x: -0.04, y: 0.06, z: 0.2, rz: -Math.PI / 2, sx: 0.24, sy: 0.42, sz: 0.24 }),
+        part(G_LANTERN, BRASS, { x: 0.44, y: 0.02, rz: -Math.PI / 2, sx: 0.34, sy: 0.4, sz: 0.34 }),
+        part(G_TOR_SM, IRON, { x: 0.8, y: 0.02, ry: Math.PI / 2, sx: 0.26, sy: 0.26, sz: 0.26 }),
       );
       glowParts.push(
-        part(G_BOX, accentHex, { x: 0.56, y: 0.04, sx: 0.46, sy: 0.06, sz: 0.2 }),
-        part(G_OCT, IVORY, { x: 0.8, y: 0.04, sx: 0.09, sy: 0.09, sz: 0.09 }),
+        part(G_OCT, accentHex, { x: 0.64, y: 0.02, sx: 0.22, sy: 0.18, sz: 0.18 }),
+        part(G_OCT, CREAM, { x: 0.84, y: 0.02, sx: 0.14, sy: 0.14, sz: 0.14 }),
       );
-      muzzleX = 0.84;
-      muzzleY = 0.04;
+      muzzleX = 0.88;
+      muzzleY = 0.02;
+      break;
+    default:
+      // Rune Carbine: ornate ivory-and-brass carbine with suspended glowing crystal chamber
+      bodyParts.push(
+        part(G_BEV, LEATHER, { x: 0.06, y: 0.01, sx: 0.38, sy: 0.2, sz: 0.2 }),
+        part(G_BEV, IVORY, { x: 0.38, y: 0.03, sx: 0.46, sy: 0.16, sz: 0.2 }),
+        part(G_BEV, BRASS, { x: 0.68, y: 0.09, sx: 0.38, sy: 0.06, sz: 0.12 }),
+        part(G_BEV, BRASS, { x: 0.68, y: -0.02, sx: 0.38, sy: 0.06, sz: 0.12 }),
+        part(G_TOR_SM, BRASS, { x: 0.34, y: 0.04, ry: Math.PI / 2, sx: 0.24, sy: 0.24, sz: 0.24 }),
+      );
+      glowParts.push(
+        part(G_OCT, accentHex, { x: 0.66, y: 0.035, sx: 0.34, sy: 0.12, sz: 0.13 }),
+        part(G_OCT, CREAM, { x: 0.88, y: 0.035, sx: 0.1, sy: 0.1, sz: 0.1 }),
+      );
+      muzzleX = 0.9;
+      muzzleY = 0.035;
       break;
   }
 
   const bodyMat = worldMaterial({ surface: "armor", vertexColors: true });
-  const glowMat = emissiveMaterial({ vertexColors: true, emissiveIntensity: 1.18 });
+  const glowMat = emissiveMaterial({ vertexColors: true, emissiveIntensity: 1.2 });
   gun.add(new MeshNode(mergeGeometries(bodyParts), bodyMat));
   gun.add(new MeshNode(mergeGeometries(glowParts), glowMat));
   const muzzle = new Node();
@@ -184,17 +297,18 @@ export function buildPlayerModel(weapon = "pulse", weaponColor = 0x5ce8ff) {
   group.add(base);
 
   const armorMat = worldMaterial({ surface: "armor", vertexColors: true });
+  const clothMat = worldMaterial({ surface: "organic", vertexColors: true });
   const metalMat = worldMaterial({ surface: "metal", vertexColors: true });
-  const visorMat = emissiveMaterial({ color: weaponColor, emissiveIntensity: 1.22 });
+  const visorMat = emissiveMaterial({ color: weaponColor, emissiveIntensity: 1.28 });
 
-  // Articulated legs (thigh + shin + armored boot)
+  // Articulated rounded agile explorer boots & leather greaves
   const makeLeg = (side) => {
     const hip = new Node();
-    hip.position.set(0, 0.58, side * 0.22);
+    hip.position.set(0, 0.56, side * 0.2);
     const legGeo = mergeGeometries([
-      part(G_BEV, IRON, { y: -0.14, sx: 0.18, sy: 0.3, sz: 0.16 }),
-      part(G_BEV, SLATE, { x: 0.04, y: -0.4, sx: 0.2, sy: 0.28, sz: 0.18 }),
-      part(G_BEV, BRASS, { x: 0.09, y: -0.53, sx: 0.28, sy: 0.12, sz: 0.2 }),
+      part(G_CYL8, IRON, { y: -0.14, sx: 0.16, sy: 0.28, sz: 0.16 }),
+      part(G_DOME, LEATHER, { x: 0.05, y: -0.54, sx: 0.32, sy: 0.22, sz: 0.22 }),
+      part(G_CYL8, BRASS, { x: 0.02, y: -0.34, sx: 0.19, sy: 0.07, sz: 0.19 }),
     ]);
     hip.add(new MeshNode(legGeo, metalMat));
     base.add(hip);
@@ -203,31 +317,51 @@ export function buildPlayerModel(weapon = "pulse", weaponColor = 0x5ce8ff) {
   const legL = makeLeg(-1);
   const legR = makeLeg(1);
 
-  // Pelvis & stylized heroic torso chassis (clean ivory + teal-slate + warm brass trim + twin pack vents)
+  // Tapered ceramic breastplate, tunic skirt, warm leather/copper cross-strap & spirit-lantern backpack
   const torsoGeo = mergeGeometries([
-    part(G_BEV, SLATE, { y: 0.65, sx: 0.46, sy: 0.22, sz: 0.54 }),
-    part(G_BEV, IVORY, { x: 0.03, y: 0.96, sx: 0.56, sy: 0.46, sz: 0.66 }),
-    part(G_BEV, COPPER, { x: 0.27, y: 0.96, sx: 0.1, sy: 0.22, sz: 0.34 }),
-    // Sculpted shoulder pauldrons with warm brass rims
-    part(G_BEV, SLATE, { x: 0.0, y: 1.08, z: -0.43, rx: 0.22, sx: 0.44, sy: 0.24, sz: 0.3 }),
-    part(G_BEV, SLATE, { x: 0.0, y: 1.08, z: 0.43, rx: -0.22, sx: 0.44, sy: 0.24, sz: 0.3 }),
-    part(G_BEV, BRASS, { x: 0.02, y: 1.18, z: -0.43, rx: 0.22, sx: 0.32, sy: 0.06, sz: 0.2 }),
-    part(G_BEV, BRASS, { x: 0.02, y: 1.18, z: 0.43, rx: -0.22, sx: 0.32, sy: 0.06, sz: 0.2 }),
-    // Twin-pod thruster backpack & brass collar
-    part(G_BEV, IRON, { x: -0.32, y: 0.96, sx: 0.28, sy: 0.42, sz: 0.44 }),
-    part(G_CYL6, SLATE, { x: -0.4, y: 0.98, z: -0.15, sx: 0.16, sy: 0.34, sz: 0.16 }),
-    part(G_CYL6, SLATE, { x: -0.4, y: 0.98, z: 0.15, sx: 0.16, sy: 0.34, sz: 0.16 }),
-    part(G_BEV, BRASS, { x: 0.08, y: 1.2, sx: 0.4, sy: 0.09, sz: 0.48 }),
+    // Flowing tunic hem + tapered glazed ceramic cuirass
+    part(G_ROBE, CLOAK_TEAL, { y: 0.46, sx: 0.68, sy: 0.36, sz: 0.72 }),
+    part(G_POT, IVORY, { x: 0.02, y: 0.68, sx: 0.68, sy: 0.54, sz: 0.74 }),
+    // Warm leather belt & diagonal copper baldric cross-strap
+    part(G_TOR_SM, LEATHER, { y: 0.7, rx: Math.PI / 2, sx: 0.68, sy: 0.72, sz: 0.68 }),
+    part(G_BEV, COPPER, { x: 0.14, y: 0.96, rx: 0.62, sx: 0.42, sy: 0.08, sz: 0.64 }),
+    // Rounded storybook shoulder mantle & brass collar
+    part(G_DOME, CLOAK_TEAL, { x: 0.0, y: 1.0, z: -0.34, rx: 0.28, sx: 0.42, sy: 0.24, sz: 0.34 }),
+    part(G_DOME, CLOAK_TEAL, { x: 0.0, y: 1.0, z: 0.34, rx: -0.28, sx: 0.42, sy: 0.24, sz: 0.34 }),
+    part(G_TOR_SM, BRASS, { x: 0.03, y: 1.2, rx: Math.PI / 2, sx: 0.52, sy: 0.52, sz: 0.52 }),
+    // Spirit-lantern housing on backpack
+    part(G_BEV, LEATHER, { x: -0.3, y: 0.92, sx: 0.24, sy: 0.34, sz: 0.36 }),
+    part(G_CYL6, BRASS, { x: -0.42, y: 1.16, sx: 0.22, sy: 0.06, sz: 0.22 }),
+    part(G_CYL6, BRASS, { x: -0.42, y: 0.76, sx: 0.22, sy: 0.06, sz: 0.22 }),
+    part(G_CONE6, BRASS, { x: -0.42, y: 1.25, sx: 0.24, sy: 0.14, sz: 0.24 }),
   ]);
   base.add(new MeshNode(torsoGeo, armorMat));
 
-  // Back thruster vents glow + chest core pip
-  const thrusterGeo = mergeGeometries([
-    part(G_OCT, weaponColor, { x: -0.46, y: 0.84, z: -0.15, sx: 0.13, sy: 0.16, sz: 0.13 }),
-    part(G_OCT, weaponColor, { x: -0.46, y: 0.84, z: 0.15, sx: 0.13, sy: 0.16, sz: 0.13 }),
-    part(G_OCT, weaponColor, { x: 0.33, y: 0.96, sx: 0.08, sy: 0.1, sz: 0.12 }),
+  // Glowing spirit-lantern core on back + chest rune clasp
+  const lanternGeo = mergeGeometries([
+    part(G_LANTERN, weaponColor, { x: -0.42, y: 0.79, sx: 0.28, sy: 0.34, sz: 0.28 }),
+    part(G_OCT, weaponColor, { x: 0.33, y: 0.98, sx: 0.1, sy: 0.12, sz: 0.12 }),
   ]);
-  base.add(new MeshNode(thrusterGeo, emissiveMaterial({ vertexColors: true, emissiveIntensity: 1.15 })));
+  base.add(new MeshNode(lanternGeo, emissiveMaterial({ vertexColors: true, emissiveIntensity: 1.24 })));
+
+  // Animated Flowing Travel Cloak & Scarf attached behind shoulders
+  const cloak = new Node();
+  cloak.position.set(-0.22, 1.14, 0);
+  const cloakGeo = mergeGeometries([
+    part(G_BEV, CLOAK_TEAL, { x: -0.18, y: -0.28, rz: -0.32, sx: 0.12, sy: 0.62, sz: 0.56 }),
+    part(G_BEV, CLOAK_TRIM, { x: -0.3, y: -0.56, rz: -0.36, sx: 0.1, sy: 0.1, sz: 0.58 }),
+  ]);
+  cloak.add(new MeshNode(cloakGeo, clothMat));
+  base.add(cloak);
+
+  const scarf = new Node();
+  scarf.position.set(-0.18, 1.18, -0.14);
+  const scarfGeo = mergeGeometries([
+    part(G_BEV, CLOAK_TRIM, { x: -0.22, y: -0.18, rz: -0.48, sx: 0.08, sy: 0.48, sz: 0.18 }),
+    part(G_CONE6, BRASS, { x: -0.34, y: -0.38, rz: 1.05, sx: 0.1, sy: 0.16, sz: 0.14 }),
+  ]);
+  scarf.add(new MeshNode(scarfGeo, clothMat));
+  base.add(scarf);
 
   // Weapon bearing pivot on torso + independent horizontal turret mounted on group so aim never drifts with lean/bank
   const weaponMount = new Node();
@@ -238,19 +372,27 @@ export function buildPlayerModel(weapon = "pulse", weaponColor = 0x5ce8ff) {
   turret.position.set(0.04, 1.32, 0);
   group.add(turret);
 
+  // Peaked Explorer's Hood / Porcelain-and-Brass Ranger Helm with tucked luminous eyes
   const headGeo = mergeGeometries([
-    part(G_BEV, IVORY, { x: 0.04, y: 0.06, sx: 0.44, sy: 0.32, sz: 0.4 }),
-    part(G_BEV, SLATE, { x: -0.06, y: 0.19, sx: 0.36, sy: 0.12, sz: 0.34 }),
-    // Cute cozy helmet ear-fins + crest antenna
-    part(G_BEV, BRASS, { x: -0.02, y: 0.12, z: -0.23, rx: 0.25, sx: 0.16, sy: 0.14, sz: 0.08 }),
-    part(G_BEV, BRASS, { x: -0.02, y: 0.12, z: 0.23, rx: -0.25, sx: 0.16, sy: 0.14, sz: 0.08 }),
-    part(G_CONE6, BRASS, { x: -0.1, y: 0.3, sx: 0.07, sy: 0.18, sz: 0.07 }),
-    // Side weapon mount arm connecting bearing to gun
-    part(G_BEV, BRASS, { x: 0.12, y: -0.14, z: 0.28, sx: 0.24, sy: 0.16, sz: 0.24 }),
+    // Recessed dark face under hood brim + warm ivory porcelain mask cheek plates
+    part(G_SPH, IRON, { x: 0.06, y: 0.06, sx: 0.36, sy: 0.32, sz: 0.34 }),
+    part(G_DOME, IVORY, { x: 0.08, y: -0.06, sx: 0.34, sy: 0.18, sz: 0.36 }),
+    // Iconic peaked storybook explorer's hood swept gently back
+    part(G_HOOD, CLOAK_TEAL, { x: -0.08, y: -0.02, rz: 0.46, sx: 0.62, sy: 0.68, sz: 0.58 }),
+    // Turned-up brim & warm brass clasp / ranger crest
+    part(G_TOR_SM, CLOAK_TRIM, { x: 0.04, y: 0.04, rz: 0.25, rx: Math.PI / 2, sx: 0.56, sy: 0.54, sz: 0.54 }),
+    part(G_OCT, BRASS, { x: 0.24, y: 0.2, sx: 0.1, sy: 0.12, sz: 0.1 }),
+    // Articulated brass-and-leather weapon cradle arm connecting bearing to gun
+    part(G_BEV, BRASS, { x: 0.12, y: -0.14, z: 0.28, sx: 0.24, sy: 0.14, sz: 0.24 }),
   ]);
   turret.add(new MeshNode(headGeo, armorMat));
-  // Expressive glowing panoramic visor
-  addMesh(turret, box(0.13, 0.12, 0.35), visorMat, { x: 0.23, y: 0.07 });
+
+  // Expressive luminous eyes tucked cleanly beneath the hood brim
+  const eyesGeo = mergeGeometries([
+    part(G_OCT, 0xffffff, { x: 0.23, y: 0.08, z: -0.09, sx: 0.09, sy: 0.11, sz: 0.1 }),
+    part(G_OCT, 0xffffff, { x: 0.23, y: 0.08, z: 0.09, sx: 0.09, sy: 0.11, sz: 0.1 }),
+  ]);
+  turret.add(new MeshNode(eyesGeo, visorMat));
 
   const rig = buildWeaponRig(weapon, weaponColor);
   rig.gun.position.set(0.14, -0.12, 0.34);
@@ -267,12 +409,14 @@ export function buildPlayerModel(weapon = "pulse", weaponColor = 0x5ce8ff) {
   const model = {
     group,
     base,
+    cloak,
+    scarf,
     weaponMount,
     turret,
     gun: rig.gun,
     muzzle: rig.muzzle,
     shield,
-    mats: [armorMat, metalMat, rig.bodyMat],
+    mats: [armorMat, clothMat, metalMat, rig.bodyMat],
     lean: 0,
     bank: 0,
     recoil: 0,
@@ -283,6 +427,14 @@ export function buildPlayerModel(weapon = "pulse", weaponColor = 0x5ce8ff) {
       const tuck = jump * 0.48;
       legL.rotation.z = stride - tuck;
       legR.rotation.z = -stride - tuck;
+      // Animated flowing cloak & scarf: gentle idle flutter, dynamic speed sweep, dramatic dash flare
+      const breeze = Math.sin(time * 2.9) * 0.06;
+      const runRipple = Math.sin(phase * 2) * 0.08 * amount;
+      cloak.rotation.z = -0.12 - amount * 0.44 - jump * 0.56 + breeze + runRipple;
+      cloak.rotation.y = Math.sin(time * 2.1 + phase * 0.5) * (0.06 + amount * 0.08);
+      cloak.scale.set(1 + jump * 0.26, 1, 1 + jump * 0.18);
+      scarf.rotation.z = -0.18 - amount * 0.52 - jump * 0.64 + Math.sin(time * 3.7 + 0.8) * 0.09;
+      scarf.rotation.y = Math.cos(time * 2.7) * (0.08 + amount * 0.12);
       const bob = amount > 0.05 ? Math.abs(Math.cos(phase)) * 0.09 * amount : Math.sin(time * 2.6) * 0.025;
       return bob;
     },
@@ -313,7 +465,7 @@ export function buildPlayerModel(weapon = "pulse", weaponColor = 0x5ce8ff) {
 }
 
 // ============================================================================
-// ALL 25 DISTINCT ENEMY KITS (body + glow, < 810 tris each, strong silhouettes)
+// ALL 25 DISTINCT ENEMY KITS — 5 INSTANT-READ STORYBOOK ROLE FAMILIES (<= 810 tris)
 // ============================================================================
 
 export const RL_MESH_TYPES = [
@@ -347,526 +499,508 @@ export const RL_MESH_TYPES = [
 const enemyGeoCache = new Map();
 
 function buildEnemyParts(type, accent) {
-  const dark = 0x222c3c;
-  const hull = 0x485b70;
-  const plate = 0xd2c4aa;
   const body = [];
   const glow = [];
 
   switch (type) {
+    // ------------------------------------------------------------------------
+    // FAMILY A — WILD RIFT CRITTERS (Organic rounded shells, fluttering wings, antennae, teardrop/oval top-down)
+    // ------------------------------------------------------------------------
     case "swarmer":
-      // Cute zippy beetle-wasp dart with twin swept wings, antennae & tail stinger
+      // Teardrop jewel-moth / scarab dart with sweeping organic wings & curled antennae
       body.push(
-        part(G_OCT, accent, { x: 0.04, y: 0.44, sx: 0.94, sy: 0.46, sz: 0.56 }),
-        part(G_BEV, dark, { x: -0.34, y: 0.42, sx: 0.44, sy: 0.3, sz: 0.36 }),
-        part(G_CONE6, plate, { x: -0.62, y: 0.4, rz: Math.PI / 2, sx: 0.18, sy: 0.3, sz: 0.18 }),
-        // Layered upper & lower swept wings
-        part(G_BEV, dark, { x: -0.06, y: 0.5, z: -0.4, ry: 0.46, rx: -0.12, sx: 0.56, sy: 0.07, sz: 0.38 }),
-        part(G_BEV, dark, { x: -0.06, y: 0.5, z: 0.4, ry: -0.46, rx: 0.12, sx: 0.56, sy: 0.07, sz: 0.38 }),
-        part(G_BOX, plate, { x: -0.14, y: 0.54, z: -0.38, ry: 0.46, sx: 0.38, sy: 0.04, sz: 0.12 }),
-        part(G_BOX, plate, { x: -0.14, y: 0.54, z: 0.38, ry: -0.46, sx: 0.38, sy: 0.04, sz: 0.12 }),
-        // Cute mandibles
-        part(G_CONE6, BRASS, { x: 0.48, y: 0.36, z: -0.14, rz: -1.3, sx: 0.1, sy: 0.22, sz: 0.1 }),
-        part(G_CONE6, BRASS, { x: 0.48, y: 0.36, z: 0.14, rz: -1.3, sx: 0.1, sy: 0.22, sz: 0.1 }),
+        part(G_BUG, accent, { x: -0.04, y: 0.44, rz: -Math.PI / 2, sx: 0.56, sy: 1.06, sz: 0.62 }),
+        part(G_DOME, CHITIN_DARK, { x: 0.34, y: 0.34, sx: 0.34, sy: 0.3, sz: 0.38 }),
+        // Broad angled organic moth-beetle wings (unmistakable fluttering teardrop from above)
+        part(G_OCT, PARCHMENT, { x: -0.04, y: 0.58, z: -0.46, ry: 0.52, rx: -0.16, sx: 0.68, sy: 0.08, sz: 0.44 }),
+        part(G_OCT, PARCHMENT, { x: -0.04, y: 0.58, z: 0.46, ry: -0.52, rx: 0.16, sx: 0.68, sy: 0.08, sz: 0.44 }),
+        part(G_OCT, CHITIN_DARK, { x: -0.24, y: 0.5, z: -0.34, ry: 0.72, sx: 0.44, sy: 0.06, sz: 0.28 }),
+        part(G_OCT, CHITIN_DARK, { x: -0.24, y: 0.5, z: 0.34, ry: -0.72, sx: 0.44, sy: 0.06, sz: 0.28 }),
+        // Curled antennae
+        part(G_CONE6, BRASS, { x: 0.52, y: 0.52, z: -0.14, rz: -0.9, sx: 0.08, sy: 0.28, sz: 0.08 }),
+        part(G_CONE6, BRASS, { x: 0.52, y: 0.52, z: 0.14, rz: -0.9, sx: 0.08, sy: 0.28, sz: 0.08 }),
       );
       glow.push(
-        part(G_OCT, 0xffffff, { x: 0.38, y: 0.48, z: -0.12, sx: 0.15, sy: 0.14, sz: 0.14 }),
-        part(G_OCT, 0xffffff, { x: 0.38, y: 0.48, z: 0.12, sx: 0.15, sy: 0.14, sz: 0.14 }),
-        part(G_OCT, 0xffffff, { x: -0.42, y: 0.46, sx: 0.16, sy: 0.14, sz: 0.18 }),
+        part(G_OCT, 0xffffff, { x: 0.44, y: 0.48, z: -0.12, sx: 0.14, sy: 0.14, sz: 0.14 }),
+        part(G_OCT, 0xffffff, { x: 0.44, y: 0.48, z: 0.12, sx: 0.14, sy: 0.14, sz: 0.14 }),
+        part(G_OCT, 0xffffff, { x: -0.54, y: 0.44, sx: 0.18, sy: 0.15, sz: 0.18 }),
       );
       break;
     case "mite":
-      // Cute plump spiked broodling with 4 tiny skitter legs, pincers & dorsal ridge
+      // Round plump spotted acorn-beetle / fungal grub with 6 tiny splayed claws & pincers
       body.push(
-        part(G_SPH, accent, { y: 0.3, sx: 0.72, sy: 0.44, sz: 0.6 }),
-        part(G_BEV, dark, { x: -0.1, y: 0.44, sx: 0.42, sy: 0.16, sz: 0.4 }),
-        part(G_CONE6, plate, { x: 0.32, y: 0.28, z: -0.15, rz: -1.15, sx: 0.14, sy: 0.26, sz: 0.14 }),
-        part(G_CONE6, plate, { x: 0.32, y: 0.28, z: 0.15, rz: -1.15, sx: 0.14, sy: 0.26, sz: 0.14 }),
-        // 4 tiny skitter feet
+        part(G_DOME, accent, { y: 0.16, sx: 0.78, sy: 0.48, sz: 0.68 }),
+        part(G_DOME, CHITIN_MOSS, { x: -0.06, y: 0.42, sx: 0.54, sy: 0.24, sz: 0.5 }),
+        part(G_CONE6, PARCHMENT, { x: 0.38, y: 0.28, z: -0.16, rz: -1.18, sx: 0.12, sy: 0.28, sz: 0.12 }),
+        part(G_CONE6, PARCHMENT, { x: 0.38, y: 0.28, z: 0.16, rz: -1.18, sx: 0.12, sy: 0.28, sz: 0.12 }),
         ...[-1, 1].flatMap((s) =>
-          [-0.18, 0.14].map((lx) =>
-            part(G_BOX, dark, { x: lx, y: 0.12, z: s * 0.34, rx: s * 0.4, sx: 0.1, sy: 0.22, sz: 0.1 }),
+          [-0.2, 0.0, 0.2].map((lx) =>
+            part(G_CONE6, CHITIN_DARK, { x: lx, y: 0.12, z: s * 0.38, rx: s * 0.65, sx: 0.09, sy: 0.24, sz: 0.09 }),
           ),
         ),
-        part(G_CONE6, plate, { x: -0.18, y: 0.56, rz: 0.35, sx: 0.14, sy: 0.22, sz: 0.14 }),
       );
       glow.push(
-        part(G_OCT, 0xffffff, { x: 0.28, y: 0.36, z: -0.12, sx: 0.14, sy: 0.13, sz: 0.13 }),
-        part(G_OCT, 0xffffff, { x: 0.28, y: 0.36, z: 0.12, sx: 0.14, sy: 0.13, sz: 0.13 }),
-      );
-      break;
-    case "grunt":
-      // Cute chunky armored vanguard trooper with little boots, shoulder pads, crest & backpack
-      body.push(
-        // Chunky boots
-        part(G_BEV, IRON, { x: 0.04, y: 0.14, z: -0.22, sx: 0.34, sy: 0.26, sz: 0.24 }),
-        part(G_BEV, IRON, { x: 0.04, y: 0.14, z: 0.22, sx: 0.34, sy: 0.26, sz: 0.24 }),
-        // Waist + armored chest
-        part(G_BEV, dark, { y: 0.42, sx: 0.58, sy: 0.34, sz: 0.62 }),
-        part(G_BEV, hull, { x: 0.04, y: 0.74, sx: 0.68, sy: 0.46, sz: 0.74 }),
-        // Cozy rounded pauldrons & backpack
-        part(G_BEV, plate, { x: 0.02, y: 0.84, z: -0.44, rx: 0.2, sx: 0.4, sy: 0.28, sz: 0.24 }),
-        part(G_BEV, plate, { x: 0.02, y: 0.84, z: 0.44, rx: -0.2, sx: 0.4, sy: 0.28, sz: 0.24 }),
-        part(G_BEV, dark, { x: -0.34, y: 0.74, sx: 0.24, sy: 0.38, sz: 0.46 }),
-        // Crested helmet with fin
-        part(G_BEV, accent, { x: 0.08, y: 1.08, sx: 0.46, sy: 0.28, sz: 0.44 }),
-        part(G_BOX, BRASS, { x: 0.06, y: 1.26, sx: 0.32, sy: 0.1, sz: 0.1 }),
-      );
-      glow.push(
-        part(G_BOX, 0xffffff, { x: 0.34, y: 1.04, sx: 0.12, sy: 0.11, sz: 0.36 }),
-        part(G_BOX, 0xffffff, { x: -0.46, y: 0.76, sx: 0.06, sy: 0.2, sz: 0.24 }),
-      );
-      break;
-    case "gunner":
-      // Chunky tripod-footed plasma trooper with twin collared barrels, ammo drum & rangefinder hood
-      body.push(
-        part(G_BEV, IRON, { x: 0.06, y: 0.14, z: -0.26, sx: 0.36, sy: 0.26, sz: 0.22 }),
-        part(G_BEV, IRON, { x: 0.06, y: 0.14, z: 0.26, sx: 0.36, sy: 0.26, sz: 0.22 }),
-        part(G_CYL8, dark, { y: 0.42, sx: 0.62, sy: 0.36, sz: 0.62 }),
-        part(G_BEV, hull, { y: 0.78, sx: 0.74, sy: 0.5, sz: 0.88 }),
-        part(G_CYL6, COPPER, { x: -0.36, y: 0.82, rz: Math.PI / 2, sx: 0.3, sy: 0.26, sz: 0.5 }),
-        // Twin arm cannons with brass muzzle collars
-        part(G_CYL6, IRON, { x: 0.48, y: 0.76, z: -0.38, rz: Math.PI / 2, sx: 0.17, sy: 0.72, sz: 0.17 }),
-        part(G_CYL6, IRON, { x: 0.48, y: 0.76, z: 0.38, rz: Math.PI / 2, sx: 0.17, sy: 0.72, sz: 0.17 }),
-        part(G_CYL6, BRASS, { x: 0.74, y: 0.76, z: -0.38, rz: Math.PI / 2, sx: 0.22, sy: 0.12, sz: 0.22 }),
-        part(G_CYL6, BRASS, { x: 0.74, y: 0.76, z: 0.38, rz: Math.PI / 2, sx: 0.22, sy: 0.12, sz: 0.22 }),
-        part(G_BEV, accent, { x: -0.04, y: 1.14, sx: 0.48, sy: 0.26, sz: 0.52 }),
-        part(G_BOX, plate, { x: -0.06, y: 1.3, z: -0.18, sx: 0.14, sy: 0.14, sz: 0.1 }),
-      );
-      glow.push(
-        part(G_BOX, 0xffffff, { x: 0.22, y: 1.12, sx: 0.12, sy: 0.11, sz: 0.42 }),
-        part(G_OCT, 0xffffff, { x: 0.85, y: 0.76, z: -0.38, sx: 0.14, sy: 0.14, sz: 0.14 }),
-        part(G_OCT, 0xffffff, { x: 0.85, y: 0.76, z: 0.38, sx: 0.14, sy: 0.14, sz: 0.14 }),
-      );
-      break;
-    case "bomber":
-      // Cute rotund brass-belted ticking kettle-mine walker with stubby legs & fuse beacon
-      body.push(
-        part(G_SPH, dark, { y: 0.66, sx: 0.96, sy: 0.86, sz: 0.96 }),
-        part(G_TOR, BRASS, { y: 0.66, rx: Math.PI / 2, sx: 1.04, sy: 1.04, sz: 1.04 }),
-        part(G_CYL6, plate, { y: 1.08, sx: 0.42, sy: 0.14, sz: 0.42 }),
-        // Stubby cute articulated legs & feet
-        part(G_BEV, IRON, { x: 0.04, y: 0.18, z: -0.38, sx: 0.28, sy: 0.34, sz: 0.22 }),
-        part(G_BEV, IRON, { x: 0.04, y: 0.18, z: 0.38, sx: 0.28, sy: 0.34, sz: 0.22 }),
-        part(G_BOX, plate, { x: 0.12, y: 0.06, z: -0.38, sx: 0.34, sy: 0.1, sz: 0.24 }),
-        part(G_BOX, plate, { x: 0.12, y: 0.06, z: 0.38, sx: 0.34, sy: 0.1, sz: 0.24 }),
-        // Side pressure bolts
-        part(G_CYL6, COPPER, { y: 0.66, z: -0.52, rx: Math.PI / 2, sx: 0.18, sy: 0.14, sz: 0.18 }),
-        part(G_CYL6, COPPER, { y: 0.66, z: 0.52, rx: Math.PI / 2, sx: 0.18, sy: 0.14, sz: 0.18 }),
-      );
-      glow.push(
-        part(G_SPH, 0xffffff, { x: 0.14, y: 0.68, sx: 0.64, sy: 0.64, sz: 0.64 }),
-        part(G_OCT, 0xffffff, { y: 1.24, sx: 0.3, sy: 0.36, sz: 0.3 }),
+        part(G_OCT, 0xffffff, { x: 0.32, y: 0.38, z: -0.12, sx: 0.14, sy: 0.13, sz: 0.13 }),
+        part(G_OCT, 0xffffff, { x: 0.32, y: 0.38, z: 0.12, sx: 0.14, sy: 0.13, sz: 0.13 }),
+        part(G_OCT, 0xffffff, { x: -0.08, y: 0.62, sx: 0.18, sy: 0.1, sz: 0.18 }),
       );
       break;
     case "splitter":
-      // Cute twin-lobed glowing mitosis jelly-pod with bridged crest & tiny tendrils
+      // Organic twin-lobed mitosis toadstool-pod bridged by a glowing spore sac & twin curled sprouts
       body.push(
-        part(G_SPH, hull, { y: 0.56, z: -0.28, sx: 0.72, sy: 0.76, sz: 0.62 }),
-        part(G_SPH, hull, { y: 0.56, z: 0.28, sx: 0.72, sy: 0.76, sz: 0.62 }),
-        part(G_BEV, accent, { y: 0.88, sx: 0.56, sy: 0.32, sz: 0.82 }),
-        part(G_BEV, dark, { y: 0.32, sx: 0.44, sy: 0.22, sz: 0.52 }),
-        part(G_CONE6, plate, { x: -0.12, y: 1.08, z: -0.24, sx: 0.16, sy: 0.22, sz: 0.16 }),
-        part(G_CONE6, plate, { x: -0.12, y: 1.08, z: 0.24, sx: 0.16, sy: 0.22, sz: 0.16 }),
+        part(G_BUG, CHITIN_MOSS, { y: 0.12, z: -0.32, sx: 0.68, sy: 0.84, sz: 0.58 }),
+        part(G_BUG, CHITIN_MOSS, { y: 0.12, z: 0.32, sx: 0.68, sy: 0.84, sz: 0.58 }),
+        part(G_DOME, accent, { y: 0.72, sx: 0.62, sy: 0.38, sz: 0.94 }),
+        part(G_CONE6, PARCHMENT, { x: -0.08, y: 1.08, z: -0.26, rx: -0.24, sx: 0.14, sy: 0.32, sz: 0.14 }),
+        part(G_CONE6, PARCHMENT, { x: -0.08, y: 1.08, z: 0.26, rx: 0.24, sx: 0.14, sy: 0.32, sz: 0.14 }),
       );
       glow.push(
-        part(G_OCT, 0xffffff, { x: 0.3, y: 0.62, z: -0.28, sx: 0.22, sy: 0.24, sz: 0.22 }),
-        part(G_OCT, 0xffffff, { x: 0.3, y: 0.62, z: 0.28, sx: 0.22, sy: 0.24, sz: 0.22 }),
-        part(G_BOX, 0xffffff, { y: 0.56, sx: 0.18, sy: 0.22, sz: 0.28 }),
-      );
-      break;
-    case "brute":
-      // Chunky broad-shouldered horned juggernaut with heavy boots, gauntlets, furnace pack & brass tusks
-      body.push(
-        part(G_BEV, IRON, { x: 0.04, y: 0.2, z: -0.42, sx: 0.52, sy: 0.38, sz: 0.38 }),
-        part(G_BEV, IRON, { x: 0.04, y: 0.2, z: 0.42, sx: 0.52, sy: 0.38, sz: 0.38 }),
-        part(G_BEV, dark, { y: 0.54, sx: 0.92, sy: 0.5, sz: 1.12 }),
-        part(G_BEV, hull, { x: 0.08, y: 1.06, sx: 1.14, sy: 0.76, sz: 1.38 }),
-        // Huge layered shoulder pauldrons & gauntlets
-        part(G_BEV, plate, { x: 0.12, y: 1.28, z: -0.72, rx: 0.25, sx: 0.8, sy: 0.46, sz: 0.44 }),
-        part(G_BEV, plate, { x: 0.12, y: 1.28, z: 0.72, rx: -0.25, sx: 0.8, sy: 0.46, sz: 0.44 }),
-        part(G_BEV, dark, { x: 0.46, y: 0.68, z: -0.76, sx: 0.52, sy: 0.46, sz: 0.36 }),
-        part(G_BEV, dark, { x: 0.46, y: 0.68, z: 0.76, sx: 0.52, sy: 0.46, sz: 0.36 }),
-        // Back exhaust stacks & horned helm
-        part(G_CYL6, COPPER, { x: -0.52, y: 1.26, z: -0.34, sx: 0.22, sy: 0.56, sz: 0.22 }),
-        part(G_CYL6, COPPER, { x: -0.52, y: 1.26, z: 0.34, sx: 0.22, sy: 0.56, sz: 0.22 }),
-        part(G_BEV, accent, { x: 0.36, y: 1.44, sx: 0.52, sy: 0.34, sz: 0.58 }),
-        part(G_CONE6, BRASS, { x: 0.68, y: 1.42, z: -0.44, rz: -1.0, sx: 0.24, sy: 0.58, sz: 0.24 }),
-        part(G_CONE6, BRASS, { x: 0.68, y: 1.42, z: 0.44, rz: -1.0, sx: 0.24, sy: 0.58, sz: 0.24 }),
-      );
-      glow.push(
-        part(G_BOX, 0xffffff, { x: 0.66, y: 1.38, sx: 0.14, sy: 0.16, sz: 0.46 }),
-        part(G_OCT, 0xffffff, { x: 0.68, y: 0.96, sx: 0.22, sy: 0.28, sz: 0.32 }),
-      );
-      break;
-    case "sniper":
-      // Tall elegant hooded marksman spire with tripod legs, long scope rifle & cape cowl
-      body.push(
-        // Tripod stabilizer feet
-        ...[-1, 0, 1].map((i) => {
-          const a = i * 2.1;
-          return part(G_BOX, IRON, {
-            x: Math.cos(a) * 0.26,
-            y: 0.14,
-            z: Math.sin(a) * 0.26,
-            ry: -a,
-            rz: -0.35,
-            sx: 0.14,
-            sy: 0.34,
-            sz: 0.14,
-          });
-        }),
-        part(G_CYL6, dark, { y: 0.58, sx: 0.46, sy: 0.92, sz: 0.46 }),
-        part(G_BEV, hull, { y: 1.12, sx: 0.58, sy: 0.46, sz: 0.54 }),
-        // Hooded cowl & cheek plates
-        part(G_BEV, accent, { x: -0.1, y: 1.48, sx: 0.42, sy: 0.32, sz: 0.38 }),
-        part(G_CONE6, dark, { x: -0.26, y: 1.54, rz: 0.55, sx: 0.28, sy: 0.36, sz: 0.28 }),
-        // Long rail barrel with brass stabilizer sleeve & top scope
-        part(G_CYL6, plate, { x: 0.8, y: 1.12, rz: Math.PI / 2, sx: 0.12, sy: 1.38, sz: 0.12 }),
-        part(G_CYL6, BRASS, { x: 0.52, y: 1.12, rz: Math.PI / 2, sx: 0.18, sy: 0.32, sz: 0.18 }),
-        part(G_CYL6, dark, { x: 0.46, y: 1.28, rz: Math.PI / 2, sx: 0.1, sy: 0.44, sz: 0.1 }),
-      );
-      glow.push(
-        part(G_OCT, 0xffffff, { x: 0.32, y: 1.46, sx: 0.2, sy: 0.18, sz: 0.24 }),
-        part(G_BOX, 0xffffff, { x: 0.92, y: 1.18, sx: 0.82, sy: 0.05, sz: 0.05 }),
-        part(G_OCT, 0xffffff, { x: 0.68, y: 1.28, sx: 0.1, sy: 0.1, sz: 0.1 }),
-      );
-      break;
-    case "hive":
-      // Cozy layered storybook mushroom-brood nest with glowing brood pods & root buttresses
-      body.push(
-        part(G_CYL8, dark, { y: 0.34, sx: 1.24, sy: 0.6, sz: 1.24 }),
-        ...Array.from({ length: 4 }, (_, i) => {
-          const a = (i * TAU) / 4 + 0.4;
-          return part(G_BOX, hull, {
-            x: Math.cos(a) * 0.62,
-            y: 0.24,
-            z: Math.sin(a) * 0.62,
-            ry: -a,
-            rz: -0.35,
-            sx: 0.24,
-            sy: 0.46,
-            sz: 0.26,
-          });
-        }),
-        part(sculptedCap(0.88, 0.76, 71), hull, { y: 0.56 }),
-        part(sculptedCap(0.58, 0.54, 79), accent, { y: 1.16 }),
-      );
-      glow.push(
-        part(G_SPH, 0xffffff, { y: 0.9, sx: 0.54, sy: 0.36, sz: 0.54 }),
-        part(G_OCT, 0xffffff, { y: 1.66, sx: 0.32, sy: 0.44, sz: 0.32 }),
-        ...Array.from({ length: 3 }, (_, i) => {
-          const a = (i * TAU) / 3;
-          return part(G_OCT, 0xffffff, {
-            x: Math.cos(a) * 0.54,
-            y: 0.52,
-            z: Math.sin(a) * 0.54,
-            sx: 0.16,
-            sy: 0.2,
-            sz: 0.16,
-          });
-        }),
-      );
-      break;
-    case "bulwark":
-      // Chunky fortress knight-walker with heavy armored boots, tower shield with brass boss & crested helm
-      body.push(
-        part(G_BEV, IRON, { x: -0.06, y: 0.18, z: -0.34, sx: 0.44, sy: 0.34, sz: 0.32 }),
-        part(G_BEV, IRON, { x: -0.06, y: 0.18, z: 0.34, sx: 0.44, sy: 0.34, sz: 0.32 }),
-        part(G_BEV, dark, { x: -0.1, y: 0.58, sx: 0.86, sy: 0.58, sz: 0.96 }),
-        part(G_BEV, hull, { x: -0.06, y: 1.08, sx: 0.88, sy: 0.54, sz: 1.02 }),
-        part(G_BEV, accent, { x: -0.04, y: 1.46, sx: 0.5, sy: 0.26, sz: 0.54 }),
-        // Broad faceted fortress shield with top & bottom brass trim bars
-        part(G_BEV, plate, { x: 0.58, y: 0.78, sx: 0.22, sy: 1.26, sz: 1.32 }),
-        part(G_BEV, BRASS, { x: 0.68, y: 0.78, sx: 0.12, sy: 0.86, sz: 0.36 }),
-        part(G_BOX, BRASS, { x: 0.65, y: 1.36, sx: 0.16, sy: 0.1, sz: 1.2 }),
-        part(G_BOX, BRASS, { x: 0.65, y: 0.2, sx: 0.16, sy: 0.1, sz: 1.2 }),
-      );
-      glow.push(
-        part(G_BOX, 0xffffff, { x: 0.75, y: 0.78, sx: 0.08, sy: 0.98, sz: 0.14 }),
-        part(G_BOX, 0xffffff, { x: 0.24, y: 1.42, sx: 0.14, sy: 0.12, sz: 0.44 }),
-      );
-      break;
-    case "striker":
-      // Sleek twin-blade darting moth-assassin with brass wing trims, tail rudder & glowing crest
-      body.push(
-        part(G_OCT, dark, { y: 0.78, sx: 1.12, sy: 0.5, sz: 0.58 }),
-        part(G_BEV, accent, { x: 0.06, y: 0.96, sx: 0.6, sy: 0.18, sz: 0.32 }),
-        part(G_BEV, plate, { x: 0.1, y: 0.8, z: -0.54, ry: 0.55, sx: 0.96, sy: 0.09, sz: 0.3 }),
-        part(G_BEV, plate, { x: 0.1, y: 0.8, z: 0.54, ry: -0.55, sx: 0.96, sy: 0.09, sz: 0.3 }),
-        part(G_BOX, BRASS, { x: 0.22, y: 0.84, z: -0.5, ry: 0.55, sx: 0.65, sy: 0.05, sz: 0.08 }),
-        part(G_BOX, BRASS, { x: 0.22, y: 0.84, z: 0.5, ry: -0.55, sx: 0.65, sy: 0.05, sz: 0.08 }),
-        part(G_CONE6, dark, { x: -0.62, y: 0.78, rz: Math.PI / 2, sx: 0.26, sy: 0.44, sz: 0.26 }),
-      );
-      glow.push(
-        part(G_OCT, 0xffffff, { x: 0.5, y: 0.82, sx: 0.32, sy: 0.2, sz: 0.26 }),
-        part(G_BOX, 0xffffff, { x: -0.44, y: 0.82, sx: 0.16, sy: 0.1, sz: 0.28 }),
-      );
-      break;
-    case "mortar":
-      // Cute squat brass-rimmed spider-cannon with 4 stubby legs & flared howitzer barrel
-      body.push(
-        ...Array.from({ length: 4 }, (_, i) => {
-          const a = (i * TAU) / 4 + Math.PI / 4;
-          return part(G_BEV, IRON, {
-            x: Math.cos(a) * 0.58,
-            y: 0.2,
-            z: Math.sin(a) * 0.58,
-            ry: -a,
-            rz: -0.32,
-            sx: 0.24,
-            sy: 0.4,
-            sz: 0.24,
-          });
-        }),
-        part(G_CYL8, dark, { y: 0.4, sx: 1.06, sy: 0.44, sz: 1.06 }),
-        part(G_BEV, hull, { y: 0.74, sx: 0.86, sy: 0.4, sz: 0.86 }),
-        part(G_CYL8, plate, { x: 0.18, y: 1.14, rz: -0.42, sx: 0.48, sy: 0.88, sz: 0.48 }),
-        part(G_TOR, BRASS, { x: 0.36, y: 1.5, rz: -0.42, rx: Math.PI / 2, sx: 0.58, sy: 0.58, sz: 0.58 }),
-        part(G_CYL6, COPPER, { x: -0.34, y: 0.82, sx: 0.28, sy: 0.36, sz: 0.44 }),
-      );
-      glow.push(
-        part(G_SPH, 0xffffff, { x: 0.35, y: 1.5, sx: 0.32, sy: 0.32, sz: 0.32 }),
-        part(G_BOX, 0xffffff, { x: 0.44, y: 0.74, sx: 0.1, sy: 0.14, sz: 0.38 }),
-      );
-      break;
-    case "mender":
-      // Charming floating lantern-medic shrine with brass halo, floating petals & healing cross
-      body.push(
-        part(G_OCT, plate, { y: 0.88, sx: 0.66, sy: 1.1, sz: 0.66 }),
-        part(G_CYL6, BRASS, { y: 1.32, sx: 0.44, sy: 0.12, sz: 0.44 }),
-        part(G_CYL6, BRASS, { y: 0.46, sx: 0.36, sy: 0.12, sz: 0.36 }),
-        part(G_TOR, hull, { y: 0.92, rx: Math.PI / 2, sx: 1.06, sy: 1.06, sz: 1.06 }),
-        ...[-1, 1].map((s) => part(G_BEV, accent, { y: 0.92, z: s * 0.56, sx: 0.18, sy: 0.42, sz: 0.12 })),
-      );
-      glow.push(
-        part(G_BOX, 0xffffff, { y: 1.62, sx: 0.12, sy: 0.42, sz: 0.12 }),
-        part(G_BOX, 0xffffff, { y: 1.62, sx: 0.12, sy: 0.12, sz: 0.42 }),
-        part(G_TOR, 0xffffff, { y: 0.92, rx: Math.PI / 2, sx: 1.14, sy: 1.14, sz: 1.14 }),
+        part(G_OCT, 0xffffff, { x: 0.32, y: 0.62, z: -0.3, sx: 0.22, sy: 0.24, sz: 0.22 }),
+        part(G_OCT, 0xffffff, { x: 0.32, y: 0.62, z: 0.3, sx: 0.22, sy: 0.24, sz: 0.22 }),
+        part(G_SPH, 0xffffff, { y: 0.54, sx: 0.36, sy: 0.32, sz: 0.42 }),
       );
       break;
     case "leaper":
-      // Cute coiled spring-legged mech-hound with pointy ears, tail & sturdy front paws
+      // Coiled springy rift-lynx critter with arched haunches, tufted ears, bushy tail & sleek pounce posture
       body.push(
-        part(G_BEV, hull, { x: 0.06, y: 0.64, rz: -0.2, sx: 0.92, sy: 0.42, sz: 0.56 }),
-        part(G_BEV, accent, { x: 0.1, y: 0.88, sx: 0.54, sy: 0.16, sz: 0.42 }),
-        // Coiled hind legs + front paws
-        part(G_BEV, dark, { x: -0.34, y: 0.34, z: -0.34, rz: 0.42, sx: 0.24, sy: 0.62, sz: 0.2 }),
-        part(G_BEV, dark, { x: -0.34, y: 0.34, z: 0.34, rz: 0.42, sx: 0.24, sy: 0.62, sz: 0.2 }),
-        part(G_BOX, IRON, { x: 0.34, y: 0.24, z: -0.28, rz: -0.25, sx: 0.16, sy: 0.44, sz: 0.16 }),
-        part(G_BOX, IRON, { x: 0.34, y: 0.24, z: 0.28, rz: -0.25, sx: 0.16, sy: 0.44, sz: 0.16 }),
-        // Snout & cute pointed ears + stub tail
-        part(G_CONE6, plate, { x: 0.58, y: 0.7, rz: -Math.PI / 2, sx: 0.36, sy: 0.44, sz: 0.36 }),
-        part(G_CONE6, BRASS, { x: 0.38, y: 1.0, z: -0.18, rz: 0.2, sx: 0.12, sy: 0.26, sz: 0.12 }),
-        part(G_CONE6, BRASS, { x: 0.38, y: 1.0, z: 0.18, rz: 0.2, sx: 0.12, sy: 0.26, sz: 0.12 }),
-        part(G_CONE6, dark, { x: -0.52, y: 0.82, rz: 0.75, sx: 0.12, sy: 0.34, sz: 0.12 }),
-      );
-      glow.push(part(G_BOX, 0xffffff, { x: 0.54, y: 0.8, sx: 0.14, sy: 0.12, sz: 0.34 }));
-      break;
-    case "turret":
-      // Fortified cozy pillbox bunker with armored collar, radar dish & collared twin cannons
-      body.push(
-        part(G_CYL8, dark, { y: 0.26, sx: 1.2, sy: 0.44, sz: 1.2 }),
-        part(G_CYL8, BRASS, { y: 0.52, sx: 1.02, sy: 0.1, sz: 1.02 }),
-        part(G_BEV, hull, { y: 0.84, sx: 0.86, sy: 0.56, sz: 0.88 }),
-        part(G_BEV, accent, { x: -0.06, y: 1.18, sx: 0.56, sy: 0.18, sz: 0.58 }),
-        part(G_CYL6, plate, { x: 0.62, y: 0.88, z: -0.24, rz: Math.PI / 2, sx: 0.18, sy: 0.86, sz: 0.18 }),
-        part(G_CYL6, plate, { x: 0.62, y: 0.88, z: 0.24, rz: Math.PI / 2, sx: 0.18, sy: 0.86, sz: 0.18 }),
-        part(G_CYL6, BRASS, { x: 0.96, y: 0.88, z: -0.24, rz: Math.PI / 2, sx: 0.22, sy: 0.12, sz: 0.22 }),
-        part(G_CYL6, BRASS, { x: 0.96, y: 0.88, z: 0.24, rz: Math.PI / 2, sx: 0.22, sy: 0.12, sz: 0.22 }),
+        part(G_BUG, CHITIN_DARK, { x: -0.08, y: 0.6, rz: -1.35, sx: 0.54, sy: 1.12, sz: 0.58 }),
+        part(G_DOME, accent, { x: 0.32, y: 0.72, sx: 0.44, sy: 0.36, sz: 0.44 }),
+        // Coiled organic haunches + front paws
+        part(G_BUG, LEATHER, { x: -0.34, y: 0.1, z: -0.32, rz: 0.38, sx: 0.28, sy: 0.66, sz: 0.24 }),
+        part(G_BUG, LEATHER, { x: -0.34, y: 0.1, z: 0.32, rz: 0.38, sx: 0.28, sy: 0.66, sz: 0.24 }),
+        part(G_CYL6, CHITIN_DARK, { x: 0.34, y: 0.24, z: -0.24, rz: -0.26, sx: 0.16, sy: 0.46, sz: 0.16 }),
+        part(G_CYL6, CHITIN_DARK, { x: 0.34, y: 0.24, z: 0.24, rz: -0.26, sx: 0.16, sy: 0.46, sz: 0.16 }),
+        // Tufted lynx ears & sweeping tail
+        part(G_CONE6, PARCHMENT, { x: 0.38, y: 1.08, z: -0.18, rx: -0.2, sx: 0.14, sy: 0.32, sz: 0.14 }),
+        part(G_CONE6, PARCHMENT, { x: 0.38, y: 1.08, z: 0.18, rx: 0.2, sx: 0.14, sy: 0.32, sz: 0.14 }),
+        part(G_CONE6, accent, { x: -0.62, y: 0.86, rz: 0.85, sx: 0.18, sy: 0.46, sz: 0.18 }),
       );
       glow.push(
-        part(G_BOX, 0xffffff, { x: 0.44, y: 1.0, sx: 0.12, sy: 0.16, sz: 0.54 }),
-        part(G_OCT, 0xffffff, { x: -0.08, y: 1.38, sx: 0.18, sy: 0.22, sz: 0.18 }),
+        part(G_OCT, 0xffffff, { x: 0.52, y: 0.86, z: -0.11, sx: 0.14, sy: 0.12, sz: 0.12 }),
+        part(G_OCT, 0xffffff, { x: 0.52, y: 0.86, z: 0.11, sx: 0.14, sy: 0.12, sz: 0.12 }),
+      );
+      break;
+    case "hive":
+      // Cozy storybook tiered mossy fairy-toadstool brood-nest with gnarled roots & glowing egg-pods
+      body.push(
+        part(G_ROBE, CHITIN_DARK, { y: 0.0, sx: 1.24, sy: 0.66, sz: 1.24 }),
+        ...Array.from({ length: 4 }, (_, i) => {
+          const a = (i * TAU) / 4 + 0.4;
+          return part(G_CONE6, LEATHER, {
+            x: Math.cos(a) * 0.64,
+            y: 0.22,
+            z: Math.sin(a) * 0.64,
+            ry: -a,
+            rz: -0.5,
+            sx: 0.26,
+            sy: 0.52,
+            sz: 0.26,
+          });
+        }),
+        part(sculptedCap(0.92, 0.72, 71), CHITIN_MOSS, { y: 0.54 }),
+        part(sculptedCap(0.56, 0.48, 79), accent, { y: 1.12 }),
+      );
+      glow.push(
+        part(G_SPH, 0xffffff, { y: 0.88, sx: 0.52, sy: 0.34, sz: 0.52 }),
+        part(G_OCT, 0xffffff, { y: 1.62, sx: 0.32, sy: 0.42, sz: 0.32 }),
+        ...Array.from({ length: 3 }, (_, i) => {
+          const a = (i * TAU) / 3;
+          return part(G_OCT, 0xffffff, {
+            x: Math.cos(a) * 0.56,
+            y: 0.5,
+            z: Math.sin(a) * 0.56,
+            sx: 0.18,
+            sy: 0.22,
+            sz: 0.18,
+          });
+        }),
+      );
+      break;
+
+    // ------------------------------------------------------------------------
+    // FAMILY B — PORCELAIN & FORGED VANGUARD (Warm porcelain, patinated bronze, wrought iron, wide wedge/shield)
+    // ------------------------------------------------------------------------
+    case "grunt":
+      // Porcelain-and-bronze miniature knight-golem with domed sallet helm, crested plume & broad curved pauldrons
+      body.push(
+        part(G_DOME, IRON, { x: 0.04, y: 0.0, z: -0.22, sx: 0.34, sy: 0.28, sz: 0.26 }),
+        part(G_DOME, IRON, { x: 0.04, y: 0.0, z: 0.22, sx: 0.34, sy: 0.28, sz: 0.26 }),
+        part(G_ROBE, BRONZE, { y: 0.26, sx: 0.76, sy: 0.72, sz: 0.84 }),
+        part(G_DOME, IVORY, { x: 0.06, y: 0.62, sx: 0.66, sy: 0.42, sz: 0.76 }),
+        // Rounded bronze pauldrons + brass crest fin
+        part(G_DOME, BRONZE, { x: 0.02, y: 0.78, z: -0.44, rx: 0.28, sx: 0.4, sy: 0.28, sz: 0.34 }),
+        part(G_DOME, BRONZE, { x: 0.02, y: 0.78, z: 0.44, rx: -0.28, sx: 0.4, sy: 0.28, sz: 0.34 }),
+        part(G_DOME, IVORY, { x: 0.08, y: 1.0, sx: 0.48, sy: 0.34, sz: 0.46 }),
+        part(G_BEV, accent, { x: 0.04, y: 1.32, sx: 0.38, sy: 0.14, sz: 0.1 }),
+      );
+      glow.push(
+        part(G_BOX, 0xffffff, { x: 0.32, y: 1.08, sx: 0.12, sy: 0.1, sz: 0.34 }),
+        part(G_OCT, 0xffffff, { x: -0.34, y: 0.78, sx: 0.16, sy: 0.2, sz: 0.2 }),
+      );
+      break;
+    case "brute":
+      // Towering horned porcelain-and-iron juggernaut with kettle-pauldrons, forged gauntlets & sweeping brass horns
+      body.push(
+        part(G_DOME, IRON, { x: 0.04, y: 0.0, z: -0.42, sx: 0.56, sy: 0.42, sz: 0.44 }),
+        part(G_DOME, IRON, { x: 0.04, y: 0.0, z: 0.42, sx: 0.56, sy: 0.42, sz: 0.44 }),
+        part(G_POT, IVORY, { x: 0.04, y: 0.36, sx: 1.24, sy: 1.02, sz: 1.44 }),
+        part(G_DOME, BRONZE, { x: 0.12, y: 1.08, z: -0.76, rx: 0.32, sx: 0.82, sy: 0.5, sz: 0.56 }),
+        part(G_DOME, BRONZE, { x: 0.12, y: 1.08, z: 0.76, rx: -0.32, sx: 0.82, sy: 0.5, sz: 0.56 }),
+        // Forged iron siege gauntlets
+        part(G_BEV, IRON, { x: 0.48, y: 0.64, z: -0.78, sx: 0.52, sy: 0.48, sz: 0.38 }),
+        part(G_BEV, IRON, { x: 0.48, y: 0.64, z: 0.78, sx: 0.52, sy: 0.48, sz: 0.38 }),
+        // Horned minotaur helm
+        part(G_DOME, accent, { x: 0.34, y: 1.26, sx: 0.58, sy: 0.42, sz: 0.62 }),
+        part(G_CONE6, BRASS, { x: 0.64, y: 1.48, z: -0.48, rx: -0.4, rz: -0.88, sx: 0.22, sy: 0.66, sz: 0.22 }),
+        part(G_CONE6, BRASS, { x: 0.64, y: 1.48, z: 0.48, rx: 0.4, rz: -0.88, sx: 0.22, sy: 0.66, sz: 0.22 }),
+      );
+      glow.push(
+        part(G_BOX, 0xffffff, { x: 0.64, y: 1.4, sx: 0.14, sy: 0.15, sz: 0.44 }),
+        part(G_OCT, 0xffffff, { x: 0.68, y: 0.92, sx: 0.26, sy: 0.32, sz: 0.34 }),
+      );
+      break;
+    case "bulwark":
+      // Wide crescent-tower-shield paladin golem in enameled porcelain & brass boss (unmistakable wide shield arc)
+      body.push(
+        part(G_DOME, IRON, { x: -0.1, y: 0.0, z: -0.34, sx: 0.46, sy: 0.34, sz: 0.34 }),
+        part(G_DOME, IRON, { x: -0.1, y: 0.0, z: 0.34, sx: 0.46, sy: 0.34, sz: 0.34 }),
+        part(G_ROBE, BRONZE, { x: -0.1, y: 0.3, sx: 0.92, sy: 1.04, sz: 1.04 }),
+        part(G_DOME, IVORY, { x: -0.06, y: 1.32, sx: 0.56, sy: 0.34, sz: 0.58 }),
+        part(G_BEV, BRASS, { x: -0.06, y: 1.64, sx: 0.38, sy: 0.16, sz: 0.12 }),
+        // Sweeping 3-panel curved enameled porcelain & brass tower shield across front
+        part(G_BEV, IVORY, { x: 0.6, y: 0.78, sx: 0.22, sy: 1.32, sz: 0.86 }),
+        part(G_BEV, BRONZE, { x: 0.46, y: 0.78, z: -0.62, ry: 0.42, sx: 0.2, sy: 1.24, sz: 0.56 }),
+        part(G_BEV, BRONZE, { x: 0.46, y: 0.78, z: 0.62, ry: -0.42, sx: 0.2, sy: 1.24, sz: 0.56 }),
+        part(G_OCT, BRASS, { x: 0.74, y: 0.78, sx: 0.2, sy: 0.62, sz: 0.48 }),
+      );
+      glow.push(
+        part(G_BOX, 0xffffff, { x: 0.78, y: 0.78, sx: 0.08, sy: 1.04, sz: 0.14 }),
+        part(G_BOX, 0xffffff, { x: 0.22, y: 1.44, sx: 0.14, sy: 0.12, sz: 0.44 }),
       );
       break;
     case "charger":
-      // Chunky armored battering-ram boar-chariot with brass side bumpers, tusks & twin jet exhausts
+      // Low-slung forged-iron & bronze boar-ram chariot with sweeping curved brass tusks & twin exhaust bells
       body.push(
-        part(G_CONE6, plate, { x: 0.28, y: 0.52, rz: -Math.PI / 2, sx: 0.86, sy: 1.12, sz: 0.98 }),
-        part(G_BEV, dark, { x: -0.34, y: 0.48, sx: 0.6, sy: 0.56, sz: 0.94 }),
-        part(G_BEV, hull, { x: -0.1, y: 0.8, sx: 0.54, sy: 0.24, sz: 0.66 }),
-        // Side treads / skids + front tusks
-        part(G_BEV, IRON, { x: -0.06, y: 0.22, z: -0.54, sx: 1.0, sy: 0.26, sz: 0.22 }),
-        part(G_BEV, IRON, { x: -0.06, y: 0.22, z: 0.54, sx: 1.0, sy: 0.26, sz: 0.22 }),
-        part(G_CONE6, BRASS, { x: 0.72, y: 0.46, z: -0.36, rz: -1.4, sx: 0.16, sy: 0.44, sz: 0.16 }),
-        part(G_CONE6, BRASS, { x: 0.72, y: 0.46, z: 0.36, rz: -1.4, sx: 0.16, sy: 0.44, sz: 0.16 }),
-        part(G_CYL6, COPPER, { x: -0.64, y: 0.5, z: -0.26, rz: Math.PI / 2, sx: 0.22, sy: 0.22, sz: 0.22 }),
-        part(G_CYL6, COPPER, { x: -0.64, y: 0.5, z: 0.26, rz: Math.PI / 2, sx: 0.22, sy: 0.22, sz: 0.22 }),
+        part(G_CONE6, IVORY, { x: 0.34, y: 0.52, rz: -Math.PI / 2, sx: 0.92, sy: 1.18, sz: 1.04 }),
+        part(G_DOME, BRONZE, { x: -0.22, y: 0.32, sx: 0.96, sy: 0.64, sz: 1.02 }),
+        part(G_BEV, IRON, { x: -0.06, y: 0.2, z: -0.56, sx: 1.04, sy: 0.26, sz: 0.22 }),
+        part(G_BEV, IRON, { x: -0.06, y: 0.2, z: 0.56, sx: 1.04, sy: 0.26, sz: 0.22 }),
+        part(G_CONE6, BRASS, { x: 0.76, y: 0.46, z: -0.4, ry: -0.22, rz: -1.42, sx: 0.18, sy: 0.56, sz: 0.18 }),
+        part(G_CONE6, BRASS, { x: 0.76, y: 0.46, z: 0.4, ry: 0.22, rz: -1.42, sx: 0.18, sy: 0.56, sz: 0.18 }),
+        part(G_BELL, COPPER, { x: -0.58, y: 0.52, z: -0.26, rz: Math.PI / 2, sx: 0.28, sy: 0.28, sz: 0.28 }),
+        part(G_BELL, COPPER, { x: -0.58, y: 0.52, z: 0.26, rz: Math.PI / 2, sx: 0.28, sy: 0.28, sz: 0.28 }),
       );
       glow.push(
-        part(G_BOX, 0xffffff, { x: -0.74, y: 0.5, sx: 0.12, sy: 0.26, sz: 0.6 }),
-        part(G_OCT, 0xffffff, { x: 0.56, y: 0.66, sx: 0.22, sy: 0.2, sz: 0.26 }),
-      );
-      break;
-    case "minebot":
-      // Cute little brass-rimmed mechanical crab-layer with 4 stubby legs & glowing ordnance dome
-      body.push(
-        part(G_CYL8, dark, { y: 0.28, sx: 0.98, sy: 0.3, sz: 0.98 }),
-        part(G_BEV, hull, { y: 0.54, sx: 0.72, sy: 0.28, sz: 0.72 }),
-        part(G_TOR, BRASS, { y: 0.54, rx: Math.PI / 2, sx: 0.88, sy: 0.88, sz: 0.88 }),
-        ...Array.from({ length: 4 }, (_, i) => {
-          const a = (i * TAU) / 4 + Math.PI / 4;
-          return part(G_BOX, IRON, {
-            x: Math.cos(a) * 0.56,
-            y: 0.16,
-            z: Math.sin(a) * 0.56,
-            ry: -a,
-            rz: -0.45,
-            sx: 0.16,
-            sy: 0.34,
-            sz: 0.16,
-          });
-        }),
-        part(G_BOX, plate, { x: 0.44, y: 0.46, sx: 0.18, sy: 0.16, sz: 0.36 }),
-      );
-      glow.push(
-        part(G_SPH, 0xffffff, { y: 0.78, sx: 0.42, sy: 0.3, sz: 0.42 }),
-        part(G_BOX, 0xffffff, { x: 0.54, y: 0.46, sx: 0.06, sy: 0.1, sz: 0.24 }),
-      );
-      break;
-    case "sapper":
-      // Agile demolition grenadier with boots, twin copper charge canisters, goggles & tossing arm
-      body.push(
-        part(G_BEV, IRON, { y: 0.14, z: -0.2, sx: 0.3, sy: 0.24, sz: 0.2 }),
-        part(G_BEV, IRON, { y: 0.14, z: 0.2, sx: 0.3, sy: 0.24, sz: 0.2 }),
-        part(G_BEV, dark, { y: 0.46, sx: 0.58, sy: 0.46, sz: 0.62 }),
-        part(G_BEV, hull, { x: 0.08, y: 0.88, sx: 0.56, sy: 0.42, sz: 0.68 }),
-        part(G_BEV, accent, { x: 0.1, y: 1.18, sx: 0.42, sy: 0.22, sz: 0.44 }),
-        // Twin demolition canisters on backpack
-        part(G_CYL6, COPPER, { x: -0.32, y: 0.86, z: -0.18, sx: 0.24, sy: 0.52, sz: 0.24 }),
-        part(G_CYL6, COPPER, { x: -0.32, y: 0.86, z: 0.18, sx: 0.24, sy: 0.52, sz: 0.24 }),
-        part(G_BOX, BRASS, { x: -0.32, y: 1.14, sx: 0.22, sy: 0.08, sz: 0.5 }),
-      );
-      glow.push(
-        part(G_BOX, 0xffffff, { x: 0.34, y: 1.16, sx: 0.1, sy: 0.12, sz: 0.34 }),
-        part(G_OCT, 0xffffff, { x: -0.32, y: 1.28, sx: 0.24, sy: 0.22, sz: 0.28 }),
-      );
-      break;
-    case "phantom":
-      // Charming hooded storybook lantern-wraith with layered mantle, shoulder wisps & floating rune ring
-      body.push(
-        part(G_CONE6, dark, { y: 0.72, sx: 0.8, sy: 1.24, sz: 0.8 }),
-        part(G_OCT, hull, { y: 1.4, sx: 0.58, sy: 0.64, sz: 0.58 }),
-        part(G_BEV, accent, { x: -0.06, y: 1.16, z: -0.44, rz: 0.32, sx: 0.28, sy: 0.52, sz: 0.18 }),
-        part(G_BEV, accent, { x: -0.06, y: 1.16, z: 0.44, rz: 0.32, sx: 0.28, sy: 0.52, sz: 0.18 }),
-        part(G_CONE6, plate, { x: -0.14, y: 1.76, rz: 0.38, sx: 0.26, sy: 0.34, sz: 0.26 }),
-      );
-      glow.push(
-        part(G_OCT, 0xffffff, { x: 0.26, y: 1.4, z: -0.11, sx: 0.12, sy: 0.14, sz: 0.12 }),
-        part(G_OCT, 0xffffff, { x: 0.26, y: 1.4, z: 0.11, sx: 0.12, sy: 0.14, sz: 0.12 }),
-        part(G_TOR, 0xffffff, { y: 0.5, rx: Math.PI / 2, sx: 0.94, sy: 0.94, sz: 0.94 }),
-      );
-      break;
-    case "sentinel":
-      // Ornate floating beam-eye lantern obelisk flanked by brass-trimmed focusing wings & crown spire
-      body.push(
-        part(G_BEV, dark, { y: 0.96, sx: 0.64, sy: 1.16, sz: 0.64 }),
-        part(G_BEV, BRASS, { y: 1.58, sx: 0.48, sy: 0.14, sz: 0.48 }),
-        part(G_CONE6, hull, { y: 1.84, sx: 0.32, sy: 0.4, sz: 0.32 }),
-        part(G_CONE6, hull, { y: 0.26, rx: Math.PI, sx: 0.34, sy: 0.34, sz: 0.34 }),
-        part(G_BEV, plate, { y: 1.0, z: -0.54, rx: 0.14, sx: 0.48, sy: 0.98, sz: 0.16 }),
-        part(G_BEV, plate, { y: 1.0, z: 0.54, rx: -0.14, sx: 0.48, sy: 0.98, sz: 0.16 }),
-        part(G_BOX, BRASS, { x: 0.16, y: 1.0, z: -0.56, sx: 0.12, sy: 0.86, sz: 0.18 }),
-        part(G_BOX, BRASS, { x: 0.16, y: 1.0, z: 0.56, sx: 0.12, sy: 0.86, sz: 0.18 }),
-      );
-      glow.push(
-        part(G_SPH, 0xffffff, { x: 0.3, y: 1.04, sx: 0.42, sy: 0.42, sz: 0.42 }),
-        part(G_OCT, 0xffffff, { y: 2.08, sx: 0.18, sy: 0.26, sz: 0.18 }),
-      );
-      break;
-    case "carrier":
-      // Cozy hovering sky-skiff mothership with catamaran pontoons, bridge tower & launch bays
-      body.push(
-        part(G_BEV, dark, { y: 0.88, sx: 1.24, sy: 0.42, sz: 1.44 }),
-        part(G_BEV, hull, { x: 0.08, y: 1.2, sx: 0.88, sy: 0.34, sz: 0.84 }),
-        part(G_BEV, accent, { x: -0.1, y: 1.44, sx: 0.48, sy: 0.22, sz: 0.52 }),
-        // Twin armored pontoons with brass nose caps
-        part(G_BEV, plate, { x: 0.14, y: 0.86, z: -0.8, sx: 1.18, sy: 0.32, sz: 0.28 }),
-        part(G_BEV, plate, { x: 0.14, y: 0.86, z: 0.8, sx: 1.18, sy: 0.32, sz: 0.28 }),
-        part(G_CONE6, BRASS, { x: 0.8, y: 0.86, z: -0.8, rz: -Math.PI / 2, sx: 0.28, sy: 0.28, sz: 0.28 }),
-        part(G_CONE6, BRASS, { x: 0.8, y: 0.86, z: 0.8, rz: -Math.PI / 2, sx: 0.28, sy: 0.28, sz: 0.28 }),
-      );
-      glow.push(
-        part(G_BOX, 0xffffff, { x: 0.64, y: 0.88, sx: 0.12, sy: 0.2, sz: 0.92 }),
-        part(G_OCT, 0xffffff, { x: -0.1, y: 1.66, sx: 0.32, sy: 0.26, sz: 0.32 }),
-        part(G_BOX, 0xffffff, { x: -0.62, y: 0.88, sx: 0.1, sy: 0.18, sz: 0.68 }),
-      );
-      break;
-    case "drone":
-      // Cute sleek hovering scout-orb with brass wingtips, top fin & rear thruster
-      body.push(
-        part(G_SPH, hull, { y: 0.88, sx: 0.58, sy: 0.48, sz: 0.58 }),
-        part(G_BEV, plate, { x: -0.02, y: 0.88, z: -0.4, ry: 0.2, sx: 0.4, sy: 0.09, sz: 0.38 }),
-        part(G_BEV, plate, { x: -0.02, y: 0.88, z: 0.4, ry: -0.2, sx: 0.4, sy: 0.09, sz: 0.38 }),
-        part(G_BOX, BRASS, { x: -0.06, y: 0.92, z: -0.56, sx: 0.34, sy: 0.12, sz: 0.08 }),
-        part(G_BOX, BRASS, { x: -0.06, y: 0.92, z: 0.56, sx: 0.34, sy: 0.12, sz: 0.08 }),
-        part(G_BEV, dark, { x: -0.28, y: 0.88, sx: 0.22, sy: 0.24, sz: 0.26 }),
-        part(G_CONE6, accent, { x: -0.06, y: 1.18, rz: 0.3, sx: 0.12, sy: 0.22, sz: 0.12 }),
-      );
-      glow.push(
-        part(G_OCT, 0xffffff, { x: 0.3, y: 0.88, sx: 0.22, sy: 0.2, sz: 0.24 }),
-        part(G_OCT, 0xffffff, { x: -0.42, y: 0.88, sx: 0.14, sy: 0.14, sz: 0.14 }),
+        part(G_BOX, 0xffffff, { x: -0.78, y: 0.52, sx: 0.12, sy: 0.24, sz: 0.62 }),
+        part(G_OCT, 0xffffff, { x: 0.58, y: 0.72, sx: 0.24, sy: 0.22, sz: 0.28 }),
       );
       break;
     case "driller":
-      // Cute stout mole-burrower with armored treads, ribbed brass drill nose & glowing heat collar
+      // Stout cylindrical bronze-and-iron mole-engine with huge multi-ringed spiral brass auger cone nose
       body.push(
-        part(G_CYL8, dark, { x: -0.18, y: 0.56, rz: Math.PI / 2, sx: 0.88, sy: 0.82, sz: 0.88 }),
-        part(G_BEV, IRON, { x: -0.2, y: 0.22, z: -0.48, sx: 0.84, sy: 0.28, sz: 0.22 }),
-        part(G_BEV, IRON, { x: -0.2, y: 0.22, z: 0.48, sx: 0.84, sy: 0.28, sz: 0.22 }),
-        part(G_BEV, hull, { x: -0.2, y: 0.96, sx: 0.58, sy: 0.24, sz: 0.62 }),
-        part(G_CONE6, BRASS, { x: 0.6, y: 0.56, rz: -Math.PI / 2, sx: 0.8, sy: 0.96, sz: 0.8 }),
-        part(G_TOR, plate, { x: 0.18, y: 0.56, ry: Math.PI / 2, sx: 0.94, sy: 0.94, sz: 0.94 }),
-        part(G_CYL6, COPPER, { x: -0.62, y: 0.64, rz: Math.PI / 2, sx: 0.28, sy: 0.24, sz: 0.28 }),
+        part(G_POT, BRONZE, { x: -0.56, y: 0.56, rz: -Math.PI / 2, sx: 0.92, sy: 0.86, sz: 0.92 }),
+        part(G_BEV, IRON, { x: -0.18, y: 0.2, z: -0.5, sx: 0.88, sy: 0.28, sz: 0.22 }),
+        part(G_BEV, IRON, { x: -0.18, y: 0.2, z: 0.5, sx: 0.88, sy: 0.28, sz: 0.22 }),
+        part(G_DOME, IVORY, { x: -0.18, y: 0.88, sx: 0.58, sy: 0.28, sz: 0.62 }),
+        // Stepped spiral brass auger drill
+        part(G_DRILL, BRASS, { x: 0.18, y: 0.56, rz: -Math.PI / 2, sx: 0.88, sy: 1.06, sz: 0.88 }),
+        part(G_TOR_SM, COPPER, { x: 0.2, y: 0.56, ry: Math.PI / 2, sx: 0.94, sy: 0.94, sz: 0.94 }),
       );
       glow.push(
-        part(G_TOR, 0xffffff, { x: 0.46, y: 0.56, ry: Math.PI / 2, sx: 0.56, sy: 0.56, sz: 0.56 }),
-        part(G_BOX, 0xffffff, { x: -0.2, y: 1.08, sx: 0.3, sy: 0.08, sz: 0.36 }),
+        part(G_TOR_SM, 0xffffff, { x: 0.52, y: 0.56, ry: Math.PI / 2, sx: 0.62, sy: 0.62, sz: 0.62 }),
+        part(G_OCT, 0xffffff, { x: -0.18, y: 1.16, sx: 0.24, sy: 0.18, sz: 0.28 }),
+      );
+      break;
+    case "striker":
+      // Swept-wing porcelain-and-indigo crescent duelist with dramatic razor V-scythes
+      body.push(
+        part(G_BUG, IRON, { x: -0.06, y: 0.78, rz: -Math.PI / 2, sx: 0.48, sy: 1.14, sz: 0.52 }),
+        part(G_HOOD, IVORY, { x: 0.04, y: 0.92, rz: 0.65, sx: 0.42, sy: 0.48, sz: 0.38 }),
+        // Dramatic swept twin crescent blades
+        part(G_OCT, IVORY, { x: 0.14, y: 0.82, z: -0.62, ry: 0.58, sx: 1.16, sy: 0.09, sz: 0.32 }),
+        part(G_OCT, IVORY, { x: 0.14, y: 0.82, z: 0.62, ry: -0.58, sx: 1.16, sy: 0.09, sz: 0.32 }),
+        part(G_BOX, BRASS, { x: 0.24, y: 0.86, z: -0.54, ry: 0.58, sx: 0.74, sy: 0.05, sz: 0.08 }),
+        part(G_BOX, BRASS, { x: 0.24, y: 0.86, z: 0.54, ry: -0.58, sx: 0.74, sy: 0.05, sz: 0.08 }),
+      );
+      glow.push(
+        part(G_OCT, 0xffffff, { x: 0.54, y: 0.84, sx: 0.3, sy: 0.2, sz: 0.26 }),
+        part(G_BOX, 0xffffff, { x: -0.5, y: 0.82, sx: 0.16, sy: 0.1, sz: 0.26 }),
+      );
+      break;
+
+    // ------------------------------------------------------------------------
+    // FAMILY C — HOODED MARKSMEN & ARTILLERY (Tall cowls, brass optics, oversized barrels/tripods)
+    // ------------------------------------------------------------------------
+    case "gunner":
+      // Hooded burgundy-plum artificer with brass goggles, copper keg & wide twin flared blunderbusses
+      body.push(
+        part(G_ROBE, PLUM_ROBE, { y: 0.04, sx: 0.78, sy: 0.96, sz: 0.84 }),
+        part(G_HOOD, accent, { x: -0.06, y: 0.96, rz: 0.38, sx: 0.54, sy: 0.56, sz: 0.54 }),
+        part(G_POT, COPPER, { x: -0.34, y: 0.68, sx: 0.34, sy: 0.44, sz: 0.44 }),
+        // Oversized twin flared brass barrels so ranged threat pops from above
+        part(G_BELL, BRASS, { x: 0.28, y: 0.76, z: -0.38, rz: -Math.PI / 2, sx: 0.34, sy: 0.68, sz: 0.34 }),
+        part(G_BELL, BRASS, { x: 0.28, y: 0.76, z: 0.38, rz: -Math.PI / 2, sx: 0.34, sy: 0.68, sz: 0.34 }),
+      );
+      glow.push(
+        part(G_OCT, 0xffffff, { x: 0.22, y: 1.14, z: -0.1, sx: 0.12, sy: 0.12, sz: 0.12 }),
+        part(G_OCT, 0xffffff, { x: 0.22, y: 1.14, z: 0.1, sx: 0.12, sy: 0.12, sz: 0.12 }),
+        part(G_OCT, 0xffffff, { x: 0.98, y: 0.76, z: -0.38, sx: 0.16, sy: 0.16, sz: 0.16 }),
+        part(G_OCT, 0xffffff, { x: 0.98, y: 0.76, z: 0.38, sx: 0.16, sy: 0.16, sz: 0.16 }),
+      );
+      break;
+    case "sniper":
+      // Tall peaked-cowl mystic marksman on brass tripod stilts with extra-long telescope sun-lance
+      body.push(
+        ...[-1, 0, 1].map((i) => {
+          const a = i * 2.1;
+          return part(G_CYL6, BRASS, {
+            x: Math.cos(a) * 0.3,
+            y: 0.18,
+            z: Math.sin(a) * 0.3,
+            ry: -a,
+            rz: -0.4,
+            sx: 0.11,
+            sy: 0.42,
+            sz: 0.11,
+          });
+        }),
+        part(G_ROBE, NAVY_ROBE, { y: 0.3, sx: 0.56, sy: 1.06, sz: 0.56 }),
+        part(G_HOOD, PLUM_ROBE, { x: -0.08, y: 1.28, rz: 0.44, sx: 0.48, sy: 0.62, sz: 0.46 }),
+        // Extra-long slender brass telescope barrel
+        part(G_CYL6, IVORY, { x: 0.86, y: 1.12, rz: Math.PI / 2, sx: 0.12, sy: 1.54, sz: 0.12 }),
+        part(G_BELL, BRASS, { x: 1.38, y: 1.12, rz: -Math.PI / 2, sx: 0.22, sy: 0.28, sz: 0.22 }),
+        part(G_CYL6, COPPER, { x: 0.52, y: 1.28, rz: Math.PI / 2, sx: 0.11, sy: 0.48, sz: 0.11 }),
+      );
+      glow.push(
+        part(G_OCT, 0xffffff, { x: 0.26, y: 1.46, sx: 0.2, sy: 0.18, sz: 0.22 }),
+        part(G_BOX, 0xffffff, { x: 0.96, y: 1.18, sx: 0.9, sy: 0.05, sz: 0.05 }),
+        part(G_OCT, 0xffffff, { x: 0.78, y: 1.28, sx: 0.11, sy: 0.11, sz: 0.11 }),
+      );
+      break;
+    case "mortar":
+      // Squat brass-and-oak spider-howitzer with 4 splayed legs & oversized tilted flared bell-mortar
+      body.push(
+        ...Array.from({ length: 4 }, (_, i) => {
+          const a = (i * TAU) / 4 + Math.PI / 4;
+          return part(G_CONE6, IRON, {
+            x: Math.cos(a) * 0.62,
+            y: 0.22,
+            z: Math.sin(a) * 0.62,
+            ry: -a,
+            rz: -0.48,
+            sx: 0.22,
+            sy: 0.5,
+            sz: 0.22,
+          });
+        }),
+        part(G_POT, NAVY_ROBE, { y: 0.24, sx: 1.08, sy: 0.58, sz: 1.08 }),
+        // Big flared brass bell howitzer angled skyward
+        part(G_BELL, BRASS, { x: 0.08, y: 0.72, rz: -0.44, sx: 0.74, sy: 0.98, sz: 0.74 }),
+        part(G_TOR_SM, COPPER, { x: 0.36, y: 1.48, rz: -0.44, rx: Math.PI / 2, sx: 0.64, sy: 0.64, sz: 0.64 }),
+      );
+      glow.push(
+        part(G_SPH, 0xffffff, { x: 0.42, y: 1.56, sx: 0.36, sy: 0.34, sz: 0.36 }),
+        part(G_BOX, 0xffffff, { x: 0.48, y: 0.64, sx: 0.1, sy: 0.14, sz: 0.38 }),
+      );
+      break;
+    case "turret":
+      // Carved stone-and-brass clockwork watchtower bastion with crenelated collar & twin long cannons
+      body.push(
+        part(G_ROBE, NAVY_ROBE, { y: 0.0, sx: 1.26, sy: 0.64, sz: 1.26 }),
+        part(G_TOR_SM, BRASS, { y: 0.64, rx: Math.PI / 2, sx: 1.04, sy: 1.04, sz: 1.04 }),
+        part(G_DOME, IVORY, { y: 0.64, sx: 0.88, sy: 0.62, sz: 0.88 }),
+        part(G_CYL6, IRON, { x: 0.64, y: 0.88, z: -0.24, rz: Math.PI / 2, sx: 0.17, sy: 0.96, sz: 0.17 }),
+        part(G_CYL6, IRON, { x: 0.64, y: 0.88, z: 0.24, rz: Math.PI / 2, sx: 0.17, sy: 0.96, sz: 0.17 }),
+        part(G_BELL, BRASS, { x: 0.92, y: 0.88, z: -0.24, rz: -Math.PI / 2, sx: 0.28, sy: 0.24, sz: 0.28 }),
+        part(G_BELL, BRASS, { x: 0.92, y: 0.88, z: 0.24, rz: -Math.PI / 2, sx: 0.28, sy: 0.24, sz: 0.28 }),
+      );
+      glow.push(
+        part(G_BOX, 0xffffff, { x: 0.44, y: 0.98, sx: 0.12, sy: 0.14, sz: 0.52 }),
+        part(G_OCT, 0xffffff, { y: 1.42, sx: 0.24, sy: 0.28, sz: 0.24 }),
+      );
+      break;
+    case "sentinel":
+      // Tall floating gilded-ivory & plum prism-lantern obelisk with sweeping curved brass wings & Cyclops eye
+      body.push(
+        part(G_LANTERN, PLUM_ROBE, { y: 0.46, sx: 0.72, sy: 1.18, sz: 0.72 }),
+        part(G_CONE6, BRASS, { y: 1.86, sx: 0.36, sy: 0.44, sz: 0.36 }),
+        part(G_CONE6, BRASS, { y: 0.24, rx: Math.PI, sx: 0.34, sy: 0.36, sz: 0.34 }),
+        // Sweeping wing-fins framing the focusing eye
+        part(G_OCT, IVORY, { y: 1.04, z: -0.62, rx: 0.16, sx: 0.48, sy: 1.12, sz: 0.18 }),
+        part(G_OCT, IVORY, { y: 1.04, z: 0.62, rx: -0.16, sx: 0.48, sy: 1.12, sz: 0.18 }),
+        part(G_BOX, BRASS, { x: 0.16, y: 1.04, z: -0.62, sx: 0.12, sy: 0.86, sz: 0.18 }),
+        part(G_BOX, BRASS, { x: 0.16, y: 1.04, z: 0.62, sx: 0.12, sy: 0.86, sz: 0.18 }),
+      );
+      glow.push(
+        part(G_SPH, 0xffffff, { x: 0.34, y: 1.06, sx: 0.44, sy: 0.44, sz: 0.44 }),
+        part(G_OCT, 0xffffff, { y: 2.12, sx: 0.2, sy: 0.28, sz: 0.2 }),
+      );
+      break;
+
+    // ------------------------------------------------------------------------
+    // FAMILY D — VOLATILE COPPER KETTLE-KIN (Round burnished-copper & vermilion pot-bellied vessels, glowing core)
+    // ------------------------------------------------------------------------
+    case "bomber":
+      // Round pot-bellied copper & vermilion-enamel kettle-bomb with glowing furnace belly, wind-up key & stubby feet
+      body.push(
+        part(G_POT, COPPER, { y: 0.22, sx: 1.02, sy: 0.96, sz: 1.02 }),
+        part(G_TOR_SM, IRON, { y: 0.68, rx: Math.PI / 2, sx: 1.08, sy: 1.08, sz: 1.08 }),
+        part(G_CYL6, VERMILION, { y: 1.16, sx: 0.46, sy: 0.14, sz: 0.46 }),
+        // Stubby scurrying feet
+        part(G_DOME, IRON, { x: 0.08, y: 0.0, z: -0.36, sx: 0.32, sy: 0.24, sz: 0.26 }),
+        part(G_DOME, IRON, { x: 0.08, y: 0.0, z: 0.36, sx: 0.32, sy: 0.24, sz: 0.26 }),
+        // Wind-up brass key on back
+        part(G_TOR_SM, BRASS, { x: -0.58, y: 0.72, ry: Math.PI / 2, sx: 0.34, sy: 0.34, sz: 0.34 }),
+      );
+      glow.push(
+        part(G_SPH, 0xffffff, { x: 0.18, y: 0.68, sx: 0.68, sy: 0.64, sz: 0.68 }),
+        part(G_OCT, 0xffffff, { y: 1.36, sx: 0.34, sy: 0.4, sz: 0.34 }),
+      );
+      break;
+    case "minebot":
+      // Round copper-and-vermilion clockwork turtle-kettle with glowing ordnance dome & 4 scurrying crab legs
+      body.push(
+        part(G_DOME, VERMILION, { y: 0.18, sx: 1.06, sy: 0.56, sz: 1.06 }),
+        part(G_TOR_SM, COPPER, { y: 0.48, rx: Math.PI / 2, sx: 1.0, sy: 1.0, sz: 1.0 }),
+        ...Array.from({ length: 4 }, (_, i) => {
+          const a = (i * TAU) / 4 + Math.PI / 4;
+          return part(G_CONE6, IRON, {
+            x: Math.cos(a) * 0.58,
+            y: 0.16,
+            z: Math.sin(a) * 0.58,
+            ry: -a,
+            rz: -0.55,
+            sx: 0.16,
+            sy: 0.36,
+            sz: 0.16,
+          });
+        }),
+        part(G_BEV, BRASS, { x: 0.46, y: 0.42, sx: 0.2, sy: 0.18, sz: 0.36 }),
+      );
+      glow.push(
+        part(G_SPH, 0xffffff, { y: 0.78, sx: 0.46, sy: 0.34, sz: 0.46 }),
+        part(G_BOX, 0xffffff, { x: 0.56, y: 0.42, sx: 0.08, sy: 0.1, sz: 0.24 }),
+      );
+      break;
+    case "sapper":
+      // Nimble hooded vermilion-enamel tinker carrying twin bulging copper powder-kegs & glowing fuse caps
+      body.push(
+        part(G_DOME, IRON, { y: 0.0, z: -0.2, sx: 0.3, sy: 0.22, sz: 0.22 }),
+        part(G_DOME, IRON, { y: 0.0, z: 0.2, sx: 0.3, sy: 0.22, sz: 0.22 }),
+        part(G_ROBE, VERMILION, { y: 0.2, sx: 0.66, sy: 0.78, sz: 0.7 }),
+        part(G_HOOD, COPPER, { x: 0.02, y: 0.94, rz: 0.34, sx: 0.48, sy: 0.46, sz: 0.48 }),
+        // Twin pot-bellied copper powder kegs on back
+        part(G_POT, COPPER, { x: -0.34, y: 0.54, z: -0.22, sx: 0.32, sy: 0.54, sz: 0.32 }),
+        part(G_POT, COPPER, { x: -0.34, y: 0.54, z: 0.22, sx: 0.32, sy: 0.54, sz: 0.32 }),
+        part(G_BOX, BRASS, { x: -0.34, y: 1.1, sx: 0.22, sy: 0.08, sz: 0.56 }),
+      );
+      glow.push(
+        part(G_OCT, 0xffffff, { x: 0.3, y: 1.12, sx: 0.14, sy: 0.12, sz: 0.28 }),
+        part(G_OCT, 0xffffff, { x: -0.34, y: 1.26, z: -0.22, sx: 0.18, sy: 0.2, sz: 0.18 }),
+        part(G_OCT, 0xffffff, { x: -0.34, y: 1.26, z: 0.22, sx: 0.18, sy: 0.2, sz: 0.18 }),
+      );
+      break;
+
+    // ------------------------------------------------------------------------
+    // FAMILY E — ARCANE LANTERN-SPIRITS & RELAYS (Floating shrines, tattered cloaks, astrolabe rings, diamond/ringed)
+    // ------------------------------------------------------------------------
+    case "mender":
+      // Floating paper-and-brass apothecary lantern shrine with pagoda cap, halo & glowing cross
+      body.push(
+        part(G_LANTERN, PARCHMENT, { y: 0.46, sx: 0.66, sy: 0.86, sz: 0.66 }),
+        part(G_CONE6, BRASS, { y: 1.42, sx: 0.76, sy: 0.34, sz: 0.76 }),
+        part(G_CYL6, BRASS, { y: 0.44, sx: 0.4, sy: 0.1, sz: 0.4 }),
+        part(G_TOR, BRASS, { y: 0.9, rx: Math.PI / 2, sx: 1.14, sy: 1.14, sz: 1.14 }),
+        ...[-1, 1].map((s) => part(G_OCT, accent, { y: 0.9, z: s * 0.62, sx: 0.18, sy: 0.42, sz: 0.14 })),
+      );
+      glow.push(
+        part(G_BOX, 0xffffff, { y: 1.78, sx: 0.12, sy: 0.44, sz: 0.12 }),
+        part(G_BOX, 0xffffff, { y: 1.78, sx: 0.12, sy: 0.12, sz: 0.44 }),
+        part(G_LANTERN, 0xffffff, { y: 0.56, sx: 0.52, sy: 0.64, sz: 0.52 }),
+      );
+      break;
+    case "phantom":
+      // Graceful hooded lantern-wraith with flowing tapered cloak, tall wizard-cowl & hovering spirit ring
+      body.push(
+        part(G_ROBE, PLUM_ROBE, { y: 0.24, sx: 0.76, sy: 1.04, sz: 0.76 }),
+        part(G_HOOD, NAVY_ROBE, { x: -0.06, y: 1.18, rz: 0.36, sx: 0.58, sy: 0.72, sz: 0.58 }),
+        part(G_OCT, PARCHMENT, { x: -0.06, y: 1.08, z: -0.48, rz: 0.3, sx: 0.26, sy: 0.56, sz: 0.14 }),
+        part(G_OCT, PARCHMENT, { x: -0.06, y: 1.08, z: 0.48, rz: 0.3, sx: 0.26, sy: 0.56, sz: 0.14 }),
+      );
+      glow.push(
+        part(G_OCT, 0xffffff, { x: 0.24, y: 1.38, z: -0.11, sx: 0.13, sy: 0.14, sz: 0.13 }),
+        part(G_OCT, 0xffffff, { x: 0.24, y: 1.38, z: 0.11, sx: 0.13, sy: 0.14, sz: 0.13 }),
+        part(G_TOR_SM, 0xffffff, { y: 0.5, rx: Math.PI / 2, sx: 0.98, sy: 0.98, sz: 0.98 }),
+      );
+      break;
+    case "carrier":
+      // Ornate floating wooden-and-brass sky-galleon / lantern-barge with curved pontoons & glowing hangar
+      body.push(
+        part(G_DOME, LEATHER, { y: 0.76, rx: Math.PI, sx: 1.24, sy: 0.42, sz: 1.32 }),
+        part(G_LANTERN, PARCHMENT, { x: 0.04, y: 0.84, sx: 0.78, sy: 0.52, sz: 0.78 }),
+        part(G_CONE6, BRASS, { x: -0.06, y: 1.5, sx: 0.72, sy: 0.32, sz: 0.72 }),
+        // Curved brass-prow pontoons
+        part(G_BUG, NAVY_ROBE, { x: 0.12, y: 0.84, z: -0.82, rz: -Math.PI / 2, sx: 0.32, sy: 1.36, sz: 0.34 }),
+        part(G_BUG, NAVY_ROBE, { x: 0.12, y: 0.84, z: 0.82, rz: -Math.PI / 2, sx: 0.32, sy: 1.36, sz: 0.34 }),
+      );
+      glow.push(
+        part(G_BOX, 0xffffff, { x: 0.62, y: 0.88, sx: 0.12, sy: 0.2, sz: 0.88 }),
+        part(G_OCT, 0xffffff, { x: -0.06, y: 1.76, sx: 0.3, sy: 0.28, sz: 0.3 }),
+      );
+      break;
+    case "drone":
+      // Sleek brass-ringed clockwork dragonfly / spirit-wisp with delicate angled fin wings & glowing eye
+      body.push(
+        part(G_LANTERN, PARCHMENT, { x: -0.04, y: 0.86, rz: -Math.PI / 2, sx: 0.48, sy: 0.64, sz: 0.48 }),
+        part(G_OCT, BRASS, { x: 0.0, y: 0.9, z: -0.48, ry: 0.28, sx: 0.44, sy: 0.07, sz: 0.44 }),
+        part(G_OCT, BRASS, { x: 0.0, y: 0.9, z: 0.48, ry: -0.28, sx: 0.44, sy: 0.07, sz: 0.44 }),
+        part(G_TOR_SM, BRASS, { y: 0.88, rx: Math.PI / 2, sx: 0.72, sy: 0.72, sz: 0.72 }),
+      );
+      glow.push(
+        part(G_OCT, 0xffffff, { x: 0.34, y: 0.88, sx: 0.24, sy: 0.22, sz: 0.24 }),
+        part(G_OCT, 0xffffff, { x: -0.44, y: 0.88, sx: 0.16, sy: 0.16, sz: 0.16 }),
       );
       break;
     case "beacon":
-      // Ornate crystal relay shrine with stepped stone plinth, 4 corner buttresses & glowing halo
+      // Stepped carved sanctuary pagoda-obelisk with 4 corner spirit-pillars & levitating diamond crystal
       body.push(
-        part(G_CYL6, dark, { y: 0.28, sx: 0.98, sy: 0.48, sz: 0.98 }),
-        part(G_CYL6, BRASS, { y: 0.58, sx: 0.78, sy: 0.12, sz: 0.78 }),
-        part(G_CYL6, plate, { y: 1.08, sx: 0.44, sy: 1.02, sz: 0.44 }),
+        part(G_CYL6, NAVY_ROBE, { y: 0.24, sx: 1.06, sy: 0.44, sz: 1.06 }),
+        part(G_CONE6, BRASS, { y: 0.58, sx: 0.94, sy: 0.22, sz: 0.94 }),
+        part(G_LANTERN, PARCHMENT, { y: 0.64, sx: 0.5, sy: 0.86, sz: 0.5 }),
         ...Array.from({ length: 4 }, (_, i) => {
           const a = (i * TAU) / 4;
-          return part(G_BOX, hull, {
-            x: Math.cos(a) * 0.44,
-            y: 0.68,
-            z: Math.sin(a) * 0.44,
-            ry: -a,
-            rz: -0.2,
-            sx: 0.14,
+          return part(G_OCT, BRASS, {
+            x: Math.cos(a) * 0.48,
+            y: 0.72,
+            z: Math.sin(a) * 0.48,
+            sx: 0.16,
             sy: 0.62,
-            sz: 0.14,
+            sz: 0.16,
           });
         }),
       );
       glow.push(
         part(G_OCT, 0xffffff, { y: 1.84, sx: 0.46, sy: 0.66, sz: 0.46 }),
-        part(G_TOR, 0xffffff, { y: 1.24, rx: Math.PI / 2, sx: 0.88, sy: 0.88, sz: 0.88 }),
+        part(G_TOR_SM, 0xffffff, { y: 1.24, rx: Math.PI / 2, sx: 0.94, sy: 0.94, sz: 0.94 }),
       );
       break;
     case "weaver":
-      // Charming celestial astrolabe-caster with dual nested rings, floating shoulder runes & glowing core
+      // Celestial astrolabe-spirit with floating tapered lantern-core, intersecting brass star-rings & shoulder runes
       body.push(
-        part(G_OCT, dark, { y: 0.96, sx: 0.66, sy: 1.08, sz: 0.66 }),
-        part(G_CYL6, BRASS, { y: 1.48, sx: 0.38, sy: 0.12, sz: 0.38 }),
-        part(G_TOR, plate, { y: 0.96, rx: 0.45, rz: 0.35, sx: 1.1, sy: 1.1, sz: 1.1 }),
-        part(G_OCT, hull, { y: 0.96, z: -0.64, sx: 0.2, sy: 0.36, sz: 0.2 }),
-        part(G_OCT, hull, { y: 0.96, z: 0.64, sx: 0.2, sy: 0.36, sz: 0.2 }),
+        part(G_LANTERN, PLUM_ROBE, { y: 0.46, sx: 0.64, sy: 1.06, sz: 0.64 }),
+        part(G_CONE6, BRASS, { y: 1.62, sx: 0.42, sy: 0.28, sz: 0.42 }),
+        part(G_TOR, BRASS, { y: 0.98, rx: 0.48, rz: 0.36, sx: 1.18, sy: 1.18, sz: 1.18 }),
+        part(G_OCT, PARCHMENT, { y: 0.98, z: -0.68, sx: 0.22, sy: 0.38, sz: 0.22 }),
+        part(G_OCT, PARCHMENT, { y: 0.98, z: 0.68, sx: 0.22, sy: 0.38, sz: 0.22 }),
       );
       glow.push(
-        part(G_OCT, 0xffffff, { x: 0.24, y: 1.04, sx: 0.3, sy: 0.3, sz: 0.3 }),
-        part(G_TOR, 0xffffff, { y: 0.96, rx: -0.45, rz: -0.35, sx: 1.16, sy: 1.16, sz: 1.16 }),
-        part(G_OCT, 0xffffff, { y: 1.66, sx: 0.2, sy: 0.28, sz: 0.2 }),
+        part(G_OCT, 0xffffff, { x: 0.26, y: 1.04, sx: 0.32, sy: 0.32, sz: 0.32 }),
+        part(G_TOR_SM, 0xffffff, { y: 0.98, rx: -0.48, rz: -0.36, sx: 1.24, sy: 1.24, sz: 1.24 }),
+        part(G_OCT, 0xffffff, { y: 1.84, sx: 0.2, sy: 0.28, sz: 0.2 }),
       );
       break;
     default:
-      body.push(part(G_BEV, hull, { y: 0.5, sx: 0.8, sy: 0.8, sz: 0.8 }));
+      body.push(part(G_DOME, IVORY, { y: 0.1, sx: 0.8, sy: 0.8, sz: 0.8 }));
       glow.push(part(G_OCT, 0xffffff, { x: 0.42, y: 0.6, sx: 0.22, sy: 0.22, sz: 0.22 }));
   }
   return { body: mergeGeometries(body), glow: mergeGeometries(glow) };
@@ -886,7 +1020,7 @@ export function enemyGeometry(type) {
 }
 
 // ============================================================================
-// ALL 6 MONUMENTAL ARTICULATED BIOME BOSSES
+// ALL 6 MONUMENTAL HANDCRAFTED DIORAMA BIOME BOSSES (<= 3500 tris each)
 // ============================================================================
 
 export function buildBossModel(type, accentHex = 0xff6644) {
@@ -899,7 +1033,7 @@ export function buildBossModel(type, accentHex = 0xff6644) {
   });
   const glowMat = emissiveMaterial({
     color: accentHex,
-    emissiveIntensity: 1.18,
+    emissiveIntensity: 1.22,
     transparent: true,
     opacity: 1,
   });
@@ -908,108 +1042,145 @@ export function buildBossModel(type, accentHex = 0xff6644) {
   const spin = [];
 
   if (type === "warden") {
-    // BLACKOUT CITY — Ironclad Lantern-Crested Siege Warden Juggernaut
+    // BLACKOUT CITY — Lantern-Shrine Ironclad Siege Warden (cathedral porcelain & slate + pagoda shoulder lanterns)
     const hull = mergeGeometries([
-      // Heavy armored boots & pelvis
-      part(G_BEV, 0x16222c, { x: 0.08, y: 0.34, z: -0.82, sx: 1.2, sy: 0.68, sz: 0.86 }),
-      part(G_BEV, 0x16222c, { x: 0.08, y: 0.34, z: 0.82, sx: 1.2, sy: 0.68, sz: 0.86 }),
-      part(G_BEV, 0x1d2b38, { y: 0.96, sx: 1.9, sy: 1.0, sz: 2.25 }),
-      part(G_BEV, 0x334d5c, { x: 0.1, y: 1.92, sx: 2.1, sy: 1.32, sz: 2.68 }),
-      part(G_BEV, BRASS, { x: 0.96, y: 1.92, sx: 0.4, sy: 0.92, sz: 1.4 }),
-      // Towering armored pauldrons with burnished brass trim
-      part(G_BEV, 0x263d4a, { y: 2.42, z: -1.58, rx: 0.24, sx: 1.58, sy: 1.06, sz: 0.94 }),
-      part(G_BEV, 0x263d4a, { y: 2.42, z: 1.58, rx: -0.24, sx: 1.58, sy: 1.06, sz: 0.94 }),
-      part(G_BEV, BRASS, { x: 0.2, y: 2.92, z: -1.58, sx: 1.18, sy: 0.22, sz: 0.72 }),
-      part(G_BEV, BRASS, { x: 0.2, y: 2.92, z: 1.58, sx: 1.18, sy: 0.22, sz: 0.72 }),
-      // Twin collared arm siege cannons
-      part(G_CYL8, IRON, { x: 1.38, y: 1.65, z: -1.5, rz: Math.PI / 2, sx: 0.48, sy: 2.0, sz: 0.48 }),
-      part(G_CYL8, IRON, { x: 1.38, y: 1.65, z: 1.5, rz: Math.PI / 2, sx: 0.48, sy: 2.0, sz: 0.48 }),
-      part(G_CYL8, BRASS, { x: 2.08, y: 1.65, z: -1.5, rz: Math.PI / 2, sx: 0.56, sy: 0.26, sz: 0.56 }),
-      part(G_CYL8, BRASS, { x: 2.08, y: 1.65, z: 1.5, rz: Math.PI / 2, sx: 0.56, sy: 0.26, sz: 0.56 }),
-      // Crested sentinel head with brass brow
-      part(G_BEV, IVORY, { x: 0.24, y: 2.86, sx: 1.04, sy: 0.74, sz: 1.1 }),
-      part(G_BEV, 0x223644, { x: 0.16, y: 3.3, sx: 0.76, sy: 0.22, sz: 0.84 }),
-      part(G_CONE6, BRASS, { x: 0.22, y: 3.55, sx: 0.24, sy: 0.42, sz: 0.24 }),
+      part(G_DOME, 0x1a2632, { x: 0.1, y: 0.0, z: -0.84, sx: 1.26, sy: 0.72, sz: 0.92 }),
+      part(G_DOME, 0x1a2632, { x: 0.1, y: 0.0, z: 0.84, sx: 1.26, sy: 0.72, sz: 0.92 }),
+      part(G_ROBE, 0x223444, { y: 0.56, sx: 2.05, sy: 1.05, sz: 2.35 }),
+      part(G_POT, 0x355064, { x: 0.08, y: 1.32, sx: 2.24, sy: 1.44, sz: 2.74 }),
+      // Warm glazed porcelain breastplate + filigree brass ribs
+      part(G_DOME, IVORY, { x: 0.92, y: 1.56, rz: -0.2, sx: 0.64, sy: 0.96, sz: 1.48 }),
+      part(G_BEV, BRASS, { x: 1.18, y: 2.05, sx: 0.24, sy: 0.98, sz: 0.24 }),
+      // Pagoda-eaved shoulder lantern bastions
+      part(G_DOME, 0x243b4c, { y: 2.28, z: -1.62, rx: 0.22, sx: 1.52, sy: 0.84, sz: 1.02 }),
+      part(G_DOME, 0x243b4c, { y: 2.28, z: 1.62, rx: -0.22, sx: 1.52, sy: 0.84, sz: 1.02 }),
+      part(G_CONE6, BRASS, { y: 3.12, z: -1.62, sx: 1.12, sy: 0.44, sz: 1.12 }),
+      part(G_CONE6, BRASS, { y: 3.12, z: 1.62, sx: 1.12, sy: 0.44, sz: 1.12 }),
+      // Twin collared bell-mortar arm cannons
+      part(G_BELL, IRON, { x: 0.82, y: 1.66, z: -1.56, rz: -Math.PI / 2, sx: 0.66, sy: 1.66, sz: 0.66 }),
+      part(G_BELL, IRON, { x: 0.82, y: 1.66, z: 1.56, rz: -Math.PI / 2, sx: 0.66, sy: 1.66, sz: 0.66 }),
+      part(G_TOR_SM, BRASS, { x: 1.98, y: 1.66, z: -1.56, ry: Math.PI / 2, sx: 0.64, sy: 0.64, sz: 0.64 }),
+      part(G_TOR_SM, BRASS, { x: 1.98, y: 1.66, z: 1.56, ry: Math.PI / 2, sx: 0.64, sy: 0.64, sz: 0.64 }),
+      // Crested sentinel porcelain helm + brass pagoda finial
+      part(G_DOME, IVORY, { x: 0.24, y: 2.66, sx: 1.08, sy: 0.78, sz: 1.12 }),
+      part(G_CONE6, 0x1e3242, { x: 0.22, y: 3.48, sx: 0.86, sy: 0.42, sz: 0.86 }),
+      part(G_CONE6, BRASS, { x: 0.22, y: 3.84, sx: 0.22, sy: 0.46, sz: 0.22 }),
     ]);
     group.add(new MeshNode(hull, bodyMat));
     const glowGeo = mergeGeometries([
-      part(G_BOX, 0xffffff, { x: 0.8, y: 2.86, sx: 0.18, sy: 0.22, sz: 0.92 }),
-      part(G_OCT, 0xffffff, { x: 1.2, y: 1.9, sx: 0.44, sy: 0.62, sz: 0.68 }),
-      part(G_CYL6, 0xffffff, { x: 2.38, y: 1.65, z: -1.5, rz: Math.PI / 2, sx: 0.34, sy: 0.12, sz: 0.34 }),
-      part(G_CYL6, 0xffffff, { x: 2.38, y: 1.65, z: 1.5, rz: Math.PI / 2, sx: 0.34, sy: 0.12, sz: 0.34 }),
+      part(G_BOX, 0xffffff, { x: 0.82, y: 2.94, sx: 0.18, sy: 0.22, sz: 0.9 }),
+      part(G_OCT, 0xffffff, { x: 1.28, y: 1.96, sx: 0.52, sy: 0.72, sz: 0.76 }),
+      part(G_LANTERN, 0xffffff, { y: 2.74, z: -1.62, sx: 0.54, sy: 0.36, sz: 0.54 }),
+      part(G_LANTERN, 0xffffff, { y: 2.74, z: 1.62, sx: 0.54, sy: 0.36, sz: 0.54 }),
+      part(G_CYL6, 0xffffff, { x: 2.48, y: 1.66, z: -1.56, rz: Math.PI / 2, sx: 0.36, sy: 0.12, sz: 0.36 }),
+      part(G_CYL6, 0xffffff, { x: 2.48, y: 1.66, z: 1.56, rz: Math.PI / 2, sx: 0.36, sy: 0.12, sz: 0.36 }),
     ]);
     group.add(new MeshNode(glowGeo, glowMat));
-    // Spinning Warden brass-lantern radar halo behind shoulders
-    const halo = addMesh(group, torus(1.42, 0.08, 6, 20), glowMat, { x: -0.65, y: 2.95, ry: Math.PI / 2 });
-    spin.push({ m: halo, ax: "x", v: 1.4 });
+    // Counter-rotating brass astrolabe & glowing lantern halos behind shoulders
+    const halo = addMesh(group, torus(1.52, 0.08, 6, 20), glowMat, { x: -0.72, y: 3.05, ry: Math.PI / 2 });
+    const brassHalo = addMesh(
+      group,
+      torus(1.9, 0.07, 5, 20),
+      worldMaterial({ color: BRASS, surface: "metal", transparent: true, opacity: 1 }),
+      { x: -0.82, y: 3.05, ry: Math.PI / 2 },
+    );
+    mats.push(brassHalo.material);
+    fadeMats.push(brassHalo.material);
+    spin.push({ m: halo, ax: "x", v: 1.45 }, { m: brassHalo, ax: "x", v: -0.85 });
   } else if (type === "queen") {
-    // THE GLOWMARSH — Bioluminescent Mushroom Brood Matriarch
+    // THE GLOWMARSH — Velvet Toadstool Brood-Empress (layered sculpted fungal canopy + glowing spore sacs)
     const hull = mergeGeometries([
-      part(G_SPH, 0x1e3c30, { x: -0.45, y: 1.18, sx: 2.6, sy: 1.55, sz: 2.25 }),
-      part(G_BEV, 0x305e4a, { x: 0.96, y: 1.42, sx: 1.48, sy: 1.12, sz: 1.65 }),
-      // Mandibles & antennae
-      part(G_CONE6, 0x5ea27c, { x: 1.88, y: 1.2, z: -0.52, rz: -1.2, sx: 0.28, sy: 0.68, sz: 0.28 }),
-      part(G_CONE6, 0x5ea27c, { x: 1.88, y: 1.2, z: 0.52, rz: -1.2, sx: 0.28, sy: 0.68, sz: 0.28 }),
-      // Broad sculpted velvety fungal crown carapace + side companion caps
-      part(sculptedCap(1.9, 1.08, 313), 0x32946c, { x: -0.25, y: 1.78 }),
-      part(sculptedCap(0.68, 0.44, 325), 0x42a87c, { x: -1.05, y: 1.88, z: -0.92 }),
-      part(sculptedCap(0.68, 0.44, 331), 0x42a87c, { x: -1.05, y: 1.88, z: 0.92 }),
-      // Six splayed chitinous limbs
+      part(G_BUG, 0x1d3b2e, { x: -1.25, y: 1.18, rz: -Math.PI / 2, sx: 1.68, sy: 2.58, sz: 2.22 }),
+      part(G_DOME, 0x2d5e48, { x: 0.96, y: 0.94, sx: 1.54, sy: 1.06, sz: 1.64 }),
+      // Sweeping curved mandibles & coiled antennae
+      part(G_CONE6, 0x6ab488, { x: 1.94, y: 1.18, z: -0.54, rz: -1.22, sx: 0.28, sy: 0.78, sz: 0.28 }),
+      part(G_CONE6, 0x6ab488, { x: 1.94, y: 1.18, z: 0.54, rz: -1.22, sx: 0.28, sy: 0.78, sz: 0.28 }),
+      part(G_CONE6, BRASS, { x: 1.56, y: 1.96, z: -0.44, rz: -0.62, sx: 0.14, sy: 0.7, sz: 0.14 }),
+      part(G_CONE6, BRASS, { x: 1.56, y: 1.96, z: 0.44, rz: -0.62, sx: 0.14, sy: 0.7, sz: 0.14 }),
+      // Multi-tiered velvety sculpted toadstool crown + flanking companion caps
+      part(sculptedCap(2.02, 1.14, 313), 0x2e8f66, { x: -0.22, y: 1.76 }),
+      part(sculptedCap(0.76, 0.48, 325), 0x3ea67a, { x: -1.08, y: 1.88, z: -0.96 }),
+      part(sculptedCap(0.76, 0.48, 331), 0x3ea67a, { x: -1.08, y: 1.88, z: 0.96 }),
+      part(sculptedCap(0.62, 0.42, 337), 0x4eb88a, { x: 0.78, y: 1.84, z: 0 }),
+      // Six tapered chitin limbs
       ...[-1, 1].flatMap((s) =>
-        [-0.75, 0.05, 0.78].map((lx) =>
-          part(G_BEV, 0x182b23, { x: lx, y: 0.56, z: s * 1.44, rx: s * 0.55, sx: 0.34, sy: 1.26, sz: 0.34 }),
+        [-0.78, 0.06, 0.82].map((lx) =>
+          part(G_BUG, 0x182b23, { x: lx, y: 0.0, z: s * 1.48, rx: s * 0.56, sx: 0.36, sy: 1.38, sz: 0.36 }),
         ),
       ),
     ]);
     group.add(new MeshNode(hull, bodyMat));
     const glowGeo = mergeGeometries([
-      part(G_SPH, 0xffffff, { x: -0.95, y: 1.35, z: -0.82, sx: 0.62, sy: 0.52, sz: 0.62 }),
-      part(G_SPH, 0xffffff, { x: -0.95, y: 1.35, z: 0.82, sx: 0.62, sy: 0.52, sz: 0.62 }),
-      part(G_SPH, 0xffffff, { x: 1.72, y: 1.58, z: -0.42, sx: 0.34, sy: 0.28, sz: 0.34 }),
-      part(G_SPH, 0xffffff, { x: 1.72, y: 1.58, z: 0.42, sx: 0.34, sy: 0.28, sz: 0.34 }),
-      // Glowing mushroom cap spots
-      ...Array.from({ length: 5 }, (_, i) => {
-        const a = (i / 5) * TAU + 0.3;
+      part(G_SPH, 0xffffff, { x: -0.98, y: 1.36, z: -0.84, sx: 0.68, sy: 0.56, sz: 0.68 }),
+      part(G_SPH, 0xffffff, { x: -0.98, y: 1.36, z: 0.84, sx: 0.68, sy: 0.56, sz: 0.68 }),
+      part(G_SPH, 0xffffff, { x: 1.76, y: 1.54, z: -0.42, sx: 0.36, sy: 0.3, sz: 0.36 }),
+      part(G_SPH, 0xffffff, { x: 1.76, y: 1.54, z: 0.42, sx: 0.36, sy: 0.3, sz: 0.36 }),
+      ...Array.from({ length: 6 }, (_, i) => {
+        const a = (i / 6) * TAU + 0.3;
         return part(G_OCT, 0xffffff, {
-          x: -0.25 + Math.cos(a) * 0.96,
-          y: 2.52,
-          z: Math.sin(a) * 0.96,
-          sx: 0.28,
-          sy: 0.14,
-          sz: 0.28,
+          x: -0.22 + Math.cos(a) * 1.06,
+          y: 2.54,
+          z: Math.sin(a) * 1.06,
+          sx: 0.3,
+          sy: 0.15,
+          sz: 0.3,
         });
       }),
-      part(G_TOR, 0xffffff, { x: -0.25, y: 1.84, rx: Math.PI / 2, sx: 2.65, sy: 2.65, sz: 2.65 }),
+      part(G_TOR, 0xffffff, { x: -0.22, y: 1.82, rx: Math.PI / 2, sx: 2.75, sy: 2.75, sz: 2.75 }),
     ]);
     group.add(new MeshNode(glowGeo, glowMat));
     const crownMat = worldMaterial({
       color: 0x62e8a8,
       surface: "crystal",
       emissive: 0x1e7850,
-      emissiveIntensity: 0.65,
+      emissiveIntensity: 0.68,
       transparent: true,
       opacity: 1,
     });
     mats.push(crownMat);
     fadeMats.push(crownMat);
-    const crown = addMesh(group, octahedron(0.62), crownMat, { x: -0.25, y: 3.18, sx: 0.9, sy: 1.4, sz: 0.9 });
-    spin.push({ m: crown, ax: "y", v: 1.6 });
+    const crown = new Node();
+    crown.position.set(-0.22, 3.22, 0);
+    crown.add(
+      new MeshNode(
+        mergeGeometries([
+          part(G_OCT, 0xffffff, { sx: 1.04, sy: 1.54, sz: 1.04 }),
+          ...Array.from({ length: 4 }, (_, i) => {
+            const a = (i / 4) * TAU;
+            return part(G_OCT, 0xffffff, {
+              x: Math.cos(a) * 0.92,
+              y: -0.1,
+              z: Math.sin(a) * 0.92,
+              sx: 0.28,
+              sy: 0.42,
+              sz: 0.28,
+            });
+          }),
+        ]),
+        crownMat,
+      ),
+    );
+    group.add(crown);
+    spin.push({ m: crown, ax: "y", v: 1.65 });
   } else if (type === "prism") {
-    // THE AURORA SHELF — Crystalline Frost Prism Cathedral (rich sapphire facets contrasting crisply against snow)
+    // THE AURORA SHELF — Cathedral Frost-Prism Seraph (deep sapphire spires framed by delicate brass-and-ice filigree)
     const iceMat = worldMaterial({
       surface: "ice",
       vertexColors: true,
       transparent: true,
-      opacity: 0.9,
+      opacity: 0.92,
       biomeSkin: true,
-      userData: { opacity: 0.9 },
+      userData: { opacity: 0.92 },
     });
     mats.push(iceMat);
     fadeMats.push(iceMat);
     const coreCrystal = mergeGeometries([
-      part(sculptedCrystal(1.9, 3.6, 1.9, 411), 0x184b7a, { y: 0.35 }),
-      part(G_OCT, 0x307eb4, { y: 2.15, sx: 1.85, sy: 2.45, sz: 1.85 }),
-      part(G_OCT, 0x86cceb, { y: 3.65, sx: 0.72, sy: 1.05, sz: 0.72 }),
+      part(sculptedCrystal(2.05, 3.75, 2.05, 411), 0x164674, { y: 0.35 }),
+      part(G_OCT, 0x2c78ae, { y: 2.15, sx: 1.95, sy: 2.55, sz: 1.95 }),
+      part(G_OCT, 0x8ad0f0, { y: 3.75, sx: 0.76, sy: 1.12, sz: 0.76 }),
+      // Gilded brass cathedral collar anchoring the sapphire prism
+      part(G_TOR, BRASS, { y: 1.25, rx: Math.PI / 2, sx: 1.56, sy: 1.56, sz: 1.56 }),
+      part(G_TOR, BRASS, { y: 3.05, rx: Math.PI / 2, sx: 1.18, sy: 1.18, sz: 1.18 }),
     ]);
     group.add(new MeshNode(coreCrystal, iceMat));
     const ringA = new Node();
@@ -1017,10 +1188,10 @@ export function buildBossModel(type, accentHex = 0xff6644) {
     const ringAGeo = mergeGeometries(
       Array.from({ length: 6 }, (_, i) => {
         const a = (i / 6) * TAU;
-        return part(sculptedCrystal(0.56, 1.5, 0.56, 420 + i), i % 2 ? 0x226094 : 0x4298c8, {
-          x: Math.cos(a) * 1.92,
-          y: -0.5,
-          z: Math.sin(a) * 1.92,
+        return part(sculptedCrystal(0.58, 1.62, 0.58, 420 + i), i % 2 ? 0x205c90 : 0x4098cc, {
+          x: Math.cos(a) * 1.98,
+          y: -0.55,
+          z: Math.sin(a) * 1.98,
           ry: a,
           rz: 0.28,
         });
@@ -1028,22 +1199,34 @@ export function buildBossModel(type, accentHex = 0xff6644) {
     );
     ringA.add(new MeshNode(ringAGeo, bodyMat));
     group.add(ringA);
-    spin.push({ m: ringA, ax: "y", v: 1.1 });
+    spin.push({ m: ringA, ax: "y", v: 1.15 });
 
-    const ringB = addMesh(group, torus(1.95, 0.08, 6, 24), glowMat, { y: 2.0, rx: 0.52 });
-    spin.push({ m: ringB, ax: "z", v: -1.45 });
-    addMesh(group, octahedron(0.82), glowMat, { y: 2.05, sx: 1, sy: 1.5, sz: 1 });
+    const ringB = addMesh(group, torus(2.02, 0.08, 6, 22), glowMat, { y: 2.05, rx: 0.54 });
+    const ringC = addMesh(group, torus(2.42, 0.065, 5, 22), glowMat, { y: 2.05, rz: -0.62 });
+    spin.push({ m: ringB, ax: "z", v: -1.45 }, { m: ringC, ax: "x", v: 1.1 });
+    addMesh(group, octahedron(0.86), glowMat, { y: 2.08, sx: 1.0, sy: 1.55, sz: 1.0 });
   } else if (type === "core") {
-    // THE SHATTERED CORE — Final Boss: Abyssal Rift Astrolabe Sovereign
+    // THE SHATTERED CORE — Final Boss: Rift Astrolabe Sovereign (obsidian sanctuary reliquary + kintsugi brass rings)
     const plinth = mergeGeometries([
-      part(G_OCT, 0x221942, { y: 2.4, sx: 1.95, sy: 2.35, sz: 1.95 }),
+      part(G_OCT, 0x20163e, { y: 2.4, sx: 2.02, sy: 2.45, sz: 2.02 }),
       ...Array.from({ length: 4 }, (_, i) => {
         const a = (i / 4) * TAU;
-        return part(sculptedCrystal(0.75, 2.25, 0.75, 510 + i), 0x45397a, {
-          x: Math.cos(a) * 1.65,
-          y: 0.95,
-          z: Math.sin(a) * 1.65,
+        return part(sculptedCrystal(0.78, 2.35, 0.78, 510 + i), 0x423474, {
+          x: Math.cos(a) * 1.7,
+          y: 0.92,
+          z: Math.sin(a) * 1.7,
           ry: a,
+        });
+      }),
+      ...Array.from({ length: 4 }, (_, i) => {
+        const a = (i / 4) * TAU + Math.PI / 4;
+        return part(G_OCT, BRASS, {
+          x: Math.cos(a) * 1.34,
+          y: 2.4,
+          z: Math.sin(a) * 1.34,
+          sx: 0.36,
+          sy: 0.88,
+          sz: 0.36,
         });
       }),
     ]);
@@ -1052,87 +1235,113 @@ export function buildBossModel(type, accentHex = 0xff6644) {
       color: 0xa664f0,
       surface: "crystal",
       emissive: 0x581e98,
-      emissiveIntensity: 0.72,
+      emissiveIntensity: 0.76,
       transparent: true,
       opacity: 1,
     });
     mats.push(heartMat);
     fadeMats.push(heartMat);
-    const heart = addMesh(group, icosahedron(0.95, 1), heartMat, { y: 2.4 });
-    spin.push({ m: heart, ax: "y", v: 1.2 });
+    const heart = addMesh(group, icosahedron(0.98, 1), heartMat, { y: 2.4 });
+    spin.push({ m: heart, ax: "y", v: 1.25 });
 
-    const r1 = addMesh(group, torus(1.85, 0.11, 6, 28), glowMat, { y: 2.4, rx: 0.55 });
-    const r2 = addMesh(group, torus(2.38, 0.09, 6, 28), worldMaterial({ color: BRASS, surface: "metal" }), {
-      y: 2.4,
-      rz: 0.85,
-    });
-    const r3 = addMesh(group, torus(2.82, 0.07, 6, 30), glowMat, { y: 2.4, rx: -0.68 });
-    spin.push({ m: r1, ax: "y", v: 1.5 }, { m: r2, ax: "x", v: -1.1 }, { m: r3, ax: "z", v: 0.9 });
+    const r1 = addMesh(group, torus(1.88, 0.1, 6, 24), glowMat, { y: 2.4, rx: 0.55 });
+    const r2Mat = worldMaterial({ color: BRASS, surface: "metal", transparent: true, opacity: 1 });
+    mats.push(r2Mat);
+    fadeMats.push(r2Mat);
+    const r2 = new Node();
+    r2.position.set(0, 2.4, 0);
+    r2.rotation.z = 0.85;
+    r2.add(
+      new MeshNode(
+        mergeGeometries([
+          part(torus(2.4, 0.09, 5, 24), BRASS, {}),
+          ...Array.from({ length: 4 }, (_, i) => {
+            const a = (i / 4) * TAU;
+            return part(G_OCT, IVORY, { x: Math.cos(a) * 2.4, y: Math.sin(a) * 2.4, sx: 0.36, sy: 0.36, sz: 0.36 });
+          }),
+        ]),
+        r2Mat,
+      ),
+    );
+    group.add(r2);
+    const r3 = addMesh(group, torus(2.86, 0.075, 5, 24), glowMat, { y: 2.4, rx: -0.68 });
+    spin.push({ m: r1, ax: "y", v: 1.55 }, { m: r2, ax: "x", v: -1.1 }, { m: r3, ax: "z", v: 0.92 });
   } else if (type === "tyrant") {
-    // ASHFALL CALDERA — Volcanic Basalt Furnace Titan with grille ribs, anvil pauldrons & horned crown
+    // ASHFALL CALDERA — Dwarven Basalt Forge-Titan (iron hearth grate, chimney braziers, forged anvil gauntlets)
     const hull = mergeGeometries([
-      part(G_BEV, 0x221517, { x: 0.06, y: 0.34, z: -0.84, sx: 1.24, sy: 0.68, sz: 0.9 }),
-      part(G_BEV, 0x221517, { x: 0.06, y: 0.34, z: 0.84, sx: 1.24, sy: 0.68, sz: 0.9 }),
-      part(G_BEV, 0x2a1c1e, { y: 0.98, sx: 2.05, sy: 1.05, sz: 2.35 }),
-      part(G_BEV, 0x452626, { x: 0.12, y: 2.0, sx: 2.25, sy: 1.48, sz: 2.75 }),
-      // Dark furnace cage bars across the glowing chest hearth
-      part(G_BOX, 0x221517, { x: 1.32, y: 2.0, z: -0.28, sx: 0.18, sy: 1.02, sz: 0.14 }),
-      part(G_BOX, 0x221517, { x: 1.32, y: 2.0, z: 0.28, sx: 0.18, sy: 1.02, sz: 0.14 }),
-      part(G_BOX, 0x221517, { x: 1.32, y: 2.0, sx: 0.18, sy: 0.16, sz: 1.22 }),
-      // Towering obsidian-horn shoulders
-      part(sculptedCrystal(1.18, 2.2, 1.18, 601), 0x351e20, { x: -0.1, y: 2.1, z: -1.58, rx: -0.4 }),
-      part(sculptedCrystal(1.18, 2.2, 1.18, 602), 0x351e20, { x: -0.1, y: 2.1, z: 1.58, rx: 0.4 }),
-      // Heavy forged siege gauntlets
-      part(G_BEV, 0x5c322c, { x: 1.18, y: 1.38, z: -1.52, sx: 1.34, sy: 0.94, sz: 0.94 }),
-      part(G_BEV, 0x5c322c, { x: 1.18, y: 1.38, z: 1.52, sx: 1.34, sy: 0.94, sz: 0.94 }),
+      part(G_DOME, 0x221517, { x: 0.08, y: 0.0, z: -0.86, sx: 1.28, sy: 0.7, sz: 0.94 }),
+      part(G_DOME, 0x221517, { x: 0.08, y: 0.0, z: 0.86, sx: 1.28, sy: 0.7, sz: 0.94 }),
+      part(G_ROBE, 0x2c1c1e, { y: 0.58, sx: 2.1, sy: 1.05, sz: 2.38 }),
+      part(G_POT, 0x482826, { x: 0.1, y: 1.32, sx: 2.36, sy: 1.54, sz: 2.82 }),
+      // Ornate wrought-iron hearth grate across the glowing furnace chest
+      part(G_BOX, 0x1e1214, { x: 1.36, y: 2.02, z: -0.32, sx: 0.18, sy: 1.08, sz: 0.14 }),
+      part(G_BOX, 0x1e1214, { x: 1.36, y: 2.02, z: 0.32, sx: 0.18, sy: 1.08, sz: 0.14 }),
+      part(G_BOX, 0x1e1214, { x: 1.36, y: 2.02, sx: 0.18, sy: 0.16, sz: 1.26 }),
+      // Towering obsidian-horn anvil pauldrons + twin forge chimneys
+      part(sculptedCrystal(1.18, 2.25, 1.18, 601), 0x351e20, { x: -0.1, y: 2.1, z: -1.62, rx: -0.4 }),
+      part(sculptedCrystal(1.18, 2.25, 1.18, 602), 0x351e20, { x: -0.1, y: 2.1, z: 1.62, rx: 0.4 }),
+      part(G_BELL, COPPER, { x: -0.62, y: 2.74, z: -0.82, sx: 0.56, sy: 0.86, sz: 0.56 }),
+      part(G_BELL, COPPER, { x: -0.62, y: 2.74, z: 0.82, sx: 0.56, sy: 0.86, sz: 0.56 }),
+      // Heavy forged brass-banded siege gauntlets
+      part(G_BEV, 0x5c322c, { x: 1.2, y: 1.38, z: -1.56, sx: 1.38, sy: 0.96, sz: 0.96 }),
+      part(G_BEV, 0x5c322c, { x: 1.2, y: 1.38, z: 1.56, sx: 1.38, sy: 0.96, sz: 0.96 }),
+      part(G_TOR_SM, BRASS, { x: 1.16, y: 1.38, z: -1.56, ry: Math.PI / 2, sx: 1.06, sy: 1.06, sz: 1.06 }),
+      part(G_TOR_SM, BRASS, { x: 1.16, y: 1.38, z: 1.56, ry: Math.PI / 2, sx: 1.06, sy: 1.06, sz: 1.06 }),
       // Horned forge helm
-      part(G_BEV, 0x2d1a1c, { x: 0.35, y: 2.98, sx: 1.14, sy: 0.84, sz: 1.14 }),
-      part(G_CONE6, BRASS, { x: 0.56, y: 3.42, z: -0.56, rx: -0.42, rz: -0.35, sx: 0.28, sy: 0.68, sz: 0.28 }),
-      part(G_CONE6, BRASS, { x: 0.56, y: 3.42, z: 0.56, rx: 0.42, rz: -0.35, sx: 0.28, sy: 0.68, sz: 0.28 }),
+      part(G_DOME, 0x2d1a1c, { x: 0.34, y: 2.66, sx: 1.18, sy: 0.88, sz: 1.18 }),
+      part(G_CONE6, BRASS, { x: 0.58, y: 3.46, z: -0.58, rx: -0.44, rz: -0.35, sx: 0.3, sy: 0.76, sz: 0.3 }),
+      part(G_CONE6, BRASS, { x: 0.58, y: 3.46, z: 0.58, rx: 0.44, rz: -0.35, sx: 0.3, sy: 0.76, sz: 0.3 }),
     ]);
     group.add(new MeshNode(hull, bodyMat));
     const forgeGlow = mergeGeometries([
-      part(G_SPH, 0xffffff, { x: 1.1, y: 2.0, sx: 0.88, sy: 0.92, sz: 1.06 }),
-      part(G_BOX, 0xffffff, { x: 0.95, y: 3.0, sx: 0.16, sy: 0.24, sz: 0.84 }),
-      part(G_OCT, 0xffffff, { x: 1.78, y: 1.38, z: -1.52, sx: 0.46, sy: 0.46, sz: 0.46 }),
-      part(G_OCT, 0xffffff, { x: 1.78, y: 1.38, z: 1.52, sx: 0.46, sy: 0.46, sz: 0.46 }),
+      part(G_SPH, 0xffffff, { x: 1.12, y: 2.02, sx: 0.94, sy: 0.98, sz: 1.1 }),
+      part(G_BOX, 0xffffff, { x: 0.96, y: 3.04, sx: 0.16, sy: 0.24, sz: 0.86 }),
+      part(G_OCT, 0xffffff, { x: 1.84, y: 1.38, z: -1.56, sx: 0.48, sy: 0.48, sz: 0.48 }),
+      part(G_OCT, 0xffffff, { x: 1.84, y: 1.38, z: 1.56, sx: 0.48, sy: 0.48, sz: 0.48 }),
+      part(G_OCT, 0xffffff, { x: -0.62, y: 3.66, z: -0.82, sx: 0.34, sy: 0.36, sz: 0.34 }),
+      part(G_OCT, 0xffffff, { x: -0.62, y: 3.66, z: 0.82, sx: 0.34, sy: 0.36, sz: 0.34 }),
     ]);
     group.add(new MeshNode(forgeGlow, glowMat));
-    const crown = addMesh(group, torus(1.22, 0.09, 6, 20), glowMat, { y: 3.6, rx: Math.PI / 2 });
-    spin.push({ m: crown, ax: "z", v: 1.3 });
+    const crown = addMesh(group, torus(1.26, 0.09, 6, 20), glowMat, { y: 3.66, rx: Math.PI / 2 });
+    spin.push({ m: crown, ax: "z", v: 1.35 });
   } else {
-    // THE GLASS FLATS — Articulated Vitrified Glasswyrm Leviathan (burnished terracotta-bronze scales + jewel turquoise crests)
+    // THE GLASS FLATS — Vitrified Sun-Glass Leviathan (terracotta-bronze dragon plates, lotus glass crests & 6-segment tail)
     const head = mergeGeometries([
-      part(G_BEV, 0x623b24, { x: 0.55, y: 1.15, sx: 1.88, sy: 1.12, sz: 1.52 }),
-      part(G_BEV, BRASS, { x: 0.72, y: 1.56, sx: 1.12, sy: 0.24, sz: 1.08 }),
-      part(sculptedCrystal(0.95, 1.9, 0.72, 701), 0x20a094, { x: -0.1, y: 1.35, z: -0.82, rx: -0.45, rz: 0.32 }),
-      part(sculptedCrystal(0.95, 1.9, 0.72, 702), 0x20a094, { x: -0.1, y: 1.35, z: 0.82, rx: 0.45, rz: 0.32 }),
-      part(G_CONE6, 0x8a5b32, { x: 1.68, y: 1.06, rz: -Math.PI / 2, sx: 0.86, sy: 1.14, sz: 0.96 }),
+      part(G_DOME, 0x623b24, { x: 0.54, y: 0.62, sx: 1.92, sy: 1.14, sz: 1.56 }),
+      part(G_BEV, BRASS, { x: 0.72, y: 1.58, sx: 1.16, sy: 0.24, sz: 1.12 }),
+      // Sweeping turquoise desert-glass lotus crest fins
+      part(sculptedCrystal(0.96, 2.02, 0.74, 701), 0x20a498, { x: -0.1, y: 1.35, z: -0.86, rx: -0.48, rz: 0.34 }),
+      part(sculptedCrystal(0.96, 2.02, 0.74, 702), 0x20a498, { x: -0.1, y: 1.35, z: 0.86, rx: 0.48, rz: 0.34 }),
+      part(sculptedCrystal(0.68, 1.46, 0.56, 703), 0x36c0b2, { x: 0.32, y: 1.56, z: 0, rz: 0.42 }),
+      part(G_CONE6, 0x8e5d32, { x: 1.72, y: 1.06, rz: -Math.PI / 2, sx: 0.88, sy: 1.2, sz: 0.98 }),
       // Fierce bronze mandibles
-      part(G_CONE6, BRASS, { x: 1.54, y: 0.88, z: -0.54, rz: -1.35, sx: 0.24, sy: 0.62, sz: 0.24 }),
-      part(G_CONE6, BRASS, { x: 1.54, y: 0.88, z: 0.54, rz: -1.35, sx: 0.24, sy: 0.62, sz: 0.24 }),
+      part(G_CONE6, BRASS, { x: 1.58, y: 0.86, z: -0.56, rz: -1.35, sx: 0.26, sy: 0.68, sz: 0.26 }),
+      part(G_CONE6, BRASS, { x: 1.58, y: 0.86, z: 0.56, rz: -1.35, sx: 0.26, sy: 0.68, sz: 0.26 }),
     ]);
     group.add(new MeshNode(head, bodyMat));
     const eyes = mergeGeometries([
-      part(G_OCT, 0xffffff, { x: 1.28, y: 1.36, z: -0.58, sx: 0.38, sy: 0.24, sz: 0.26 }),
-      part(G_OCT, 0xffffff, { x: 1.28, y: 1.36, z: 0.58, sx: 0.38, sy: 0.24, sz: 0.26 }),
-      part(G_OCT, 0xffffff, { x: 0.35, y: 2.04, sx: 0.48, sy: 0.66, sz: 0.48 }),
+      part(G_OCT, 0xffffff, { x: 1.32, y: 1.38, z: -0.6, sx: 0.4, sy: 0.26, sz: 0.28 }),
+      part(G_OCT, 0xffffff, { x: 1.32, y: 1.38, z: 0.6, sx: 0.4, sy: 0.26, sz: 0.28 }),
+      part(G_OCT, 0xffffff, { x: 0.38, y: 2.16, sx: 0.48, sy: 0.68, sz: 0.48 }),
     ]);
     group.add(new MeshNode(eyes, glowMat));
 
-    // Articulated undulating armored tail segments
+    // Six articulated undulating armored tail segments ending in a glass rattle-spade
     const tail = [];
-    for (let i = 1; i <= 5; i++) {
-      const sc = 1 - i * 0.13;
+    for (let i = 1; i <= 6; i++) {
+      const sc = 1 - i * 0.115;
       const seg = new Node();
-      seg.position.set(-i * 0.95, 0.95 - i * 0.06, 0);
-      const segGeo = mergeGeometries([
-        part(G_BEV, i % 2 ? 0x704328 : 0x482c1d, { sx: 0.98 * sc, sy: 0.94 * sc, sz: 1.32 * sc }),
-        part(sculptedCrystal(0.46 * sc, 1.15 * sc, 0.46 * sc, 710 + i), 0x26aea2, { y: 0.38 * sc }),
-      ]);
-      seg.add(new MeshNode(segGeo, bodyMat));
+      seg.position.set(-i * 0.92, 0.92 - i * 0.055, 0);
+      const segParts = [
+        part(G_DOME, i % 2 ? 0x74462a : 0x4c2e1e, { y: -0.4 * sc, sx: 1.06 * sc, sy: 0.96 * sc, sz: 1.34 * sc }),
+        part(sculptedCrystal(0.46 * sc, 1.18 * sc, 0.46 * sc, 710 + i), 0x26b2a6, { y: 0.38 * sc }),
+      ];
+      if (i === 6) {
+        segParts.push(part(G_OCT, BRASS, { x: -0.55, y: 0.18, sx: 0.72, sy: 0.22, sz: 0.56 }));
+      }
+      seg.add(new MeshNode(mergeGeometries(segParts), bodyMat));
       seg.add(
-        new MeshNode(part(G_OCT, 0xffffff, { y: 0.74 * sc, sx: 0.26 * sc, sy: 0.34 * sc, sz: 0.26 * sc }), glowMat),
+        new MeshNode(part(G_OCT, 0xffffff, { y: 0.76 * sc, sx: 0.26 * sc, sy: 0.34 * sc, sz: 0.26 * sc }), glowMat),
       );
       group.add(seg);
       tail.push({ m: seg, z: 0, i });
@@ -1150,32 +1359,32 @@ export function buildBossModel(type, accentHex = 0xff6644) {
 
 export function wingDroneGeometry() {
   return mergeGeometries([
-    part(G_OCT, IVORY, { y: 0.85, sx: 0.45, sy: 0.26, sz: 0.38 }),
-    part(G_BEV, BRASS, { x: -0.08, y: 0.85, z: -0.26, ry: 0.35, sx: 0.38, sy: 0.08, sz: 0.24 }),
-    part(G_BEV, BRASS, { x: -0.08, y: 0.85, z: 0.26, ry: -0.35, sx: 0.38, sy: 0.08, sz: 0.24 }),
+    part(G_LANTERN, IVORY, { y: 0.64, sx: 0.44, sy: 0.46, sz: 0.44 }),
+    part(G_OCT, BRASS, { x: -0.06, y: 0.86, z: -0.3, ry: 0.35, sx: 0.42, sy: 0.08, sz: 0.26 }),
+    part(G_OCT, BRASS, { x: -0.06, y: 0.86, z: 0.3, ry: -0.35, sx: 0.42, sy: 0.08, sz: 0.26 }),
   ]);
 }
 
 export function orbitBladeGeometry() {
   return mergeGeometries([
-    part(G_OCT, IVORY, { y: 0.62, sx: 0.72, sy: 0.12, sz: 0.34 }),
+    part(G_OCT, IVORY, { y: 0.62, sx: 0.76, sy: 0.12, sz: 0.34 }),
     part(G_BEV, BRASS, { x: -0.18, y: 0.62, sx: 0.32, sy: 0.14, sz: 0.18 }),
   ]);
 }
 
 export function rocketProjectileGeometry() {
   return mergeGeometries([
-    part(G_CYL8, IVORY, { rz: Math.PI / 2, sx: 0.22, sy: 0.68, sz: 0.22 }),
-    part(G_CONE6, FINISH.vermilion, { x: 0.42, rz: -Math.PI / 2, sx: 0.22, sy: 0.26, sz: 0.22 }),
-    part(G_BEV, SLATE, { x: -0.28, sx: 0.2, sy: 0.06, sz: 0.42 }),
-    part(G_BEV, SLATE, { x: -0.28, sx: 0.2, sy: 0.42, sz: 0.06 }),
+    part(G_POT, BRASS, { x: -0.3, rz: -Math.PI / 2, sx: 0.26, sy: 0.66, sz: 0.26 }),
+    part(G_CONE6, FINISH.vermilion, { x: 0.44, rz: -Math.PI / 2, sx: 0.24, sy: 0.26, sz: 0.24 }),
+    part(G_BEV, IRON, { x: -0.26, sx: 0.2, sy: 0.06, sz: 0.44 }),
+    part(G_BEV, IRON, { x: -0.26, sx: 0.2, sy: 0.44, sz: 0.06 }),
   ]);
 }
 
 export function discGeometry() {
   return mergeGeometries([
-    part(torus(0.75, 0.14, 5, 16), IVORY, { rx: Math.PI / 2 }),
-    part(cylinder(0.45, 0.45, 0.12, 8), BRASS, {}),
+    part(torus(0.75, 0.13, 5, 16), IVORY, { rx: Math.PI / 2 }),
+    part(cylinder(0.42, 0.42, 0.12, 8), BRASS, {}),
   ]);
 }
 

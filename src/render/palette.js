@@ -36,11 +36,11 @@ export const GLAZES = {
     shadowTint: 0x1e3362,
     rimColor: 0x8ae2f8,
     sun: 0xf4ece0,
-    hemi: 0.84,
-    sunI: 1.38,
-    fill: [0x8278dc, 0.5],
-    fog: [1.12, 2.68],
-    bloom: 0.22,
+    hemi: 0.82,
+    sunI: 1.34,
+    fill: [0x8278dc, 0.48],
+    fog: [1.14, 2.72],
+    bloom: 0.18,
   },
   marsh: {
     // Enchanted twilight bog: velvety emerald moss turf, deep teal pools & warm honey-mint fungal lanterns
@@ -116,11 +116,11 @@ export const GLAZES = {
     shadowTint: 0x3e2a42,
     rimColor: 0xf0d68e,
     sun: 0xf8e8c4,
-    hemi: 0.82,
-    sunI: 1.4,
-    fill: [0x4eb8ae, 0.52],
+    hemi: 0.8,
+    sunI: 1.36,
+    fill: [0x4eb8ae, 0.5],
     fog: [1.2, 2.95],
-    bloom: 0.22,
+    bloom: 0.18,
   },
 };
 

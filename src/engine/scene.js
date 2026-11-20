@@ -63,6 +63,7 @@ export class Material {
     this.biomeSkin = !!opts.biomeSkin;
     this.reedWind = !!opts.reedWind;
     this.rimStrength = opts.rimStrength ?? null;
+    this.inkStrength = opts.inkStrength ?? null;
     this.spriteTile = opts.spriteTile ?? -1; // -1 none, 0 glow, 1 spark, 2 smoke, 3 shadow
     this.map = opts.map || null;
     this.uniforms = opts.uniforms || {};
@@ -379,8 +380,8 @@ export class Scene extends Node {
     this.biomeIndex = 0;
     this.darkness = 0;
     this.time = 0;
-    this.bloomStrength = 0.28;
-    this.bloomThreshold = 1.22;
+    this.bloomStrength = 0.26;
+    this.bloomThreshold = 1.28;
     this.pointLights = Array.from({ length: 8 }, () => ({
       x: 0,
       y: 1.5,
@@ -480,6 +481,7 @@ export function mergeStaticNodes(root, keep = new Set()) {
       biomeSkin: bucket.sample.biomeSkin,
       vertexColors: true,
       rimStrength: bucket.sample.rimStrength,
+      inkStrength: bucket.sample.inkStrength,
       fog: bucket.sample.fog,
     });
     const mesh = new MeshNode(mergedGeo, mergedMat);

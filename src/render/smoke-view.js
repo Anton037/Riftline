@@ -18,7 +18,7 @@ export class SmokeView {
       fog: true,
     });
     this.pool = new Pool(plane(1, 1, 1, 1), mat, MAX, { flash: true });
-    this.pool.mesh.renderOrder = 4;
+    this.pool.mesh.renderOrder = 3;
     renderer.scene.add(this.pool.mesh);
     this.list = [];
     this.puffs = this.list;
@@ -26,23 +26,23 @@ export class SmokeView {
   clear() {
     this.list.length = 0;
   }
-  emit(x, y, z, size = 0.4, hex = 0x8d9596, opacity = 0.55) {
+  emit(x, y, z, size = 0.4, hex = 0x8d9596, opacity = 0.4) {
     if (this.list.length >= MAX) this.list.shift();
     _col.setHex(hex);
     this.list.push({
       x,
       y,
       z,
-      vx: (Math.random() - 0.5) * 0.6,
+      vx: (Math.random() - 0.5) * 0.55,
       vy: 0.55 + Math.random() * 0.45,
-      vz: (Math.random() - 0.5) * 0.6,
+      vz: (Math.random() - 0.5) * 0.55,
       s0: size,
-      life: 0.65 + Math.random() * 0.4,
-      max: 0.95,
+      life: 0.5 + Math.random() * 0.3,
+      max: 0.8,
       r: _col.r,
       g: _col.g,
       b: _col.b,
-      a: opacity,
+      a: Math.min(opacity, 0.42),
       rot: Math.random() * 6.283,
       spin: (Math.random() - 0.5) * 1.4,
     });
