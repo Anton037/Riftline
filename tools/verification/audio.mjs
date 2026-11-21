@@ -72,7 +72,7 @@ assert.deepEqual(
   names,
   "Every catalog sound must be rendered exactly once",
 );
-for (const biome of ["city", "shelf", "marsh", "core", "caldera", "flats"]) {
+for (const biome of ["courtyard", "shelf", "marsh", "core", "caldera", "flats"]) {
   const part = await withAudioPage(
     url,
     async (biome) => {
@@ -142,7 +142,7 @@ for (const biome of ["city", "shelf", "marsh", "core", "caldera", "flats"]) {
           fail.push(`${biome}/${kind}: invalid, silent, clipping or missing music`);
       }
       // Real regression: old music and its delay must stop when a track is changed.
-      if (["city", "core", "shelf"].includes(biome)) {
+      if (["courtyard", "core", "shelf"].includes(biome)) {
         const music = biome === "shelf" ? "boss" : "fight";
         const spec = { music, biome, intensity: 0.9, heat: 0.5, wav: true, seed: 5, musicEnd: 6, noBed: true };
         const kept = (await E.renderOffline(spec, 10)).samples;

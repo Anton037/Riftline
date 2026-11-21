@@ -71,7 +71,7 @@ const PLACE = Object.fromEntries(
 );
 
 const SCAPE = {
-  city: {
+  courtyard: {
     bed: [
       ["rainDrop", 4.5, 8.5, 0.32],
       ["galleryChime", 10, 19, 0.27, 0.34],
@@ -147,12 +147,28 @@ const PLACE_IDS = Object.keys(PLACE);
 
 const PROP_HEAR = 7;
 const COVER_VOICE = {
-  city: "hum",
+  courtyard: "hum",
   shelf: "iceTink",
   marsh: "drip",
   core: "gravityHum",
   caldera: "ventPulse",
   flats: "glassPing",
+};
+const CORNER_VOICE = {
+  courtyard: ["galleryChime", 5, 10],
+  shelf: ["emberPop", 4, 8],
+  marsh: ["frogChorus", 6, 11],
+  core: ["shimmer", 5, 10],
+  caldera: ["fumarole", 4.5, 9],
+  flats: ["crystals", 5, 10],
+};
+const RELIC_VOICE = {
+  lantern: "lampBuzz",
+  rime: "iceTink",
+  puffball: "frogs",
+  prism: "shimmer",
+  crucible: "emberPop",
+  sunglass: "glassPing",
 };
 function nearestProp(arena, player) {
   let best = null;
@@ -166,7 +182,20 @@ function nearestProp(arena, player) {
   };
   const biome = arena.biome.id;
   for (const ob of arena.obs) take(ob.x, ob.y, COVER_VOICE[biome], 5, 10);
-  if (biome === "city") {
+  if (arena.props) {
+    for (const p of arena.props) {
+      if (p.cd <= 0 && !p.trig && RELIC_VOICE[p.kind]) take(p.x, p.y, RELIC_VOICE[p.kind], 4.5, 9);
+    }
+  }
+  const cv = CORNER_VOICE[biome];
+  if (cv) {
+    for (const sx of [-1, 1]) {
+      for (const sy of [-1, 1]) {
+        take(sx * (arena.W + 1.4), sy * (arena.H + 1.4), cv[0], cv[1], cv[2]);
+      }
+    }
+  }
+  if (biome === "courtyard") {
     // The tall lamps in biome-props occur on every third section of the exterior sill.
     for (const alongX of [true, false]) {
       const length = alongX ? arena.W : arena.H;
@@ -210,15 +239,19 @@ function placeTick(e, world, dt) {
       return out;
     };
   // vents announce their warning once when the charge or heat begins to build
-  const city = arena.biome.id === "city";
+  const isCourtyard = arena.biome.id === "courtyard";
   for (const vent of arena.vents) {
     const state = fight ? arena.ventState(vent, world.waveT) : "idle",
       last = st.vents.get(vent);
     st.vents.set(vent, state);
     const a = at(vent.x, vent.y);
-    if (state === "warn" && last !== "warn") play(city ? "inlayCharge" : "lavaWarn", a);
-    else if (state === "idle" && (city ? a.d < 6 : true) && due(vent, city ? 4.2 : 3.2, city ? 8.0 : 6.5))
-      play(city ? "hum" : "lavaBlub", { ...a, g: a.g * (city ? 0.4 : 0.55) });
+    if (state === "warn" && last !== "warn") play(isCourtyard ? "inlayCharge" : "lavaWarn", a);
+    else if (
+      state === "idle" &&
+      (isCourtyard ? a.d < 6 : true) &&
+      due(vent, isCourtyard ? 4.2 : 3.2, isCourtyard ? 8.0 : 6.5)
+    )
+      play(isCourtyard ? "hum" : "lavaBlub", { ...a, g: a.g * (isCourtyard ? 0.4 : 0.55) });
   }
   // ice: cracks and creaks under the moving drone, a sheet tinkles now and then
   if (arena.ice.length) {
@@ -247,8 +280,8 @@ function placeTick(e, world, dt) {
     const portal = arena.portals[Math.floor(Math.random() * arena.portals.length)];
     play("portalWhisper", at(portal.ax, portal.ay, 0.5));
   }
-  // 3.17.0: the props near the drone: the street lamps along the edges of Blackout City, the machine blocks of the Ember
-  // Works, the obelisks of the Shattered Core (all where the renderer draws them), the nearest one within PROP_HEAR
+  // nearby props: the lanterns along the edges of Lantern Courtyard, the anvil blocks of the Ashfall
+  // Caldera, the obelisks of the Shattered Core (all where the renderer draws them), the nearest one within PROP_HEAR
   const prop = nearestProp(arena, player);
   if (prop && due("prop:" + prop.id, prop.lo, prop.hi)) {
     const d = Math.hypot(prop.x - player.x, prop.y - player.y);

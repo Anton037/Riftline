@@ -110,7 +110,7 @@ function mine(baseCol, color, trimCol, sides, profile) {
 
 // Biome-native floor plates, beam emitters & proximity mines (every biome uses its own stone/ice/moss/obsidian/basalt/sandstone)
 const MODELS = {
-  // City: rain-darkened slate & warm antique brass
+  // Courtyard: rain-darkened slate & warm antique brass
   plate: () => tile(0x1f2e3a, 0x335464, 0xd89c52, 0x6cdcc8, 8),
   // Shelf: deep glacial sapphire stone, slate-blue plate & crisp ice crystal bezel
   icespike: () => tile(0x26486a, 0x4b82aa, 0x8cccee, 0xb6e4fa, 6, obelisk(0x6eb8e4, 5)),

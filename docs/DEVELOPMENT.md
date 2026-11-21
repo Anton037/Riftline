@@ -7,27 +7,33 @@ The game uses ES modules, a custom zero-dependency WebGL2 (`#version 300 es`) en
 `build.js` bundles the application and copies the public assets into `dist/`. `npm run dev` watches source, public
 assets and package metadata; rebuilds are serialized to avoid overlapping writes.
 
-`src/engine/` provides allocation-free math (`math.js`), outward-wound procedural and sculpted mesh builders
-(`geometry.js`), GPU-instanced pools and material-bucketed static mesh batching (`scene.js`), linear-HDR GLSL 300 es
-storybook diorama / cel-shaded shaders (`shaders.js`), and the WebGL2 renderer (`webgl2.js`) with a 2048×2048
-hardware-PCF directional shadow map, 4× MSAA HDR offscreen rendering, 8 dynamic combat point lights, dual-Kawase
-selective bloom, ACES filmic tone mapping and context-loss recovery.
+`src/engine/` provides allocation-free math & Gribb-Hartmann frustum culling (`math.js`), outward-wound procedural and
+sculpted mesh builders with per-vertex `aPartMeta` sub-part animation channels (`geometry.js`), frozen static subtrees,
+48-byte `CompactInstancePool`s, stateless `GpuParticleRing` / `GpuDebrisRing` buffers and static mesh batching
+(`scene.js`), linear-HDR GLSL 300 es diorama shaders (`shaders.js`), and the GPU-First WebGL2 Engine v2 (`webgl2.js`)
+with a shared `std140` `FrameUniforms` UBO, a `256×256` GPU arena wake map (`uWakeMap` for footprints, puddle ripples and
+parting foliage), a texel-snapped 2048×2048 4-tap rotated-Poisson hardware-PCF shadow cascade, 4× MSAA HDR offscreen
+rendering (with a 5-tap edge-smoothing fallback), smooth adaptive `renderScale`, 8 dynamic combat point lights,
+dual-Kawase selective bloom, ACES filmic tone mapping and context-loss recovery.
 
-Keep gameplay randomness in the seeded simulation. Cosmetic randomness belongs in rendering and audio.
+Keep gameplay randomness in the seeded simulation (including deterministic interactive biome relic placement in
+`src/core/arena.js` and `src/core/world.js`). Cosmetic randomness belongs in rendering and audio.
 Save compatibility and stable seeded layouts have active regression fixtures in `tests/fixtures/`.
 These fixtures protect existing progress and world generation.
 
 The title emblem (`title-chart.webp`), painterly terrain, surface and VFX atlases (`terrain-atlas.webp`,
 `surface-atlas.webp`, `vfx-atlas.webp`), and install icons are generated with `python tools/build-art.py` using
-Python 3, Pillow and NumPy. Arena biomes, multi-ring exterior diorama worlds (canals, fjords, bog lagoons, astral
-archipelagos, lava aqueducts and desert oases), actors, bosses and combat VFX are assembled in `src/render/` on top of
-`src/engine/` and respect the existing simulation footprints.
+Python 3, Pillow and NumPy. Arena biomes, bespoke perimeter architecture & corner landmarks, 24 sculpted cover
+archetypes, interactive biome relics (`src/render/biome-props-view.js`), multi-ring exterior diorama worlds, articulated
+hero & weapon rigs, 25 GPU-animated enemies with 3D variant/elite attachments, 6 multi-phase bosses and combat VFX are
+assembled in `src/render/` on top of `src/engine/` and respect the existing simulation footprints.
 
-The short synthesized sample bank and its clip offsets are generated with
-`python tools/build-audio-bank.py` using Python 3. `src/audio/score.js` defines the cozy title, biome and
-boss score, `src/audio/physical-voices.js` and `src/audio/sound.js` define acoustic material voices and
-musical UI/reward chimes, and `src/audio/place.js` drives spatial biome soundscapes. Asset credits
-and third-party notices ship under `public/`.
+The 25-clip synthesized sample bank and its clip offsets are generated with
+`python tools/build-audio-bank.py` using Python 3. `src/audio/score.js` defines the cozy title theme and six distinct
+per-biome fight/boss musical arrangements plus `scoreScaleMidi`, `src/audio/physical-voices.js` and `src/audio/sound.js`
+define 6-biome tactile surface foley, enemy/construct material voices and scale-keyed UI/reward/relic chimes, and
+`src/audio/place.js` drives spatial landmark and hazard soundscapes. Asset credits and third-party notices ship under
+`public/`.
 
 ## Verification
 

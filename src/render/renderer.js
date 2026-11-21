@@ -3,7 +3,16 @@
 
 import { Color, Euler, Mat4, Quat, Vec3, Camera } from "../engine/math.js";
 import { box, cylinder, disc, discXY, octahedron, plane, ring, mergeGeometries } from "../engine/geometry.js";
-import { InstancePool, MeshNode, Node, Scene, Texture2D } from "../engine/scene.js";
+import {
+  CompactInstancePool,
+  GpuDebrisRing,
+  GpuParticleRing,
+  InstancePool,
+  MeshNode,
+  Node,
+  Scene,
+  Texture2D,
+} from "../engine/scene.js";
 import { WebGL2Engine } from "../engine/webgl2.js";
 
 import { SmokeView } from "./smoke-view.js";
@@ -13,12 +22,15 @@ import { ActorEffectsView } from "./actor-effects-view.js";
 import { TrapView } from "./traps-view.js";
 import { BossCardView } from "./boss-cards-view.js";
 import { HazardView } from "./hazards-view.js";
+import { BiomePropsView } from "./biome-props-view.js";
 import { AttackView, MARK_LOOK } from "./attacks-view.js";
 import { ArenaView, RL_BIOME_LOOK, RL_BIOME_TINT, rlAmbient, rlSkinParticles } from "./arena-view.js";
 import {
   buildPlayerModel,
   buildBossModel,
   enemyGeometry,
+  variantAttachmentGeometry,
+  affixAttachmentGeometry,
   wingDroneGeometry,
   orbitBladeGeometry,
   rocketProjectileGeometry,
@@ -61,7 +73,7 @@ const shardColors = { 1: hexColor(0x62f2d8), 5: hexColor(0xf6c25e), 25: hexColor
 const variantColors = Object.fromEntries(Object.values(biomeVariants).map((v) => [v.id, hexColor(v.color)]));
 
 const BOSS_PORTAL = {
-  warden: [hexColor(FINISH.brass), hexColor(FINISH.ivory)],
+  bellkeeper: [hexColor(FINISH.brass), hexColor(FINISH.ivory)],
   prism: [hexColor(FINISH.glacier), hexColor(FINISH.ivory)],
   queen: [hexColor(FINISH.jade), hexColor(0xd6ffe8)],
   core: [hexColor(FINISH.lavender), hexColor(0xff84cc)],
@@ -70,7 +82,7 @@ const BOSS_PORTAL = {
 };
 
 const BIOME_ENEMY_DRESS = {
-  city: [0.99, 0.99, 1.02],
+  courtyard: [0.99, 0.99, 1.02],
   shelf: [0.97, 1.0, 1.04],
   marsh: [0.97, 1.02, 0.99],
   core: [1.02, 0.98, 1.04],
@@ -78,7 +90,7 @@ const BIOME_ENEMY_DRESS = {
   flats: [1.03, 1.01, 0.97],
 };
 const BIOME_PORTAL_ACCENT = {
-  city: hexColor(0xf2be72),
+  courtyard: hexColor(0xf2be72),
   shelf: hexColor(0x9ceeff),
   marsh: hexColor(0x7cf8b2),
   core: hexColor(0xd29cff),
@@ -87,11 +99,17 @@ const BIOME_PORTAL_ACCENT = {
 };
 
 const STEP_LOOK = {
-  asphalt: { color: hexColor(0x788898), up: 1.1, life: 0.28, size: 0.14, grav: 4 },
-  snow: { color: hexColor(0xe6f8ff), up: 1.4, life: 0.35, size: 0.18, grav: 3 },
-  mud: { color: hexColor(0x52b888), up: 1.3, life: 0.34, size: 0.16, grav: 5, ring: true },
+  flagstone: { color: hexColor(0x98b4c8), up: 1.2, life: 0.28, size: 0.14, grav: 4.5, ring: true },
+  frost: { color: hexColor(0xe6f8ff), up: 1.4, life: 0.36, size: 0.18, grav: 3 },
+  snow: { color: hexColor(0xe6f8ff), up: 1.4, life: 0.36, size: 0.18, grav: 3 },
+  ice: { color: hexColor(0xb8f0ff), up: 1.35, life: 0.32, size: 0.15, grav: 3, spark: true },
+  mud: { color: hexColor(0x6cf0ac), up: 1.3, life: 0.36, size: 0.17, grav: 5, ring: true },
+  acid: { color: hexColor(0x7effb8), up: 1.5, life: 0.34, size: 0.16, grav: 4, ring: true },
+  glass: { color: hexColor(0xd29aff), up: 1.5, life: 0.32, size: 0.15, grav: 2, spark: true, ring: true },
   rift: { color: hexColor(0xc288ff), up: 1.5, life: 0.3, size: 0.15, grav: 2, spark: true },
+  crust: { color: hexColor(0xff9e48), up: 1.45, life: 0.34, size: 0.15, grav: 3.2, spark: true },
   ash: { color: hexColor(0xff9a44), up: 1.4, life: 0.34, size: 0.15, grav: 3, spark: true },
+  sandglass: { color: hexColor(0xe8d09a), up: 1.25, life: 0.36, size: 0.18, grav: 3 },
   sand: { color: hexColor(0xe6cc96), up: 1.2, life: 0.36, size: 0.18, grav: 3 },
 };
 
@@ -200,33 +218,24 @@ export class Renderer {
     this.lines = [];
     this.rings = [];
     this.corpses = [];
-    this.D = [];
     this.biome = null;
     this.player = null;
     this.playerWeapon = null;
     this.bossView = null;
 
-    // Shared particle typed arrays (zero per-frame heap churn)
-    const max = this.maxParticles;
-    this.P = {
-      n: 0,
-      x: new Float32Array(max),
-      y: new Float32Array(max),
-      z: new Float32Array(max),
-      vx: new Float32Array(max),
-      vy: new Float32Array(max),
-      vz: new Float32Array(max),
-      life: new Float32Array(max),
-      max: new Float32Array(max),
-      size: new Float32Array(max),
-      grow: new Float32Array(max),
-      r: new Float32Array(max),
-      g: new Float32Array(max),
-      b: new Float32Array(max),
-      drag: new Float32Array(max),
-      grav: new Float32Array(max),
-      spark: new Uint8Array(max),
-    };
+    // Stateless GPU Ring-Buffer Particle & Ballistic Debris Systems (0.0 ms CPU per-frame stepping)
+    this.P = new GpuParticleRing(
+      plane(1, 1, 1, 1),
+      2048,
+      () => this.time,
+      (clearT) => {
+        this.scene.particleClearTime = clearT;
+      },
+    );
+    this.scene.add(this.P.mesh);
+
+    this.D = new GpuDebrisRing(debrisGeometry(), worldMaterial({ surface: "stone", color: 0xffffff }), 320);
+    this.scene.add(this.D.mesh);
 
     // Scratch math objects
     this._v = new Vec3();
@@ -239,6 +248,7 @@ export class Renderer {
     this._p = new Vec3();
     this._s = new Vec3();
     this._dk = new Color();
+    this._debrisTint = new Color();
     this._flashSort = [];
     this._muzzleCol = new Color(0x62f2e8);
 
@@ -253,6 +263,7 @@ export class Renderer {
     this.trapView = new TrapView(this, InstancePool);
     this.bossCardView = new BossCardView(this, InstancePool);
     this.hazardView = new HazardView(this, InstancePool);
+    this.biomePropsView = new BiomePropsView(this);
     this.attackView = new AttackView(this, InstancePool);
 
     this.resize();
@@ -260,6 +271,13 @@ export class Renderer {
 
   _addPool(geo, mat, max, order = 1, opts = {}) {
     const p = new InstancePool(geo, mat, max, opts);
+    p.mesh.renderOrder = order;
+    this.scene.add(p.mesh);
+    return p;
+  }
+
+  _addCompactPool(geo, mat, max, order = 1) {
+    const p = new CompactInstancePool(geo, mat, max);
     p.mesh.renderOrder = order;
     this.scene.add(p.mesh);
     return p;
@@ -344,8 +362,6 @@ export class Renderer {
       7,
     );
     this._initHeroLocator();
-    this.debris = this._addPool(debrisGeometry(), worldMaterial({ surface: "stone", color: 0xffffff }), 320, 1);
-    this.debris.mesh.castShadow = true;
 
     this.rocketBodies = this._addPool(
       rocketProjectileGeometry(),
@@ -395,7 +411,7 @@ export class Renderer {
       4,
     );
 
-    // Prebuild instanced body+glow pools for all 25 enemy types
+    // Prebuild compact GPU-animated instanced body+glow pools for all 25 enemy types
     this.enemyPools = {};
     for (const [type, def] of Object.entries(enemyDefs)) {
       const kit = enemyGeometry(type);
@@ -406,11 +422,34 @@ export class Renderer {
       });
       const glowMat = emissiveMaterial({ color: 0xffffff, emissiveIntensity: 1.18, vertexColors: true });
       const cap = type === "swarmer" || type === "mite" ? 180 : 96;
-      const body = this._addPool(kit.body, bodyMat, cap, 1, { flash: true });
+      const body = this._addCompactPool(kit.body, bodyMat, cap, 1);
       body.mesh.castShadow = true;
       body.mesh.receiveShadow = true;
-      const glow = this._addPool(kit.glow, glowMat, cap, 2);
+      const glow = this._addCompactPool(kit.glow, glowMat, cap, 2);
       this.enemyPools[type] = { body, glow, color: hexColor(def.color) };
+    }
+
+    // Prebuild compact GPU-animated 3D attachment pools for all 6 Biome Variants & 3 Elite Affixes
+    const attachBodyMat = worldMaterial({ surface: "metal", vertexColors: true, biomeSkin: true });
+    const attachGlowMat = emissiveMaterial({ color: 0xffffff, emissiveIntensity: 1.28, vertexColors: true });
+    this.variantPools = {};
+    this._attachPools = [];
+    for (const v of Object.values(biomeVariants)) {
+      const kit = variantAttachmentGeometry(v.id);
+      const body = this._addCompactPool(kit.body, attachBodyMat, 56, 1);
+      body.mesh.castShadow = true;
+      const glow = this._addCompactPool(kit.glow, attachGlowMat, 56, 2);
+      this.variantPools[v.id] = { body, glow };
+      this._attachPools.push(body, glow);
+    }
+    this.affixPools = {};
+    for (const af of Object.keys(eliteAffixes)) {
+      const kit = affixAttachmentGeometry(af);
+      const body = this._addCompactPool(kit.body, attachBodyMat, 36, 1);
+      body.mesh.castShadow = true;
+      const glow = this._addCompactPool(kit.glow, attachGlowMat, 36, 2);
+      this.affixPools[af] = { body, glow };
+      this._attachPools.push(body, glow);
     }
 
     this._stablePools = [
@@ -425,7 +464,6 @@ export class Renderer {
       this.ebInk,
       this.ebBoltInk,
       this.ebCore,
-      this.debris,
       this.rocketBodies,
       this.discPool,
       this.shardPool,
@@ -512,14 +550,18 @@ export class Renderer {
   }
 
   setBiome(biome, layout) {
-    const changed = !this.biome || this.biome.id !== biome.id || (layout && this.arena.layKey !== layout.key);
+    const targetKey = layout ? layout.key : `${biome.id}:menu`;
+    const changed = !this.biome || this.biome.id !== biome.id || this.arena.layKey !== targetKey;
     this.biome = biome;
     if (changed) {
-      this.arena.build(biome, layout, !!layout);
+      this.arena.build(biome, layout, !!layout, !layout);
+      this.engine.clearWake();
       if (layout) this.mapChanged = true;
     }
-    const look = RL_BIOME_LOOK[biome.id] || RL_BIOME_LOOK.city;
+    const look = RL_BIOME_LOOK[biome.id] || RL_BIOME_LOOK.courtyard;
     const s = this.scene;
+    s.wakeHalf.x = (layout ? layout.W : 20) + 2;
+    s.wakeHalf.y = (layout ? layout.H : 15) + 2;
     s.biomeIndex = look.style;
     s.clearColor.setHex(look.fogColor);
     s.fogColor.setHex(look.fogColor);
@@ -554,8 +596,9 @@ export class Renderer {
     }
   }
 
-  ensurePlayer(weapon) {
+  ensurePlayer(weapon, menu = false) {
     if (this.playerWeapon === weapon && this.player) return;
+    const swapped = !!this.player && menu;
     if (this.player) {
       this.scene.remove(this.player.group);
       this.player.group.traverse((obj) => {
@@ -563,6 +606,7 @@ export class Renderer {
       });
     }
     this.player = buildPlayerModel(weapon, weaponDefs[weapon].color);
+    if (swapped) this.player.inspectT = 0.55;
     this.playerWeapon = weapon;
     setWorldShadows(this.player.group);
     this.scene.add(this.player.group);
@@ -577,23 +621,25 @@ export class Renderer {
     ) {
       return;
     }
-    const i = parts.n++;
-    parts.x[i] = x;
-    parts.y[i] = y;
-    parts.z[i] = z;
-    parts.vx[i] = vx;
-    parts.vy[i] = vy;
-    parts.vz[i] = vz;
-    parts.life[i] = life;
-    parts.max[i] = life;
-    parts.size[i] = size;
-    parts.grow[i] = opts.grow || 0;
-    parts.r[i] = color.r;
-    parts.g[i] = color.g;
-    parts.b[i] = color.b;
-    parts.drag[i] = opts.drag ?? 2.5;
-    parts.grav[i] = opts.grav ?? 0;
-    parts.spark[i] = opts.spark ? 1 : 0;
+    parts.spawn(
+      x,
+      y,
+      z,
+      vx,
+      vy,
+      vz,
+      this.time,
+      life,
+      size,
+      color.r,
+      color.g,
+      color.b,
+      opts.drag ?? 2.5,
+      opts.grav ?? 0,
+      opts.grow || 0,
+      opts.spark ? 1 : 0,
+      Math.random(),
+    );
   }
 
   burst(x, z, y, count, speed, color, life = 0.5, size = 0.35, opts = {}) {
@@ -639,28 +685,30 @@ export class Renderer {
 
   debrisBurst(x, z, y, count, color, size, speed) {
     const tint = this.biome && RL_BIOME_TINT[this.biome.id];
-    if (tint && color && color.isColor) color = color.clone().lerp(tint, 0.5);
-    const list = this.D;
-    for (let i = 0; i < count && list.length < 300; i++) {
+    const c = this._debrisTint.copy(color);
+    if (tint) c.lerp(tint, 0.5);
+    const ring = this.D;
+    for (let i = 0; i < count; i++) {
       const angle = Math.random() * TAU;
       const spd = speed * (0.4 + Math.random() * 0.8);
-      list.push({
-        x: x + Math.cos(angle) * 0.2,
+      ring.spawn(
+        x + Math.cos(angle) * 0.2,
         y,
-        z: z + Math.sin(angle) * 0.2,
-        vx: Math.cos(angle) * spd,
-        vy: 2.2 + Math.random() * speed * 0.8,
-        vz: Math.sin(angle) * spd,
-        rx: Math.random() * 6,
-        ry: Math.random() * 6,
-        rz: Math.random() * 6,
-        sx: (Math.random() - 0.5) * 7,
-        sy: (Math.random() - 0.5) * 7,
-        sz: (Math.random() - 0.5) * 7,
-        s: size * (0.5 + Math.random() * 0.7),
-        life: 1.1 + Math.random() * 0.6,
-        col: color,
-      });
+        z + Math.sin(angle) * 0.2,
+        Math.cos(angle) * spd,
+        2.2 + Math.random() * speed * 0.8,
+        Math.sin(angle) * spd,
+        this.time,
+        1.1 + Math.random() * 0.6,
+        size * (0.5 + Math.random() * 0.7),
+        c.r,
+        c.g,
+        c.b,
+        (Math.random() - 0.5) * 7,
+        (Math.random() - 0.5) * 7,
+        (Math.random() - 0.5) * 7,
+        Math.random() * TAU,
+      );
     }
   }
 
@@ -677,6 +725,31 @@ export class Renderer {
     const sorted = this._flashSort;
     sorted.length = 0;
     for (let i = 0; i < flashes.length; i++) sorted.push(flashes[i]);
+    let lanternRelief = 0;
+    const props = world?.arena?.props;
+    if (props && props.length) {
+      this._lanternLights ||= [
+        { x: 0, z: 0, r: 4.8, i: 0, col: hexColor(0xffcf78) },
+        { x: 0, z: 0, r: 4.8, i: 0, col: hexColor(0xffcf78) },
+        { x: 0, z: 0, r: 4.8, i: 0, col: hexColor(0xffcf78) },
+      ];
+      let li = 0;
+      for (const prop of props) {
+        if (prop.kind === "lantern" && prop.auraT > 0 && li < 3) {
+          const fade = Math.min(1, prop.auraT / 1.0);
+          const ll = this._lanternLights[li++];
+          ll.x = prop.x;
+          ll.z = prop.y;
+          ll.r = 4.6;
+          ll.i = 1.15 * fade;
+          sorted.push(ll);
+          if (world?.player) {
+            const d = Math.hypot(world.player.x - prop.x, world.player.y - prop.y);
+            if (d < 6.5) lanternRelief = Math.max(lanternRelief, (1 - d / 6.5) * 0.68 * fade);
+          }
+        }
+      }
+    }
     sorted.sort(flashOrder);
 
     const lights = this.scene.pointLights;
@@ -715,7 +788,7 @@ export class Renderer {
       }
     }
 
-    const dark = this.rlBlackK || 0;
+    const dark = Math.max(0, (this.rlBlackK || 0) * (1 - lanternRelief));
     this.scene.darkness = dark;
     if (dark > 0) {
       this.scene.hemiIntensity *= 1 - 0.48 * dark;
@@ -784,6 +857,23 @@ export class Renderer {
               );
             }
             this.emit(muzzle.x, muzzle.y, muzzle.z, dirX * 4.5, 0, dirZ * 4.5, 0.085, 0.52, color, { drag: 0 });
+            // Eject a spinning burnished-brass shotgun shell casing onto the diorama floor
+            const perpX = -dirZ,
+              perpZ = dirX;
+            this.D.spawn(
+              muzzle.x - dirX * 0.35 + perpX * 0.14,
+              muzzle.y + 0.05,
+              muzzle.z - dirZ * 0.35 + perpZ * 0.14,
+              perpX * (2.2 + Math.random() * 1.2) - dirX * 0.8,
+              2.6 + Math.random() * 0.9,
+              perpZ * (2.2 + Math.random() * 1.2) - dirZ * 0.8,
+              this.time,
+              0.95,
+              0.085,
+              0.92,
+              0.72,
+              0.36,
+            );
           } else if (muzzleKind === "rail") {
             const perpX = -dirZ,
               perpZ = dirX;
@@ -1044,7 +1134,7 @@ export class Renderer {
                 { drag: 1.2 },
               );
             this.ring(ev.x, ev.y, 0.4, 4.5, hexColor(0xd9fff0), 0.5);
-          } else if (ev.type === "warden") {
+          } else if (ev.type === "bellkeeper") {
             this.burst(ev.x, ev.y, 1.2, 16, 8, hexColor(0x3a8bff), 0.55, 0.24, { spark: true, drag: 3 });
             this.burst(ev.x, ev.y, 1.2, 16, 8, hexColor(0xff4258), 0.55, 0.24, { spark: true, drag: 3 });
             this.ring(ev.x, ev.y, 0.5, 5.2, hexColor(0x3a8bff), 0.42);
@@ -1121,6 +1211,7 @@ export class Renderer {
         }
         case "boom": {
           if (ev.kind === "trap" || ev.kind === "surge") break;
+          this.engine.stampWake(ev.x, ev.y, Math.min(4.2, ev.r * 1.15), 0.95, 0.45, 0.95, 1.0, 0.72);
           if (this.attackView.impact(ev, world, shakeK)) break;
           const color =
             ev.kind === "pop"
@@ -1250,6 +1341,7 @@ export class Renderer {
           const p = world.player;
           const a = Math.atan2(p.vy, p.vx);
           const copper = hexColor(FINISH.copper);
+          this.engine.stampWake(p.x, p.y, 1.38, 0.95, 0.78, 0.85, 1.0, 0.55);
           this.line(p.x, p.y, p.x - Math.cos(a) * 1.45, p.y - Math.sin(a) * 1.45, whiteColor, 0.2, 0.085, 0.55, 0);
           for (const side of [-1, 1]) {
             const x = p.x - Math.sin(a) * side * 0.32;
@@ -1262,7 +1354,7 @@ export class Renderer {
         }
         case "step":
         case "land": {
-          const look = STEP_LOOK[ev.ground] || STEP_LOOK.asphalt;
+          const look = STEP_LOOK[ev.ground] || STEP_LOOK.flagstone;
           const face = world.player.face;
           const land = ev.k === "land";
           const side = land ? 0 : ev.foot ? 0.2 : -0.2;
@@ -1270,6 +1362,16 @@ export class Renderer {
           const fz = ev.y + Math.cos(face) * side;
           const n = land ? 10 : this.maxParticles >= 600 ? 2 : 1;
           if (!land && Math.hypot(world.player.vx, world.player.vy) < 1) break;
+          this.engine.stampWake(
+            fx,
+            fz,
+            land ? 1.28 : 0.56,
+            land ? 0.92 : 0.64,
+            land ? 0.85 : 0.68,
+            land ? 0.9 : 0.55,
+            land ? 0.8 : 0.32,
+            land ? 0.52 : 0.26,
+          );
           for (let i = 0; i < n; i++) {
             this.emit(
               fx + (Math.random() - 0.5) * 0.2,
@@ -1290,6 +1392,7 @@ export class Renderer {
         }
         case "edash": {
           const color = hexColor(enemyDefs[ev.type] ? enemyDefs[ev.type].color : 0xffffff);
+          this.engine.stampWake(ev.x, ev.y, 1.15, 0.8, 0.65, 0.72, 0.82, 0.4);
           this.ring(ev.x, ev.y, 0.2, 1.3, color, 0.25);
           this.burst(ev.x, ev.y, 0.5, 8, 6, color, 0.3, 0.25, { spark: true });
           break;
@@ -1397,8 +1500,11 @@ export class Renderer {
           this.flash(ev.x, ev.y, 2.6, 1, ember, 2);
           break;
         }
+        case "biomeProp":
+          this.biomePropsView.consume(ev);
+          break;
         case "erupt":
-          if (world?.arena?.biome?.id === "city") {
+          if (world?.arena?.biome?.id === "courtyard") {
             const brass = hexColor(FINISH.brass);
             this.ring(ev.x, ev.y, ev.r * 0.52, ev.r, brass, 0.46);
             this.burst(ev.x, ev.y, 0.26, 9, 3.3, brass, 0.42, 0.16, { spark: true, grav: 4, drag: 2 });
@@ -1513,7 +1619,7 @@ export class Renderer {
       !opts.menu &&
       world &&
       world.state === "fight" &&
-      ((world.event === "blackout" && world.arena?.biome?.id === "city") ||
+      ((world.event === "duskfall" && world.arena?.biome?.id === "courtyard") ||
         (world.event === "ashfall" && world.arena?.biome?.id === "caldera"));
     this.rlBlackK = clamp((this.rlBlackK || 0) + (black ? 0.42 : -0.8) * (dt || 0), 0, 1);
     this.arena.uniforms.uDark.value = this.rlBlackK * 0.85;
@@ -1565,10 +1671,10 @@ export class Renderer {
 
     if (menu) {
       this.setBiome(opts.biome || biomeList[0]);
-      this.ensurePlayer(opts.weapon || "pulse");
+      this.ensurePlayer(opts.weapon || "pulse", true);
     } else {
       this.setBiome(world.arena.biome, world.arena);
-      this.ensurePlayer(world.weapon);
+      this.ensurePlayer(world.weapon, false);
     }
     this.updateCamera(dt, world, menu);
     this.pulse = Math.max(0, (this.pulse || 0) - dt * 1.5);
@@ -1580,6 +1686,7 @@ export class Renderer {
     for (const pool of pools) pool.begin();
     for (const pool of this.trapView.list) pool.begin();
     for (const pool of this.hazardView.list) pool.begin();
+    for (const pool of this.biomePropsView.list) pool.begin();
     for (const pool of this.attackView.list) pool.begin();
     for (const pool of this.weaponView.list) pool.begin();
     for (const pool of this.abilityView.list) pool.begin();
@@ -1588,6 +1695,7 @@ export class Renderer {
       this.enemyPools[type].body.begin();
       this.enemyPools[type].glow.begin();
     }
+    for (const pool of this._attachPools) pool.begin();
 
     if (menu) {
       this.drawMenuPlayer(dt);
@@ -1605,12 +1713,14 @@ export class Renderer {
     for (const pool of this.weaponView.list) pool.end();
     for (const pool of this.abilityView.list) pool.end();
     for (const pool of this.hazardView.list) pool.end();
+    for (const pool of this.biomePropsView.list) pool.end();
     for (const pool of this.trapView.list) pool.end();
     for (const pool of pools) pool.end();
     for (const type in this.enemyPools) {
       this.enemyPools[type].body.end();
       this.enemyPools[type].glow.end();
     }
+    for (const pool of this._attachPools) pool.end();
 
     for (const num of this.nums) {
       num.life -= dt;
@@ -1629,10 +1739,11 @@ export class Renderer {
   drawMenuPlayer(dt) {
     const drone = this.player;
     drone.group.visible = true;
-    drone.group.position.set(0, drone.setWalk(0, 0, 0, this.time), 0);
+    drone.group.position.set(0, 0.085 + drone.setWalk(0, 0, 0, this.time), 0);
     drone.shield.visible = false;
     drone.base.rotation.set(0, this.time * 0.32, 0);
     drone.aimAt(-Math.sin(this.time * 0.7) * 1.2, dt);
+    drone.updateExpression?.(this.time, dt, false, false, 0);
     this.corpses.length = 0;
     for (const mat of drone.mats) mat.emissive.setScalar(0);
     this.shadows.y(0, 0.025, 0, 0, 2.2);
@@ -1692,6 +1803,7 @@ export class Renderer {
       const body = drone.setWalk((player.stride / STEP_LEN) * Math.PI, amount, jump, time);
       drone.group.position.set(player.x, body + jump * 0.6, player.y);
       drone.aimAt(player.aim, dt);
+      drone.updateExpression?.(time, dt, !!player.firing, player.dashT > 0, clamp(player.hurtT / 0.3, 0, 1));
 
       const shieldHit = Math.max(0, 1 - (time - this.abilityView.shieldHitAt) / 0.28);
       const barrierUp = world.barrierT > 0;
@@ -1742,19 +1854,22 @@ export class Renderer {
         hexColor(weaponDefs[world.weapon].color),
         0.2,
       );
-      if (player.dashT > 0 && dt > 0 && Math.random() < dt * 65) {
-        this.emit(
-          player.x,
-          0.29,
-          player.y,
-          -player.vx * 0.18,
-          0.23,
-          -player.vy * 0.18,
-          0.32,
-          0.15,
-          hexColor(FINISH.brass),
-          { spark: true, drag: 3, grav: 1.7 },
-        );
+      if (player.dashT > 0 && dt > 0) {
+        this.engine.stampWake(player.x, player.y, 1.05, Math.min(1, dt * 18), 0.72, 0.65, 0.95, 0.42);
+        if (Math.random() < dt * 65) {
+          this.emit(
+            player.x,
+            0.29,
+            player.y,
+            -player.vx * 0.18,
+            0.23,
+            -player.vy * 0.18,
+            0.32,
+            0.15,
+            hexColor(FINISH.brass),
+            { spark: true, drag: 3, grav: 1.7 },
+          );
+        }
       }
       const count = world.stats.orbit;
       for (let i = 0; i < count; i++) {
@@ -1768,6 +1883,13 @@ export class Renderer {
         this.wing.y(wing.x, Math.sin(time * 4 + wing.x) * 0.1, wing.y, player.aim, 1.3);
         this.sprites.colHex(this.sprites.bb(wing.x, 0.9, wing.y, 1.05, basis), weaponDefs[world.weapon].color, 0.55);
         this.shadows.y(wing.x, 0.025, wing.y, 0, 0.9);
+      }
+    }
+
+    if (world.arena?.devils && dt > 0) {
+      for (const dv of world.arena.devils) {
+        if (dv.calmT > 0) continue;
+        this.engine.stampWake(dv.x, dv.y, (dv.r || 1.8) * 0.85, Math.min(1, dt * 10), 0.55, 0.45, 0.85, 0.18);
       }
     }
 
@@ -1819,8 +1941,32 @@ export class Renderer {
         scale *= 0.86;
         scaleY *= 1.12;
       }
-      const bodyIdx = pools.body.yr(enemy.x, lift, enemy.y, angle, scale, scaleY, scale, pitch, roll);
-      pools.body.flash(bodyIdx, enemy.flash > 0 ? enemy.flash : enemy.slowT > 0 ? 0.25 : 0);
+
+      if (
+        dt > 0 &&
+        motion.hover === 0 &&
+        (speed > 3.2 || ((enemy.type === "charger" || enemy.type === "driller") && enemy.st >= 1))
+      ) {
+        const heavy = enemy.type === "charger" || enemy.type === "driller" || enemy.type === "brute";
+        if (heavy || Math.random() < dt * 7) {
+          this.engine.stampWake(
+            enemy.x,
+            enemy.y,
+            enemy.r * (heavy ? 1.15 : 0.78),
+            heavy ? Math.min(0.85, dt * 14) : 0.42,
+            heavy ? 0.72 : 0.45,
+            0.4,
+            heavy ? 0.75 : 0.35,
+            0.2,
+          );
+        }
+      }
+
+      const gaitWrap = ((gait % TAU) + TAU) % TAU;
+      const packedAnim = Math.round(gaitWrap * 1000) + Math.min(0.99, move * 0.99);
+      const actionK = enemy.st >= 1 ? 1 : enemy.flash > 0 ? enemy.flash * 0.6 : 0;
+      const flashK = enemy.flash > 0 ? enemy.flash : enemy.slowT > 0 ? 0.25 : 0;
+
       const tint = enemy.variant ? variantColors[enemy.variant] : null;
       if (enemy.variant === "shorted" && Math.random() < dt * 5) {
         this.emit(
@@ -1836,19 +1982,59 @@ export class Renderer {
           { spark: true, drag: 2 },
         );
       }
-      if (enemy.type === "phantom" && enemy.ghost) pools.body.col(bodyIdx, 0.48, 0.38, 0.95);
-      else if (enemy.healFlash > 0) pools.body.col(bodyIdx, 0.75, 1.35, 0.95);
-      else if (enemy.slowT > 0) pools.body.col(bodyIdx, 0.7, 0.92, 1.32);
-      else if (enemy.corrode) pools.body.col(bodyIdx, 0.85, 1.3, 0.62);
-      else if (tint) pools.body.col(bodyIdx, 0.55 + tint.r * 0.7, 0.55 + tint.g * 0.7, 0.55 + tint.b * 0.7);
-      else if (enemy.elite) pools.body.col(bodyIdx, 1.25, 1.06, 0.72);
-      else {
-        const dress = BIOME_ENEMY_DRESS[world.arena?.biome?.id];
-        if (dress) pools.body.col(bodyIdx, dress[0], dress[1], dress[2]);
-        else pools.body.col(bodyIdx, 1, 1, 1);
-      }
 
-      const glowIdx = pools.glow.yr(enemy.x, lift, enemy.y, angle, scale, scaleY, scale, pitch, roll);
+      let br = 1,
+        bg = 1,
+        bb = 1;
+      if (enemy.type === "phantom" && enemy.ghost) {
+        br = 0.48;
+        bg = 0.38;
+        bb = 0.95;
+      } else if (enemy.healFlash > 0) {
+        br = 0.75;
+        bg = 1.35;
+        bb = 0.95;
+      } else if (enemy.slowT > 0) {
+        br = 0.7;
+        bg = 0.92;
+        bb = 1.32;
+      } else if (enemy.corrode) {
+        br = 0.85;
+        bg = 1.3;
+        bb = 0.62;
+      } else if (tint) {
+        br = 0.55 + tint.r * 0.7;
+        bg = 0.55 + tint.g * 0.7;
+        bb = 0.55 + tint.b * 0.7;
+      } else if (enemy.elite) {
+        br = 1.25;
+        bg = 1.06;
+        bb = 0.72;
+      } else {
+        const dress = BIOME_ENEMY_DRESS[world.arena?.biome?.id];
+        if (dress) {
+          br = dress[0];
+          bg = dress[1];
+          bb = dress[2];
+        }
+      }
+      pools.body.push(
+        enemy.x,
+        lift,
+        enemy.y,
+        scale,
+        scaleY,
+        angle,
+        pitch,
+        roll,
+        packedAnim,
+        br,
+        bg,
+        bb,
+        flashK,
+        actionK,
+      );
+
       let glowK = 1.05;
       if (
         (["gunner", "sniper", "charger", "driller", "weaver", "sentinel"].includes(enemy.type) && enemy.st === 1) ||
@@ -1875,11 +2061,97 @@ export class Renderer {
           { spark: true, drag: 2 },
         );
       }
-      pools.glow.colC(
-        glowIdx,
-        enemy.sunT > 0 ? variantColors.sunstruck : tint || (enemy.elite ? goldColor : pools.color),
-        glowK,
+      const gCol = enemy.sunT > 0 ? variantColors.sunstruck : tint || (enemy.elite ? goldColor : pools.color);
+      pools.glow.push(
+        enemy.x,
+        lift,
+        enemy.y,
+        scale,
+        scaleY,
+        angle,
+        pitch,
+        roll,
+        packedAnim,
+        gCol.r * glowK,
+        gCol.g * glowK,
+        gCol.b * glowK,
+        0,
+        actionK,
       );
+
+      // Visible 3D Biome-Variant & Elite Affix sculpted gear (zero CPU bone matrices!)
+      const gearScale = Math.max(0.55, enemy.r * 1.15) * scale;
+      const gearScaleY = gearScale * (scaleY / Math.max(1e-4, scale));
+      if (enemy.variant && this.variantPools[enemy.variant]) {
+        const vp = this.variantPools[enemy.variant];
+        vp.body.push(
+          enemy.x,
+          lift,
+          enemy.y,
+          gearScale,
+          gearScaleY,
+          angle,
+          pitch,
+          roll,
+          packedAnim,
+          1,
+          1,
+          1,
+          flashK,
+          actionK,
+        );
+        vp.glow.push(
+          enemy.x,
+          lift,
+          enemy.y,
+          gearScale,
+          gearScaleY,
+          angle,
+          pitch,
+          roll,
+          packedAnim,
+          glowK,
+          glowK,
+          glowK,
+          0,
+          actionK,
+        );
+      }
+      if (enemy.affix && this.affixPools[enemy.affix] && (enemy.affix !== "shielded" || enemy.shield > 0)) {
+        const ap = this.affixPools[enemy.affix];
+        ap.body.push(
+          enemy.x,
+          lift,
+          enemy.y,
+          gearScale,
+          gearScaleY,
+          angle,
+          pitch,
+          roll,
+          packedAnim,
+          1,
+          1,
+          1,
+          flashK,
+          actionK,
+        );
+        ap.glow.push(
+          enemy.x,
+          lift,
+          enemy.y,
+          gearScale,
+          gearScaleY,
+          angle,
+          pitch,
+          roll,
+          packedAnim,
+          glowK,
+          glowK,
+          glowK,
+          0,
+          actionK,
+        );
+      }
 
       if (enemy.champion) {
         this.ringPool.colC(
@@ -2036,11 +2308,26 @@ export class Renderer {
         const shrink = (1 - k) * (1 - k);
         const size = c.r * (1 + k * 0.25) * shrink + 0.001;
         const hop = Math.sin(k * Math.PI) * 0.5;
-        const idx = pools.body.yr(c.x, hop, c.z, c.a + c.spin * c.t, size, size * (1 - k * 0.3), size, k * 0.9, 0);
-        pools.body.flash(idx, 1 - k * 0.6);
-        pools.body.col(idx, c.elite ? 1.25 : 1, c.elite ? 1.05 : 1, c.elite ? 0.7 : 1);
-        const gi = pools.glow.yr(c.x, hop, c.z, c.a + c.spin * c.t, size, size, size, k * 0.9, 0);
-        pools.glow.colC(gi, c.elite ? goldColor : pools.color, 1 + (1 - k) * 1.5);
+        const yaw = c.a + c.spin * c.t;
+        pools.body.push(
+          c.x,
+          hop,
+          c.z,
+          size,
+          size * (1 - k * 0.3),
+          yaw,
+          k * 0.9,
+          0,
+          0,
+          c.elite ? 1.25 : 1,
+          c.elite ? 1.05 : 1,
+          c.elite ? 0.7 : 1,
+          1 - k * 0.6,
+          0,
+        );
+        const gCol = c.elite ? goldColor : pools.color;
+        const gm = 1 + (1 - k) * 1.5;
+        pools.glow.push(c.x, hop, c.z, size, size, yaw, k * 0.9, 0, 0, gCol.r * gm, gCol.g * gm, gCol.b * gm, 0, 0);
       }
       list.length = keep;
     }
@@ -2132,6 +2419,14 @@ export class Renderer {
       if (!this.rlHazardErr) {
         logError("hazards", err);
         this.rlHazardErr = true;
+      }
+    }
+    try {
+      this.biomePropsView.draw(dt, world);
+    } catch (err) {
+      if (!this.rlBiomePropErr) {
+        logError("biomeProps", err);
+        this.rlBiomePropErr = true;
       }
     }
 
@@ -2341,7 +2636,7 @@ export class Renderer {
             : 0;
     const pitch = rushing ? -0.14 : walking ? -0.04 : 0;
     const roll =
-      boss.type === "warden" || boss.type === "tyrant"
+      boss.type === "bellkeeper" || boss.type === "tyrant"
         ? Math.sin(time * (rushing ? 14 : 6.5)) * (rushing ? 0.06 : walking ? 0.035 : 0)
         : 0;
     group.position.set(boss.x, lift, boss.y);
@@ -2356,6 +2651,7 @@ export class Renderer {
       part.m.rotation[part.ax] += part.v * dt * (boss.enraged ? 1.8 : 1);
       if (boss.type === "core") part.m.position.y = 2.4 + Math.sin(time * 1.5) * 0.15;
     }
+    view.updatePose?.(boss, time, dt);
     const flash = boss.flash;
     const identity = BOSS_EFFECTS[boss.type];
     for (const mat of view.mats) {
@@ -2363,6 +2659,10 @@ export class Renderer {
     }
     view.glowMat.color.setHex(boss.shielded ? 0xffffff : boss.enraged ? identity.accent : identity.color);
     view.glowMat.emissiveIntensity = boss.enraged ? 1.48 + Math.sin(time * 8) * 0.16 : 1.22;
+    if (view.overdriveMat) {
+      view.overdriveMat.color.setHex(identity.accent);
+      view.overdriveMat.emissiveIntensity = 1.52 + Math.sin(time * 9) * 0.22;
+    }
     const alpha = boss.ghost ? 0.14 : 1;
     const dive = boss.type === "wyrm" && boss.diveT > 0 ? 1 : 0;
     if (dive) group.scale.y *= 0.55;
@@ -2404,7 +2704,7 @@ export class Renderer {
         hexColor(0xe0cc9e),
         { drag: 1.2, grav: -3 },
       );
-    if (boss.type === "warden" && rushing && Math.random() < dt * 22) {
+    if (boss.type === "bellkeeper" && rushing && Math.random() < dt * 22) {
       const backward = boss.face + Math.PI;
       this.emit(
         boss.x + Math.cos(backward) * 1.16,
@@ -2458,104 +2758,18 @@ export class Renderer {
         hexColor(0xff9a42),
         { spark: true, drag: 1.5 },
       );
-    if (boss.type === "warden" && boss.st === "charge" && boss.sub === 0)
+    if (boss.type === "bellkeeper" && boss.st === "charge" && boss.sub === 0)
       this.chargeLine(boss.x, boss.y, boss.ta, 12, 3.4, clamp(boss.subT / 0.85, 0, 1));
     if (boss.type === "tyrant" && boss.st === "charge" && boss.sub === 0)
       this.chargeLine(boss.x, boss.y, boss.ta, 11, 3.2, clamp(boss.subT / 0.7, 0, 1));
   }
 
-  drawDebris(dt) {
-    const list = this.D;
-    const pool = this.debris;
-    const arr = pool.m;
-    let keep = 0;
-    for (let i = 0; i < list.length; i++) {
-      const piece = list[i];
-      piece.life -= dt;
-      if (piece.life <= 0) continue;
-      list[keep++] = piece;
-      piece.vy -= 16 * dt;
-      piece.x += piece.vx * dt;
-      piece.y += piece.vy * dt;
-      piece.z += piece.vz * dt;
-      if (piece.y < piece.s * 0.5) {
-        piece.y = piece.s * 0.5;
-        piece.vy *= -0.22;
-        piece.vx *= 0.55;
-        piece.vz *= 0.55;
-        piece.sx *= 0.6;
-        piece.sy *= 0.6;
-        piece.sz *= 0.6;
-      }
-      piece.rx += piece.sx * dt;
-      piece.ry += piece.sy * dt;
-      piece.rz += piece.sz * dt;
-      if (pool.n >= pool.max) continue;
-      const idx = pool.n++;
-      const fade = piece.life < 0.5 ? Math.max(0, piece.life / 0.5) : 1;
-      this._e.set(piece.rx, piece.ry, piece.rz);
-      this._q.setFromEuler(this._e);
-      this._m.compose(this._p.set(piece.x, piece.y, piece.z), this._q, this._s.setScalar(piece.s * fade));
-      this._m.toArray(arr, idx * 16);
-      pool.colC(idx, piece.col, 1);
-    }
-    list.length = keep;
+  drawDebris() {
+    this.D.sync();
   }
 
-  drawParticles(dt) {
-    const parts = this.P;
-    const basis = this.B;
-    let count = parts.n;
-    for (let i = 0; i < count; i++) {
-      parts.life[i] -= dt;
-      if (parts.life[i] <= 0) {
-        count--;
-        if (i !== count) {
-          parts.x[i] = parts.x[count];
-          parts.y[i] = parts.y[count];
-          parts.z[i] = parts.z[count];
-          parts.vx[i] = parts.vx[count];
-          parts.vy[i] = parts.vy[count];
-          parts.vz[i] = parts.vz[count];
-          parts.life[i] = parts.life[count];
-          parts.max[i] = parts.max[count];
-          parts.size[i] = parts.size[count];
-          parts.grow[i] = parts.grow[count];
-          parts.r[i] = parts.r[count];
-          parts.g[i] = parts.g[count];
-          parts.b[i] = parts.b[count];
-          parts.drag[i] = parts.drag[count];
-          parts.grav[i] = parts.grav[count];
-          parts.spark[i] = parts.spark[count];
-          i--;
-        }
-        continue;
-      }
-      const damp = 1 - Math.exp(-parts.drag[i] * dt);
-      parts.vx[i] -= parts.vx[i] * damp;
-      parts.vy[i] -= parts.vy[i] * damp + parts.grav[i] * dt;
-      parts.vz[i] -= parts.vz[i] * damp;
-      parts.x[i] += parts.vx[i] * dt;
-      parts.y[i] += parts.vy[i] * dt;
-      parts.z[i] += parts.vz[i] * dt;
-      if (parts.y[i] < 0.05) {
-        parts.y[i] = 0.05;
-        parts.vy[i] *= -0.4;
-      }
-      const k = parts.life[i] / parts.max[i];
-      const size = parts.size[i] * (1 + parts.grow[i] * (1 - k));
-      const pool = parts.spark[i] ? this.sparks : this.sprites;
-      const idx = pool.bb(
-        parts.x[i],
-        parts.y[i],
-        parts.z[i],
-        size * (parts.spark[i] ? 1.15 : 0.6 + 0.4 * k),
-        basis,
-        parts.spark[i] ? i : 0,
-      );
-      if (idx >= 0) pool.col(idx, parts.r[i] * k, parts.g[i] * k, parts.b[i] * k);
-    }
-    parts.n = count;
+  drawParticles() {
+    this.P.advanceTime(this.time);
   }
 
   drawTransient(dt) {

@@ -142,10 +142,10 @@ test("prefix and place rules map movement, desert/volcanic cues and place accent
   }
 });
 
-test("City ambience uses resonators and leaves illumination to the arena", () => {
-  const city = SCAPE.city;
-  for (const { id } of city.far) assert.ok(PLACE_IDS.includes(id));
+test("Lantern Courtyard ambience uses resonators and leaves illumination to the arena", () => {
+  const courtyard = SCAPE.courtyard;
+  for (const { id } of courtyard.far) assert.ok(PLACE_IDS.includes(id));
   assert.equal(physicalProfile("galleryChime", null, true).model, "ceramic");
   assert.equal(physicalProfile("kilnResonance", null, true).model, "ceramic");
-  assert.ok(city.far.every((cue) => !("light" in cue)));
+  assert.ok(courtyard.far.every((cue) => !("light" in cue)));
 });

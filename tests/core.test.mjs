@@ -127,3 +127,88 @@ test("damage events retain the target type for material-specific hit feedback", 
   assert.equal(w.fx.find((e) => e.k === "dmg")?.type, "grunt");
   assert.equal(w.fx.find((e) => e.k === "dmg")?.shield, true);
 });
+
+test("all six interactive biome props trigger deterministically from shots and dashes without Math.random", async () => {
+  const { Arena, buildLayout } = await import("../src/core/arena.js");
+  const { biomesById } = await import("../src/data/biomes.js");
+  const random = Math.random;
+  Math.random = () => {
+    throw new Error("Interactive biome props used Math.random");
+  };
+  try {
+    const expectedKind = {
+      courtyard: "lantern",
+      shelf: "rime",
+      marsh: "puffball",
+      core: "prism",
+      caldera: "crucible",
+      flats: "sunglass",
+    };
+    for (const [id, kind] of Object.entries(expectedKind)) {
+      const biome = biomesById[id];
+      const layoutA = buildLayout(biome, 4242, 4, false);
+      const layoutB = buildLayout(biome, 4242, 4, false);
+      const arenaA = new Arena(biome, layoutA);
+      const arenaB = new Arena(biome, layoutB);
+      assert.equal(arenaA.props.length, 3, `${id}: expected 3 props`);
+      assert.deepEqual(arenaA.props, arenaB.props, `${id}: prop placement must be deterministic`);
+      for (const p of arenaA.props) {
+        assert.equal(p.kind, kind);
+        assert.equal(arenaA.blocked(p.x, p.y, p.r), false, `${id}: prop overlaps obstacle`);
+        assert.equal(arenaA.outside(p.x, p.y, p.r + 0.5), false, `${id}: prop outside arena`);
+      }
+
+      const w = new World({ seed: 4242, weapon: "pulse", threat: 0, ws: {} });
+      w.arena = arenaA;
+      w.enemies.length = 0;
+      w.fx.length = 0;
+      const prop = w.arena.props[0];
+      const foe = w.spawnEnemy("grunt", prop.x + 1.1, prop.y, {});
+      foe.hp = foe.maxHp = 500;
+      w.hash.build(w.enemies);
+
+      if (kind === "puffball") {
+        w.player.x = prop.x;
+        w.player.y = prop.y;
+        w.player.dashT = 0.2;
+        w.player.slowT = 1.0;
+        w.updateBiomeProps(1 / 60);
+        assert.ok(w.player.hopT > 2.5, "marsh puffball grants spore hop");
+        assert.equal(w.player.slowT, 0, "marsh puffball clears slow");
+        assert.equal(foe.corrode, true, "marsh puffball marks nearby enemy");
+      } else if (kind === "crucible") {
+        assert.equal(w.triggerBiomeProp(prop), true);
+        assert.ok(prop.fuse > 0.5, "caldera crucible arms telegraph fuse");
+        assert.equal(w.fx.find((e) => e.k === "biomeProp")?.state, "arm");
+        w.fx.length = 0;
+        w.updateBiomeProps(0.65);
+        assert.ok(foe.weakenT > 4.0, "caldera crucible weakens enemy armor");
+        assert.equal(w.fx.find((e) => e.k === "biomeProp")?.state, "fire");
+        const hp0 = foe.hp;
+        w.hurtEnemy(foe, 40, 1, 0, 0, false);
+        assert.equal(hp0 - foe.hp, 50, "weakened enemy takes 1.25x damage");
+      } else {
+        if (kind === "sunglass") {
+          w.arena.devils = [{ x: prop.x + 1.2, y: prop.y, r: 2.2, vx: 1, vy: 0, a: 0, calmT: 0 }];
+        }
+        assert.equal(w.triggerBiomeProp(prop), true);
+        assert.equal(w.fx.find((e) => e.k === "biomeProp")?.state, "fire", id);
+        if (kind === "lantern") {
+          assert.ok(prop.auraT > 4.5 && foe.slowT >= 1.3);
+        } else if (kind === "rime") {
+          assert.ok(w.player.tractionT > 3.5 && foe.slowT >= 2.5);
+        } else if (kind === "prism") {
+          assert.ok(prop.auraT > 2.5 && foe.hp < 500);
+          w.eb.push({ x: prop.x, y: prop.y, vx: 10, vy: 0, r: 0.2, dmg: 5, life: 2 });
+          w.updateEBullets(0.1);
+          assert.ok(w.eb[0].x < prop.x + 0.5, "core prism aura slows enemy projectiles");
+        } else if (kind === "sunglass") {
+          assert.ok(w.arena.devils[0].calmT >= 4.9, "flats sunglass calms nearby dust devil");
+        }
+      }
+      assert.ok((w.dmgSrc.prop || 0) > 0, `${id}: prop damage recorded under 'prop'`);
+    }
+  } finally {
+    Math.random = random;
+  }
+});

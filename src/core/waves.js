@@ -149,7 +149,7 @@ function planWave(rng, wave, tm, boss, plan = {}) {
     for (const id of early) enemyDefs[id].from = start;
     // 3.3.0: a later boss brings a bigger escort. 3.58.0: 0.18 at wave 5 up to 0.33 (was 0.22-0.34) - the
     // balance bench lost four of six seeds in the first boss fight, and the escort is the chip damage the
-    // player eats while learning the Warden's three attacks.
+    // player eats while learning the Bellkeeper's three attacks.
     let budget =
         waveBudget(wave, tm) * (boss ? 0.18 + 0.025 * Math.min(6, Math.floor(wave / 5) - 1) : 1) * (plan.budget || 1),
       types = enemyOrder.filter((type) => enemyDefs[type].from <= wave && (!boss || !heavyEnemies[type])),
@@ -263,13 +263,13 @@ Object.assign(waveEvents, {
     biome: "marsh",
     plan: {},
   },
-  // Blackout dims the gallery, then the charged inlays fire in sequence.
-  blackout: {
-    id: "blackout",
-    name: "BLACKOUT",
-    desc: "The lamps dim and the charged inlays fire in sequence · shards +25%",
+  // Lantern Hush dims the gallery, then the charged inlays chime and fire in sequence.
+  duskfall: {
+    id: "duskfall",
+    name: "LANTERN HUSH",
+    desc: "Twilight hushes the courtyard and the charged inlays chime in sequence · shards +25%",
     shardMul: 1.25,
-    biome: "city",
+    biome: "courtyard",
     plan: {},
   },
   riftstorm: {
@@ -290,7 +290,7 @@ Object.assign(waveEvents, {
   },
 });
 const RL_BIOME_EVENT = {
-  city: "blackout",
+  courtyard: "duskfall",
   shelf: "whiteout",
   marsh: "bloom",
   core: "riftstorm",

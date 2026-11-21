@@ -114,7 +114,7 @@ try {
             });
           if (scene === "warnings") {
             const source = {
-                city: "warden",
+                courtyard: "bellkeeper",
                 shelf: "prism",
                 marsh: "queen",
                 core: "core",
@@ -122,7 +122,7 @@ try {
                 flats: "wyrm",
               }[id],
               kinds = {
-                city: ["stomp", "stomp", "mortar", "mine", "sapper", "shorted"],
+                courtyard: ["stomp", "stomp", "mortar", "mine", "sapper", "shorted"],
                 shelf: ["frost", "glacier", "mortar", "frost", "glacier", "mortar"],
                 marsh: Array(6).fill("rain"),
                 core: Array(6).fill("rain"),
@@ -150,7 +150,14 @@ try {
               w: 0.8,
               warn: 2,
               src: source,
-              skin: { city: "laser", shelf: "cryo", marsh: "acid", core: "rift", caldera: "flame", flats: "sun" }[id],
+              skin: {
+                courtyard: "laser",
+                shelf: "cryo",
+                marsh: "acid",
+                core: "rift",
+                caldera: "flame",
+                flats: "sun",
+              }[id],
             });
             beam.t = 1;
             w.updateBeams(0);

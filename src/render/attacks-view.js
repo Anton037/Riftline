@@ -35,7 +35,7 @@ const SHOT = {
 };
 
 const DUST = {
-  city: new Color(0x6a7686),
+  courtyard: new Color(0x6a7686),
   shelf: new Color(0x9ec8e2),
   marsh: new Color(0x2f4238),
   core: new Color(0x64429e),
@@ -238,7 +238,7 @@ export class AttackView {
     this.marks.push({ x, z, r: radius, look, life, max: life, a: Math.random() * TAU, seed: Math.random() });
   }
   biomeId() {
-    return (this.r.biome && this.r.biome.id) || "city";
+    return (this.r.biome && this.r.biome.id) || "courtyard";
   }
   update(dt, world) {
     const r = this.r;
@@ -391,7 +391,7 @@ export class AttackView {
         if (k > 0.5 && chance(20 * k)) {
           const a = Math.random() * TAU,
             d = Math.random() * rr * k;
-          r.emit(x + Math.cos(a) * d, 0.1, z + Math.sin(a) * d, 0, 0.8, 0, 0.5, 0.25, DUST[biome] || DUST.city, {
+          r.emit(x + Math.cos(a) * d, 0.1, z + Math.sin(a) * d, 0, 0.8, 0, 0.5, 0.25, DUST[biome] || DUST.courtyard, {
             drag: 2,
             grow: 1,
           });
@@ -519,7 +519,7 @@ export class AttackView {
       z = ev.y,
       rr = ev.r;
     const biome = world?.arena ? world.arena.biome.id : this.biomeId();
-    const dust = DUST[biome] || DUST.city;
+    const dust = DUST[biome] || DUST.courtyard;
     const kind = ev.kind;
     const look = kind === "bomber" ? Z.target : lookOf(kind, ev.src, biome, ev.chill);
     if (
@@ -772,7 +772,7 @@ export class AttackView {
             });
           break;
         }
-        case "warden-seal": {
+        case "brass-seal": {
           const P = this.get("seal"),
             size = shot.r * 1.05,
             roll = time * 2.2;

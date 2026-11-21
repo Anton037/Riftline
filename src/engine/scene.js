@@ -70,6 +70,8 @@ export class Material {
     this.userData = opts.userData || {};
     this.flatShading = !!opts.flatShading;
     this.batchKey = opts.batchKey || null;
+    this.wakeReact = opts.wakeReact ?? (this.reedWind ? 1 : 0);
+    this._blendRank = this.additive ? 1 : 0;
   }
   dispose() {
     // Textures owned globally are disposed by their owners.
@@ -77,6 +79,8 @@ export class Material {
 }
 
 export class Node {
+  static _matrixUpdates = 0;
+
   constructor() {
     this.position = new Vec3();
     this.rotation = new Euler();
@@ -86,15 +90,27 @@ export class Node {
     this.children = [];
     this.localMatrix = new Mat4();
     this.worldMatrix = new Mat4();
+    this.matrixAutoUpdate = true;
+    this._matrixDirty = true;
+    this._subtreeStatic = false;
+    this._worldVersion = 0;
     this.userData = {};
+  }
+  _unfreezeAncestors() {
+    for (let cur = this; cur; cur = cur.parent) {
+      if (!cur._subtreeStatic) break;
+      cur._subtreeStatic = false;
+    }
   }
   add(...nodes) {
     for (const n of nodes) {
       if (!n || n === this) continue;
       if (n.parent) n.parent.remove(n);
       n.parent = this;
+      n._matrixDirty = true;
       this.children.push(n);
     }
+    this._unfreezeAncestors();
     return this;
   }
   remove(node) {
@@ -108,13 +124,33 @@ export class Node {
   clear() {
     for (const c of this.children) c.parent = null;
     this.children.length = 0;
+    this._subtreeStatic = false;
     return this;
   }
   traverse(fn) {
     fn(this);
     for (let i = 0; i < this.children.length; i++) this.children[i].traverse(fn);
   }
+  markMatrixDirty() {
+    this._matrixDirty = true;
+    this._unfreezeAncestors();
+  }
+  freezeStatic() {
+    this.updateWorldMatrix(true);
+    this.traverse((n) => {
+      n.matrixAutoUpdate = false;
+      n._matrixDirty = false;
+      n._subtreeStatic = true;
+      if (n.isMesh && !n.isInstancedMesh && n.geometry) {
+        n.getWorldSphere(true);
+      }
+    });
+    this._unfreezeAncestors();
+    this._subtreeStatic = true;
+    return this;
+  }
   updateLocalMatrix() {
+    Node._matrixUpdates++;
     const r = this.rotation;
     const p = this.position;
     const s = this.scale;
@@ -143,27 +179,34 @@ export class Node {
     _q.setFromEuler(r);
     this.localMatrix.compose(p, _q, s);
   }
-  updateWorldMatrix(updateChildren = true) {
-    this.updateLocalMatrix();
-    if (this.parent) {
-      if (this._isIdentity) this.worldMatrix.copy(this.parent.worldMatrix);
-      else if (this.parent._worldIdentity) this.worldMatrix.copy(this.localMatrix);
-      else this.worldMatrix.multiplyMatrices(this.parent.worldMatrix, this.localMatrix);
-      this._worldIdentity = this._isIdentity && !!this.parent._worldIdentity;
-    } else {
-      this.worldMatrix.copy(this.localMatrix);
-      this._worldIdentity = this._isIdentity;
+  updateWorldMatrix(updateChildren = true, parentUpdated = false) {
+    const needSelf = this.matrixAutoUpdate || this._matrixDirty || parentUpdated;
+    if (needSelf) {
+      if (this.matrixAutoUpdate || this._matrixDirty) {
+        this.updateLocalMatrix();
+        this._matrixDirty = false;
+      }
+      if (this.parent) {
+        if (this._isIdentity) this.worldMatrix.copy(this.parent.worldMatrix);
+        else if (this.parent._worldIdentity) this.worldMatrix.copy(this.localMatrix);
+        else this.worldMatrix.multiplyMatrices(this.parent.worldMatrix, this.localMatrix);
+        this._worldIdentity = this._isIdentity && !!this.parent._worldIdentity;
+      } else {
+        this.worldMatrix.copy(this.localMatrix);
+        this._worldIdentity = this._isIdentity;
+      }
+      this._worldVersion++;
     }
-    if (updateChildren) {
+    if (updateChildren && (!this._subtreeStatic || needSelf)) {
       const ch = this.children;
-      for (let i = 0; i < ch.length; i++) ch[i].updateWorldMatrix(true);
+      for (let i = 0; i < ch.length; i++) ch[i].updateWorldMatrix(true, needSelf);
     }
   }
   getWorldPosition(out = new Vec3()) {
     // Walk up chain so calling getWorldPosition right after mutating local transform is exact.
     const chain = [];
     for (let cur = this; cur; cur = cur.parent) chain.push(cur);
-    for (let i = chain.length - 1; i >= 0; i--) chain[i].updateWorldMatrix(false);
+    for (let i = chain.length - 1; i >= 0; i--) chain[i].updateWorldMatrix(false, i < chain.length - 1);
     const e = this.worldMatrix.elements;
     return out.set(e[12], e[13], e[14]);
   }
@@ -177,7 +220,37 @@ export class MeshNode extends Node {
     this.material = material;
     this.castShadow = false;
     this.receiveShadow = false;
+    this.frustumCulled = true;
     this.renderOrder = 0;
+    this._worldSphere = null;
+  }
+  getWorldSphere(force = false) {
+    const geo = this.geometry;
+    if (!geo) return null;
+    const s = (this._worldSphere ||= { x: 0, y: 0, z: 0, r: 0, wv: -1, gv: -1 });
+    if (!force && s.wv === this._worldVersion && s.gv === geo.version) return s;
+    const ls = geo.computeBoundingSphere();
+    if (this._worldIdentity) {
+      s.x = ls.cx;
+      s.y = ls.cy;
+      s.z = ls.cz;
+      s.r = ls.r;
+    } else {
+      const e = this.worldMatrix.elements;
+      s.x = e[0] * ls.cx + e[4] * ls.cy + e[8] * ls.cz + e[12];
+      s.y = e[1] * ls.cx + e[5] * ls.cy + e[9] * ls.cz + e[13];
+      s.z = e[2] * ls.cx + e[6] * ls.cy + e[10] * ls.cz + e[14];
+      const sx2 = e[0] * e[0] + e[1] * e[1] + e[2] * e[2];
+      const sy2 = e[4] * e[4] + e[5] * e[5] + e[6] * e[6];
+      const sz2 = e[8] * e[8] + e[9] * e[9] + e[10] * e[10];
+      s.r = ls.r * Math.sqrt(Math.max(sx2, sy2, sz2));
+    }
+    if (this.material && (this.material.reedWind || this.material.wakeReact > 0)) {
+      s.r += 0.45;
+    }
+    s.wv = this._worldVersion;
+    s.gv = geo.version;
+    return s;
   }
 }
 
@@ -359,6 +432,296 @@ export class InstancePool {
   }
 }
 
+export class CompactInstancedNode extends Node {
+  constructor(geometry, material, max) {
+    super();
+    this.isMesh = true;
+    this.isInstancedMesh = true;
+    this.isCompactInstanced = true;
+    this.geometry = geometry;
+    this.material = material;
+    this.max = max;
+    this.count = 0;
+    this.castShadow = false;
+    this.receiveShadow = false;
+    this.renderOrder = 0;
+    // 12 floats (48 bytes) per instance: aInstPosScale (4), aInstRotAnim (4), aInstTintFlash (4)
+    this.instanceData = new Float32Array(max * 12);
+    this.dirtyCount = 0;
+    this._gpuInst = null;
+  }
+  dispose() {
+    if (this._gpuInst) {
+      const { gl, vao, dataBuf } = this._gpuInst;
+      if (gl && !gl.isContextLost()) {
+        if (vao) gl.deleteVertexArray(vao);
+        if (dataBuf) gl.deleteBuffer(dataBuf);
+      }
+      this._gpuInst = null;
+    }
+  }
+}
+
+export class CompactInstancePool {
+  constructor(geometry, material, max) {
+    this.max = max;
+    this.mesh = new CompactInstancedNode(geometry, material, max);
+    this.d = this.mesh.instanceData;
+    this.n = 0;
+  }
+  begin() {
+    this.n = 0;
+  }
+  end() {
+    this.mesh.count = this.n;
+    this.mesh.visible = this.n > 0;
+    this.mesh.dirtyCount = this.n;
+  }
+  push(x, y, z, scale, scaleY, yaw, pitch, roll, animPhase, r, g, b, flash = 0, action = 0) {
+    if (this.n >= this.max) return -1;
+    const idx = this.n++;
+    const d = this.d;
+    const off = idx * 12;
+    const sc = Math.max(1e-4, scale);
+    const syRatio = scaleY / sc;
+    const fl8 = flash <= 0 ? 0 : flash >= 1 ? 255 : (flash * 255 + 0.5) | 0;
+    const ac7 = action <= 0 ? 0 : action >= 1 ? 127 : (action * 127 + 0.5) | 0;
+    const sy8 = syRatio <= 0.375 ? 0 : syRatio >= 1.625 ? 250 : ((syRatio - 0.375) * 200 + 0.5) | 0;
+    d[off] = x;
+    d[off + 1] = y;
+    d[off + 2] = z;
+    d[off + 3] = sc;
+    d[off + 4] = yaw;
+    d[off + 5] = pitch;
+    d[off + 6] = roll;
+    d[off + 7] = animPhase;
+    d[off + 8] = r;
+    d[off + 9] = g;
+    d[off + 10] = b;
+    d[off + 11] = fl8 + (ac7 << 8) + (sy8 << 15);
+    return idx;
+  }
+}
+
+/** Stateless GPU Ring-Buffer Particle System with O(1) time-wheel active budget counter and zero CPU stepping. */
+export class GpuParticleRing {
+  constructor(quadGeo, capacity = 2048, getTime = () => 0, onClear = null) {
+    this.capacity = capacity;
+    this.getTime = getTime;
+    this.onClear = onClear;
+    this.cursor = 0;
+    this.everUsed = 0;
+    // 16 floats (64 bytes) per slot: aSpawnPosTime(4), aVelLife(4), aColorSize(4), aPhysFlags(4)
+    this.data = new Float32Array(capacity * 16);
+    this.d0Start = -1;
+    this.d0End = -1;
+    this.d1Start = -1;
+    this.d1End = -1;
+    this._bins = new Int32Array(256);
+    this._curTick = 0;
+    this._active = 0;
+
+    const mat = new Material({
+      shader: "gpuParticle",
+      transparent: true,
+      additive: true,
+      depthWrite: false,
+      doubleSide: true,
+      fog: false,
+    });
+    this.mesh = new MeshNode(quadGeo, mat);
+    this.mesh.isInstancedMesh = true;
+    this.mesh.isGpuRingMesh = true;
+    this.mesh.frustumCulled = false;
+    this.mesh.renderOrder = 5;
+    this.mesh.max = capacity;
+    this.mesh.count = 0;
+    this.mesh.ring = this;
+  }
+  get n() {
+    return this._active;
+  }
+  set n(val) {
+    const k = Math.max(0, val | 0);
+    this._bins.fill(0);
+    this._active = k;
+    const now = this.getTime();
+    this._curTick = Math.max(0, Math.floor(now * 20));
+    if (k === 0) {
+      if (this.onClear) this.onClear(now + 1e-4);
+    } else {
+      this._bins[(this._curTick + 60) & 255] = k;
+    }
+  }
+  advanceTime(time) {
+    const targetTick = Math.max(this._curTick, Math.floor(time * 20));
+    const steps = targetTick - this._curTick;
+    if (steps >= 256) {
+      this._bins.fill(0);
+      this._active = 0;
+      this._curTick = targetTick;
+    } else if (steps > 0) {
+      for (let s = 1; s <= steps; s++) {
+        const bi = (this._curTick + s) & 255;
+        this._active -= this._bins[bi];
+        this._bins[bi] = 0;
+      }
+      if (this._active < 0) this._active = 0;
+      this._curTick = targetTick;
+    }
+    this.mesh.count = this.everUsed;
+    this.mesh.visible = this.everUsed > 0;
+  }
+  _markDirty(slot) {
+    if (this.d0Start < 0) {
+      this.d0Start = slot;
+      this.d0End = slot + 1;
+    } else if (slot === this.d0End && this.d1Start < 0) {
+      this.d0End = slot + 1;
+    } else if (this.d1Start < 0 && slot < this.d0Start) {
+      this.d1Start = slot;
+      this.d1End = slot + 1;
+    } else if (this.d1Start >= 0 && slot === this.d1End) {
+      this.d1End = slot + 1;
+    } else {
+      // Fallback union if non-sequential
+      this.d0Start = 0;
+      this.d0End = this.capacity;
+      this.d1Start = -1;
+      this.d1End = -1;
+    }
+  }
+  spawn(x, y, z, vx, vy, vz, spawnTime, life, size, r, g, b, drag, grav, grow, isSpark, seed) {
+    const dur = Math.max(0.02, life);
+    const slot = this.cursor;
+    this.cursor = (slot + 1) % this.capacity;
+    if (this.everUsed < this.capacity) this.everUsed++;
+    const d = this.data;
+    const o = slot * 16;
+    d[o] = x;
+    d[o + 1] = y;
+    d[o + 2] = z;
+    d[o + 3] = spawnTime;
+    d[o + 4] = vx;
+    d[o + 5] = vy;
+    d[o + 6] = vz;
+    d[o + 7] = 1 / dur;
+    d[o + 8] = r;
+    d[o + 9] = g;
+    d[o + 10] = b;
+    d[o + 11] = size;
+    d[o + 12] = drag;
+    d[o + 13] = grav;
+    d[o + 14] = grow;
+    const rotFrac = Math.min(0.999, Math.max(0.001, seed));
+    d[o + 15] = isSpark ? 1 + rotFrac : rotFrac * 0.49;
+    this._markDirty(slot);
+
+    const nowTick = Math.max(this._curTick, Math.floor(spawnTime * 20));
+    this._curTick = nowTick;
+    const expTick = nowTick + Math.min(255, Math.max(1, Math.ceil(dur * 20)));
+    this._bins[expTick & 255]++;
+    this._active++;
+    this.mesh.count = this.everUsed;
+    this.mesh.visible = true;
+  }
+  dispose() {
+    if (this.mesh._gpuInst) {
+      const { gl, vao, dataBuf } = this.mesh._gpuInst;
+      if (gl && !gl.isContextLost()) {
+        if (vao) gl.deleteVertexArray(vao);
+        if (dataBuf) gl.deleteBuffer(dataBuf);
+      }
+      this.mesh._gpuInst = null;
+    }
+  }
+}
+
+/** Stateless GPU Ring-Buffer Ballistic Combat Debris System (zero JS objects or CPU stepping). */
+export class GpuDebrisRing {
+  constructor(debrisGeo, material, capacity = 320) {
+    this.capacity = capacity;
+    this.cursor = 0;
+    this.everUsed = 0;
+    this.data = new Float32Array(capacity * 16);
+    this.d0Start = -1;
+    this.d0End = -1;
+    this.d1Start = -1;
+    this.d1End = -1;
+
+    material.shader = "gpuDebris";
+    this.mesh = new MeshNode(debrisGeo, material);
+    this.mesh.isInstancedMesh = true;
+    this.mesh.isGpuRingMesh = true;
+    this.mesh.isGpuDebrisMesh = true;
+    this.mesh.frustumCulled = false;
+    this.mesh.castShadow = true;
+    this.mesh.renderOrder = 1;
+    this.mesh.max = capacity;
+    this.mesh.count = 0;
+    this.mesh.ring = this;
+  }
+  _markDirty(slot) {
+    if (this.d0Start < 0) {
+      this.d0Start = slot;
+      this.d0End = slot + 1;
+    } else if (slot === this.d0End && this.d1Start < 0) {
+      this.d0End = slot + 1;
+    } else if (this.d1Start < 0 && slot < this.d0Start) {
+      this.d1Start = slot;
+      this.d1End = slot + 1;
+    } else if (this.d1Start >= 0 && slot === this.d1End) {
+      this.d1End = slot + 1;
+    } else {
+      this.d0Start = 0;
+      this.d0End = this.capacity;
+      this.d1Start = -1;
+      this.d1End = -1;
+    }
+  }
+  spawn(x, y, z, vx, vy, vz, spawnTime, life, size, r, g, b, sx, sy, sz, rotSeed) {
+    const dur = Math.max(0.05, life);
+    const slot = this.cursor;
+    this.cursor = (slot + 1) % this.capacity;
+    if (this.everUsed < this.capacity) this.everUsed++;
+    const d = this.data;
+    const o = slot * 16;
+    d[o] = x;
+    d[o + 1] = y;
+    d[o + 2] = z;
+    d[o + 3] = spawnTime;
+    d[o + 4] = vx;
+    d[o + 5] = vy;
+    d[o + 6] = vz;
+    d[o + 7] = 1 / dur;
+    d[o + 8] = r;
+    d[o + 9] = g;
+    d[o + 10] = b;
+    d[o + 11] = size;
+    d[o + 12] = sx;
+    d[o + 13] = sy;
+    d[o + 14] = sz;
+    d[o + 15] = rotSeed;
+    this._markDirty(slot);
+    this.mesh.count = this.everUsed;
+    this.mesh.visible = true;
+  }
+  sync() {
+    this.mesh.count = this.everUsed;
+    this.mesh.visible = this.everUsed > 0;
+  }
+  dispose() {
+    if (this.mesh._gpuInst) {
+      const { gl, vao, dataBuf } = this.mesh._gpuInst;
+      if (gl && !gl.isContextLost()) {
+        if (vao) gl.deleteVertexArray(vao);
+        if (dataBuf) gl.deleteBuffer(dataBuf);
+      }
+      this.mesh._gpuInst = null;
+    }
+  }
+}
+
 export class Scene extends Node {
   constructor() {
     super();
@@ -380,6 +743,10 @@ export class Scene extends Node {
     this.biomeIndex = 0;
     this.darkness = 0;
     this.time = 0;
+    this.particleClearTime = -1;
+    this.wakeHalf = { x: 22, y: 18 };
+    this.wakeStrength = 1;
+    this.wakeEnabled = 1;
     this.bloomStrength = 0.26;
     this.bloomThreshold = 1.28;
     this.pointLights = Array.from({ length: 8 }, () => ({
@@ -395,7 +762,7 @@ export class Scene extends Node {
   }
 }
 
-/** Merge static opaque meshes inside `root` by shader/surface/material signature to slash draw calls. */
+/** Merge static opaque meshes inside `root` by shader/surface/material signature (+ exterior quadrant for frustum culling). */
 export function mergeStaticNodes(root, keep = new Set()) {
   root.updateWorldMatrix(true);
   const rootInv = root.worldMatrix.clone().invert();
@@ -414,17 +781,23 @@ export function mergeStaticNodes(root, keep = new Set()) {
       !node.material.reedWind
     ) {
       const mat = node.material;
+      const we = node.worldMatrix.elements;
+      const wx = we[12];
+      const wz = we[14];
+      const sector = Math.max(Math.abs(wx), Math.abs(wz)) > 12 ? `${wx >= 0 ? 1 : 0}${wz >= 0 ? 1 : 0}` : "in";
       const key = [
         mat.shader,
         mat.surface,
         mat.doubleSide ? 1 : 0,
         mat.biomeSkin ? 1 : 0,
+        mat.wakeReact || 0,
         mat.emissiveIntensity.toFixed(2),
         mat.emissive.getHex(),
         node.castShadow ? 1 : 0,
         node.receiveShadow ? 1 : 0,
         node.renderOrder,
         mat.batchKey || "",
+        sector,
       ].join("|");
       let bucket = buckets.get(key);
       if (!bucket) {
@@ -559,6 +932,7 @@ export function mergeStaticNodes(root, keep = new Set()) {
       doubleSide: bucket.sample.doubleSide,
       surface: bucket.sample.surface,
       biomeSkin: bucket.sample.biomeSkin,
+      wakeReact: bucket.sample.wakeReact,
       vertexColors: true,
       rimStrength: bucket.sample.rimStrength,
       inkStrength: bucket.sample.inkStrength,

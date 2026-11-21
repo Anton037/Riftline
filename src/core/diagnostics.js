@@ -406,7 +406,7 @@ const RL_EVENT_KINDS = new Set([
   "step",
   "land",
   // 3.15.0: the boss cards
-  "lockdown",
+  "sealgrid",
   "lockOn",
   "shatter",
   "splinterHit",
@@ -500,6 +500,7 @@ const RL_EVENT_FIELDS = {
   portal: ["x", "y"],
   dmg: ["x", "y"],
   devilNear: ["x", "y"],
+  biomeProp: ["x", "y", "r"],
   chain: ["pts"],
 };
 function rlEventPayloadError(event) {
@@ -1523,7 +1524,7 @@ async function rlRunHealthNow({ context = "startup" } = {}) {
         time: "nan",
         shards: "bad",
         rerolls: 999999,
-        bossKills: ["warden", "wat", "warden"],
+        bossKills: ["bellkeeper", "wat", "bellkeeper"],
         runStats: { dmgTaken: "bad", dashes: "bad", critHits: "bad" },
         dmgSrc: { turret: "bad" },
         offer: ["wat", "dmg", "dmg"],
@@ -1540,7 +1541,7 @@ async function rlRunHealthNow({ context = "startup" } = {}) {
         cleaned.up.dmg === upgradesById.dmg.max &&
         // Repeated valid defeats count in Endless; discard only unknown boss names.
         cleaned.bossKills.length === 2 &&
-        cleaned.bossKills.every((id) => id === "warden") &&
+        cleaned.bossKills.every((id) => id === "bellkeeper") &&
         Number.isFinite(cleaned.time) &&
         Number.isFinite(cleaned.shards) &&
         cleaned.offer.length === 1,
@@ -1760,3 +1761,4 @@ RL_EVENT_KINDS.add("kit");
 for (const kind of ["singularity", "singOpen", "gadgetReady", "gadgetDeny", "maxed", "trapWarn", "trapFire", "trapArm"])
   RL_EVENT_KINDS.add(kind);
 RL_EVENT_KINDS.add("barrier");
+RL_EVENT_KINDS.add("biomeProp");

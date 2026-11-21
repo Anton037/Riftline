@@ -1,14 +1,14 @@
 // Presentation identities: shared by the simulation, rendering and audio. No random draws or balance values.
 export const BOSS_EFFECTS = {
-  warden: {
-    projectile: "warden-seal",
-    shot: "eshotWarden",
+  bellkeeper: {
+    projectile: "brass-seal",
+    shot: "eshotKeeper",
     height: 2.15,
     reach: 1.8,
     color: 0xd78e67,
     accent: 0xf4cf95,
     surface: "armor",
-    summon: "security",
+    summon: "courtyard",
   },
   queen: {
     projectile: "spore",
@@ -100,7 +100,7 @@ export const BEAM_EFFECTS = {
   sun: { warning: "bwFlare" },
 };
 export const SENTINEL_BEAMS = {
-  city: "laser",
+  courtyard: "laser",
   shelf: "cryo",
   marsh: "acid",
   core: "rift",
@@ -108,7 +108,7 @@ export const SENTINEL_BEAMS = {
   flats: "sun",
 };
 export const BIOME_TRAP_EFFECTS = {
-  city: { floor: "plate", beam: "laser", mine: "mine" },
+  courtyard: { floor: "plate", beam: "laser", mine: "mine" },
   shelf: { floor: "icespike", mine: "frost" },
   marsh: { floor: "geyser", mine: "spore" },
   core: { floor: "riftburst", beam: "rift", mine: "riftmine" },

@@ -5,15 +5,39 @@ import { hookLog as logError } from "../core/run-hooks.js";
 import { BOSS_EFFECTS, WEAPON_EFFECTS, BEAM_EFFECTS, shotVoiceFor, attackSurface } from "../data/combat-effects.js";
 import { upgradesById } from "../data/upgrades.js";
 import { PLACE, PLACE_IDS, placeTick } from "./place.js";
-import { musicImpact, musicResolve, musicTrack, playScore, scoreBed, scoreBiomes, scoreOrigin } from "./score.js";
+import {
+  musicImpact,
+  musicResolve,
+  musicTrack,
+  playScore,
+  scoreBed,
+  scoreBiomes,
+  scoreOrigin,
+  scoreScaleMidi,
+} from "./score.js";
 
 // Every supported weapon has an explicit sound identity.
 const RL_SFX_VOICES = Object.keys(WEAPON_EFFECTS);
 const rlShotSfx = (id) => WEAPON_EFFECTS[id]?.shot || "pulse";
-/* 2.7.0: each of the 25 enemy types dies with a voice of its family. 2.9.0: nine families (was six), so that
- machines, flesh, armour and ghosts no longer share a sound: bip pop (tiny swarmers), wet squelch, flesh and
- bone crunch, heavy armour, electric short circuit, ghostly fade, metal clang, hollow rattle, glass shatter.
- Bosses and champions keep "bigkill". */
+const RL_BIOME_SPARK = {
+  courtyard: "sparkCourtyard",
+  shelf: "sparkShelf",
+  marsh: "sparkMarsh",
+  core: "sparkCore",
+  caldera: "sparkCaldera",
+  flats: "sparkFlats",
+};
+const RL_PROP_VOICE = {
+  lantern: "propLantern",
+  rime: "propRime",
+  puffball: "propPuffball",
+  prism: "propPrism",
+  crucible: "propCrucible",
+  sunglass: "propSunglass",
+};
+/* 2.7.0: each of the 25 enemy types dies with a voice of its family. 5.0.0: eleven tactile families so
+ clockwork kettle-kin (dClockwork) and arcane constructs (dConstruct) stand apart from armour, flesh,
+ electric drones and ghosts. Bosses and champions keep "bigkill". */
 const RL_DEATH_FAMILY = {
   swarmer: "dPop",
   mite: "dPop",
@@ -27,19 +51,19 @@ const RL_DEATH_FAMILY = {
   driller: "dArmor",
   mortar: "dArmor",
   drone: "dZap",
-  sentinel: "dZap",
+  sentinel: "dConstruct",
   turret: "dZap",
   phantom: "dGhost",
   weaver: "dGhost",
   grunt: "dClang",
   gunner: "dClang",
-  sapper: "dClang",
-  bomber: "dRattle",
-  charger: "dRattle",
+  sapper: "dRattle",
+  bomber: "dClockwork",
+  charger: "dClockwork",
   carrier: "dSquelch",
-  minebot: "dRattle",
+  minebot: "dClockwork",
   sniper: "dClang",
-  beacon: "dClang",
+  beacon: "dConstruct",
 };
 /* wind-up voices of the "charge" event (enemy types and the bosses that charge) */
 const RL_CHARGE_VOICE = {
@@ -48,7 +72,7 @@ const RL_CHARGE_VOICE = {
   striker: "windSlash",
   driller: "windDrill",
   leaper: "windLeap",
-  warden: "bWind",
+  bellkeeper: "bWind",
   prism: "bWind",
   tyrant: "bWind",
 };
@@ -83,7 +107,7 @@ const RL_BOSS_ATK = {
   sunlance: null,
   mirage: null,
   // 3.3.0: the Overdrive attacks (they also sound the Overdrive alarm, bOverdrive)
-  lockdown: "bLance",
+  sealgrid: "bLance",
   whiteout: "bNova",
   plague: "bSummon",
   collapse: "bRain",
@@ -91,7 +115,7 @@ const RL_BOSS_ATK = {
 };
 // 3.33.0: the warning voice of a beam by its skin (the rest keep "beam" / "beamSmall")
 const BEAM_VOICE = Object.fromEntries(Object.entries(BEAM_EFFECTS).map(([id, effect]) => [id, effect.warning]));
-const RL_OVERDRIVE = new Set(["lockdown", "whiteout", "plague", "collapse", "firestorm", "noon"]);
+const RL_OVERDRIVE = new Set(["sealgrid", "whiteout", "plague", "collapse", "firestorm", "noon"]);
 const BOSS_WARNING_VOICES = new Set(Object.values(RL_BOSS_ATK).filter(Boolean));
 /* 3.10.0: the voice of the blast of an attack zone, by its kind and, where the kind is shared, its maker (the same
    choice as the look in render/attacks-view.js); null: the generic explosion ("boom"). 3.32.0: a blast that chills (a
@@ -181,10 +205,16 @@ const MUSIC_DUCK = {
     aGlass: 0.28,
     aFire: 0.15,
     aShort: 0.2,
+    propLantern: 0.22,
+    propRime: 0.3,
+    propPuffball: 0.2,
+    propPrism: 0.32,
+    propCrucible: 0.28,
+    propSunglass: 0.26,
   },
   /* how much room each biome gives the sounds: the Aurora Shelf and the Shattered Core are vast, the Glowmarsh damp;
      3.49.0: the Ashfall Caldera is a crater bowl (rock all around) */
-  SFX_ROOM_BIOME = { city: 0.28, shelf: 0.5, marsh: 0.2, core: 0.55, caldera: 0.32, flats: 0.3 },
+  SFX_ROOM_BIOME = { courtyard: 0.28, shelf: 0.5, marsh: 0.2, core: 0.55, caldera: 0.32, flats: 0.3 },
   /* the open "ah" of the choir: band-passes on its formants (frequency, Q, level) and a little of the voice */
   CHOIR_VOWEL = [
     [760, 5, 1],
@@ -192,12 +222,12 @@ const MUSIC_DUCK = {
     [2700, 9, 0.18],
     [0, 0.7, 0.12],
   ],
-  AMBIENCE_LEVEL = { blackout: 0.032, whiteout: 0.048, bloom: 0.034, riftstorm: 0.032, ashfall: 0.04 },
-  ROOM_TONE_LEVEL = { city: 0.024, shelf: 0.032, marsh: 0.024, core: 0.024, caldera: 0.026, flats: 0.024 },
+  AMBIENCE_LEVEL = { duskfall: 0.032, whiteout: 0.048, bloom: 0.034, riftstorm: 0.032, ashfall: 0.04 },
+  ROOM_TONE_LEVEL = { courtyard: 0.024, shelf: 0.032, marsh: 0.024, core: 0.024, caldera: 0.026, flats: 0.024 },
   /* 3.43.0: the event beds gather and pass instead of snapping on and off - a storm builds over about
      three seconds and dies away over about four, while the room tone stays underneath. */
-  BED_ATTACK = { blackout: 0.6, whiteout: 1.2, bloom: 0.8, riftstorm: 1.2, ashfall: 1.0 },
-  BED_RELEASE = { blackout: 0.5, whiteout: 1.4, bloom: 0.7, riftstorm: 1.1, ashfall: 0.9 },
+  BED_ATTACK = { duskfall: 0.6, whiteout: 1.2, bloom: 0.8, riftstorm: 1.2, ashfall: 1.0 },
+  BED_RELEASE = { duskfall: 0.5, whiteout: 1.4, bloom: 0.7, riftstorm: 1.1, ashfall: 0.9 },
   // 3.9.0: the default of the Ambience slider; at it the atmospheres of the music play at the level they had before
   AMB_REF = 0.8,
   MUSIC_SCALE = 0.3,
@@ -375,7 +405,7 @@ const SoundEngine = class {
     this.placeSt = null;
     this.last = Object.create(null);
     this.mode = "off";
-    this.biome = "city";
+    this.biome = "courtyard";
     this.step = 0;
     this.nextT = 0;
     this.timer = null;
@@ -418,7 +448,7 @@ const SoundEngine = class {
     // 3.1.0: the music tracks (see MUSIC_TRACKS): what plays now, the boss heat (0 calm, 1 after a phase change,
     // 2 enraged), the stage buses and the counters of the voice budget
     this.playKind = "off";
-    this.playBiome = "city";
+    this.playBiome = "courtyard";
     this.heat = 0;
     this.jump = false;
     this.fade = null;
@@ -582,7 +612,7 @@ const SoundEngine = class {
       let sfxVerb = ctx.createConvolver();
       sfxVerb.buffer = roomImpulse(ctx, 1.4);
       this.sfxVerbOut = ctx.createGain();
-      this.sfxVerbOut.gain.value = SFX_ROOM_BIOME.city;
+      this.sfxVerbOut.gain.value = SFX_ROOM_BIOME.courtyard;
       this.sfxVerbIn.connect(sfxVerb);
       sfxVerb.connect(this.sfxVerbOut);
       this.sfxVerbOut.connect(this.sfx);
@@ -1052,10 +1082,11 @@ const SoundEngine = class {
     this.physical.play(this, id, arg);
     this._cozyChime(id, arg);
   }
-  /* Warm musical chimes layered gently onto UI, pickups, upgrade rarities, readiness & clear moments
-     so menus, rewards and combat milestones feel cozy, charming and immediately legible by ear. */
+  /* Warm musical chimes layered gently onto UI, pickups, upgrade rarities, readiness, interactive biome
+     relics & clear moments, quantized to the active biome's modal scale via scoreScaleMidi. */
   _cozyChime(id, arg) {
     const note = (midi) => 440 * 2 ** ((midi - 69) / 12);
+    const m = (deg, oct = 24) => scoreScaleMidi(this.biome, deg, oct);
     const bell = (midi, dur, wave, vol, delay = 0, pan = 0) =>
       this.tone(note(midi), dur, wave, vol, {
         at: delay,
@@ -1066,27 +1097,27 @@ const SoundEngine = class {
       });
     switch (id) {
       case "click":
-        if (this.gate("chime:click", 0.045)) bell(74, 0.085, "kalimba", 0.036);
+        if (this.gate("chime:click", 0.045)) bell(m(0, 24), 0.085, "kalimba", 0.036);
         break;
       case "deny":
       case "gadgetNo":
         if (this.gate("chime:deny", 0.08)) {
-          bell(64, 0.11, "marimba", 0.048, 0, -0.1);
-          bell(60, 0.14, "marimba", 0.045, 0.065, 0.1);
+          bell(m(1, 12), 0.11, "marimba", 0.048, 0, -0.1);
+          bell(m(0, 12), 0.14, "marimba", 0.045, 0.065, 0.1);
         }
         break;
       case "offer":
         if (this.gate("chime:offer", 0.12)) {
-          bell(69, 0.2, "harp", 0.048, 0, -0.18);
-          bell(74, 0.24, "harp", 0.052, 0.055, 0);
-          bell(78, 0.3, "celesta", 0.046, 0.11, 0.18);
+          bell(m(0, 12), 0.2, "harp", 0.048, 0, -0.18);
+          bell(m(2, 24), 0.24, "harp", 0.052, 0.055, 0);
+          bell(m(4, 24), 0.3, "celesta", 0.046, 0.11, 0.18);
         }
         break;
       case "reroll":
         if (this.gate("chime:reroll", 0.1)) {
-          bell(74, 0.14, "kalimba", 0.045, 0, -0.2);
-          bell(76, 0.15, "kalimba", 0.046, 0.045, 0);
-          bell(81, 0.2, "celesta", 0.048, 0.09, 0.2);
+          bell(m(0, 24), 0.14, "kalimba", 0.045, 0, -0.2);
+          bell(m(2, 24), 0.15, "kalimba", 0.046, 0.045, 0);
+          bell(m(4, 24), 0.2, "celesta", 0.048, 0.09, 0.2);
         }
         break;
       case "pick": {
@@ -1094,14 +1125,14 @@ const SoundEngine = class {
         const r = Math.max(1, Math.min(6, Number(arg) || 1));
         const chord =
           r >= 5
-            ? [62, 69, 74, 78, 86]
+            ? [m(0, 12), m(2, 12), m(0, 24), m(2, 24), m(4, 24)]
             : r === 4
-              ? [69, 74, 78, 83, 86]
+              ? [m(0, 12), m(0, 24), m(2, 24), m(4, 24), m(6, 24)]
               : r === 3
-                ? [74, 78, 81, 85]
+                ? [m(0, 24), m(2, 24), m(4, 24), m(5, 24)]
                 : r === 2
-                  ? [74, 78, 81]
-                  : [74, 81];
+                  ? [m(0, 24), m(2, 24), m(4, 24)]
+                  : [m(0, 24), m(4, 24)];
         const wave = r >= 4 ? "celesta" : r >= 2 ? "harp" : "kalimba";
         for (let i = 0; i < chord.length; i++) {
           bell(chord[i], 0.26 + i * 0.04, wave, 0.052, i * 0.048, (i - (chord.length - 1) / 2) * 0.16);
@@ -1110,15 +1141,15 @@ const SoundEngine = class {
       }
       case "shard":
         if (this.gate("chime:shard", 0.055)) {
-          const step = ((this.shardStep = ((this.shardStep || 0) + 1) % 5), [74, 76, 78, 81, 83][this.shardStep]);
-          bell(step, 0.13, "celesta", 0.042);
+          const deg = (this.shardStep = ((this.shardStep || 0) + 1) % 5);
+          bell(m(deg, 24), 0.13, "celesta", 0.042);
         }
         break;
       case "heal":
       case "heart":
         if (this.gate("chime:heal", 0.1)) {
-          bell(66, 0.22, "harp", 0.05, 0, -0.15);
-          bell(73, 0.28, "celesta", 0.048, 0.065, 0.15);
+          bell(m(2, 12), 0.22, "harp", 0.05, 0, -0.15);
+          bell(m(4, 24), 0.28, "celesta", 0.048, 0.065, 0.15);
         }
         break;
       case "buy":
@@ -1126,36 +1157,63 @@ const SoundEngine = class {
       case "bounty":
       case "tribute":
         if (this.gate("chime:buy", 0.1)) {
-          bell(71, 0.18, "kalimba", 0.05, 0, -0.15);
-          bell(76, 0.22, "harp", 0.052, 0.055, 0);
-          bell(83, 0.28, "celesta", 0.048, 0.11, 0.15);
+          bell(m(1, 24), 0.18, "kalimba", 0.05, 0, -0.15);
+          bell(m(3, 24), 0.22, "harp", 0.052, 0.055, 0);
+          bell(m(5, 24), 0.28, "celesta", 0.048, 0.11, 0.15);
         }
         break;
       case "ready":
       case "novaReady":
       case "gadgetReady":
         if (this.gate("chime:ready", 0.12)) {
-          const base = id === "novaReady" ? 76 : id === "gadgetReady" ? 73 : 74;
-          bell(base, 0.16, "celesta", 0.044, 0, -0.12);
-          bell(base + 7, 0.22, "celesta", 0.048, 0.05, 0.12);
+          const deg = id === "novaReady" ? 2 : id === "gadgetReady" ? 1 : 0;
+          bell(m(deg, 24), 0.16, "celesta", 0.044, 0, -0.12);
+          bell(m(deg + 4, 24), 0.22, "celesta", 0.048, 0.05, 0.12);
         }
         break;
       case "combo":
         if (this.gate("chime:combo", 0.08)) {
           const lift = Math.max(0, Math.min(12, Number(arg) || 0));
-          const scale = [74, 76, 78, 81, 83, 86, 88];
-          bell(scale[lift % scale.length], 0.18, "kalimba", 0.048);
+          bell(m(lift % 7, 24), 0.18, "kalimba", 0.048);
+        }
+        break;
+      case "propArm":
+        if (this.gate("chime:propArm", 0.08)) {
+          bell(m(2, 24), 0.14, "kalimba", 0.042, 0, -0.1);
+          bell(m(4, 24), 0.18, "celesta", 0.045, 0.055, 0.1);
+        }
+        break;
+      case "propLantern":
+      case "propRime":
+      case "propPuffball":
+      case "propPrism":
+      case "propCrucible":
+      case "propSunglass":
+        if (this.gate("chime:prop", 0.08)) {
+          const inst =
+            id === "propRime"
+              ? "celesta"
+              : id === "propPuffball"
+                ? "marimba"
+                : id === "propCrucible"
+                  ? "brass"
+                  : id === "propLantern"
+                    ? "kalimba"
+                    : "harp";
+          bell(m(0, 24), 0.2, inst, 0.05, 0, -0.16);
+          bell(m(2, 24), 0.24, inst, 0.052, 0.05, 0);
+          bell(m(4, 24), 0.3, "celesta", 0.048, 0.1, 0.16);
         }
         break;
       case "wave":
         if (this.gate("chime:wave", 0.2)) {
-          bell(57, 0.34, "brass", 0.048, 0, -0.15);
-          bell(64, 0.38, "harp", 0.046, 0.06, 0.15);
+          bell(m(0, 12), 0.34, "brass", 0.048, 0, -0.15);
+          bell(m(4, 12), 0.38, "harp", 0.046, 0.06, 0.15);
         }
         break;
       case "cleared":
         if (this.gate("chime:cleared", 0.2)) {
-          const notes = arg ? [69, 73, 76, 81] : [69, 73, 76];
+          const notes = arg ? [m(0, 12), m(2, 24), m(4, 24), m(6, 24)] : [m(0, 12), m(2, 24), m(4, 24)];
           for (let i = 0; i < notes.length; i++) {
             bell(
               notes[i],
@@ -1172,7 +1230,7 @@ const SoundEngine = class {
       case "evolve":
       case "victory":
         if (this.gate("chime:fanfare", 0.25)) {
-          const notes = [62, 66, 69, 74, 78];
+          const notes = [m(0, 12), m(2, 12), m(4, 12), m(0, 24), m(4, 24)];
           for (let i = 0; i < notes.length; i++) {
             bell(
               notes[i],
@@ -1312,7 +1370,7 @@ const SoundEngine = class {
           this.play("pick", ev.evo ? 5 : (upgradesById[ev.id] && upgradesById[ev.id].rarity) || 1);
           break;
         // 3.15.0: the boss cards
-        case "lockdown":
+        case "sealgrid":
           this.play("bcCage");
           break;
         case "lockOn":
@@ -1390,7 +1448,7 @@ const SoundEngine = class {
           this.play(ev.leap ? "leap" : "blink", ev.src);
           break;
         case "erupt":
-          this.play(this.biome === "city" ? "inlayRelease" : "erupt");
+          this.play(this.biome === "courtyard" ? "inlayRelease" : "erupt");
           break;
         case "devilNear":
           // 3.53.0: a dust devil of the Flats bears down on the player (the consume pan carried its spot)
@@ -1446,6 +1504,14 @@ const SoundEngine = class {
           break;
         case "bounce":
           this.play("bounce");
+          break;
+        case "spark":
+          if (!this.gate || this.gate("sfx:spark", 0.055)) {
+            this.play(RL_BIOME_SPARK[this.biome] || "sparkCourtyard");
+          }
+          break;
+        case "biomeProp":
+          this.play(ev.state === "arm" ? "propArm" : RL_PROP_VOICE[ev.kind] || "propLantern", ev);
           break;
         // bosses
         case "boss":
@@ -1509,7 +1575,7 @@ const SoundEngine = class {
     return this.mode;
   }
   wantBiome() {
-    return scoreBiomes.includes(this.biome) ? this.biome : "city";
+    return scoreBiomes.includes(this.biome) ? this.biome : "courtyard";
   }
   /* Called when the wanted track changes: restarts the step counter on the spot, cuts the notes that were
      already scheduled for the old track and plays the transition: an impact when the boss track starts, a last
@@ -1746,7 +1812,7 @@ const SoundEngine = class {
         const beds = {
           whiteout: [1170, 2.6, 0.15, 329, 0.65],
           bloom: [450, 2.3, 0.32, 173, 0.59],
-          blackout: [310, 1.7, 0.11, 107, 0.73],
+          duskfall: [310, 1.7, 0.11, 107, 0.73],
           ashfall: [690, 1.6, 0.18, 71, 0.56],
           riftstorm: [890, 3.9, 0.24, 137, 0.71],
         };
@@ -1802,8 +1868,8 @@ const SoundEngine = class {
     delete this.beds[name];
   }
   /* 3.2.0: the atmosphere of a music track: a loop that plays under the notes for as long as the track plays (a
-       singing wind on the Aurora Shelf, murk in the Glowmarsh, soft rain and city hum
-       in Blackout City, beating drones in the Shattered Core; see MUSIC_BEDS). It goes through the music chain (volume,
+       singing wind on the Aurora Shelf, murk in the Glowmarsh, soft rain and lantern hum
+       in Lantern Courtyard, beating drones in the Shattered Core; see MUSIC_BEDS). It goes through the music chain (volume,
        fade, glue) and is not a voice of the budget. */
   startMusicBed(kind, biome, fadeIn = 1.5) {
     const ctx = this.ctx;
@@ -1933,14 +1999,14 @@ const SoundEngine = class {
           depthGain.connect(param);
         };
       const recipes = {
-        city: [238, 2.1, 0.08, 65, 1280],
+        courtyard: [238, 2.1, 0.08, 65, 1280],
         shelf: [940, 1.7, 0.053, 113, 2810],
         marsh: [387, 1.3, 0.119, 83, 1460],
         core: [510, 3.7, 0.072, 94, 1860],
         flats: [729, 1.5, 0.103, 109, 2390],
         caldera: [189, 1.2, 0.067, 71, 1110],
       };
-      const [air, q, pace, low, high] = recipes[name] || recipes.city;
+      const [air, q, pace, low, high] = recipes[name] || recipes.courtyard;
       const wash = filter("bandpass", air, q, loop(0.68, "pink"));
       drift(wash.frequency, pace, air * 0.34);
       const washGain = amp(wash, 0.43);
@@ -2048,7 +2114,7 @@ const SoundEngine = class {
     const accents = {
       whiteout: [874, 1417, 1.2, "bow", 0.024],
       bloom: [334, 472, 0.43, "reed", 0.02],
-      blackout: [193, 121, 0.84, "ceramic", 0.034],
+      duskfall: [193, 121, 0.84, "ceramic", 0.034],
       riftstorm: [277, 415, 0.98, "brass", 0.023],
       ashfall: [208, 128, 0.76, "reed", 0.031],
     };
@@ -2332,7 +2398,7 @@ const SoundEngine = class {
   }
 };
 const AMB_PREVIEW = {
-  city: "galleryChime",
+  courtyard: "galleryChime",
   shelf: "icicles",
   marsh: "drip",
   core: "shimmer",
@@ -2360,7 +2426,7 @@ const RL_FLOOD = [
   ["dClang", 1.6],
   ["dShatter", 1.6],
   ["bigkill"],
-  ["bSlam", "warden"],
+  ["bSlam", "bellkeeper"],
   ["eshotBoss"],
 ];
 function rlSoundCatalog() {
@@ -2398,7 +2464,7 @@ function rlSoundCatalog() {
     "eshotDrone",
     "eshotTurret",
     "eshotBoss",
-    "eshotWarden",
+    "eshotKeeper",
     "eshotQueen",
     "eshotCore",
     "eshotPrism",
@@ -2524,12 +2590,27 @@ function rlSoundCatalog() {
   for (const source of ["beacon", "mender"]) add(`mend:${source}`, { id: "mend", arg: source });
   for (const rarity of [1, 2, 3, 4, 5, 6]) ids(["pick"], rarity);
   // 3.17.0: the walker: a footstep on every ground, the landing after a dash
-  for (const ground of ["asphalt", "frost", "ice", "mud", "glass", "acid", "crust", "sandglass"])
+  for (const ground of ["flagstone", "frost", "ice", "mud", "glass", "acid", "crust", "sandglass"])
     add("step:" + ground, { id: "step", arg: { ground } });
   add("land:crust", { id: "land", arg: { ground: "crust" } });
+  ids([
+    "sparkCourtyard",
+    "sparkShelf",
+    "sparkMarsh",
+    "sparkCore",
+    "sparkCaldera",
+    "sparkFlats",
+    "propArm",
+    "propLantern",
+    "propRime",
+    "propPuffball",
+    "propPrism",
+    "propCrucible",
+    "propSunglass",
+  ]);
   // 3.15.0: the boss cards
   ids(["bcCage", "bcLock", "bcShatter", "bcHatch", "bcBurst", "bcImplode"]);
-  for (const id of ["elite", "rain", "blackout", "whiteout", "bloom", "riftstorm", "ashfall", "devils"])
+  for (const id of ["elite", "rain", "duskfall", "whiteout", "bloom", "riftstorm", "ashfall", "devils"])
     ids(["event"], id);
   for (const bed of ["hum", ...Object.keys(AMBIENCE_LEVEL)]) add("bed:" + bed, { bed, stopAt: 1.1, stopRel: 0.1 });
   // 3.43.0: the room tones render too (a short take of each, the real attack is slower than the test fade)

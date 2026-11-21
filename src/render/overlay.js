@@ -5,7 +5,7 @@ import { clamp } from "../core/util.js";
 import { RL_INPUT } from "../ui/input.js";
 
 const BIOME_RETICLE = {
-  city: "rgba(130,244,218,0.92)",
+  courtyard: "rgba(130,244,218,0.92)",
   shelf: "rgba(38,142,216,0.92)",
   marsh: "rgba(140,255,176,0.92)",
   core: "rgba(228,176,255,0.92)",
@@ -68,7 +68,7 @@ const healthBarTypes = {
     cross: "LASER CROSS",
     rain: "BOMBARDMENT",
     // 3.3.0: the Overdrive attacks of the enraged bosses
-    lockdown: "OVERDRIVE · LOCKDOWN",
+    sealgrid: "OVERDRIVE · LANTERN CAGE",
     whiteout: "OVERDRIVE · WHITEOUT",
     plague: "OVERDRIVE · PLAGUE",
     collapse: "OVERDRIVE · COLLAPSE",

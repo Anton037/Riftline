@@ -57,7 +57,12 @@ test("all 25 enemy kits, 7 player weapon rigs and 6 bosses produce finite bounde
   for (const [type, def] of Object.entries(enemyDefs)) {
     const model = enemyGeometry(type, def.color);
     const triangles = model.body.triangleCount + model.glow.triangleCount;
-    assert.ok(triangles <= 810, `${type}: ${triangles} triangles exceeds the 810-triangle mobile kit budget`);
+    assert.ok(triangles <= 1800, `${type}: ${triangles} triangles exceeds the 1800-triangle GPU-First v2 kit budget`);
+    assert.ok(
+      (model.body.partMeta && model.body.partMeta.some((v, idx) => idx % 4 === 0 && v > 0)) ||
+        (model.glow.partMeta && model.glow.partMeta.some((v, idx) => idx % 4 === 0 && v > 0)),
+      `${type}: missing GPU sub-part animation metadata (aPartMeta)`,
+    );
     check(model.body, `${type}:body`);
     check(model.glow, `${type}:glow`);
   }
@@ -73,7 +78,7 @@ test("all 25 enemy kits, 7 player weapon rigs and 6 bosses produce finite bounde
         tris += o.geometry.triangleCount;
       }
     });
-    assert.ok(tris > 0 && tris <= 3500, `${id}: triangle count ${tris} out of budget`);
+    assert.ok(tris > 0 && tris <= 6500, `${id}: triangle count ${tris} out of budget`);
   }
 });
 
@@ -150,5 +155,64 @@ test("all biomes have a distinct painterly palette and a fight and boss score", 
     const boss = musicTrack("boss", id);
     assert.ok(fight.bpm > 0 && boss.bpm > fight.bpm, id);
     assert.ok(fight.bars > 0 && boss.bars > 0, id);
+  }
+});
+
+test("Engine v2 freezeStatic skips matrix recomputation, GpuParticleRing expires in O(1), and 3D variant/elite gear is bounded", async () => {
+  const { GpuParticleRing, CompactInstancePool } = await import("../src/engine/scene.js");
+  const { variantAttachmentGeometry, affixAttachmentGeometry } = await import("../src/render/models.js");
+  const { plane } = await import("../src/engine/geometry.js");
+
+  // 1. Static subtree freezing skips per-frame world matrix updates while preserving world bounds
+  const root = new Node();
+  for (let i = 0; i < 6; i++) {
+    const m = new MeshNode(box(1, 1, 1), new Material({ shader: "stylized" }));
+    m.position.set(i * 2, 0.5, -i);
+    root.add(m);
+  }
+  root.freezeStatic();
+  Node._matrixUpdates = 0;
+  root.updateWorldMatrix(true);
+  assert.equal(Node._matrixUpdates, 0, "frozen static subtree must recompute zero world matrices");
+  for (const child of root.children) {
+    const sphere = child.getWorldSphere();
+    assert.ok(sphere.r > 0 && Number.isFinite(sphere.x), "frozen mesh retains valid frustum sphere");
+  }
+
+  // 2. Stateless GPU particle ring tracks active count via O(1) time-wheel buckets and wraps cleanly
+  let simTime = 0;
+  const ring = new GpuParticleRing(plane(1, 1), 64, () => simTime);
+  for (let i = 0; i < 40; i++) {
+    ring.spawn(i * 0.1, 0.5, 0, 1, 2, 0, simTime, 0.5, 0.2, 1, 0.8, 0.4, 1.5, 4, 0, false, 0.37);
+  }
+  assert.equal(ring.n, 40);
+  assert.equal(ring.d0Start, 0);
+  assert.equal(ring.d0End, 40);
+  simTime = 0.65;
+  ring.advanceTime(simTime);
+  assert.equal(ring.n, 0, "expired GPU particles drain in O(1) via time-wheel buckets");
+
+  // 3. CompactInstancePool packs 12 floats (48 bytes) per articulated actor
+  const pool = new CompactInstancePool(box(0.5, 0.5, 0.5), new Material({ shader: "stylized" }), 8);
+  pool.begin();
+  assert.equal(pool.push(1, 0.5, -2, 1.1, 1.2, 0.4, 0.1, -0.05, 2.3, 1, 0.9, 0.8, 0.5, 0.25), 0);
+  pool.end();
+  assert.equal(pool.mesh.count, 1);
+  assert.ok(pool.d.subarray(0, 12).every(Number.isFinite));
+
+  // 4. 3D Biome-Variant & Elite Affix attachment geometries are finite and bounded
+  for (const v of ["shorted", "frost", "phase", "corrosive", "sunstruck", "flareheart"]) {
+    const kit = variantAttachmentGeometry(v);
+    const tris = (kit.body?.triangleCount || 0) + (kit.glow?.triangleCount || 0);
+    assert.ok(tris > 0 && tris <= 400, `${v}: ${tris} tris`);
+    if (kit.body) assert.ok(kit.body.positions.every(Number.isFinite), `${v}: body`);
+    if (kit.glow) assert.ok(kit.glow.positions.every(Number.isFinite), `${v}: glow`);
+  }
+  for (const a of ["shielded", "hasted", "volatile"]) {
+    const kit = affixAttachmentGeometry(a);
+    const tris = (kit.body?.triangleCount || 0) + (kit.glow?.triangleCount || 0);
+    assert.ok(tris > 0 && tris <= 400, `${a}: ${tris} tris`);
+    if (kit.body) assert.ok(kit.body.positions.every(Number.isFinite), `${a}: body`);
+    if (kit.glow) assert.ok(kit.glow.positions.every(Number.isFinite), `${a}: glow`);
   }
 });

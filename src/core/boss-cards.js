@@ -83,7 +83,7 @@ function lockTarget(world) {
   return best && bestN >= 2 ? { x: best.x, y: best.y } : null;
 }
 
-function updateLockdown(world, dt) {
+function updateSealgrid(world, dt) {
   const player = world.player,
     dmg = LOCK_DPS * world.stats.dmgMul;
   player.lockT = (player.lockT ?? LOCK_EVERY * 0.5) - dt;
@@ -93,7 +93,7 @@ function updateLockdown(world, dt) {
       player.lockT = LOCK_EVERY;
       const cage = { id: world.nextId++, x: at.x, y: at.y, r: LOCK_R, t: 0, held: [] };
       world.cages.push(cage);
-      world.emit("lockdown", { x: at.x, y: at.y, r: LOCK_R });
+      world.emit("sealgrid", { x: at.x, y: at.y, r: LOCK_R });
     } else player.lockT = 0.5;
   }
   for (const cage of world.cages) {
@@ -125,7 +125,7 @@ function updateLockdown(world, dt) {
       // the damage comes in two hits a second (one number each, not a stream of small ones)
       enemy.lockAcc = (enemy.lockAcc || 0) + dmg * dt;
       if (enemy.lockAcc >= dmg * 0.5) {
-        world.hurtEnemy(enemy, enemy.lockAcc, 0, 0, 0, false, "lockdown");
+        world.hurtEnemy(enemy, enemy.lockAcc, 0, 0, 0, false, "sealgrid");
         enemy.lockAcc = 0;
       }
     }
@@ -447,7 +447,7 @@ function bossCardKill(world, enemy) {
 function updateBossCards(world, dt) {
   const stats = world.stats;
   if (!world.player.brood) world.player.brood = [];
-  if (stats.lockdown) updateLockdown(world, dt);
+  if (stats.sealgrid) updateSealgrid(world, dt);
   else if (world.cages.length) world.cages = [];
   updateBurnPools(world, dt);
   updateSplinters(world, dt);

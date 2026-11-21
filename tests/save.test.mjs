@@ -28,21 +28,28 @@ const reset = (raw) => {
 
 test("current names preserve boss progress, medals, records and repeated run kills", () => {
   const raw = newSave();
-  raw.stats.bosses = { kingpin: 4, forge: 2 };
-  raw.stats.medals = { kingpin: { medal: 3, secs: 48, damage: 0 } };
-  raw.milestones = { kingpin: true };
-  raw.seen = { boss_kingpin: true, od_kingpin: true, boss_forge: true, od_forge: true, ev_raid: true, var_showy: true };
+  raw.stats.bosses = { colossus: 4, forge: 2 };
+  raw.stats.medals = { colossus: { medal: 3, secs: 48, damage: 0 } };
+  raw.milestones = { colossus: true };
+  raw.seen = {
+    boss_colossus: true,
+    od_colossus: true,
+    boss_forge: true,
+    od_forge: true,
+    ev_cinder: true,
+    var_showy: true,
+  };
   raw.run = {
     v: 1,
     seed: 731,
     weapon: "pulse",
     wave: 19,
     hp: 100,
-    bossKills: ["kingpin", "forge", "kingpin"],
-    takenBy: { kingpin: 12 },
-    hitLog: [{ src: "kingpin", dmg: 12 }],
+    bossKills: ["colossus", "forge", "colossus"],
+    takenBy: { colossus: 12 },
+    hitLog: [{ src: "colossus", dmg: 12 }],
   };
-  raw.history = [{ weapon: "pulse", killer: "kingpin", wave: 19 }];
+  raw.history = [{ weapon: "pulse", killer: "colossus", wave: 19 }];
   reset(JSON.stringify(raw));
   const store = new SaveStore();
   assert.deepEqual(store.data.stats.bosses, { tyrant: 4, wyrm: 2 });
@@ -67,8 +74,8 @@ test("mixed alias imports combine counts and keep the best medal without mutatin
   reset();
   const store = new SaveStore(),
     raw = newSave();
-  raw.stats.bosses = { kingpin: 2, tyrant: 3 };
-  raw.stats.medals = { kingpin: { medal: 3, secs: 52, damage: 0 }, tyrant: { medal: 2, secs: 30, damage: 15 } };
+  raw.stats.bosses = { colossus: 2, tyrant: 3 };
+  raw.stats.medals = { colossus: { medal: 3, secs: 52, damage: 0 }, tyrant: { medal: 2, secs: 30, damage: 15 } };
   const text = JSON.stringify(raw),
     parsed = store.parse(text);
   assert.ok(parsed.ok);
@@ -225,9 +232,9 @@ test("removed modes and discovery tracking leave a playable normal checkpoint", 
   raw.seen = {
     tutorial: true,
     enemy_grunt: true,
-    boss_warden: true,
+    boss_bellkeeper: true,
     up_dmg: true,
-    ev_blackout: true,
+    ev_duskfall: true,
     tip_dash: true,
     "news_4.1.1": true,
   };
@@ -248,7 +255,7 @@ test("removed modes and discovery tracking leave a playable normal checkpoint", 
   assert.deepEqual(store.data.seen, { tutorial: true, tip_enemy_grunt: true, tip_dash: true, "news_4.1.1": true });
   assert.equal(store.data.run.wave, 8);
   assert.deepEqual(store.data.run.up, { dmg: 2 });
-  assert.doesNotMatch(store.text(), /"(?:daily|weekly|pacts|startMods|boss_warden|up_dmg|ev_blackout)"/);
+  assert.doesNotMatch(store.text(), /"(?:daily|weekly|pacts|startMods|boss_bellkeeper|up_dmg|ev_duskfall)"/);
   store.save("test");
   assert.deepEqual(new SaveStore().data, store.data);
 });

@@ -17,7 +17,7 @@ const glaze = (rate, color, life, height, velocity, size, spark = true) => ({
 });
 
 export const biomeAtmosphere = {
-  city: [
+  courtyard: [
     glaze(11, 0xffca7a, [1.8, 3.2], [0.5, 3.8], [0.18, 0.48, 0.22], [0.065, 0.135]),
     glaze(8, 0x9ad8ee, [0.9, 1.6], [2.4, 6.2], [0.28, -2.4, 0.35], [0.055, 0.1]),
     glaze(2.4, 0x4b7486, [2.0, 3.2], [0.14, 0.42], [0.52, 0.15, 0.18], [0.34, 0.68], false),

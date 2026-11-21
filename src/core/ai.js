@@ -516,7 +516,7 @@ function updateEnemyCore(game, enemy, dt) {
   }
 }
 const bossPatterns = {
-  warden: ["charge", "ring", "stomp", "charge", "ring", "stomp"],
+  bellkeeper: ["charge", "ring", "stomp", "charge", "ring", "stomp"],
   queen: ["summon", "spiral", "burst", "eggs", "spiral", "burst"],
   // 2.4.6: the Frost Prism (was: sweep, teleport, shards, lances, teleport, sweep)
   prism: ["frostbeam", "teleport", "frostnova", "icelances", "glacier", "teleport", "iceshards"],
@@ -536,7 +536,7 @@ const PRISM_ICE = 12578815;
 const WYRM_SUN = 0xffd98a;
 
 const OVERDRIVE = {
-    warden: "lockdown",
+    bellkeeper: "sealgrid",
     prism: "whiteout",
     queen: "plague",
     core: "collapse",
@@ -545,7 +545,7 @@ const OVERDRIVE = {
     wyrm: "noon",
   },
   /* the bosses that call reinforcements of their biome when enraged (the Queen and the Core summon anyway) */
-  REINFORCE = { warden: true, prism: true, tyrant: true };
+  REINFORCE = { bellkeeper: true, prism: true, tyrant: true };
 function initBoss(game, boss) {
   boss.st = "walk";
   boss.t = 2.2;
@@ -629,7 +629,7 @@ function updateBoss(game, boss, dt) {
     return;
   }
   switch (boss.type) {
-    case "warden": {
+    case "bellkeeper": {
       if (boss.st === "charge") {
         let charges = 2 + rage;
         if (boss.t2 === 0) {
@@ -637,7 +637,7 @@ function updateBoss(game, boss, dt) {
           boss.ta = aim;
           boss.sub = 0;
           boss.subT = 0;
-          game.emit("charge", { x: boss.x, y: boss.y, type: "warden" });
+          game.emit("charge", { x: boss.x, y: boss.y, type: "bellkeeper" });
         }
         boss.subT += dt;
         if (boss.sub === 0) {
@@ -660,8 +660,8 @@ function updateBoss(game, boss, dt) {
             boss.charging = false;
             if (boss.hitWall) {
               game.emit("thud", { x: boss.x, y: boss.y, big: true });
-              // 3.16.0: the wall cracks where the Warden hits it (the look and sound of its stomp, no damage)
-              game.explode(boss.x, boss.y, 2.4, 0, { kind: "stomp", src: "warden" });
+              // the wall cracks where the Bellkeeper hits it (the look and sound of its stomp, no damage)
+              game.explode(boss.x, boss.y, 2.4, 0, { kind: "stomp", src: "bellkeeper" });
               if (rage) {
                 shootRing(game, boss, 10, 7.5, shotDmg, boss.spin);
               }
@@ -680,7 +680,7 @@ function updateBoss(game, boss, dt) {
               boss.sub = 0;
               boss.subT = 0;
               boss.ta = aim;
-              game.emit("charge", { x: boss.x, y: boss.y, type: "warden" });
+              game.emit("charge", { x: boss.x, y: boss.y, type: "bellkeeper" });
             }
           }
         }
@@ -1127,8 +1127,8 @@ function updateBoss(game, boss, dt) {
         return;
       }
       if (boss.st === "charge") {
-        // the shoulder charge: he lines it up like the Warden, but he keeps his hat on (a shorter
-        // wind-up, and a slug ring only when he hits the wall while enraged)
+        // the shoulder charge: he lines it up like the Bellkeeper, but with a shorter
+        // wind-up, and a slug ring only when he hits the wall while enraged
         let charges = 2 + rage;
         if (boss.t2 === 0) {
           boss.t2 = 1;
@@ -1265,14 +1265,14 @@ function updateOverdrive(game, boss, dt, aim, dist, shotDmg) {
     W = arena.W,
     H = arena.H;
   switch (boss.st) {
-    case "lockdown": {
-      // a grid of lasers across the whole arena (cells 6 m wide), then a second grid shifted by half a cell: the
+    case "sealgrid": {
+      // a grid of brass beams across the whole arena (cells 6 m wide), then a second grid shifted by half a cell: the
       // player has to step into a new cell; a bullet ring closes it
       boss.vx = 0;
       boss.vy = 0;
       const grid = (shift, warn) => {
         for (let x = -W + 3 + shift; x < W - 1; x += 6)
-          // 3.16.0: the security lasers of Blackout City (the warning stays red)
+          // brass lantern beams across the Lantern Courtyard (the warning stays red)
           game.beam({ x, y: -H, a: Math.PI / 2, len: H * 2, warn, dur: 1.1, w: 0.7, dmg: boss.dmg, skin: "laser" });
         for (let y = -H + 3 + shift; y < H - 1; y += 6)
           game.beam({ x: -W, y, a: 0, len: W * 2, warn, dur: 1.1, w: 0.7, dmg: boss.dmg, skin: "laser" });
@@ -1281,7 +1281,7 @@ function updateOverdrive(game, boss, dt, aim, dist, shotDmg) {
       if (boss.n === 0) {
         boss.n = 1;
         grid(0, 1.3);
-        game.emit("charge", { x: boss.x, y: boss.y, type: "warden" });
+        game.emit("charge", { x: boss.x, y: boss.y, type: "bellkeeper" });
       }
       if (boss.n === 1 && boss.t > 2.5) {
         boss.n = 2;
@@ -1984,7 +1984,7 @@ function updateEnemyRole(game, enemy, dt) {
           rot: 0.08,
           dmg: enemy.dmg * 1.2,
           color: enemy.def.color,
-          // 3.16.0: the beam of its place where the place has one (the security laser, the rift ribbon)
+          // the beam of its biome where the biome has one (the brass lantern beam, the rift ribbon)
           skin: SENTINEL_SKIN[game.arena.biome.id] || null,
         });
         game.emit("beamWarn", {

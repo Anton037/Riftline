@@ -1,5 +1,5 @@
 // 3.0.0: traps. From wave 6 the arena itself fights back: floor strikes, sweeping beams and mines, each
-// with a skin that belongs to the biome (a security laser in Blackout City, magma jets in the Ashfall
+// with a skin that belongs to the biome (a brass lantern beam in the Lantern Courtyard, magma jets in the Ashfall
 // Caldera, ice spikes in the Aurora Shelf, bloom geysers and spore pods in the Glowmarsh, rift bursts,
 // rift beams and rift mines in the Shattered Core, sunspikes in the Glass Flats). The three families
 // share their mechanics, so the skins only change numbers, colours and one side

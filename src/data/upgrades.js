@@ -461,13 +461,14 @@ upgradeList.push(
 // (core/boss-cards.js has the chance and the mechanics). Max 1 each: a card taken never comes again in the run.
 upgradeList.push(
   {
-    id: "lockdown",
-    name: "Lockdown Grid",
+    id: "sealgrid",
+    name: "Lantern Cage",
     rarity: 6,
     max: 1,
-    boss: "warden",
-    icon: "lockdown",
-    desc: () => "Every 8 s a laser cage drops on the densest enemy group: they cannot leave for 3 s and take damage",
+    boss: "bellkeeper",
+    icon: "sealgrid",
+    desc: () =>
+      "Every 8 s a brass lantern cage drops on the densest enemy group: they cannot leave for 3 s and take damage",
   },
   {
     id: "shardfield",

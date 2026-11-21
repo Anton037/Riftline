@@ -1357,7 +1357,12 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
   #choose .card p { font-size: 14px; line-height: 1.2; margin-top: 1px; }
   #choose .card .delta, #choose .card .evo-hint { font-size: 11px; margin-top: 2px; }
 }
-#setFrameRate button { min-height: 44px; min-width: 60px; }
+#setFrameRate button { min-block-size: 44px; min-inline-size: 60px; }
+.note, .page-intro, .wc-blurb, .card p, .up-info p { text-wrap: pretty; }
+.scroll, .cards, .center-col { scroll-padding-block: 12px calc(16px + var(--sb)); }
+@media (pointer: coarse) {
+  .seg button { min-block-size: 40px; }
+}
 /* Cozy storybook craft UI with deep nocturnal velvet-ink surfaces & high-contrast gilded accents. */
 :root, #app {
   --ink: #0d0e17; --ink2: #141726;
@@ -1382,8 +1387,8 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
   --notch: none;
   --serif: "Baskervville", Georgia, serif;
 }
-/* Biome 1: Blackout City — deep midnight slate-ink, warm brass streetlamps & crisp teal accents */
-#app[data-biome="city"] {
+/* Biome 1: Lantern Courtyard — deep midnight slate-ink, warm brass lanterns & crisp teal accents */
+#app[data-biome="courtyard"] {
   --surf-hi: #1c2836; --surf-lo: #0f1722;
   --panel: rgba(15, 23, 34, .96); --panel2: #141f2d; --panel3: #213144;
   --overlay-bg: rgba(7, 12, 19, .88);
@@ -1837,6 +1842,10 @@ input[type=range]::-moz-range-thumb { border-radius: 50%; width: 18px; height: 1
     border: 2px solid ButtonText;
     forced-color-adjust: auto;
   }
+  :focus-visible {
+    outline: 3px solid Highlight;
+    outline-offset: 3px;
+  }
 }
 </style>
 
@@ -2052,7 +2061,7 @@ input[type=range]::-moz-range-thumb { border-radius: 50%; width: 18px; height: 1
         <button id="playBtn" class="btn primary">START RUN</button>
       </div>
     </div>
-    <nav class="bottom-nav">
+    <nav class="bottom-nav" aria-label="Primary">
       <button data-go="workshop"><span data-icon="wrench"></span>Workshop</button>
       <button data-go="records"><span data-icon="trophy"></span>Achievements<i id="recBadge" class="badge" hidden></i></button>
       <button data-go="news"><span data-icon="info"></span>News<i id="newsBadge" class="badge" hidden></i></button>
@@ -2133,7 +2142,7 @@ input[type=range]::-moz-range-thumb { border-radius: 50%; width: 18px; height: 1
       <div class="set-group">
         <label class="set-row"><span><b>Effects</b></span><input type="range" id="setSfx" min="0" max="1" step="0.05"></label>
         <label class="set-row"><span><b>Music</b></span><input type="range" id="setMusic" min="0" max="1" step="0.05"></label>
-        <label class="set-row"><span><b>Ambience</b><small>Sounds of the place: wind, lava, ice, acid, sand, portals, the city far away.</small></span><input type="range" id="setAmb" min="0" max="1" step="0.05"></label>
+        <label class="set-row"><span><b>Ambience</b><small>Sounds of the place: wind, lava, ice, acid, sand, portals, lantern chimes far away.</small></span><input type="range" id="setAmb" min="0" max="1" step="0.05"></label>
       </div>
       <div class="set-foot">
         <span class="note">Riftline <span id="verText" class="num"></span> · progress saves automatically<span id="storageWarn" hidden> — <b id="storageWarnText">storage is blocked in this browser</b></span></span>

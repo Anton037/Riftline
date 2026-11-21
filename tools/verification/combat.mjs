@@ -31,7 +31,7 @@ const times = {
   glacier: 1.2,
   iceshards: 1.7,
   cross: 1.5,
-  lockdown: 1.6,
+  sealgrid: 1.6,
   whiteout: 1.6,
   plague: 1.8,
   collapse: 1.6,
@@ -44,11 +44,11 @@ const times = {
 };
 const specs = [];
 for (const weapon of Object.keys(WEAPON_EFFECTS))
-  specs.push({ kind: "weapon", weapon, biome: "city", time: weapon === "rail" ? 0.06 : 0.12 });
+  specs.push({ kind: "weapon", weapon, biome: "courtyard", time: weapon === "rail" ? 0.06 : 0.12 });
 specs.push(
-  { kind: "weapon", weapon: "tesla", biome: "city", time: 0.28, extra: "chain" },
-  { kind: "weapon", weapon: "disc", biome: "city", time: 0.82, extra: "return" },
-  { kind: "weapon", weapon: "flame", biome: "city", time: 0.38, extra: "stream" },
+  { kind: "weapon", weapon: "tesla", biome: "courtyard", time: 0.28, extra: "chain" },
+  { kind: "weapon", weapon: "disc", biome: "courtyard", time: 0.82, extra: "return" },
+  { kind: "weapon", weapon: "flame", biome: "courtyard", time: 0.38, extra: "stream" },
 );
 for (const [boss, attacks] of Object.entries(bossPatterns)) {
   const biome = Object.keys(bossByBiome).find((id) => bossByBiome[id] === boss) || "caldera";
@@ -74,7 +74,7 @@ for (const [biome, skin, fam] of [
   for (const phase of ["warn", "fire"]) specs.push({ kind: "trap", biome, skin, fam, phase, time: 0.1 });
 // Close views check material detail and silhouette on every boss, plus the Tyrant's magma lob.
 specs.push(
-  { kind: "boss", boss: "warden", biome: "city", attack: "ring", time: 1.45, close: true },
+  { kind: "boss", boss: "bellkeeper", biome: "courtyard", attack: "ring", time: 1.45, close: true },
   { kind: "boss", boss: "queen", biome: "marsh", attack: "spiral", time: 1.8, close: true },
   { kind: "boss", boss: "prism", biome: "shelf", attack: "icelances", time: 1.3, close: true },
   { kind: "boss", boss: "core", biome: "core", attack: "spiral", time: 1.8, close: true },

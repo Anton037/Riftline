@@ -247,7 +247,7 @@ const enemyOrder = [
   "turret",
 ];
 const biomeVariants = {
-  city: {
+  courtyard: {
     id: "shorted",
     name: "Shorted",
     types: ["grunt", "gunner", "bomber"],
@@ -304,10 +304,10 @@ const eliteAffixes = {
   },
 };
 const bossDefs = {
-  warden: {
-    id: "warden",
-    name: "THE WARDEN",
-    title: "Enforcer of the Blackout",
+  bellkeeper: {
+    id: "bellkeeper",
+    name: "THE BELLKEEPER",
+    title: "Guardian of the Lantern Courtyard",
     hp: 1500,
     r: 2,
     speed: 2.4,
@@ -380,10 +380,17 @@ bossDefs.wyrm = {
   color: 0xffc24d,
 };
 // Every biome has one unique boss.
-const bossByBiome = { city: "warden", shelf: "prism", marsh: "queen", core: "core", caldera: "tyrant", flats: "wyrm" };
+const bossByBiome = {
+  courtyard: "bellkeeper",
+  shelf: "prism",
+  marsh: "queen",
+  core: "core",
+  caldera: "tyrant",
+  flats: "wyrm",
+};
 // hull of a boss by its slot in the run (wave 5, 10, 15, 20): the same boss can come early or late
 const BOSS_SLOT_HP = [1500, 3000, 4400, 7600];
-const bossOrder = ["warden", "queen", "prism", "tyrant", "core", "wyrm"];
+const bossOrder = ["bellkeeper", "queen", "prism", "tyrant", "core", "wyrm"];
 /* RIFTLINE 2.0 content pack: data-only extensions live together so the core systems stay reusable. */
 Object.assign(enemyDefs, {
   charger: {

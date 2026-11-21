@@ -1,4 +1,4 @@
-// Boss-card active power views (Lockdown Pylons, Searing Collapse pools, Frost Splinters, Glass Lances, Brood Larvae).
+// Boss-card active power views (Lantern Cage Pylons, Searing Collapse pools, Frost Splinters, Glass Lances, Brood Larvae).
 
 import { cylinder, octahedron, sculptedCrystal, meshPart, mergeGeometries } from "../engine/geometry.js";
 import { hexColor, worldMaterial, emissiveMaterial } from "./materials.js";
@@ -210,7 +210,7 @@ export class BossCardView {
   event(ev, world, shakeK) {
     const r = this.r;
     switch (ev.k) {
-      case "lockdown":
+      case "sealgrid":
         r.ring(ev.x, ev.y, ev.r * 1.2, ev.r, GOLD, 0.3);
         return true;
       case "lockOn":

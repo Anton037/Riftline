@@ -338,6 +338,8 @@ const rlStep = 1 / 60,
         // 3.17.0: metres walked (the stride of the walker, core/walk.js) and whether the dash has it in the air
         stride: 0,
         air: false,
+        tractionT: 0,
+        hopT: 0,
       };
       if (snap) {
         this.player.hp = clamp(snap.hp, 1, this.stats.maxHp);
@@ -414,6 +416,8 @@ const rlStep = 1 / 60,
         if (!this.arena || this.arena.key !== layout.key) {
           this.arena = new Arena(biome, layout);
           this.hash = new SpatialHash(layout.W, layout.H, 2.5);
+        } else {
+          this.arena.resetProps?.();
         }
         this.enemies = [];
         this.pb = [];
@@ -441,6 +445,8 @@ const rlStep = 1 / 60,
         player.gadgetT = 0;
         this.singularities = [];
         player.shieldT = 0;
+        player.tractionT = 0;
+        player.hopT = 0;
         let novaFloor = 25 * (this.ws.nova || 0);
         player.nova = nova ?? Math.max(player.nova, novaFloor);
         this.waveT = 0;
@@ -573,10 +579,9 @@ const rlStep = 1 / 60,
     }
     championType(biome, wave, rng) {
       // 2.4.0: the pack biomes are gone; the five biomes also draw champions from the later enemies
-      // 3.34.0: Blackout City has a pool of its own (its armed gangs; it only had grunts and gunners, the softest champions
-      // of any biome when Endless comes back to it)
+      // Lantern Courtyard has its own clockwork garrison pool for Endless returns
       const special = {
-        city: ["gunner", "bomber", "brute", "sniper", "sentinel"],
+        courtyard: ["gunner", "bomber", "brute", "sniper", "sentinel"],
         shelf: ["bulwark", "gunner", "sentinel", "turret"],
         core: ["striker", "brute", "phantom", "weaver"],
         marsh: ["splitter", "brute", "sapper", "carrier"],
@@ -590,7 +595,7 @@ const rlStep = 1 / 60,
       }
       let pool = (
         {
-          city: ["grunt", "gunner"],
+          courtyard: ["grunt", "gunner"],
           shelf: ["bulwark", "gunner"],
           core: ["striker", "brute"],
           marsh: ["splitter", "brute"],
@@ -983,6 +988,7 @@ const rlStep = 1 / 60,
               this.updateTrails(dt);
               updateBossCards(this, dt);
               this.updatePBullets(dt);
+              this.updateBiomeProps(dt);
               // 3.31.0: Chrono Dash slows the enemies' world, not the drone's own Singularity
               this.updateSingularities(dt);
               this.updateEBullets(slowDt);
@@ -1149,9 +1155,13 @@ const rlStep = 1 / 60,
         // untouched - it is weather, not a weapon of either side)
         if (arena.devils && arena.devils.length && this.state === "fight") {
           for (const devil of arena.devils) {
+            if (devil.calmT > 0) {
+              devil.calmT = Math.max(0, devil.calmT - dt);
+            }
             devil.a += Math.sin(this.time * 0.37 + devil.ph) * dt * 0.7;
-            const nx = devil.x + Math.cos(devil.a) * devil.spd * dt,
-              ny = devil.y + Math.sin(devil.a) * devil.spd * dt;
+            const calmMul = devil.calmT > 0 ? 0.35 : 1,
+              nx = devil.x + Math.cos(devil.a) * devil.spd * calmMul * dt,
+              ny = devil.y + Math.sin(devil.a) * devil.spd * calmMul * dt;
             if (
               Math.abs(nx) < arena.W - 1.2 - devil.r &&
               Math.abs(ny) < arena.H - 1.2 - devil.r &&
@@ -1166,7 +1176,7 @@ const rlStep = 1 / 60,
             const dxp = player.x - devil.x,
               dyp = player.y - devil.y,
               d2 = dxp * dxp + dyp * dyp;
-            if (player.alive && d2 < devil.r * devil.r) {
+            if (player.alive && !(devil.calmT > 0) && d2 < devil.r * devil.r) {
               const away = Math.atan2(dyp, dxp);
               player.vx += Math.cos(away) * 5.5 * dt;
               player.vy += Math.sin(away) * 5.5 * dt;
@@ -1197,9 +1207,9 @@ const rlStep = 1 / 60,
               return dx * dx + dy * dy < d.r * d.r;
             });
         } else player.inDevil = false;
-        // 3.4.0: in Blackout City the vents are live manholes: they arc (shock) instead of erupting lava, and the
+        // in the Lantern Courtyard the vents are brass charged inlays: they arc (shock) instead of erupting lava, and the
         // current stuns the enemies it catches (slowed) besides burning them
-        const shock = arena.biome.id === "city";
+        const shock = arena.biome.id === "courtyard";
         if (arena.vents.length && this.state === "fight")
           for (let vent of arena.vents) {
             let state = arena.ventState(vent, this.waveT);
@@ -1312,6 +1322,8 @@ const rlStep = 1 / 60,
         }
       }
       player.hurtT = Math.max(0, player.hurtT - dt);
+      if (player.tractionT > 0) player.tractionT = Math.max(0, player.tractionT - dt);
+      if (player.hopT > 0) player.hopT = Math.max(0, player.hopT - dt);
       if (player.rushT > 0) {
         player.rushT -= dt;
         if (player.rushT <= 0) {
@@ -1388,8 +1400,11 @@ const rlStep = 1 / 60,
           const storm = this.bioEv && this.bioEv.id === "whiteout" ? RL_THAW_STORM : 1;
           baseGrip *= 1 + RL_THAW_K * storm * (0.5 - 0.5 * Math.cos((this.time / RL_THAW_PERIOD) * Math.PI * 2));
         }
+        if (player.tractionT > 0) baseGrip = Math.max(baseGrip, 18);
+        const mudMul = player.hopT > 0 ? 1 : this.arena.biome.mud || 1;
+        const hopMul = player.hopT > 0 ? 1.15 : 1;
         let grip = dampFactor(baseGrip, dt),
-          speed = stats.speed * (onIce ? 1.12 : 1) * (this.arena.biome.mud || 1) * (player.slowT > 0 ? 0.65 : 1);
+          speed = stats.speed * (onIce ? 1.12 : 1) * mudMul * hopMul * (player.slowT > 0 ? 0.65 : 1);
         player.vx += (mx * speed - player.vx) * grip;
         player.vy += (my * speed - player.vy) * grip;
       }
@@ -1982,7 +1997,7 @@ const rlStep = 1 / 60,
     }
     spawnBoss(id) {
       // 2.8.1: an Endless boss starts from the wave-20 hull (it used to start from its own base hull, so the
-      // Warden at wave 30 had less than the boss at wave 20) and grows like the regular enemies, plus 10%
+      // Bellkeeper at wave 30 had less than the boss at wave 20) and grows like the regular enemies, plus 10%
       // for every Endless boss so far
       const hpCurve = (wave) => 1 + 0.085 * (wave - 1) + 0.0058 * (wave - 1) * (wave - 1);
       let def = bossDefs[id],
@@ -2078,6 +2093,9 @@ const rlStep = 1 / 60,
       }
       if (enemy.slowT > 0) {
         enemy.slowT -= dt;
+      }
+      if (enemy.weakenT > 0) {
+        enemy.weakenT = Math.max(0, enemy.weakenT - dt);
       }
       const burning = enemy.burnT > 0;
       if (burning) enemy.burnT -= dt;
@@ -2235,6 +2253,9 @@ const rlStep = 1 / 60,
         if (enemy.corrode && !enemy.boss) {
           dmg *= 1.25;
         }
+        if (enemy.weakenT > 0) {
+          dmg *= enemy.boss ? 1.12 : 1.25;
+        }
         // 3.0.0: burst cap (see core/difficulty.js); the Nova and bosses are exempt
         if (!enemy.boss && src !== "nova") {
           const taken = this.burstCap(enemy, dmg);
@@ -2390,8 +2411,8 @@ const rlStep = 1 / 60,
       if (enemy.variant === "bloomed") {
         this.arena.acid.push({ x: enemy.x, y: enemy.y, r: 1.4, life: 5 });
       }
-      // 3.34.0: a Shorted enemy's spot crackles, then arcs once: it hurts and slows the drone, and shocks the enemies
-      // standing in it like a live manhole (see updateHazards)
+      // a Shorted enemy's spot crackles, then arcs once: it hurts and slows the walker, and shocks the enemies
+      // standing in it like a charged brass inlay (see updateHazards)
       if (enemy.variant === "shorted") {
         const src = this._src;
         this._src = enemy.type;
@@ -2685,6 +2706,25 @@ const rlStep = 1 / 60,
             sy = bullet.y + bullet.vy * dt * frac;
           this.hash.query(sx, sy, bullet.r + 0.8, (enemy) => this.probeHit(bullet, enemy, sx, sy, rail));
         }
+        if (this.state === "fight" && !bullet.propHit && arena.props && arena.props.length) {
+          const segDx = bullet.x - prevX,
+            segDy = bullet.y - prevY,
+            segLen2 = segDx * segDx + segDy * segDy;
+          for (const prop of arena.props) {
+            if (prop.cd > 0 || prop.fuse > 0) continue;
+            const along =
+              segLen2 > 1e-8 ? clamp(((prop.x - prevX) * segDx + (prop.y - prevY) * segDy) / segLen2, 0, 1) : 0;
+            const cx = prevX + segDx * along - prop.x,
+              cy = prevY + segDy * along - prop.y,
+              hitR = prop.r + bullet.r + 0.1;
+            if (cx * cx + cy * cy <= hitR * hitR) {
+              bullet.propHit = true;
+              this.triggerBiomeProp(prop);
+              this.emit("spark", { x: prop.x, y: prop.y, w: bullet.w });
+              break;
+            }
+          }
+        }
         // a shot sent off on a new course by a hit on the way (a ricochet, a boomerang turned by a shield) is no longer at
         // the wall
         if (hitWall && bullet.life > 0 && bullet.bounce === bounces && bullet.back === back) {
@@ -2949,29 +2989,177 @@ const rlStep = 1 / 60,
         });
       }
     }
+    triggerBiomeProp(prop) {
+      if (!prop || prop.cd > 0 || prop.fuse > 0) return false;
+      if (prop.kind === "crucible") {
+        prop.fuse = 0.6;
+        this.emit("biomeProp", { kind: "crucible", state: "arm", x: prop.x, y: prop.y, r: 4.2 });
+        return true;
+      }
+      this.fireBiomeProp(prop);
+      return true;
+    }
+    fireBiomeProp(prop) {
+      const x = prop.x,
+        y = prop.y,
+        dmgMul = this.stats.dmgMul || 1;
+      prop.fuse = 0;
+      prop.cd = prop.maxCd || 7;
+      if (prop.kind === "lantern") {
+        prop.auraT = 5.0;
+        const r = 4.4;
+        const near = [];
+        this.hash.query(x, y, r, (enemy) => {
+          if (enemy.dead || enemy.ghost) return;
+          const d = Math.hypot(enemy.x - x, enemy.y - y) - enemy.r;
+          if (d <= r) near.push({ enemy, d });
+        });
+        near.sort((a, b) => a.d - b.d || a.enemy.id - b.enemy.id);
+        for (let i = 0; i < Math.min(3, near.length); i++) {
+          const enemy = near[i].enemy;
+          this.hurtEnemy(enemy, 32 * dmgMul, enemy.x - x, enemy.y - y, 1.5, false, "prop");
+          if (!enemy.dead && !enemy.boss && !enemy.shielded) {
+            enemy.slowT = Math.max(enemy.slowT, 1.35);
+            this.emit("stun", { x: enemy.x, y: enemy.y });
+          }
+          this.emit("chain", { pts: [x, y, enemy.x, enemy.y], arc: true });
+        }
+        this.emit("biomeProp", { kind: "lantern", state: "fire", x, y, r });
+      } else if (prop.kind === "rime") {
+        const r = 4.0;
+        this.player.tractionT = Math.max(this.player.tractionT || 0, 3.8);
+        if (this.player.slowT > 0 && this.player.slowKind === "chill") this.player.slowT = 0;
+        this.hash.query(x, y, r, (enemy) => {
+          if (enemy.dead || enemy.ghost || Math.hypot(enemy.x - x, enemy.y - y) > r + enemy.r) return;
+          this.hurtEnemy(enemy, 26 * dmgMul, enemy.x - x, enemy.y - y, 1.8, false, "prop");
+          if (!enemy.dead && !enemy.shielded) {
+            enemy.slowT = Math.max(enemy.slowT, 2.8);
+            this.emit("freeze", { x: enemy.x, y: enemy.y });
+          }
+        });
+        this.emit("biomeProp", { kind: "rime", state: "fire", x, y, r });
+      } else if (prop.kind === "puffball") {
+        const r = 4.2;
+        this.player.hopT = Math.max(this.player.hopT || 0, 2.8);
+        if (this.player.slowT > 0) this.player.slowT = 0;
+        this.hash.query(x, y, r, (enemy) => {
+          if (enemy.dead || enemy.ghost || Math.hypot(enemy.x - x, enemy.y - y) > r + enemy.r) return;
+          this.hurtEnemy(enemy, 20 * dmgMul, enemy.x - x, enemy.y - y, 2.2, false, "prop");
+          if (!enemy.dead && !enemy.shielded) {
+            enemy.slowT = Math.max(enemy.slowT, 3.0);
+            if (!enemy.boss) enemy.corrode = true;
+          }
+        });
+        this.emit("biomeProp", { kind: "puffball", state: "fire", x, y, r });
+      } else if (prop.kind === "prism") {
+        prop.auraT = 3.0;
+        const r = 4.5;
+        const near = [];
+        for (const enemy of this.enemies) {
+          if (enemy.dead || enemy.ghost) continue;
+          const d = Math.hypot(enemy.x - x, enemy.y - y) - enemy.r;
+          if (d <= 9.5) near.push({ enemy, d });
+        }
+        near.sort((a, b) => a.d - b.d || a.enemy.id - b.enemy.id);
+        for (let i = 0; i < Math.min(2, near.length); i++) {
+          const enemy = near[i].enemy;
+          this.hurtEnemy(enemy, 38 * dmgMul, enemy.x - x, enemy.y - y, 1.6, false, "prop");
+          this.emit("chain", { pts: [x, y, enemy.x, enemy.y], arc: false });
+        }
+        this.emit("biomeProp", { kind: "prism", state: "fire", x, y, r });
+      } else if (prop.kind === "crucible") {
+        const r = 4.2;
+        this.hash.query(x, y, r, (enemy) => {
+          if (enemy.dead || enemy.ghost || Math.hypot(enemy.x - x, enemy.y - y) > r + enemy.r) return;
+          this.hurtEnemy(enemy, 44 * dmgMul, enemy.x - x, enemy.y - y, 2.8, false, "prop");
+          if (!enemy.dead && !enemy.shielded) {
+            enemy.weakenT = Math.max(enemy.weakenT || 0, 4.5);
+            enemy.burnT = Math.max(enemy.burnT || 0, 2.4);
+            enemy.burnDps = Math.max(enemy.burnDps || 0, 14 * dmgMul);
+            enemy.burnSrc = "prop";
+          }
+        });
+        this.emit("biomeProp", { kind: "crucible", state: "fire", x, y, r });
+      } else if (prop.kind === "sunglass") {
+        const r = 4.8;
+        this.hash.query(x, y, r, (enemy) => {
+          if (enemy.dead || enemy.ghost || Math.hypot(enemy.x - x, enemy.y - y) > r + enemy.r) return;
+          this.hurtEnemy(enemy, 36 * dmgMul, enemy.x - x, enemy.y - y, 3.2, false, "prop");
+        });
+        if (this.arena.devils && this.arena.devils.length) {
+          for (const devil of this.arena.devils) {
+            const dx = devil.x - x,
+              dy = devil.y - y,
+              d = Math.hypot(dx, dy);
+            if (d <= r + devil.r + 1.2) {
+              devil.calmT = Math.max(devil.calmT || 0, 5.0);
+              if (d > 1e-4) devil.a = Math.atan2(dy, dx);
+            }
+          }
+        }
+        this.emit("biomeProp", { kind: "sunglass", state: "fire", x, y, r });
+      }
+    }
+    updateBiomeProps(dt) {
+      const props = this.arena?.props;
+      if (!props || !props.length || this.state !== "fight") return;
+      const player = this.player,
+        dashing = player.alive && player.dashT > 0;
+      for (const prop of props) {
+        if (prop.cd > 0) prop.cd = Math.max(0, prop.cd - dt);
+        if (prop.auraT > 0) prop.auraT = Math.max(0, prop.auraT - dt);
+        if (prop.fuse > 0) {
+          prop.fuse -= dt;
+          if (prop.fuse <= 0) this.fireBiomeProp(prop);
+          continue;
+        }
+        if (dashing && prop.cd <= 0) {
+          const dx = player.x - prop.x,
+            dy = player.y - prop.y,
+            hitR = prop.r + player.r + 0.58;
+          if (dx * dx + dy * dy <= hitR * hitR) {
+            this.triggerBiomeProp(prop);
+          }
+        }
+      }
+    }
     updateEBullets(dt) {
       let player = this.player,
-        arena = this.arena;
+        arena = this.arena,
+        props = arena.props;
       for (let bullet of this.eb)
         if (!(bullet.life <= 0)) {
+          let bDt = dt;
+          if (props && props.length) {
+            for (const prop of props) {
+              if (prop.kind === "prism" && prop.auraT > 0) {
+                const dx = bullet.x - prop.x,
+                  dy = bullet.y - prop.y;
+                if (dx * dx + dy * dy <= 20.25) {
+                  bDt = dt * 0.42;
+                  break;
+                }
+              }
+            }
+          }
           bullet.life -= dt;
           bullet.age += dt;
           if (bullet.homing && bullet.age > 0.3 && bullet.age < 2.4 && player.alive) {
             let heading = Math.atan2(bullet.vy, bullet.vx),
               speed = Math.hypot(bullet.vx, bullet.vy),
-              angle = turnToward(heading, Math.atan2(player.y - bullet.y, player.x - bullet.x), bullet.homing * dt);
+              angle = turnToward(heading, Math.atan2(player.y - bullet.y, player.x - bullet.x), bullet.homing * bDt);
             bullet.vx = Math.cos(angle) * speed;
             bullet.vy = Math.sin(angle) * speed;
           }
           if (bullet.accel) {
-            bullet.vx *= 1 + bullet.accel * dt;
-            bullet.vy *= 1 + bullet.accel * dt;
+            bullet.vx *= 1 + bullet.accel * bDt;
+            bullet.vy *= 1 + bullet.accel * bDt;
           }
           // Sweep fast Endless shots through walls and the player, rather than testing only the endpoint.
-          const steps = Math.max(1, Math.ceil((Math.hypot(bullet.vx, bullet.vy) * dt) / 0.2));
+          const steps = Math.max(1, Math.ceil((Math.hypot(bullet.vx, bullet.vy) * bDt) / 0.2));
           for (let step = 0; step < steps && bullet.life > 0; step++) {
-            bullet.x += (bullet.vx * dt) / steps;
-            bullet.y += (bullet.vy * dt) / steps;
+            bullet.x += (bullet.vx * bDt) / steps;
+            bullet.y += (bullet.vy * bDt) / steps;
             if (
               arena.outside(bullet.x, bullet.y, -0.5) ||
               (bullet.solid !== false && arena.blocked(bullet.x, bullet.y, bullet.r * 0.4))
@@ -3509,14 +3697,14 @@ const rlStep = 1 / 60,
       if (id === "devils") {
         // 3.53.0: three more devils rise and wander the glass from there on
         add("devils", 3);
-      } else if (id === "blackout") {
-        // three more manholes; they arc in a chain (one after another, ordered around the centre), every 4.8 s
+      } else if (id === "duskfall") {
+        // three more charged inlays; they arc in a chain (one after another, ordered around the centre), every 4.8 s
         add("vents", 3);
         const vents = arena.vents.slice().sort((a, b) => Math.atan2(a.y, a.x) - Math.atan2(b.y, b.x)),
           period = 4.8;
         vents.forEach((vent, i) => {
           vent.period = period;
-          // a higher phase arcs sooner; every manhole is idle when the wave starts (cycle < warning at 2.1 s)
+          // a higher phase arcs sooner; every inlay is idle when the wave starts (cycle < warning at 2.1 s)
           vent.phase = ((vents.length - 1 - i) / vents.length) * 1.9;
           vent.st = "idle";
         });

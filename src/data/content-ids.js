@@ -1,7 +1,7 @@
 // Legacy spellings live only at compatibility boundaries. Active content uses its current theme.
 // Existing saves convert once; new saves persist only current IDs.
-const BIOMES = { yard: "city", vault: "shelf", void: "core", club: "caldera" },
-  ACTORS = { kingpin: "tyrant", forge: "wyrm", crucible: "wyrm", hammer: "shockdash" };
+const BIOMES = { pavilion: "courtyard", glacier: "shelf", sanctum: "core", hearth: "caldera" },
+  ACTORS = { colossus: "tyrant", forge: "wyrm", crucible: "wyrm", hammer: "shockdash" };
 const reverse = (map) => Object.fromEntries(Object.entries(map).map(([a, b]) => [b, a])),
   OLD_BIOMES = reverse(BIOMES),
   rename = (id, map) => (Object.hasOwn(map, id) ? map[id] : id),
@@ -9,7 +9,7 @@ const reverse = (map) => Object.fromEntries(Object.entries(map).map(([a, b]) => 
 
 // Display names must not change an existing run's map-director random stream.
 export const biomeSeedId = (id) => rename(id, OLD_BIOMES);
-export const eventSeedId = (id) => (id === "ashfall" ? "raid" : id);
+export const eventSeedId = (id) => (id === "ashfall" ? "cinder" : id);
 
 function record(input, keyOf, combine) {
   if (!object(input)) return input;

@@ -15,7 +15,7 @@ const world = () => new World({ seed: 42, weapon: "pulse", threat: 0, ws: {} });
 test("resuming Endless preserves every boss defeat, including repeat bosses", () => {
   const a = world();
   a.endless = true;
-  a.bossKills = ["warden", "queen", "warden"];
+  a.bossKills = ["bellkeeper", "queen", "bellkeeper"];
   const b = new World({ snap: cleanRun(JSON.parse(JSON.stringify(a.snapshot()))), ws: {} });
   assert.deepEqual(b.bossKills, a.bossKills);
 });

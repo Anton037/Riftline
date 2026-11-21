@@ -2,7 +2,7 @@
 // Every biome owns a distinct value range, hue triad and key/shadow temperature contrast.
 
 export const GLAZES = {
-  city: {
+  courtyard: {
     // Rain-dappled dusk courtyard: indigo-slate flagstones bathed in warm lantern amber & cool twilight sky
     style: 5,
     base: 0x24384a,

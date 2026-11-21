@@ -25,7 +25,7 @@ const bossIds = await page.evaluate(() => {
   for (const src of [T.bossDefs, T.game?.bossDefs, T.game?.world?.bossDefs, T.data?.bossDefs]) {
     if (src) return Object.keys(src);
   }
-  return ["warden", "queen", "prism", "core"];
+  return ["bellkeeper", "queen", "prism", "core"];
 });
 for (const id of bossIds) {
   const ok = await page.evaluate((bossId) => {

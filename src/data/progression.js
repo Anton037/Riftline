@@ -87,11 +87,11 @@ const milestones = [
   },
   { id: "wave5", name: "Holding the Line", desc: "Reach wave 5", reward: 40, test: (save) => save.stats.bestWave >= 5 },
   {
-    id: "warden",
-    name: "Gate Crasher",
-    desc: "Defeat the Warden",
+    id: "bellkeeper",
+    name: "Bell Ringer",
+    desc: "Defeat the Bellkeeper",
     reward: 100,
-    test: (save) => (save.stats.bosses.warden || 0) > 0,
+    test: (save) => (save.stats.bosses.bellkeeper || 0) > 0,
   },
   {
     id: "queen",
@@ -362,7 +362,7 @@ workshopModules.push(
     desc: "Start every run with 1 random common upgrade per level",
     costs: [700, 1600, 3200],
   },
-  // pays off only close to the biome's hazard (vents, ice, acid, portals; Blackout City's manholes are vents)
+  // pays off only close to the biome's hazard (charged inlays, ice, acid, portals, fumaroles, dust devils)
   {
     id: "hazardAttune",
     name: "Hazard Attunement",

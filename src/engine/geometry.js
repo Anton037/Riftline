@@ -23,7 +23,7 @@ const _p = new Vec3();
 const _s = new Vec3();
 
 export class Geometry {
-  constructor(positions, normals, uvs, indices, colors = null) {
+  constructor(positions, normals, uvs, indices, colors = null, partMeta = null) {
     this.positions = positions instanceof Float32Array ? positions : new Float32Array(positions);
     this.normals = normals instanceof Float32Array ? normals : new Float32Array(normals);
     this.uvs = uvs instanceof Float32Array ? uvs : new Float32Array(uvs);
@@ -35,7 +35,9 @@ export class Geometry {
       this.indices = null;
     }
     this.colors = colors ? (colors instanceof Float32Array ? colors : new Float32Array(colors)) : null;
+    this.partMeta = partMeta ? (partMeta instanceof Float32Array ? partMeta : new Float32Array(partMeta)) : null;
     this.bounds = null;
+    this.boundingSphere = null;
     this.version = 1;
     this._gpu = null;
     this._disposed = false;
@@ -54,6 +56,49 @@ export class Geometry {
     this._boundsVersion = this.version;
     return b;
   }
+  computeBoundingSphere() {
+    if (this.boundingSphere && this._sphereVersion === this.version) return this.boundingSphere;
+    const b = this.computeBounds();
+    const s = (this.boundingSphere ||= { cx: 0, cy: 0, cz: 0, r: 0 });
+    if (b.isEmpty()) {
+      s.cx = 0;
+      s.cy = 0;
+      s.cz = 0;
+      s.r = 0;
+      this._sphereVersion = this.version;
+      return s;
+    }
+    const cx = (b.min.x + b.max.x) * 0.5;
+    const cy = (b.min.y + b.max.y) * 0.5;
+    const cz = (b.min.z + b.max.z) * 0.5;
+    let maxR2 = 0;
+    const p = this.positions;
+    for (let i = 0; i < p.length; i += 3) {
+      const dx = p[i] - cx;
+      const dy = p[i + 1] - cy;
+      const dz = p[i + 2] - cz;
+      const d2 = dx * dx + dy * dy + dz * dz;
+      if (d2 > maxR2) maxR2 = d2;
+    }
+    s.cx = cx;
+    s.cy = cy;
+    s.cz = cz;
+    s.r = Math.sqrt(maxR2);
+    this._sphereVersion = this.version;
+    return s;
+  }
+  setPartMeta(kind, pivotY = 0, pivotAux = 0, phaseOffset = 0) {
+    const n = this.vertexCount;
+    const m = (this.partMeta ||= new Float32Array(n * 4));
+    for (let i = 0; i < n * 4; i += 4) {
+      m[i] = kind;
+      m[i + 1] = pivotY;
+      m[i + 2] = pivotAux;
+      m[i + 3] = phaseOffset;
+    }
+    this.version++;
+    return this;
+  }
   clone() {
     return new Geometry(
       new Float32Array(this.positions),
@@ -65,6 +110,7 @@ export class Geometry {
           : new Uint16Array(this.indices)
         : null,
       this.colors ? new Float32Array(this.colors) : null,
+      this.partMeta ? new Float32Array(this.partMeta) : null,
     );
   }
   translate(dx, dy, dz) {
@@ -74,7 +120,18 @@ export class Geometry {
       p[i + 1] += dy;
       p[i + 2] += dz;
     }
+    if (this.partMeta) {
+      const m = this.partMeta;
+      for (let i = 0; i < m.length; i += 4) {
+        const k = m[i];
+        if (k > 0.5) {
+          m[i + 1] += dy;
+          m[i + 2] += k < 1.5 || k > 4.5 ? dz : dx;
+        }
+      }
+    }
     this.bounds = null;
+    this.boundingSphere = null;
     this.version++;
     return this;
   }
@@ -96,6 +153,16 @@ export class Geometry {
       n[i + 1] = ny / l;
       n[i + 2] = nz / l;
     }
+    if (this.partMeta) {
+      const m = this.partMeta;
+      for (let i = 0; i < m.length; i += 4) {
+        const k = m[i];
+        if (k > 0.5) {
+          m[i + 1] *= sy;
+          m[i + 2] *= k < 1.5 || k > 4.5 ? sz : sx;
+        }
+      }
+    }
     if (sx * sy * sz < 0 && this.indices) {
       for (let i = 0; i < this.indices.length; i += 3) {
         const tmp = this.indices[i + 1];
@@ -104,6 +171,7 @@ export class Geometry {
       }
     }
     this.bounds = null;
+    this.boundingSphere = null;
     this.version++;
     return this;
   }
@@ -123,6 +191,7 @@ export class Geometry {
       n[i + 2] = ny * s + nz * c;
     }
     this.bounds = null;
+    this.boundingSphere = null;
     this.version++;
     return this;
   }
@@ -142,6 +211,7 @@ export class Geometry {
       n[i + 2] = -nx * s + nz * c;
     }
     this.bounds = null;
+    this.boundingSphere = null;
     this.version++;
     return this;
   }
@@ -161,6 +231,7 @@ export class Geometry {
       n[i + 1] = nx * s + ny * c;
     }
     this.bounds = null;
+    this.boundingSphere = null;
     this.version++;
     return this;
   }
@@ -211,6 +282,7 @@ export class Geometry {
       n[i + 2] = rz / l;
     }
     this.bounds = null;
+    this.boundingSphere = null;
     this.version++;
     return this;
   }
@@ -283,15 +355,18 @@ export class Geometry {
     return this;
   }
   toFlatShaded() {
+    if (this.shared && this._flatCache) return this._flatCache;
     const p = this.positions,
       uv = this.uvs,
       c = this.colors,
+      pm = this.partMeta,
       idx = this.indices;
     const count = idx ? idx.length : p.length / 3;
     const outP = new Float32Array(count * 3);
     const outN = new Float32Array(count * 3);
     const outU = new Float32Array(count * 2);
     const outC = c ? new Float32Array(count * 3) : null;
+    const outM = pm ? new Float32Array(count * 4) : null;
     const outI = count > 65535 ? new Uint32Array(count) : new Uint16Array(count);
     for (let i = 0; i < count; i += 3) {
       const i0 = idx ? idx[i] : i;
@@ -328,20 +403,33 @@ export class Geometry {
           outC[dst * 3 + 1] = c[src * 3 + 1];
           outC[dst * 3 + 2] = c[src * 3 + 2];
         }
+        if (outM) {
+          outM[dst * 4] = pm[src * 4];
+          outM[dst * 4 + 1] = pm[src * 4 + 1];
+          outM[dst * 4 + 2] = pm[src * 4 + 2];
+          outM[dst * 4 + 3] = pm[src * 4 + 3];
+        }
       }
     }
-    return new Geometry(outP, outN, outU, outI, outC);
+    const flat = new Geometry(outP, outN, outU, outI, outC, outM);
+    if (this.shared) {
+      flat.shared = true;
+      flat.computeBounds();
+      this._flatCache = flat;
+    }
+    return flat;
   }
   dispose() {
     if (this.shared) return;
     if (this._gpu) {
-      const { gl, vao, vboPos, vboNorm, vboUv, vboCol, ibo } = this._gpu;
+      const { gl, vao, vboPos, vboNorm, vboUv, vboCol, vboPart, ibo } = this._gpu;
       if (gl && !gl.isContextLost()) {
         if (vao) gl.deleteVertexArray(vao);
         if (vboPos) gl.deleteBuffer(vboPos);
         if (vboNorm) gl.deleteBuffer(vboNorm);
         if (vboUv) gl.deleteBuffer(vboUv);
         if (vboCol) gl.deleteBuffer(vboCol);
+        if (vboPart) gl.deleteBuffer(vboPart);
         if (ibo) gl.deleteBuffer(ibo);
       }
       this._gpu = null;
@@ -356,6 +444,7 @@ export function mergeGeometries(list) {
   let totalVerts = 0,
     totalIdx = 0;
   const anyColors = valid.some((g) => g.colors);
+  const anyPartMeta = valid.some((g) => g.partMeta);
   for (const g of valid) {
     totalVerts += g.vertexCount;
     totalIdx += g.indices ? g.indices.length : g.vertexCount;
@@ -364,6 +453,7 @@ export function mergeGeometries(list) {
   const norm = new Float32Array(totalVerts * 3);
   const uv = new Float32Array(totalVerts * 2);
   const col = anyColors ? new Float32Array(totalVerts * 3) : null;
+  const meta = anyPartMeta ? new Float32Array(totalVerts * 4) : null;
   const idx = totalVerts > 65535 ? new Uint32Array(totalIdx) : new Uint16Array(totalIdx);
   let vOff = 0,
     iOff = 0;
@@ -376,6 +466,9 @@ export function mergeGeometries(list) {
       if (g.colors) col.set(g.colors, vOff * 3);
       else col.fill(1, vOff * 3, (vOff + vc) * 3);
     }
+    if (meta && g.partMeta) {
+      meta.set(g.partMeta, vOff * 4);
+    }
     if (g.indices) {
       const src = g.indices;
       for (let i = 0; i < src.length; i++) idx[iOff++] = src[i] + vOff;
@@ -384,7 +477,7 @@ export function mergeGeometries(list) {
     }
     vOff += vc;
   }
-  return new Geometry(pos, norm, uv, idx, col);
+  return new Geometry(pos, norm, uv, idx, col, meta);
 }
 
 /** Build a colored transformed mesh part for merging into composite actor/prop kits. */
@@ -397,6 +490,10 @@ export function meshPart(geometry, color, p = {}) {
   _m.compose(_p, _q, _s);
   g.applyMatrix4(_m);
   if (color != null) g.setColor(color);
+  if (p.anim) {
+    const a = p.anim;
+    g.setPartMeta(a[0], a[1] ?? (p.y || 0), a[2] ?? 0, a[3] ?? 0);
+  }
   return g;
 }
 

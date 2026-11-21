@@ -1,4 +1,4 @@
-// Stylized biome environmental hazards (City charged inlays, Caldera magma fumaroles, Shelf ice sheets,
+// Stylized biome environmental hazards (Courtyard charged inlays, Caldera magma fumaroles, Shelf ice sheets,
 // Glowmarsh bio-acid pools, Core portals, Glass Flats swirling dust devils) on custom WebGL2 engine.
 
 import { Color } from "../engine/math.js";
@@ -65,7 +65,7 @@ const MODELS = {
       meshPart(icosahedron(0.62, 1), 0xffcf88, { y: 0.44, sy: 0.58 }),
     ],
   }),
-  // City: recessed rain-slate & antique brass street inlay
+  // Courtyard: recessed rain-slate & antique brass floor inlay
   collar: () => ({
     body: [
       baseDisk(0x20323e, 1.04, 0.085, 0.042, 12),
@@ -235,7 +235,7 @@ export class HazardView {
     const arena = world.arena;
     const quality = Math.min(1, r.maxParticles / 1400);
     if (arena.vents.length) {
-      if (arena.biome.id === "city") this.chargedInlays(dt, world, quality);
+      if (arena.biome.id === "courtyard") this.chargedInlays(dt, world, quality);
       else this.vents(dt, world, quality);
     }
     if (arena.ice.length) this.ice(dt, world, quality);
@@ -249,14 +249,15 @@ export class HazardView {
     const funnel = this.get("funnel");
     const dust = this.surf("dust", 24);
     for (const devil of world.arena.devils) {
+      const calm = devil.calmT > 0 ? Math.max(0.2, 1 - Math.min(1, devil.calmT * 0.5) * 0.8) : 1;
       const x = devil.x,
         z = devil.y,
-        rr = devil.r,
+        rr = devil.r * calm,
         seed = devil.ph;
-      funnel.body.y(x, 0, z, time * (3.4 + devil.spd), rr, 1, rr);
-      funnel.glow.colC(funnel.glow.y(x, 0.4, z, -time * 2.2, rr * 0.62, 1, rr * 0.62), WHITE, 0.5);
-      this.put(dust, x, 0.045, z, time * 1.3 + seed, rr, 0.9, seed);
-      if (Math.random() < dt * 24 * quality) {
+      funnel.body.y(x, 0, z, time * (3.4 + devil.spd), rr, calm, rr);
+      funnel.glow.colC(funnel.glow.y(x, 0.4 * calm, z, -time * 2.2, rr * 0.62, calm, rr * 0.62), WHITE, 0.5 * calm);
+      this.put(dust, x, 0.045, z, time * 1.3 + seed, rr, 0.9 * calm, seed);
+      if (Math.random() < dt * 24 * quality * calm) {
         r.emit(
           x + (Math.random() - 0.5) * rr * 1.7,
           0.1 + Math.random() * 1.5,

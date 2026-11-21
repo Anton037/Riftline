@@ -24,6 +24,15 @@ const Arena = class {
     // 3.53.0: the Glass Flats' dust devils - the first hazards that move (World steps them)
     this.devils = (features.devils || []).map((devil) => ({ ...devil }));
     this.flow = new FlowField(this);
+    this.props = placeBiomeProps(this);
+  }
+  resetProps() {
+    if (!this.props) return;
+    for (const prop of this.props) {
+      prop.cd = 0;
+      prop.fuse = 0;
+      prop.auraT = 0;
+    }
   }
   ventState(vent, time) {
     let cycle = (time + vent.phase) % vent.period,
@@ -413,7 +422,7 @@ const SpatialHash = class {
 const OBSTACLE_GAP = 2.7,
   spawnZone = { x: 0, y: 2, r: 4.6 },
   obstacleShapes = {
-    city: [
+    courtyard: [
       [5, (rng) => ({ t: "c", r: rng.range(1, 1.5) })],
       [
         3,
@@ -477,7 +486,7 @@ const OBSTACLE_GAP = 2.7,
     ],
   },
   mapTemplates = {
-    city: ["scatter", "ring", "rot4", "mirror2"],
+    courtyard: ["scatter", "ring", "rot4", "mirror2"],
     shelf: ["scatter", "rot2", "ring", "rot4"],
     core: ["scatter", "ring", "rot2", "mirror4"],
     marsh: ["scatter", "mirror2", "ring", "rot2"],
@@ -1077,6 +1086,59 @@ function placeFeatures(rng, biomeId, obs, W, H) {
     }
   }
   return features;
+}
+
+const BIOME_PROP_SPEC = {
+  courtyard: { kind: "lantern", maxCd: 7.5 },
+  shelf: { kind: "rime", maxCd: 7.5 },
+  marsh: { kind: "puffball", maxCd: 7.0 },
+  core: { kind: "prism", maxCd: 6.5 },
+  caldera: { kind: "crucible", maxCd: 8.5 },
+  flats: { kind: "sunglass", maxCd: 7.0 },
+};
+
+function placeBiomeProps(arena) {
+  const spec = BIOME_PROP_SPEC[arena.biome?.id] || BIOME_PROP_SPEC.courtyard;
+  const rng = makeRng(hashString(`${arena.key}:cozy-props`));
+  const props = [];
+  const rad = 0.56;
+  const baseTurn = rng.next() * TAU;
+  for (let slot = 0; slot < 3; slot++) {
+    let best = null,
+      bestScore = -1e9;
+    const prefAngle = baseTurn + (slot / 3) * TAU;
+    for (let tries = 0; tries < 56; tries++) {
+      const ang = prefAngle + rng.range(-0.62, 0.62);
+      const reach = Math.min(arena.W - 2.6, arena.H - 2.6);
+      if (reach < 4.2) break;
+      const dist = rng.range(Math.max(4.6, reach * 0.48), Math.max(5.2, reach * 0.86));
+      const px = clamp(Math.cos(ang) * dist, -(arena.W - 2.6), arena.W - 2.6);
+      const py = clamp(Math.sin(ang) * dist, -(arena.H - 2.6), arena.H - 2.6);
+      if (Math.hypot(px, py - 2) < 5.0 || Math.hypot(px, py) < 3.8) continue;
+      if (arena.blocked(px, py, rad + 0.85) || arena.featureBlocked(px, py, 0.85)) continue;
+      if (props.some((p) => Math.hypot(p.x - px, p.y - py) < 5.4)) continue;
+      const wallRoom = Math.min(arena.W - Math.abs(px), arena.H - Math.abs(py));
+      const score = Math.min(4.5, wallRoom) * 0.8 - Math.abs(angleDiff(Math.atan2(py, px), prefAngle)) * 1.4;
+      if (score > bestScore) {
+        bestScore = score;
+        best = { x: Math.round(px * 100) / 100, y: Math.round(py * 100) / 100 };
+      }
+    }
+    if (best) {
+      props.push({
+        id: slot,
+        kind: spec.kind,
+        x: best.x,
+        y: best.y,
+        r: rad,
+        cd: 0,
+        maxCd: spec.maxCd,
+        fuse: 0,
+        auraT: 0,
+      });
+    }
+  }
+  return props;
 }
 
 export { placeObstacles, mapTemplates, hitsObstacle, Arena, buildLayout, SpatialHash };

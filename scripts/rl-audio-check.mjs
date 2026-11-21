@@ -26,7 +26,7 @@ const result = await page.evaluate(async () => {
   // H1: the scheduler is alive and stepping after unlock
   sound.unlock();
   await sound.ctx?.resume?.().catch(() => {});
-  sound.setMusic("fight", "city");
+  sound.setMusic("fight", "courtyard");
   await wait(500);
   if (!sound.timer) out.fail.push("scheduler not running after unlock");
   const sched0 = sound.musicScheduled;
@@ -75,27 +75,27 @@ const result = await page.evaluate(async () => {
   sound.deadTone = Object.create(null);
   let toneThrew = false;
   try {
-    sound.startTone("city");
+    sound.startTone("courtyard");
   } catch (e) {
     toneThrew = true;
   }
   sound.ctx.createOscillator = realOsc;
   if (sound.toneBed) out.fail.push("toneBed left registered after a failed build");
-  if (sound.deadTone.city == null) out.fail.push("deadTone not marked after the throw");
+  if (sound.deadTone.courtyard == null) out.fail.push("deadTone not marked after the throw");
   try {
-    sound.startTone("city");
+    sound.startTone("courtyard");
   } catch {}
   if (sound.toneBed) out.fail.push("dead tone was rebuilt inside the 10 s window");
   sound.deadTone = Object.create(null);
-  sound.startTone("city");
+  sound.startTone("courtyard");
   if (!sound.toneBed) out.fail.push("tone did not start after the dead mark was cleared");
   sound.stopTone();
 
   // track switches exercise the two-room pool and the rollback paths
   for (const [kind, biome] of [
-    ["boss", "city"],
+    ["boss", "courtyard"],
     ["fight", "shelf"],
-    ["menu", "city"],
+    ["menu", "courtyard"],
     ["fight", "marsh"],
     ["fight", "caldera"],
     ["boss", "caldera"],

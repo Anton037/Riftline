@@ -137,7 +137,7 @@ test("every ranged enemy uses its own projectile and shot voice in actual AI", (
 
 test("explicit attack sources override ambient context and matching surfaces drive both sound and look", () => {
   const w = world();
-  w._src = "warden";
+  w._src = "bellkeeper";
   w.fx = [];
   assert.equal(w.hazard({ x: 0, y: 0, r: 1, src: "tyrant" }).src, "tyrant");
   assert.equal(w.beam({ x: 0, y: 0, a: 0, src: "wyrm", skin: "sun" }).src, "wyrm");
@@ -145,14 +145,14 @@ test("explicit attack sources override ambient context and matching surfaces dri
   assert.equal(w.fx.at(-1).src, "tyrant");
   const cases = [
     ["stomp", "tyrant", "lavaCrack", "aLava"],
-    ["stomp", "warden", "crack", "aQuake"],
+    ["stomp", "bellkeeper", "crack", "aQuake"],
     ["stomp", "wyrm", "glass", "aGlass"],
     ["rain", "queen", "acid", "aAcid"],
     ["rain", "core", "rift", "aRift"],
   ];
   for (const [kind, source, surface, voice] of cases) {
-    assert.equal(attackSurface(kind, source, "city"), surface);
-    assert.equal(attackVoice(kind, source, "city"), voice);
+    assert.equal(attackSurface(kind, source, "courtyard"), surface);
+    assert.equal(attackVoice(kind, source, "courtyard"), voice);
   }
   assert.equal(attackSurface("mortar", "mortar", "shelf", true), "frost");
   assert.equal(attackVoice("mortar", "mortar", "shelf", true), "aIce");

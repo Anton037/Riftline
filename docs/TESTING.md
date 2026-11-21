@@ -29,9 +29,11 @@ For centre/edge/corner screenshots use `node tools/verify.js visual <tag> tablet
 
 ## Standard contracts
 
-- Node checks cover seeded finite combat for each weapon, snapshot restoration, biome/boss/hazard
-  references, upgrade data, release notes, atmosphere budgeting, static mesh bounds and the 810-triangle enemy
-  kit budget. Combat contracts exercise actual AI for every boss pattern/phase and all ranged enemies,
+- Node checks cover seeded finite combat for each weapon, deterministic interactive biome relics across all six biomes,
+  snapshot restoration, biome/boss/hazard references, upgrade data, release notes, atmosphere budgeting, static mesh
+  bounds, `freezeStatic()` zero-matrix-update invariants, O(1) GPU particle ring expiration, 3D variant/elite gear
+  bounds, and the 1,800-triangle enemy / 6,500-triangle hero & boss kit budgets (`aPartMeta` GPU sub-part channels
+  enforced across all 25 enemies). Combat contracts exercise actual AI for every boss pattern/phase and all ranged enemies,
   preserve source identity through effects/sound, reject orphan content and bound Arc Caster rendering at 420 shots.
   Power contracts follow actual Nova/Singularity/Aegis events, deduplicate Nova sound, preserve enemy-warning pools,
   cap concurrent effects and keep the aurora outside the arena at sway extrema.

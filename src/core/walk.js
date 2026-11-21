@@ -10,7 +10,7 @@ const STEP_LEN = 1,
 
 // the ground under the drone: the sheets of ice and the pools of acid of the arena, else the floor of the biome
 const FLOOR = {
-  city: "asphalt",
+  courtyard: "flagstone",
   shelf: "frost",
   marsh: "mud",
   core: "glass",
@@ -21,7 +21,7 @@ function groundOf(world) {
   const player = world.player;
   if (player.onIce) return "ice";
   if (player.inAcid) return "acid";
-  return FLOOR[world.arena.biome.id] || "asphalt";
+  return FLOOR[world.arena.biome.id] || "flagstone";
 }
 
 // called after the drone moved (World.step): x0, y0 is where it stood before

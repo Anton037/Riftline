@@ -61,14 +61,14 @@ def brush_strokes(size, count, seed, angle_deg, spread_deg, length_range, width_
 
 def make_terrain_atlas():
     """3x2 seamless painterly storybook gouache terrain atlas (512x512 per biome tile).
-    Order: 0=city, 1=shelf, 2=marsh, 3=core, 4=caldera, 5=flats.
+    Order: 0=courtyard, 1=shelf, 2=marsh, 3=core, 4=caldera, 5=flats.
     Calm mid-frequency gouache brushwork so walkable combat floors stay readable while retaining tactile craft.
     """
     size = 512
     atlas = Image.new("RGB", (size * 3, size * 2))
     specs = [
         # (base_rgb, warm_tint, cool_tint, angle, spread, seed)
-        ((34, 50, 64), (52, 70, 84), (22, 32, 46), 18, 22, 101),          # city: calm rain-washed courtyard flagstones
+        ((34, 50, 64), (52, 70, 84), (22, 32, 46), 18, 22, 101),          # courtyard: calm rain-washed courtyard flagstones
         ((96, 128, 154), (126, 156, 178), (66, 94, 124), -22, 16, 202),   # shelf: velvety blue-hour alpine snowfield
         ((30, 58, 48), (58, 92, 68), (18, 38, 36), 10, 42, 303),          # marsh: soft velvety moss turf & twilight bog
         ((30, 24, 56), (50, 40, 84), (18, 14, 36), 45, 28, 404),          # core: calm carved midnight-obsidian flagstones
@@ -84,7 +84,7 @@ def make_terrain_atlas():
         tooth = np.random.default_rng(seed + 99).normal(0, 0.022, (size, size)).astype(np.float32)
         # Gentle biome-specific handcrafted motif baked cleanly into the brushwork
         motif = np.zeros((size, size), dtype=np.float32)
-        if idx == 0:  # city dressed courtyard paving slabs
+        if idx == 0:  # courtyard dressed paving slabs
             gx = np.abs(np.sin(TAU * x * 4.0))
             gy = np.abs(np.sin(TAU * y * 4.0))
             seam = np.minimum(gx, gy)

@@ -8,13 +8,13 @@ const phone = layout === "land" || layout === "phone";
 const out = `verification-output/${tag}-abilities-${phone ? "phone" : "tablet"}`;
 fs.mkdirSync(out, { recursive: true });
 const specs = [
-  ...[0.07, 0.22, 0.5, 0.85].map((time) => ({ kind: "nova", biome: "city", time })),
-  ...[0.15, 0.55].map((time) => ({ kind: "collapse", biome: "city", time })),
-  { kind: "surge", biome: "city", time: 0.16 },
-  ...[0.12, 0.45, 1, 1.65, 2.05, 2.8].map((time) => ({ kind: "singularity", biome: "city", time })),
-  { kind: "searing", biome: "city", time: 2.4 },
-  { kind: "shield", biome: "city", time: 0.15 },
-  ...[0.08, 0.32].map((time) => ({ kind: "block", biome: "city", time })),
+  ...[0.07, 0.22, 0.5, 0.85].map((time) => ({ kind: "nova", biome: "courtyard", time })),
+  ...[0.15, 0.55].map((time) => ({ kind: "collapse", biome: "courtyard", time })),
+  { kind: "surge", biome: "courtyard", time: 0.16 },
+  ...[0.12, 0.45, 1, 1.65, 2.05, 2.8].map((time) => ({ kind: "singularity", biome: "courtyard", time })),
+  { kind: "searing", biome: "courtyard", time: 2.4 },
+  { kind: "shield", biome: "courtyard", time: 0.15 },
+  ...[0.08, 0.32].map((time) => ({ kind: "block", biome: "courtyard", time })),
   { kind: "portal", biome: "core", time: 0.4 },
   ...["centre", "north", "south", "east", "west", "northwest", "northeast", "southwest", "southeast"].map(
     (position) => ({ kind: "sky", biome: "shelf", position, time: 0.2 }),
@@ -29,7 +29,9 @@ const selected = specs.filter(
     filter === "all" ||
     s.kind === filter ||
     (filter === "before" &&
-      ((s.biome === "city" && ["nova", "singularity", "shield"].includes(s.kind) && [0.22, 1, 0.15].includes(s.time)) ||
+      ((s.biome === "courtyard" &&
+        ["nova", "singularity", "shield"].includes(s.kind) &&
+        [0.22, 1, 0.15].includes(s.time)) ||
         s.kind === "portal" ||
         (s.kind === "sky" && ["centre", "north", "east", "south"].includes(s.position)))),
 );

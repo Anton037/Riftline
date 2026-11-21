@@ -119,7 +119,7 @@ const iconPaths = {
   skull:
     '<path d="m12 3 7 4 2 6-5 4v4H8v-4l-5-4 2-6zm-2 14v4m4-4v4"/><circle cx="8.5" cy="11" r="1.2"/><circle cx="15.5" cy="11" r="1.2"/>',
   target: '<circle cx="12" cy="12" r="9"/><path d="m12 6 6 6-6 6-6-6z"/><circle cx="12" cy="12" r="1.2"/>',
-  lockdown: '<path d="M4 3v18M20 3v18M4 7h16m-16 10h16m-8-7 2 2-2 2-2-2z"/>',
+  sealgrid: '<path d="M4 3v18M20 3v18M4 7h16m-16 10h16m-8-7 2 2-2 2-2-2z"/>',
   brood: '<path d="m12 4 5 6 1 6-6 5-6-5 1-6zm-5 6-4-3m14 3 4-3M7 16l-4 2m14-2 4 2"/>',
   collapse: '<path d="m12 2 10 10-10 10L2 12zm0 5 5 5-5 5-5-5z"/>',
   tribute: '<path d="m12 3 5 7-5 8-5-8zM4 15l3 5h10l3-5"/>',
@@ -130,7 +130,7 @@ function iconSvg(name, cls = "") {
 }
 const getById = (id) => document.getElementById(id),
   BIOME_THEME_COLOR = {
-    city: "#0f1722",
+    courtyard: "#0f1722",
     shelf: "#0d1929",
     marsh: "#0c1a15",
     core: "#120c24",
@@ -189,7 +189,14 @@ const getById = (id) => document.getElementById(id),
   hitSourceName = (src) =>
     enemyDefs[src]?.name ||
     bossDefs[src]?.name ||
-    { lava: "Lava vent", shock: "Charged inlay", acid: "Acid pool", trap: "Arena trap", devil: "Dust devil" }[src],
+    {
+      lava: "Lava vent",
+      shock: "Charged inlay",
+      acid: "Acid pool",
+      trap: "Arena trap",
+      devil: "Dust devil",
+      prop: "Biome relic",
+    }[src],
   damageSources = {
     arc: ["Arc Relay", "#c0a6db"],
     burn: ["Burning", "#ff8a2a"],
@@ -208,8 +215,9 @@ const getById = (id) => document.getElementById(id),
     surge: ["Combo Surge", "#e9bf89"],
     grenade: ["Singularity", "#b57bff"], // 3.12.0: the old id of the gadget, kept for saved run records
     trap: ["Arena traps", "#aeb9cf"], // 3.0.0: enemies caught by a trap
+    prop: ["Biome relics", "#f2c879"],
     // 3.15.0: the boss cards
-    lockdown: ["Lockdown Grid", "#f08e70"],
+    sealgrid: ["Lantern Cage", "#f08e70"],
     shard: ["Shard Field", "#bacfd9"],
     fang: ["Glasswyrm Fang", "#ffd98a"],
     brood: ["Brood", "#c1d291"],
@@ -803,8 +811,11 @@ const getById = (id) => document.getElementById(id),
       getById("setSfx").value = settings.sfx;
       getById("setMusic").value = settings.music;
       getById("setAmb").value = settings.ambience;
-      for (let btn of getById("setFrameRate").querySelectorAll("button"))
-        btn.classList.toggle("on", +btn.dataset.v === settings.frameRate);
+      for (let btn of getById("setFrameRate").querySelectorAll("button")) {
+        const active = +btn.dataset.v === settings.frameRate;
+        btn.classList.toggle("on", active);
+        btn.setAttribute("aria-pressed", String(active));
+      }
       getById("storageWarn").hidden = this.g.store.storageOk;
       getById("storageWarnText").textContent = this.g.store.held
         ? "the old save is kept unread (storage full): progress is not saved"
@@ -861,6 +872,7 @@ const getById = (id) => document.getElementById(id),
           row.appendChild(btn);
         }
         getById("dialog").hidden = false;
+        for (const sib of document.querySelectorAll("#app > .screen, #hud, #hudEdit")) sib.inert = true;
         // 2.8.1: focus moves into the dialog and back to where it was on close. It lands on the main
         // button, or on the first (Cancel) one when the main action is destructive, so Enter is safe
         this.dlgFocusBack = document.activeElement;
@@ -876,6 +888,7 @@ const getById = (id) => document.getElementById(id),
         text = this.dlgRead ? this.dlgRead() : undefined;
       this.dlgResolve = null;
       getById("dialog").hidden = true;
+      for (const sib of document.querySelectorAll("#app > .screen, #hud, #hudEdit")) sib.inert = false;
       const back = this.dlgFocusBack;
       this.dlgFocusBack = null;
       if (back && back.isConnected && typeof back.focus === "function") back.focus({ preventScroll: true });
@@ -1230,6 +1243,12 @@ const getById = (id) => document.getElementById(id),
       if (on && stats.skates && player.skating) {
         want.push(["skate", "SKATES", "#bff4ff", -1]);
       }
+      if (on && player.tractionT > 0) {
+        want.push(["rime", "CRYO GRIP", "#9cf4ff", player.tractionT / 3.8]);
+      }
+      if (on && player.hopT > 0) {
+        want.push(["spore", "SPORE HOP", "#9cf8ae", player.hopT / 3.2]);
+      }
       const row = buffRow;
       if (!row) return;
       // 3.46.0: the timed chips are cached too; a cached element is only trusted while it is
@@ -1354,6 +1373,7 @@ const getById = (id) => document.getElementById(id),
         if (world.banishes <= 0 || world.offer.length < 2) this.banishMode = false;
         btn.disabled = world.banishes <= 0 || world.offer.length < 2;
         btn.classList.toggle("on", !!this.banishMode);
+        btn.setAttribute("aria-pressed", String(!!this.banishMode));
         getById("banishTxt").textContent = `Banish (${world.banishes})`;
         cards.classList.toggle("banishing", !!this.banishMode);
       }
@@ -1453,7 +1473,7 @@ const getById = (id) => document.getElementById(id),
         ? own
             .map(
               (upgrade) =>
-                `<button type="button" class="bi r${upgrade.rarity}" data-up="${upgrade.id}" aria-label="${escapeHtml(upgrade.name)}">${iconSvg(upgrade.icon)}${escapeHtml(upgrade.name)}${world.up[upgrade.id] > 1 ? " \xD7" + world.up[upgrade.id] : ""}</button>`,
+                `<button type="button" class="bi r${upgrade.rarity}" data-up="${upgrade.id}" aria-pressed="false" aria-label="${escapeHtml(upgrade.name)}">${iconSvg(upgrade.icon)}${escapeHtml(upgrade.name)}${world.up[upgrade.id] > 1 ? " \xD7" + world.up[upgrade.id] : ""}</button>`,
             )
             .join("")
         : this.buildHtml(world);
@@ -1735,8 +1755,8 @@ const getById = (id) => document.getElementById(id),
       );
     }
   };
-// 2.5.0 A: HUD chips of the timed upgrades, managed next to the chips of GameUI.buffs
-const timedBuffChips = ["heat", "slip", "skate"];
+// 2.5.0 A: HUD chips of the timed upgrades and biome relics, managed next to the chips of GameUI.buffs
+const timedBuffChips = ["heat", "slip", "skate", "rime", "spore"];
 // 2.4.2: closes settings that were opened from the pause menu
 function closePauseSettings(ui) {
   ui.rlFromPause = false;
@@ -1744,14 +1764,14 @@ function closePauseSettings(ui) {
   getById("settings").classList.remove("in-run");
 }
 
-// the hazard of each biome in a few words (the RL_BIOME_INFO tag is the fallback for new biomes)
+// the hazard & interactive relic of each biome in a few words (the RL_BIOME_INFO tag is the fallback for new biomes)
 const RL_BIOME_CARD = {
-  city: "Charged inlays discharge · lure enemies onto them",
-  shelf: "Slick ice under the aurora — the blizzard breathes, so does your drift",
-  marsh: "The mud clings, the glowing tide eats your hull — and marks enemies",
-  core: "Portal pairs fold the arena — shots pass through",
-  caldera: "Magma vents jet molten rock — the ground itself burns",
-  flats: "Dust devils wander the glass — they shove, and the wind bites",
+  courtyard: "Charged inlays discharge · spark garden lanterns to stun & light the dusk",
+  shelf: "Slick ice under the aurora · shatter rime crystals for frost & skating grip",
+  marsh: "Clinging mud & glowing tide · pop spore puffballs for a swift marsh hop",
+  core: "Portals fold the arena · ring resonance prisms to split shots & slow fire",
+  caldera: "Magma vents & forge basalt · stoke slag crucibles to crack enemy armor",
+  flats: "Wandering dust devils · strike sunglass lenses to fan solar bolts & calm winds",
 };
 const rlHex = (color) => "#" + ((Number(color) >>> 0) & 0xffffff).toString(16).padStart(6, "0");
 function rlBiomeCardInfo(biome) {

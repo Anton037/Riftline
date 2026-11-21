@@ -2,13 +2,13 @@
 
 // Each biome owns a consistent hazard family.
 const RL_BIOME_HAZARD = {
-  // City vent positions hold charged inlays.
-  city: "vents",
+  // Courtyard vent positions hold charged inlays.
+  courtyard: "vents",
   shelf: "ice",
   core: "portals",
   marsh: "acid",
   // 3.49.0: the Ashfall Caldera: fumaroles - vents with a molten skin (they jet white-hot rock
-  // between the spires). The id stays "caldera" for saves and records, like the City in 3.4.0.
+  // between the spires). The id stays "caldera" for saves and records, like the Courtyard.
   caldera: "vents",
   // 3.53.0: the Glass Flats: dust devils - the first hazard that moves (they wander the glass)
   flats: "devils",
@@ -16,8 +16,8 @@ const RL_BIOME_HAZARD = {
 const biomeList = [
   {
     // Teal glaze, brass tile seams and the gallery’s amber lamps.
-    id: "city",
-    name: "Blackout City",
+    id: "courtyard",
+    name: "Lantern Courtyard",
     W: 18,
     H: 18,
     floor: 0x0c0d10,
@@ -152,12 +152,12 @@ function planBiomeRoute(rng) {
     let j = Math.floor(rng.next() * (i + 1));
     [ids[i], ids[j]] = [ids[j], ids[i]];
   }
-  return ["city", ids[0], ids[1], "core", ...ids.slice(2)];
+  return ["courtyard", ids[0], ids[1], "core", ...ids.slice(2)];
 }
 
 // Enemy mixes and the mechanics that distinguish each biome.
 const RL_BIOME_INFO = {
-  city: { tag: "Charged inlays", mix: { gunner: 2.2, bomber: 1.8, grunt: 1.5, swarmer: 0.6 } },
+  courtyard: { tag: "Charged inlays", mix: { gunner: 2.2, bomber: 1.8, grunt: 1.5, swarmer: 0.6 } },
   // 3.51.0: the Shelf: the blizzard breathes - the thin ice freezes and thaws on a ~20 s cycle, so
   // the slick floor (grip 6.5) swings toward 9.1 at freeze peak and back (world.js step)
   shelf: {

@@ -52,28 +52,52 @@ export const SOURCE_CLIPS = {
     start: 3.7498413,
     duration: 0.26,
   },
-  reed_step: {
+  ice_skate_step: {
     start: 4.0348299,
     duration: 0.24,
   },
-  panel_step: {
+  wet_slate_step: {
     start: 4.2998186,
+    duration: 0.1900227,
+  },
+  bog_squelch_step: {
+    start: 4.5148299,
+    duration: 0.2499773,
+  },
+  obsidian_chime_step: {
+    start: 4.7897959,
+    duration: 0.2499773,
+  },
+  cinder_crunch_step: {
+    start: 5.0647619,
+    duration: 0.2099773,
+  },
+  sand_glass_step: {
+    start: 5.2997279,
+    duration: 0.2300227,
+  },
+  reed_step: {
+    start: 5.5547392,
+    duration: 0.24,
+  },
+  panel_step: {
+    start: 5.8197279,
     duration: 0.2099773,
   },
   reed_release: {
-    start: 4.5347846,
+    start: 6.0546939,
     duration: 0.18,
   },
   spindle_strike: {
-    start: 4.7397732,
+    start: 6.2596825,
     duration: 0.36,
   },
   compressed_coil: {
-    start: 5.1247619,
+    start: 6.6446712,
     duration: 0.2099773,
   },
   split_reed_release: {
-    start: 5.3597279,
+    start: 6.8796372,
     duration: 0.26,
   },
 };

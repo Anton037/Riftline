@@ -1030,8 +1030,8 @@ function handleWorldEvents(world) {
             ev.boss ? 3e3 : 2e3,
           );
         if (!ev.boss && world.arena.vents.length) {
-          // The City’s charged inlays signal a shock before discharging.
-          if (world.arena.biome.id === "city")
+          // The Courtyard’s charged inlays signal a shock before discharging.
+          if (world.arena.biome.id === "courtyard")
             showTipOnce("shock", "Charged inlays rise before they discharge. Lure enemies onto them to stun them.");
           // 3.49.0: the Caldera's vents are the fumaroles
           else if (world.arena.biome.id === "caldera")
@@ -1642,7 +1642,11 @@ function rlRetireToast() {
     const button = ev.target.closest && ev.target.closest("[data-up]"),
       world = game.world;
     if (!button || !world) return;
-    for (const el of getById("pauseBuild").querySelectorAll("[data-up]")) el.classList.toggle("sel", el === button);
+    for (const el of getById("pauseBuild").querySelectorAll("[data-up]")) {
+      const sel = el === button;
+      el.classList.toggle("sel", sel);
+      el.setAttribute("aria-pressed", String(sel));
+    }
     info.innerHTML = upInfo(button.dataset.up, world.up[button.dataset.up] || 0);
   });
 })();

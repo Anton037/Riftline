@@ -31,8 +31,14 @@ const sample = {
   soft: "felt_tap",
   wood: "wooden_resonator",
   blade: "spindle_strike",
-  concrete: "stone_step_000",
+  stone: "stone_step_000",
+  slate: "wet_slate_step",
   snow: "frost_step",
+  ice: "ice_skate_step",
+  bog: "bog_squelch_step",
+  obsidian: "obsidian_chime_step",
+  cinder: "cinder_crunch_step",
+  sand: "sand_glass_step",
   grass: "reed_step",
   timber: "panel_step",
 };
@@ -141,7 +147,7 @@ const P = {
     gate: 0.11,
     lowpass: 1800,
   },
-  eshotWarden: { dur: 0.31, sample: "metal", body: 278, air: 0.06, grain: 0.025, gain: 0.24, gate: 0.1, lowpass: 2850 },
+  eshotKeeper: { dur: 0.31, sample: "metal", body: 278, air: 0.06, grain: 0.025, gain: 0.24, gate: 0.1, lowpass: 2850 },
   eshotQueen: { dur: 0.26, sample: "flesh", body: 92, air: 0.28, grain: 0.025, gain: 0.24, gate: 0.1, lowpass: 1600 },
   eshotPrism: { dur: 0.25, sample: "glass", body: 620, air: 0.08, grain: 0.08, gain: 0.21, gate: 0.1, lowpass: 6500 },
   eshotCore: {
@@ -325,7 +331,95 @@ const P = {
   },
   ui: { dur: 0.11, sample: "wood", body: 330, air: 0.02, grain: 0.012, gain: 0.13, gate: 0.055, lowpass: 2500 },
   reward: { dur: 0.52, sample: "glass", body: 659, air: 0.025, grain: 0.012, gain: 0.2, gate: 0.08, lowpass: 4800 },
-  step: { dur: 0.21, sample: "concrete", body: 136, air: 0.045, grain: 0.022, gain: 0.21, gate: 0.045, lowpass: 2200 },
+  step: { dur: 0.21, sample: "stone", body: 136, air: 0.045, grain: 0.022, gain: 0.21, gate: 0.045, lowpass: 2200 },
+  sparkCourtyard: {
+    dur: 0.13,
+    sample: "heavy",
+    body: 340,
+    air: 0.03,
+    grain: 0.02,
+    gain: 0.14,
+    gate: 0.055,
+    lowpass: 3400,
+  },
+  sparkShelf: { dur: 0.15, sample: "glass", body: 680, air: 0.04, grain: 0.03, gain: 0.14, gate: 0.055, lowpass: 5400 },
+  sparkMarsh: { dur: 0.14, sample: "flesh", body: 145, air: 0.04, grain: 0.02, gain: 0.15, gate: 0.055, lowpass: 1900 },
+  sparkCore: {
+    dur: 0.16,
+    sample: "obsidian",
+    body: 520,
+    air: 0.04,
+    grain: 0.02,
+    gain: 0.14,
+    gate: 0.055,
+    lowpass: 4800,
+  },
+  sparkCaldera: {
+    dur: 0.14,
+    sample: "plate",
+    body: 196,
+    air: 0.05,
+    grain: 0.03,
+    gain: 0.15,
+    gate: 0.055,
+    lowpass: 2600,
+  },
+  sparkFlats: { dur: 0.15, sample: "sand", body: 440, air: 0.05, grain: 0.03, gain: 0.14, gate: 0.055, lowpass: 4400 },
+  propArm: {
+    dur: 0.48,
+    sample: "plate",
+    body: 260,
+    air: 0.14,
+    grain: 0.05,
+    gain: 0.23,
+    gate: 0.08,
+    warn: true,
+    lowpass: 2800,
+  },
+  propLantern: { dur: 0.42, sample: "heavy", body: 392, air: 0.06, grain: 0.03, gain: 0.24, gate: 0.08, lowpass: 3800 },
+  propRime: { dur: 0.44, sample: "glass", body: 698, air: 0.09, grain: 0.08, gain: 0.23, gate: 0.08, lowpass: 5800 },
+  propPuffball: { dur: 0.36, sample: "wood", body: 196, air: 0.14, grain: 0.04, gain: 0.25, gate: 0.08, lowpass: 2200 },
+  propPrism: {
+    dur: 0.46,
+    sample: "obsidian",
+    body: 587,
+    air: 0.07,
+    grain: 0.04,
+    gain: 0.23,
+    gate: 0.08,
+    lowpass: 5200,
+  },
+  propCrucible: {
+    dur: 0.54,
+    sample: "plate",
+    body: 147,
+    air: 0.28,
+    grain: 0.09,
+    gain: 0.28,
+    gate: 0.08,
+    lowpass: 2400,
+  },
+  propSunglass: {
+    dur: 0.44,
+    sample: "glass",
+    body: 659,
+    air: 0.12,
+    grain: 0.07,
+    gain: 0.24,
+    gate: 0.08,
+    lowpass: 5600,
+  },
+  dClockwork: { dur: 0.28, sample: "plate", body: 294, air: 0.06, grain: 0.08, gain: 0.21, gate: 0.04, lowpass: 3200 },
+  dConstruct: {
+    dur: 0.34,
+    sample: "obsidian",
+    body: 440,
+    air: 0.08,
+    grain: 0.04,
+    gain: 0.2,
+    gate: 0.04,
+    lowpass: 4400,
+  },
   room: { dur: 0.8, sample: "soft", body: 76, air: 0.4, grain: 0.09, gain: 0.16, gate: 0.08 },
   rain: { dur: 0.24, model: "rain", body: 1200, gain: 0.16, gate: 0 },
   water: { dur: 0.42, model: "water", body: 260, gain: 0.18, gate: 0 },
@@ -342,7 +436,7 @@ const P = {
   buzz: { dur: 0.65, model: "buzz", body: 60, gain: 0.14, gate: 0 },
 };
 const BOSS_TIMBRE = {
-  warden: ["plate", 245, 3000],
+  bellkeeper: ["plate", 245, 3000],
   queen: ["flesh", 105, 1800],
   prism: ["glass", 710, 6500],
   core: ["soft", 165, 1800],
@@ -490,14 +584,48 @@ export function physicalProfile(id, arg, place = false) {
     if (Number.isFinite(delay)) p.dur = Math.max(0.12, Math.min(1.5, delay));
   }
   if (family === "step") {
-    const ground = arg?.ground;
-    p.sample = /ice|snow|frost/.test(ground)
-      ? "snow"
-      : /peat|mud|acid|water|grass/.test(ground)
-        ? "grass"
-        : /wood/.test(ground)
-          ? "timber"
-          : "concrete";
+    const ground = String(arg?.ground || "");
+    if (/^ice$/.test(ground)) {
+      p.sample = "ice";
+      p.body = 310;
+      p.lowpass = 4200;
+    } else if (/snow|frost/.test(ground)) {
+      p.sample = "snow";
+      p.body = 196;
+      p.lowpass = 3000;
+    } else if (/acid|grass/.test(ground)) {
+      p.sample = "grass";
+      p.body = 148;
+      p.lowpass = 2200;
+    } else if (/peat|mud|water/.test(ground)) {
+      p.sample = "bog";
+      p.body = 122;
+      p.lowpass = 1900;
+    } else if (/sandglass|sand/.test(ground)) {
+      p.sample = "sand";
+      p.body = 248;
+      p.lowpass = 3400;
+    } else if (/glass|rift/.test(ground)) {
+      p.sample = "obsidian";
+      p.body = 320;
+      p.lowpass = 4200;
+    } else if (/crust|ash/.test(ground)) {
+      p.sample = "cinder";
+      p.body = 146;
+      p.lowpass = 2400;
+    } else if (/flagstone/.test(ground)) {
+      p.sample = "slate";
+      p.body = 168;
+      p.lowpass = 2600;
+    } else if (/wood/.test(ground)) {
+      p.sample = "timber";
+    } else {
+      p.sample = "stone";
+    }
+    if (id === "land") {
+      p.dur = 0.26;
+      p.gain *= 1.18;
+    }
     p.gain *= Math.max(0.5, Math.min(1.2, arg?.v || 1));
   }
   if (place) {

@@ -89,7 +89,7 @@ export class ActorEffectsView {
             const a = (i * Math.PI * 2) / 3;
             r.line(ev.x, ev.y, ev.x + Math.cos(a) * big, ev.y + Math.sin(a) * big, color, 0.3, 0.055, 0.05, 0.14);
           }
-        } else if (summon === "rift" || summon === "security" || summon === "frost") {
+        } else if (summon === "rift" || summon === "courtyard" || summon === "frost") {
           r.burst(ev.x, ev.y, 0.8, Math.round(10 * big), 4, color, 0.5, 0.16, { up: 3, drag: 2, spark: true });
           r.ring(ev.x, ev.y, 0.2, 1.8 * big, color, 0.35);
           r.ring(ev.x, ev.y, 0.4, 1.2 * big, accent, 0.24, 0.25);
