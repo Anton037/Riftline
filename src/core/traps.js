@@ -132,12 +132,13 @@ function trapEffectsOnPlayer(world, skin, trap) {
   }
 }
 
-// an area strike: the player, and every enemy as a share of its hull
-function trapStrike(world, trap, skin, radius) {
+// an area strike: the player, and every enemy as a share of its hull (shotDetonated skips friendly fire & boosts enemy damage)
+function trapStrike(world, trap, skin, radius, enemyMul = 1, shotDetonated = false) {
   const player = world.player;
   world._src = "trap";
   // 3.7.1: a strike that misses (a dash, the shield, the moment of safety after a hit) neither chills nor stuns
   if (
+    !shotDetonated &&
     player.alive &&
     Math.hypot(player.x - trap.x, player.y - trap.y) < radius + player.r &&
     world.hurtPlayer(trapDamage(world, skin), trap.x, trap.y, "trap")
@@ -145,8 +146,8 @@ function trapStrike(world, trap, skin, radius) {
     trapEffectsOnPlayer(world, skin, trap);
   world.hash.query(trap.x, trap.y, radius, (enemy) => {
     if (enemy.dead || enemy.boss || Math.hypot(enemy.x - trap.x, enemy.y - trap.y) > radius + enemy.r) return;
-    world.hurtEnemy(enemy, enemy.maxHp * skin.frac, enemy.x - trap.x, enemy.y - trap.y, 3, false, "trap");
-    if (skin.special === "chill") enemy.slowT = Math.max(enemy.slowT, 1.6);
+    world.hurtEnemy(enemy, enemy.maxHp * skin.frac * enemyMul, enemy.x - trap.x, enemy.y - trap.y, 3.5, false, "trap");
+    if (skin.special === "chill") enemy.slowT = Math.max(enemy.slowT, 1.8);
   });
   // the acid puddle stays off a spot where an enemy is about to appear (spawns keep away from hazards)
   if (
@@ -156,6 +157,30 @@ function trapStrike(world, trap, skin, radius) {
     world.arena.acid.push({ x: trap.x, y: trap.y, r: radius * 0.85, life: 7 });
   world.emit("boom", { x: trap.x, y: trap.y, r: radius, kind: "trap" });
   world.emit("trapFire", { id: trap.id, fam: trap.fam, skin: trap.skin, x: trap.x, y: trap.y, r: radius });
+}
+
+// Tactical barrel-sniping: player shots can detonate armed proximity vessels for 1.5x pack damage with zero self-harm.
+function rlShootTrap(world, bullet, prevX, prevY) {
+  if (!world.traps.length || world.state !== "fight") return false;
+  const segDx = bullet.x - prevX,
+    segDy = bullet.y - prevY,
+    segLen2 = segDx * segDx + segDy * segDy;
+  for (const trap of world.traps) {
+    if (trap.fam !== "mine" || trap.st !== "armed") continue;
+    const along = segLen2 > 1e-8 ? clamp(((trap.x - prevX) * segDx + (trap.y - prevY) * segDy) / segLen2, 0, 1) : 0;
+    const cx = prevX + segDx * along - trap.x,
+      cy = prevY + segDy * along - trap.y,
+      hitR = 0.62 + bullet.r;
+    if (cx * cx + cy * cy <= hitR * hitR) {
+      const skin = TRAP_SKINS[trap.skin];
+      trapStrike(world, trap, skin, skin.r * 1.15, 1.5, true);
+      trap.st = "gone";
+      trap.t = 0;
+      trap.respawn = (world.wave > 20 ? 9 : 14) + trap.id * 0.7;
+      return true;
+    }
+  }
+  return false;
 }
 
 function rlUpdateTraps(world, dt) {
@@ -298,4 +323,4 @@ function rlPlaceAgain(world, trap) {
   return null;
 }
 
-export { TRAP_SKINS, rlPlanTraps, rlUpdateTraps };
+export { TRAP_SKINS, rlPlanTraps, rlUpdateTraps, rlShootTrap };

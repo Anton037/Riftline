@@ -3,19 +3,26 @@
 import { Texture2D } from "../engine/scene.js";
 import { clamp } from "../core/util.js";
 
+let _occScratch = null;
+
 function obstacleDistance(x, z, obs) {
   if (obs.t === "c") {
-    return Math.hypot(x - obs.x, z - obs.y) - obs.r;
+    const dx = x - obs.x,
+      dz = z - obs.y;
+    return Math.sqrt(dx * dx + dz * dz) - obs.r;
   }
   const dx = Math.abs(x - obs.x) - obs.w;
   const dz = Math.abs(z - obs.y) - obs.h;
-  const ox = Math.max(dx, 0);
-  const oz = Math.max(dz, 0);
-  return Math.hypot(ox, oz) + Math.min(Math.max(dx, dz), 0);
+  const ox = dx > 0 ? dx : 0;
+  const oz = dz > 0 ? dz : 0;
+  const inside = dx > dz ? dx : dz;
+  return Math.sqrt(ox * ox + oz * oz) + (inside < 0 ? inside : 0);
 }
 
 export function createGroundOcclusion(halfW, halfH, obstacles = [], size = 128) {
-  const occBuf = new Float32Array(size * size);
+  const len = size * size;
+  if (!_occScratch || _occScratch.length !== len) _occScratch = new Float32Array(len);
+  const occBuf = _occScratch;
   occBuf.fill(1);
   const feather = 1.65;
   const wallFeather = 1.4;

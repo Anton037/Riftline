@@ -236,9 +236,12 @@ function _scheduleResize(why) {
     _resizeRaf = requestAnimationFrame(() => {
       _resizeRaf = 0;
       try {
+        game._settledOverlayFrames = 0;
         if (renderer) {
+          renderer.markResize();
           renderer.resize();
         }
+        overlay.resize();
         // a turn of the phone switches to the button layout of the other orientation
         if (hudEditor.isOpen) hudEditor.onResize();
         else placeHud();
@@ -359,6 +362,7 @@ const overlay = new Overlay(elementById("ov")),
         }
         ui.coach(null);
         if (renderer) {
+          renderer.clearTransient();
           renderer.resetCamera();
         }
         sound.setMusic("fight", this.world.biomeFor(this.world.wave).id);
@@ -478,6 +482,8 @@ const overlay = new Overlay(elementById("ov")),
       this.mode = "menu";
       this.world = null;
       this.paused = false;
+      this._settledOverlayFrames = 0;
+      if (renderer) renderer.clearTransient();
       ui.hideOver();
       ui.hideChoose();
       ui.hidePause();
@@ -914,8 +920,12 @@ function runFrame(dt) {
     // (game.noInterp: the full-QA section smooth compares with and without)
     if (game.interpWorld === world && !game.noInterp) interpApply(game.acc / rlStep);
     try {
-      if (renderer) renderer.frame(dt, world);
-      if (renderer && !(game.chooseShown || game.overShown)) {
+      const staticOverlay = game.chooseShown || game.overShown;
+      if (!staticOverlay) game._settledOverlayFrames = 0;
+      if (renderer && (!staticOverlay || (game._settledOverlayFrames = (game._settledOverlayFrames || 0) + 1) <= 2)) {
+        renderer.frame(dt, world);
+      }
+      if (renderer && !staticOverlay) {
         // Touch hints are shown only during the opening tutorial for touch input.
         let hints = !!game.tut && game.tut.step <= 1 && RL_INPUT.touch;
         overlay.draw(renderer, world, input, { hints: hints, dt: dt, safe: safeAreaInsets() });
@@ -926,6 +936,7 @@ function runFrame(dt) {
     ui.hud(world);
     if (world.state === "choose" && !game.chooseShown && !game.overShown) {
       game.chooseShown = true;
+      game._settledOverlayFrames = 0;
       input.reset();
       ui.showChoose(world);
       // 3.30.0: the next wave's layout is built while the player reads the cards (no hitch when one is picked)
@@ -940,7 +951,7 @@ function runFrame(dt) {
       game.endRun(true);
     }
   } else {
-    if (renderer) {
+    if (renderer && ui.screen === "home") {
       renderer.frame(dt, null, { menu: true, weapon: game.previewW, biome: biomeList[menuBiomeIndex()] });
     }
     overlay.clear();
@@ -960,7 +971,7 @@ function announceMutator(ev) {
   const mutator = MUTATORS[ev.id];
   if (!mutator) return;
   ui.banner(
-    `MUTATOR · ${mutator.name.toUpperCase()}${ev.level > 1 ? " " + "I".repeat(ev.level) : ""}`,
+    `TRIAL · ${mutator.name.toUpperCase()}${ev.level > 1 ? " " + "I".repeat(ev.level) : ""}`,
     mutator.desc,
     "warn",
     2600,
@@ -995,10 +1006,10 @@ function handleWorldEvents(world) {
   // 2.5.0 B: the events of the new modules
   for (const ev of world.fx) {
     if (ev.k === "kit") {
-      ui.toast(`STARTER KIT · ${ev.ids.map((id) => upgradesById[id]?.name || id).join(", ")}`, "good hint", 3200);
+      ui.toast(`WAYFARER PACK · ${ev.ids.map((id) => upgradesById[id]?.name || id).join(", ")}`, "good hint", 3200);
     } else {
       if (ev.k === "barrier") {
-        ui.banner("EMERGENCY SHIELD", "Hull critical — barrier up", "good", 1400);
+        ui.banner("GLASS WARD BELL", "Ward critical — bell raised", "good", 1400);
       }
     }
   }
@@ -1011,10 +1022,11 @@ function handleWorldEvents(world) {
           store.save("wave");
         }
         let biome = world.biomeFor(ev.n);
+        let newBiome = ev.n === 1 || world.biomeFor(ev.n - 1).id !== biome.id;
         if (renderer) {
+          if (newBiome) renderer.clearTransient();
           renderer.resetCamera();
         }
-        let newBiome = ev.n === 1 || world.biomeFor(ev.n - 1).id !== biome.id;
         if (ev.event) {
           let event = waveEvents[ev.event];
           ui.banner(event.name, `Wave ${ev.n} \xB7 ${event.desc}`, "good", 2600);
@@ -1024,8 +1036,8 @@ function handleWorldEvents(world) {
           }
         } else
           ui.banner(
-            ev.boss ? "WARNING" : `WAVE ${ev.n}`,
-            ev.boss ? "Boss signature detected" : newBiome ? rlBiomeTitle(biome) : world.endless ? "Endless" : "",
+            ev.boss ? "GUARDIAN" : `WAVE ${ev.n}`,
+            ev.boss ? "Realm guardian awakening" : newBiome ? rlBiomeTitle(biome) : world.endless ? "Endless" : "",
             ev.boss ? "boss" : "",
             ev.boss ? 3e3 : 2e3,
           );
@@ -1048,19 +1060,14 @@ function handleWorldEvents(world) {
           );
         }
         if (!ev.boss && world.arena.acid.length) {
-          showTipOnce("acid", "Acid pools eat at your hull \u2014 but enemies standing in them take 25% more damage.");
+          showTipOnce("acid", "Bog pools sap your ward \u2014 but foes wading in them take 25% more damage.");
         }
         if (!ev.boss && world.arena.portals.length) {
-          showTipOnce("portal", "Portals move you across the arena. Shots fly through them too.");
+          showTipOnce("portal", "Astral portals step you across the sanctuary. Shots fly through them too.");
         }
-        // 3.53.0: the Flats' dust devils - the first hazard that moves
         if (!ev.boss && world.arena.devils && world.arena.devils.length) {
-          showTipOnce(
-            "devil",
-            "Dust devils wander the glass \u2014 the wind shoves you and bites. Enemies walk through untouched.",
-          );
+          showTipOnce("devil", "Sunglass whirlwinds wander the flats \u2014 strike sunglass pillars to calm them.");
         }
-        // 3.1.0: the boss track starts when the boss appears (case "boss"), until then the calm theme plays
         sound.setMusic("fight", biome.id);
         if (ev.n === 2) {
           showTipOnce(
@@ -1074,8 +1081,8 @@ function handleWorldEvents(world) {
           showTipOnce(
             "singularity",
             rlKeys()
-              ? "Tip: G throws a Singularity at the thickest crowd: it pulls them together, then collapses. Charges refill."
-              : "Tip: tap the gadget button to throw a Singularity at the thickest crowd. Hold the aim side to pick the spot.",
+              ? "Tip: G tosses a Gravity Chime at the thickest crowd: it gathers foes, then bursts. Charges refill."
+              : "Tip: tap CHIME to toss a Gravity Chime at the thickest crowd. Hold the aim side to pick the spot.",
           );
         }
         if (ev.n === 3) {
@@ -1089,10 +1096,9 @@ function handleWorldEvents(world) {
         break;
       }
       case "trapWarn":
-        // 3.0.0: the first trap warning explains the telegraphs once
         showTipOnce(
           "trap",
-          "Traps flash before they strike: rings on the floor, beams, mines. They hurt enemies too \u2014 lure them in.",
+          "Floor traps flash before they strike: lure foes in, or shoot armed vessels to detonate them!",
         );
         break;
       case "gadgetReady":
@@ -1120,8 +1126,8 @@ function handleWorldEvents(world) {
         showTipOnce(
           "nova",
           rlKeys()
-            ? "NOVA is charged \u2014 press E to blast everything around you."
-            : "NOVA is charged \u2014 tap it to blast everything around you.",
+            ? "HEARTHBURST is charged \u2014 press E to unleash a clearing sun-blast."
+            : "HEARTHBURST is charged \u2014 tap BURST to unleash a clearing sun-blast.",
         );
         break;
       case "cleared":
@@ -1324,10 +1330,10 @@ const // 2.3.4: keyboard/mouse players got the touch texts ("drag the left side"
     () => (rlKeys() ? "Move with W A S D or the arrow keys." : "Drag anywhere on the left side to move."),
     () =>
       rlKeys()
-        ? "Enemies! Your drone fires on its own \u2014 hold the left mouse button to aim yourself."
-        : "Enemies! Your drone fires on its own \u2014 drag the right side to aim yourself.",
+        ? "Foes ahead! Your lantern-arm fires on its own \u2014 hold the left mouse button to aim yourself."
+        : "Foes ahead! Your lantern-arm fires on its own \u2014 drag the right side to aim yourself.",
     () => (rlKeys() ? "Press SPACE to dash through danger." : "Tap DASH to dodge through danger."),
-    () => "Grab the shards \u2014 they buy permanent upgrades in the Workshop.",
+    () => "Gather star-shards \u2014 they forge lasting crafts in the Sanctuary Workshop.",
   ];
 function updateTutorial(dt, world) {
   let tut = game.tut;

@@ -6,15 +6,15 @@ import {
   box,
   beveledBox as rawBeveledBox,
   cylinder as rawCylinder,
-  cone,
-  octahedron,
+  cone as rawCone,
+  octahedron as rawOctahedron,
   torus as rawTorus,
   plane,
   lathe,
   sculptedRock as rawSculptedRock,
-  sculptedCrystal,
+  sculptedCrystal as rawSculptedCrystal,
   sculptedCap as rawSculptedCap,
-  snowCoat,
+  snowCoat as rawSnowCoat,
   Geometry,
   mergeGeometries,
 } from "../engine/geometry.js";
@@ -29,9 +29,10 @@ const GEO_CACHE = new Map();
 function cachedGeo(key, build) {
   let g = GEO_CACHE.get(key);
   if (!g) {
-    if (GEO_CACHE.size > 1024) GEO_CACHE.clear();
+    if (GEO_CACHE.size > 2048) GEO_CACHE.clear();
     g = build();
     g.shared = true;
+    g._cacheKey = key;
     g.computeBounds();
     GEO_CACHE.set(key, g);
   }
@@ -42,14 +43,22 @@ const beveledBox = (w = 1, h = 1, d = 1, b = 0.08) =>
   cachedGeo(`bb:${qk(w)}:${qk(h)}:${qk(d)}:${qk(b)}`, () => rawBeveledBox(w, h, d, b));
 const cylinder = (rt = 0.5, rb = 0.5, h = 1, segs = 12, open = false) =>
   cachedGeo(`cyl:${qk(rt)}:${qk(rb)}:${qk(h)}:${segs}:${open ? 1 : 0}`, () => rawCylinder(rt, rb, h, segs, open));
+const cone = (r = 0.5, h = 1, segs = 10) => cachedGeo(`cone:${qk(r)}:${qk(h)}:${segs}`, () => rawCone(r, h, segs));
+const octahedron = (r = 1) => cachedGeo(`oct:${qk(r)}`, () => rawOctahedron(r));
 const torus = (r = 0.5, tube = 0.12, radSegs = 6, tubSegs = 16, arc = TAU) =>
   cachedGeo(`tor:${qk(r)}:${qk(tube)}:${radSegs}:${tubSegs}:${qk(arc)}`, () =>
     rawTorus(r, tube, radSegs, tubSegs, arc),
   );
 const sculptedRock = (rx = 1, ry = 1, rz = 1, detail = 1, seed = 1) =>
   cachedGeo(`rk:${qk(rx)}:${qk(ry)}:${qk(rz)}:${detail}:${seed}`, () => rawSculptedRock(rx, ry, rz, detail, seed));
+const sculptedCrystal = (w = 1, h = 1, d = 1, seed = 1) =>
+  cachedGeo(`cr:${qk(w)}:${qk(h)}:${qk(d)}:${seed}`, () => rawSculptedCrystal(w, h, d, seed));
 const sculptedCap = (r = 1, h = 0.5, seed = 1) =>
   cachedGeo(`cap:${qk(r)}:${qk(h)}:${seed}`, () => rawSculptedCap(r, h, seed));
+const snowCoat = (sourceGeo, lift = 0.025, minNy = 0.45) =>
+  sourceGeo?._cacheKey
+    ? cachedGeo(`sc:${sourceGeo._cacheKey}:${qk(lift)}:${qk(minNy)}`, () => rawSnowCoat(sourceGeo, lift, minNy))
+    : rawSnowCoat(sourceGeo, lift, minNy);
 
 export const RL_BIOME_LOOK = GLAZES;
 export const RL_BIOME_TINT = Object.fromEntries(Object.entries(GLAZES).map(([id, look]) => [id, hexColor(look.trim)]));

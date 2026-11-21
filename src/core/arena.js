@@ -1021,7 +1021,7 @@ function placeFeatures(rng, biomeId, obs, W, H) {
       return best;
     };
   if (biomeId === "caldera") {
-    // 3.49.0: the fumaroles: nozzles out on the crater floor (the Works' jets were a touch wider)
+    // Dwarven forge fumaroles spaced around the basalt crater ring
     let count = rng.int(3, 5),
       period = rng.range(6.5, 8);
     for (let k = 0; k < count; k++) {

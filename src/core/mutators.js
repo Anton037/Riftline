@@ -7,12 +7,12 @@
 import { makeRng, hashString } from "./util.js";
 
 const MUTATORS = {
-    volatile: { name: "Volatile", desc: "Enemies may burst when they die", color: "#ff6a3a" },
-    shielded: { name: "Shielded", desc: "Enemies may carry an energy shield", color: "#7fd8ff" },
-    hasted: { name: "Hasted", desc: "Enemies move faster", color: "#ffd84a" },
-    armored: { name: "Armored", desc: "Enemies have more hull", color: "#c9c2b8" },
-    barrage: { name: "Barrage", desc: "Enemy shots fly faster and hit harder", color: "#ff5ab4" },
-    trapstorm: { name: "Trap Storm", desc: "More traps, and they strike sooner", color: "#b4ff3d" },
+    volatile: { name: "Ember-Burst", desc: "Foes may erupt in a telegraphed cinder ring on defeat", color: "#ff6a3a" },
+    shielded: { name: "Ward-Bound", desc: "Foes may carry a shimmering glass ward", color: "#7fd8ff" },
+    hasted: { name: "Wind-Spurred", desc: "Foes stride faster across the sanctuary", color: "#ffd84a" },
+    armored: { name: "Iron-Clad", desc: "Foes wear heavier forged plating", color: "#c9c2b8" },
+    barrage: { name: "Volley-Struck", desc: "Hostile bolts fly swifter and strike harder", color: "#ff5ab4" },
+    trapstorm: { name: "Clockwork Frenzy", desc: "More floor mechanisms, cycling faster", color: "#b4ff3d" },
   },
   MUTATOR_IDS = Object.keys(MUTATORS),
   MUTATOR_FROM = 21,

@@ -5,6 +5,7 @@ import { Box3, Vec3 } from "../src/engine/math.js";
 import { box } from "../src/engine/geometry.js";
 import { Material, MeshNode, Node, mergeStaticNodes } from "../src/engine/scene.js";
 import { biomeList } from "../src/data/biomes.js";
+import { biomeVariants } from "../src/data/enemies.js";
 import { biomeAtmosphere, atmosphereDensity } from "../src/data/atmosphere.js";
 globalThis.__RL_VERSION__ ??= "test";
 globalThis.__RL_BUILD__ ??= "test";
@@ -200,14 +201,20 @@ test("Engine v2 freezeStatic skips matrix recomputation, GpuParticleRing expires
   assert.equal(pool.mesh.count, 1);
   assert.ok(pool.d.subarray(0, 12).every(Number.isFinite));
 
-  // 4. 3D Biome-Variant & Elite Affix attachment geometries are finite and bounded
-  for (const v of ["shorted", "frost", "phase", "corrosive", "sunstruck", "flareheart"]) {
+  // 4. 3D Biome-Variant & Elite Affix attachment geometries match live data IDs and stay finite
+  const variantIds = Object.values(biomeVariants).map((v) => v.id);
+  for (const v of variantIds) {
     const kit = variantAttachmentGeometry(v);
     const tris = (kit.body?.triangleCount || 0) + (kit.glow?.triangleCount || 0);
     assert.ok(tris > 0 && tris <= 400, `${v}: ${tris} tris`);
     if (kit.body) assert.ok(kit.body.positions.every(Number.isFinite), `${v}: body`);
     if (kit.glow) assert.ok(kit.glow.positions.every(Number.isFinite), `${v}: glow`);
   }
+  assert.notEqual(
+    variantAttachmentGeometry("bloomed").body?.triangleCount,
+    variantAttachmentGeometry("flareheart").body?.triangleCount,
+    "bloomed marsh toadstools must be distinct from flareheart magma vents",
+  );
   for (const a of ["shielded", "hasted", "volatile"]) {
     const kit = affixAttachmentGeometry(a);
     const tris = (kit.body?.triangleCount || 0) + (kit.glow?.triangleCount || 0);
@@ -215,4 +222,10 @@ test("Engine v2 freezeStatic skips matrix recomputation, GpuParticleRing expires
     if (kit.body) assert.ok(kit.body.positions.every(Number.isFinite), `${a}: body`);
     if (kit.glow) assert.ok(kit.glow.positions.every(Number.isFinite), `${a}: glow`);
   }
+
+  // 5. GpuDebrisRing defaults optional spin args cleanly without writing NaN
+  const { GpuDebrisRing } = await import("../src/engine/scene.js");
+  const dRing = new GpuDebrisRing(box(0.1, 0.1, 0.1), new Material({ shader: "stylized" }), 4);
+  dRing.spawn(1, 0.5, -1, 2, 3, -1, 0.25, 0.9, 0.08, 0.9, 0.7, 0.3);
+  assert.ok(dRing.data.subarray(0, 16).every(Number.isFinite), "debris ring attributes must all be finite");
 });

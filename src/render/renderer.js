@@ -142,9 +142,8 @@ const RL_MOTION = {
 };
 const RL_MOTION_NONE = { ref: 5, f: 1, roll: 0.06, lean: 0.06, bounce: 0.06, hover: 0, hf: 0, breath: 0.02, bf: 2 };
 
-const RL_WHITEOUT_FOG = [0.85, 1.55];
-const RL_WHITEOUT_TINT = new Color(0x6e94b8);
-const RL_WHITEOUT_SNOW = new Color(0xd6eefc);
+const RL_AURORA_SPARK = new Color(0x88f8e4);
+const RL_FESTIVAL_EMBER = new Color(0xffcf72);
 
 function flashOrder(a, b) {
   return b.i - a.i;
@@ -266,6 +265,7 @@ export class Renderer {
     this.biomePropsView = new BiomePropsView(this);
     this.attackView = new AttackView(this, InstancePool);
 
+    this._needsResize = true;
     this.resize();
   }
 
@@ -528,7 +528,12 @@ export class Renderer {
     return this._stablePools;
   }
 
+  markResize() {
+    this._needsResize = true;
+  }
+
   resize() {
+    this._needsResize = false;
     const w = this.canvas.clientWidth || window.innerWidth || 800;
     const h = this.canvas.clientHeight || window.innerHeight || 600;
     const dpr = Math.min(window.devicePixelRatio || 1, this.dprCap || 2);
@@ -581,18 +586,14 @@ export class Renderer {
     s.fogNear = dist * look.fog[0];
     s.fogFar = dist * look.fog[1];
 
-    const whiteK = this.rlWhiteK || 0;
+    const auroraK = this.rlAuroraK || 0;
     if (biome.id === "shelf") {
-      const breath = whiteK + (1 - whiteK) * (0.5 - 0.5 * Math.cos(((this.worldT || 0) / 20) * TAU));
-      s.fogNear *= 1 - 0.16 * breath;
-      s.fogFar *= 1 - 0.16 * breath;
-    }
-    if (whiteK > 0 && biome.id === "shelf") {
-      s.fogNear += (dist * RL_WHITEOUT_FOG[0] - s.fogNear) * whiteK;
-      s.fogFar += (dist * RL_WHITEOUT_FOG[1] - s.fogFar) * whiteK;
-      s.fogColor.lerp(RL_WHITEOUT_TINT, 0.72 * whiteK);
-      s.clearColor.copy(s.fogColor);
-      this.engine.setClearColor(s.fogColor, 1);
+      const breath = 0.5 - 0.5 * Math.cos(((this.worldT || 0) / 20) * TAU);
+      s.fogNear *= 1 - 0.1 * breath;
+      s.fogFar *= 1 - 0.1 * breath;
+      if (auroraK > 0) {
+        s.bloomStrength = look.bloom + 0.08 * auroraK;
+      }
     }
   }
 
@@ -788,12 +789,11 @@ export class Renderer {
       }
     }
 
-    const dark = Math.max(0, (this.rlBlackK || 0) * (1 - lanternRelief));
-    this.scene.darkness = dark;
-    if (dark > 0) {
-      this.scene.hemiIntensity *= 1 - 0.48 * dark;
-      this.scene.sunIntensity *= 1 - 0.56 * dark;
-      this.scene.fillIntensity *= 1 - 0.5 * dark;
+    const warm = this.rlWarmK || 0;
+    this.scene.darkness = 0;
+    if (warm > 0) {
+      this.scene.hemiIntensity *= 1 + 0.14 * warm + 0.12 * lanternRelief;
+      this.scene.fillIntensity *= 1 + 0.22 * warm;
     }
   }
 
@@ -873,6 +873,10 @@ export class Renderer {
               0.92,
               0.72,
               0.36,
+              (Math.random() - 0.5) * 9,
+              (Math.random() - 0.5) * 9,
+              (Math.random() - 0.5) * 9,
+              Math.random() * TAU,
             );
           } else if (muzzleKind === "rail") {
             const perpX = -dirZ,
@@ -1609,39 +1613,40 @@ export class Renderer {
 
   frame(dt, world, opts = {}) {
     this.abilityView.useWorld(opts.menu ? null : world);
-    const wantWhite =
-      !opts.menu && world && world.event === "whiteout" && world.state === "fight" && world.arena?.biome?.id === "shelf"
+    const wantAurora =
+      !opts.menu && world && world.event === "aurora" && world.state === "fight" && world.arena?.biome?.id === "shelf"
         ? 1
         : 0;
-    this.rlWhiteK = clamp((this.rlWhiteK || 0) + (wantWhite ? 0.7 : -0.55) * (dt || 0), 0, 1);
+    this.rlAuroraK = clamp((this.rlAuroraK || 0) + (wantAurora ? 0.8 : -0.6) * (dt || 0), 0, 1);
 
-    const black =
+    const warm =
       !opts.menu &&
       world &&
       world.state === "fight" &&
-      ((world.event === "duskfall" && world.arena?.biome?.id === "courtyard") ||
-        (world.event === "ashfall" && world.arena?.biome?.id === "caldera"));
-    this.rlBlackK = clamp((this.rlBlackK || 0) + (black ? 0.42 : -0.8) * (dt || 0), 0, 1);
-    this.arena.uniforms.uDark.value = this.rlBlackK * 0.85;
+      ((world.event === "festival" && world.arena?.biome?.id === "courtyard") ||
+        (world.event === "forgewind" && world.arena?.biome?.id === "caldera"));
+    this.rlWarmK = clamp((this.rlWarmK || 0) + (warm ? 0.65 : -0.8) * (dt || 0), 0, 1);
+    this.arena.uniforms.uDark.value = 0;
 
-    if (this.rlWhiteK > 0.02 && world?.arena && dt > 0 && dt < 0.25) {
-      const density = Math.min(1, this.maxParticles / 1400) * this.rlWhiteK;
-      const amount = 95 * dt * density;
+    if ((this.rlAuroraK > 0.02 || this.rlWarmK > 0.02) && world?.arena && dt > 0 && dt < 0.25) {
+      const isAurora = this.rlAuroraK >= this.rlWarmK;
+      const density = Math.min(1, this.maxParticles / 1400) * (isAurora ? this.rlAuroraK : this.rlWarmK);
+      const amount = (isAurora ? 38 : 28) * dt * density;
       const count = Math.floor(amount) + (Math.random() < amount - Math.floor(amount) ? 1 : 0);
       const W = world.arena.W,
         H = world.arena.H;
       for (let j = 0; j < count; j++) {
         this.emit(
           clamp(this.camX + (Math.random() * 2 - 1) * 18, -W - 2, W + 2),
-          0.6 + Math.random() * 5,
+          isAurora ? 0.8 + Math.random() * 4.5 : 0.4 + Math.random() * 2.5,
           clamp(this.camZ + (Math.random() * 2 - 1) * 14 - 2, -H - 2, H + 2),
-          5 + Math.random() * 3,
-          -1.6 - Math.random(),
-          1.2 + Math.random(),
-          2.2,
-          0.34 + Math.random() * 0.14,
-          RL_WHITEOUT_SNOW,
-          { drag: 0 },
+          isAurora ? 3.8 + Math.random() * 2.4 : (Math.random() - 0.5) * 1.1,
+          isAurora ? -0.6 - Math.random() * 0.5 : 1.1 + Math.random() * 0.9,
+          isAurora ? 0.6 + Math.random() * 0.8 : (Math.random() - 0.5) * 1.1,
+          2.0,
+          0.24 + Math.random() * 0.12,
+          isAurora ? RL_AURORA_SPARK : RL_FESTIVAL_EMBER,
+          { drag: 0.4, spark: true },
         );
       }
     }
@@ -1665,7 +1670,7 @@ export class Renderer {
 
     this.time += dt;
     this.scene.time = this.time;
-    this.resize();
+    if (this.w <= 1 || this._needsResize) this.resize();
     const menu = !world || opts.menu;
     this.worldT = menu ? this.time : world.time;
 
@@ -2174,7 +2179,7 @@ export class Renderer {
           0.42,
           0.22,
           tint,
-          { spark: enemy.variant !== "corrosive", drag: 1.4 },
+          { spark: enemy.variant !== "bloomed", drag: 1.4 },
         );
 
       this.shadows.y(enemy.x, 0.022, enemy.y, 0, enemy.r * 2.8 * scale);
@@ -2854,6 +2859,18 @@ export class Renderer {
     return this._ground;
   }
 
+  clearTransient() {
+    this.P.n = 0;
+    this.D.clear();
+    this.nums.length = 0;
+    this.flashes.length = 0;
+    this.lines.length = 0;
+    this.rings.length = 0;
+    this.corpses.length = 0;
+    this.rlAuroraK = 0;
+    this.rlWarmK = 0;
+  }
+
   resetCamera() {
     this.smokeView.clear();
     this.camInit = false;
@@ -2892,7 +2909,7 @@ const measureHomeViewSpot = () => {
   const below = navEdge - brandBox.bottom;
   return {
     x: (brandBox.left + brandBox.right) / 2,
-    y: above > below ? brandBox.top - Math.min(above / 2, 100) : brandBox.bottom + Math.min(below / 2, 100),
+    y: above > below ? brandBox.top - Math.min(above * 0.48, 150) : brandBox.bottom + Math.min(below * 0.48, 165),
   };
 };
 

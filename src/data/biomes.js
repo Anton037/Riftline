@@ -157,32 +157,28 @@ function planBiomeRoute(rng) {
 
 // Enemy mixes and the mechanics that distinguish each biome.
 const RL_BIOME_INFO = {
-  courtyard: { tag: "Charged inlays", mix: { gunner: 2.2, bomber: 1.8, grunt: 1.5, swarmer: 0.6 } },
-  // 3.51.0: the Shelf: the blizzard breathes - the thin ice freezes and thaws on a ~20 s cycle, so
-  // the slick floor (grip 6.5) swings toward 9.1 at freeze peak and back (world.js step)
+  courtyard: { tag: "Lantern inlays", mix: { gunner: 2.2, bomber: 1.8, grunt: 1.5, swarmer: 0.6 } },
   shelf: {
-    tag: "Blizzard breath",
+    tag: "Glacier drift",
     grip: 6.5,
     mix: { bulwark: 2.2, sniper: 2, gunner: 1.8, turret: 2, sentinel: 1.8, swarmer: 0.6, splitter: 0.6 },
   },
-  // 3.50.0: the Glowmarsh: grip 24 - the mud clings (the Shelf's slick floor is 6.5, plain ground
-  // is 16: here velocity dies fast, so you stop hard and sprint heavy) and mud drags a little speed
   marsh: {
-    tag: "Bloom tide",
+    tag: "Firefly tide",
     grip: 24,
     mud: 0.92,
     mix: { swarmer: 1.6, splitter: 2.4, hive: 2.2, mender: 1.8, sapper: 1.8, carrier: 1.5, gunner: 0.6, beacon: 1.2 },
   },
   core: {
-    tag: "Portals",
+    tag: "Astral portals",
     mix: { striker: 2.2, phantom: 2.4, weaver: 2.2, leaper: 1.8, drone: 1.8, sniper: 0.6 },
   },
   flats: {
-    tag: "Dust devils",
+    tag: "Sunglass whirls",
     mix: { gunner: 2, charger: 2, driller: 1.6, mortar: 1.4, sniper: 1.4, brute: 1.2, swarmer: 0.6 },
   },
   caldera: {
-    tag: "Magma vents",
+    tag: "Forge vents",
     mix: {
       gunner: 2.2,
       brute: 2,

@@ -22,35 +22,35 @@ const spawnWeights = {
 
 /* ---- enemy intros: one short hint the first time each enemy type appears ---- */
 const RL_ENEMY_TIPS = {
-  swarmer: "Swarmers rush in packs. Keep moving and let splash damage thin them out.",
-  grunt: "Grunts are slow but tough. Kite them in wide circles.",
-  gunner: "Gunners stop and glow before a burst — that glow is your cue to dodge.",
-  bomber: "Bombers explode next to you. Shoot them early or dash away when they flash.",
-  splitter: "Splitters burst into three mites when destroyed.",
-  brute: "Brutes aim, then charge in a straight line. Sidestep — walls stun them.",
-  sniper: "Snipers show a red aim line before they fire. Break line of sight or dash.",
-  hive: "Hives keep hatching swarmers until you destroy them.",
-  bulwark: "Bulwarks block shots from the front. Flank them or break the shield.",
-  striker: "Strikers blink next to you — watch the ring where they will land.",
-  mortar: "Mortars lob shells where you are heading. Keep changing direction.",
-  mender: "Menders heal other enemies. Kill them first.",
-  leaper: "Leapers freeze, then pounce. Move sideways the moment they crouch.",
-  turret: "Rift Turrets lock on with an aim line, then fire a heavy shot.",
-  charger: "Chargers telegraph, then ram at high speed. Step aside at the last moment.",
-  minebot: "Minebots drop mines and back away. Don't chase them through the minefield.",
-  sapper: "Sappers plant charges that blow after a moment. Stay mobile.",
-  phantom: "Phantoms phase out and can't be hit — then lunge. Shoot when they reappear.",
-  sentinel: "Sentinels charge a sweeping beam. Leave the line before it fires.",
-  carrier: "Carriers hang back and launch homing shots. Close the gap.",
-  drone: "Needler Drones strafe and fire homing needles. Keep moving.",
-  driller: "Drillers ram forward and leave a blast where they stop.",
-  beacon: "Repair Beacons heal every enemy around them. Destroy them first.",
-  weaver: "Rift Weavers warp across the arena and fire spreads after each jump.",
+  swarmer: "Skitter-Mites rush in packs. Keep moving and let splash crafts thin them out.",
+  grunt: "Kettle-Guards are sturdy clockwork sentries. Kite them in wide arcs.",
+  gunner: "Brass Musketeers brace and gleam before a volley — that glow is your cue to step aside.",
+  bomber: "Cinder-Pots burst up close. Crack them early or dash clear when their fuse flashes.",
+  splitter: "Spore-Pods pop into three skittering podlings when broken.",
+  brute: "Iron Golems line up, then charge straight ahead. Sidestep — monoliths stun them.",
+  sniper: "Long-Glass Marksmen project a ruby sightline before firing. Break sight or dash.",
+  hive: "Toadstool Mounds keep sprouting mites until you fell them.",
+  bulwark: "Pavise Wardens turn away frontal fire. Circle behind or crack their brass shield.",
+  striker: "Blink-Blades step beside you — watch the ring marking their landing.",
+  mortar: "Bell-Mortars lob shells ahead of your stride. Weave your footing.",
+  mender: "Moss-Menders weave healing light into nearby foes. Fell them first.",
+  leaper: "Bog-Hoppers crouch, then pounce. Step sideways the instant they coil.",
+  turret: "Clockwork Turrets lock on with a sightline before firing a heavy bolt.",
+  charger: "Ram-Engines wind up and barrel across the floor. Sidestep at the last beat.",
+  minebot: "Vessel-Planters lay proximity pots as they retreat. Shoot armed pots to clear the lane.",
+  sapper: "Fuse-Tinkers set timed charges on the flagstones. Keep moving.",
+  phantom: "Star-Wraiths veil themselves in starlight — strike as soon as they rematerialize.",
+  sentinel: "Prism Obelisks sweep a searing beam. Cross out of the line before it blazes.",
+  carrier: "Spore-Barges hang back and loose homing wisps. Close the distance.",
+  drone: "Needle-Sprites dart and loose homing glass needles. Stay on the move.",
+  driller: "Auger-Constructs bore ahead and erupt where they halt.",
+  beacon: "Mending Cairns bathe every nearby foe in restorative light. Shatter them first.",
+  weaver: "Astral Weavers step across the sanctuary and loose star-fans after each jump.",
 };
 const enemyDefs = {
   swarmer: {
     id: "swarmer",
-    name: "Swarmer",
+    name: "Skitter-Mite",
     hp: 8,
     speed: 5.6,
     r: 0.42,
@@ -62,7 +62,7 @@ const enemyDefs = {
   },
   grunt: {
     id: "grunt",
-    name: "Grunt",
+    name: "Kettle-Guard",
     hp: 24,
     speed: 3.3,
     r: 0.62,
@@ -74,7 +74,7 @@ const enemyDefs = {
   },
   gunner: {
     id: "gunner",
-    name: "Gunner",
+    name: "Brass Musketeer",
     hp: 20,
     speed: 2.9,
     r: 0.55,
@@ -86,7 +86,7 @@ const enemyDefs = {
   },
   bomber: {
     id: "bomber",
-    name: "Bomber",
+    name: "Cinder-Pot",
     hp: 14,
     speed: 4.5,
     r: 0.5,
@@ -98,7 +98,7 @@ const enemyDefs = {
   },
   splitter: {
     id: "splitter",
-    name: "Splitter",
+    name: "Spore-Pod",
     hp: 44,
     speed: 2.6,
     r: 0.8,
@@ -110,7 +110,7 @@ const enemyDefs = {
   },
   mite: {
     id: "mite",
-    name: "Mite",
+    name: "Podling",
     hp: 7,
     speed: 5.8,
     r: 0.32,
@@ -122,7 +122,7 @@ const enemyDefs = {
   },
   brute: {
     id: "brute",
-    name: "Brute",
+    name: "Iron Golem",
     hp: 100,
     speed: 2.1,
     r: 1.05,
@@ -134,7 +134,7 @@ const enemyDefs = {
   },
   sniper: {
     id: "sniper",
-    name: "Sniper",
+    name: "Long-Glass Marksman",
     hp: 26,
     speed: 2.3,
     r: 0.55,
@@ -146,7 +146,7 @@ const enemyDefs = {
   },
   hive: {
     id: "hive",
-    name: "Hive",
+    name: "Toadstool Mound",
     hp: 140,
     speed: 0.7,
     r: 1.2,
@@ -154,12 +154,11 @@ const enemyDefs = {
     cost: 8,
     shards: 8,
     from: 9,
-    // 3.50.0: the glow of the marsh's bloom (was acid green)
     color: 0x54ffc8,
   },
   bulwark: {
     id: "bulwark",
-    name: "Bulwark",
+    name: "Pavise Warden",
     hp: 80,
     speed: 2,
     r: 0.85,
@@ -171,7 +170,7 @@ const enemyDefs = {
   },
   striker: {
     id: "striker",
-    name: "Striker",
+    name: "Blink-Blade",
     hp: 30,
     speed: 3.4,
     r: 0.5,
@@ -183,7 +182,7 @@ const enemyDefs = {
   },
   mortar: {
     id: "mortar",
-    name: "Mortar",
+    name: "Bell-Mortar",
     hp: 46,
     speed: 1.6,
     r: 0.75,
@@ -195,7 +194,7 @@ const enemyDefs = {
   },
   mender: {
     id: "mender",
-    name: "Mender",
+    name: "Moss-Mender",
     hp: 40,
     speed: 2.4,
     r: 0.6,
@@ -207,7 +206,7 @@ const enemyDefs = {
   },
   leaper: {
     id: "leaper",
-    name: "Leaper",
+    name: "Bog-Hopper",
     hp: 42,
     speed: 4.1,
     r: 0.6,
@@ -219,7 +218,7 @@ const enemyDefs = {
   },
   turret: {
     id: "turret",
-    name: "Rift Turret",
+    name: "Clockwork Turret",
     hp: 52,
     speed: 1.1,
     r: 0.68,
@@ -295,12 +294,12 @@ const biomeVariants = {
   },
 };
 const eliteAffixes = {
-  shielded: { name: "Shielded", color: 7325951, desc: "A barrier soaks the first hits. Elites from wave 10." },
-  hasted: { name: "Hasted", color: 16773754, desc: "Moves a third faster. Elites from wave 10." },
+  shielded: { name: "Ward-Bound", color: 7325951, desc: "A glass ward soaks initial strikes. Elites from wave 10." },
+  hasted: { name: "Wind-Spurred", color: 16773754, desc: "Strides a third faster. Elites from wave 10." },
   volatile: {
-    name: "Volatile",
+    name: "Ember-Burst",
     color: 16734778,
-    desc: "Explodes when it dies: keep your distance. Elites from wave 10.",
+    desc: "Erupts in a cinder ring on defeat: keep clear. Elites from wave 10.",
   },
 };
 const bossDefs = {
@@ -317,20 +316,19 @@ const bossDefs = {
   },
   queen: {
     id: "queen",
-    name: "HIVE QUEEN",
-    title: "Mother of the Swarm",
+    name: "THE BROOD-EMPRESS",
+    title: "Sovereign of the Glowmarsh",
     hp: 3e3,
     r: 1.9,
     speed: 2,
     dmg: 20,
     shards: 100,
-    // 3.50.0: the glow of the marsh's bloom (was acid green)
     color: 0x54ffc8,
   },
   prism: {
     id: "prism",
-    name: "FROST PRISM",
-    title: "The Shattering Ice",
+    name: "THE FROST PRISM",
+    title: "Heart of the Aurora Shelf",
     hp: 4400,
     r: 1.6,
     speed: 3,
@@ -340,8 +338,8 @@ const bossDefs = {
   },
   core: {
     id: "core",
-    name: "RIFT CORE",
-    title: "Heart of the Breach",
+    name: "THE SHATTERED HEART",
+    title: "Keeper of the Star-Vault",
     hp: 7600,
     r: 2.4,
     speed: 1.2,
@@ -350,13 +348,10 @@ const bossDefs = {
     color: 11758591,
   },
 };
-// 3.49.0: the Ashfall Caldera's master. The mountain walks: it sprays the
-// floor with a fan of molten slugs, charges like a thing that has never stopped, calls the burning dead
-// up from the cracks, and when it is hurt it calls FIRESTORM - the whole caldera pours in.
 bossDefs.tyrant = {
   id: "tyrant",
   name: "THE ASH TYRANT",
-  title: "Master of the Ashfall Caldera",
+  title: "Forge-Lord of the Caldera",
   hp: 1500,
   r: 2,
   speed: 2.2,
@@ -364,22 +359,17 @@ bossDefs.tyrant = {
   shards: 60,
   color: 0xff8c2e,
 };
-// 3.56.0: THE GLASSWYRM, the Glass Flats' own boss. A wyrm of living fused glass that swims the sand
-// beneath the sheets: where it surfaces the glass re-fuses and bursts, it bends the noon through its
-// body into a burning lance, and the heat throws mirages of it.
 bossDefs.wyrm = {
   id: "wyrm",
   name: "THE GLASSWYRM",
-  title: "The Glass Below",
+  title: "Leviathan of the Glass Flats",
   hp: 3700,
   r: 2.1,
   speed: 2.6,
   dmg: 24,
   shards: 125,
-  // the hot fused edge of the Flats' glass
   color: 0xffc24d,
 };
-// Every biome has one unique boss.
 const bossByBiome = {
   courtyard: "bellkeeper",
   shelf: "prism",
@@ -388,14 +378,12 @@ const bossByBiome = {
   caldera: "tyrant",
   flats: "wyrm",
 };
-// hull of a boss by its slot in the run (wave 5, 10, 15, 20): the same boss can come early or late
 const BOSS_SLOT_HP = [1500, 3000, 4400, 7600];
 const bossOrder = ["bellkeeper", "queen", "prism", "tyrant", "core", "wyrm"];
-/* RIFTLINE 2.0 content pack: data-only extensions live together so the core systems stay reusable. */
 Object.assign(enemyDefs, {
   charger: {
     id: "charger",
-    name: "Charger",
+    name: "Ram-Engine",
     hp: 50,
     speed: 4.5,
     r: 0.62,
@@ -407,7 +395,7 @@ Object.assign(enemyDefs, {
   },
   minebot: {
     id: "minebot",
-    name: "Minebot",
+    name: "Vessel-Planter",
     hp: 62,
     speed: 2.05,
     r: 0.7,
@@ -422,11 +410,10 @@ enemyOrder.push("charger", "minebot");
 Object.assign(spawnWeights, { charger: 1.45, minebot: 0.8 });
 Object.assign(heavyEnemies, { charger: 2, minebot: 3 });
 
-/* RIFTLINE 2.1 dynamic expansion: new content uses the existing data contracts. */
 Object.assign(enemyDefs, {
   sapper: {
     id: "sapper",
-    name: "Sapper",
+    name: "Fuse-Tinker",
     hp: 54,
     speed: 2.8,
     r: 0.62,
@@ -438,7 +425,7 @@ Object.assign(enemyDefs, {
   },
   phantom: {
     id: "phantom",
-    name: "Phantom",
+    name: "Star-Wraith",
     hp: 38,
     speed: 4,
     r: 0.56,
@@ -450,7 +437,7 @@ Object.assign(enemyDefs, {
   },
   sentinel: {
     id: "sentinel",
-    name: "Sentinel",
+    name: "Prism Obelisk",
     hp: 68,
     speed: 1.2,
     r: 0.78,
@@ -458,12 +445,11 @@ Object.assign(enemyDefs, {
     cost: 6,
     shards: 8,
     from: 21,
-    // 2.3.2: distinct silhouettes need distinct colours (the Sentinel shared the Bomber's yellow)
     color: 0xe8e8ff,
   },
   carrier: {
     id: "carrier",
-    name: "Carrier",
+    name: "Spore-Barge",
     hp: 72,
     speed: 2.2,
     r: 0.82,
@@ -478,11 +464,10 @@ enemyOrder.push("sapper", "phantom", "sentinel", "carrier");
 Object.assign(spawnWeights, { sapper: 1.05, phantom: 0.9, sentinel: 0.72, carrier: 0.66 });
 Object.assign(heavyEnemies, { sapper: 1, phantom: 1, sentinel: 1, carrier: 1 });
 
-/* RIFTLINE 2.2 content pack: more build diversity, enemy roles, biomes and set-piece waves. */
 Object.assign(enemyDefs, {
   drone: {
     id: "drone",
-    name: "Needler Drone",
+    name: "Needle-Sprite",
     hp: 34,
     speed: 3.0,
     r: 0.48,
@@ -494,7 +479,7 @@ Object.assign(enemyDefs, {
   },
   driller: {
     id: "driller",
-    name: "Driller",
+    name: "Auger-Construct",
     hp: 90,
     speed: 2.3,
     r: 0.78,
@@ -506,7 +491,7 @@ Object.assign(enemyDefs, {
   },
   beacon: {
     id: "beacon",
-    name: "Repair Beacon",
+    name: "Mending Cairn",
     hp: 75,
     speed: 1.5,
     r: 0.72,
@@ -514,12 +499,11 @@ Object.assign(enemyDefs, {
     cost: 7,
     shards: 10,
     from: 26,
-    // 2.3.2: the Repair Beacon shared the Mender's green
     color: 0x00ffa2,
   },
   weaver: {
     id: "weaver",
-    name: "Rift Weaver",
+    name: "Astral Weaver",
     hp: 48,
     speed: 3.7,
     r: 0.58,

@@ -177,7 +177,7 @@ function buildStatRows(weaponId, run, workshop, hp) {
       digits,
     });
   const rows = [
-    row("Hull", (s) => s.maxHp, "", "up", 0),
+    row("Ward", (s) => s.maxHp, "", "up", 0),
     row("Damage per hit", perHit, "", "up", 1),
     row("Shots per second", (s) => weapon.rate * s.rateMul, "/s", "up", 1),
     row("Damage per second", perSecond, "", "up", 0),
@@ -186,10 +186,10 @@ function buildStatRows(weaponId, run, workshop, hp) {
     row("Range", (s) => s.range, " m", "up", 1),
     row("Move speed", (s) => s.speed, " m/s", "up", 1),
     row("Dash cooldown", (s) => s.dashCd, " s", "down", 2),
-    row("Armor", (s) => s.armor * 100, "%", "up", 0),
-    row("Regeneration", (s) => s.regen, "/s", "up", 1),
+    row("Plating", (s) => s.armor * 100, "%", "up", 0),
+    row("Mending", (s) => s.regen, "/s", "up", 1),
     row("Pickup radius", (s) => s.magnet, " m", "up", 1),
-    row("Nova charge", (s) => s.novaMul, "\u00d7", "up", 2),
+    row("Hearthburst charge", (s) => s.novaMul, "\u00d7", "up", 2),
   ];
   rows[0].hp = hp;
   return rows;

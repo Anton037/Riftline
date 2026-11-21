@@ -214,6 +214,7 @@ export class BiomePropsView {
       const px = prop.x + jitterX;
       const pz = prop.y + jitterZ;
       const phase = time * (ready ? 2.4 : 0.8) + prop.id * 1.7;
+      const packedPhase = Math.round((((phase % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2)) * 1000);
 
       const dimTone = ready || arming ? 1 : 0.68 + 0.32 * recharge;
       pool.body.push(
@@ -225,7 +226,7 @@ export class BiomePropsView {
         yaw,
         0,
         0,
-        phase,
+        packedPhase,
         dimTone,
         dimTone,
         dimTone,

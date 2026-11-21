@@ -256,37 +256,37 @@
     {
       "seed": 11,
       "wave": 3,
-      "event": "ashfall",
+      "event": "forgewind",
       "digest": "a1e5748b83b9d69f153f6b4e80cd1ad30ed2705f646caede44676968f1196488"
     },
     {
       "seed": 11,
       "wave": 34,
-      "event": "ashfall",
+      "event": "forgewind",
       "digest": "6b40a94ddf99bbbfeb3093ffeb71eb4881a27912b9aab3656825de859179c0b7"
     },
     {
       "seed": 42,
       "wave": 2,
-      "event": "ashfall",
+      "event": "forgewind",
       "digest": "16b9c6328103578be2176ef19b22cbc5d08f96526431226f694c6595864ffa6d"
     },
     {
       "seed": 42,
       "wave": 33,
-      "event": "ashfall",
+      "event": "forgewind",
       "digest": "e09ed689f7e710a9871ca9bee942ca378fff0f762f594a63a789fcbbec5bca6e"
     },
     {
       "seed": 731,
       "wave": 3,
-      "event": "ashfall",
+      "event": "forgewind",
       "digest": "c1ff706ecd87d7b70849e065b08999d17810558a35db926a949e814afa571b79"
     },
     {
       "seed": 731,
       "wave": 32,
-      "event": "ashfall",
+      "event": "forgewind",
       "digest": "17edc05de60d192eef8bffeca3fad144a2367bcfb591cf336198d75dc2302b44"
     }
   ]

@@ -222,12 +222,12 @@ const MUSIC_DUCK = {
     [2700, 9, 0.18],
     [0, 0.7, 0.12],
   ],
-  AMBIENCE_LEVEL = { duskfall: 0.032, whiteout: 0.048, bloom: 0.034, riftstorm: 0.032, ashfall: 0.04 },
+  AMBIENCE_LEVEL = { festival: 0.032, aurora: 0.036, nectar: 0.034, harmonic: 0.032, forgewind: 0.038 },
   ROOM_TONE_LEVEL = { courtyard: 0.024, shelf: 0.032, marsh: 0.024, core: 0.024, caldera: 0.026, flats: 0.024 },
-  /* 3.43.0: the event beds gather and pass instead of snapping on and off - a storm builds over about
+  /* 3.43.0: the event beds gather and pass instead of snapping on and off - a soundscape builds over about
      three seconds and dies away over about four, while the room tone stays underneath. */
-  BED_ATTACK = { duskfall: 0.6, whiteout: 1.2, bloom: 0.8, riftstorm: 1.2, ashfall: 1.0 },
-  BED_RELEASE = { duskfall: 0.5, whiteout: 1.4, bloom: 0.7, riftstorm: 1.1, ashfall: 0.9 },
+  BED_ATTACK = { festival: 0.6, aurora: 1.1, nectar: 0.8, harmonic: 1.1, forgewind: 0.9 },
+  BED_RELEASE = { festival: 0.6, aurora: 1.2, nectar: 0.7, harmonic: 1.0, forgewind: 0.9 },
   // 3.9.0: the default of the Ambience slider; at it the atmospheres of the music play at the level they had before
   AMB_REF = 0.8,
   MUSIC_SCALE = 0.3,
@@ -772,12 +772,7 @@ const SoundEngine = class {
       if (music.length >= 12) {
         for (let i = music.length - 1; i >= 0; i--)
           if (music[i].end < now) {
-            // 3.46.0: detached now — these used to rely on GC and piled up on Safari.
-            // Never in the offline renders: there the whole graph is rendered after the
-            // scheduling pass, so a detached voice's window would never sound at all.
-            try {
-              if (!this.offline && music[i].node) music[i].node.disconnect();
-            } catch {}
+            this._cleanupVoice(music[i]);
             music[i] = music[music.length - 1];
             music.pop();
           }
@@ -791,7 +786,17 @@ const SoundEngine = class {
         return null;
       }
       if (live + 1 > this.musicPeak) this.musicPeak = live + 1;
-      let voice = { node: null, amp: null, pri: 0, start: start, end: end, loop: false };
+      let voice = {
+        node: null,
+        filter: null,
+        amp: null,
+        panner: null,
+        send: null,
+        pri: 0,
+        start: start,
+        end: end,
+        loop: false,
+      };
       music.push(voice);
       this.musicScheduled++;
       return voice;
@@ -800,16 +805,22 @@ const SoundEngine = class {
     if (list.length >= MAX_VOICES) {
       for (let i = list.length - 1; i >= 0; i--)
         if (list[i].end < now) {
-          // 3.46.0: detached now — these used to rely on GC and piled up on Safari
-          // (never offline: the render happens after the scheduling pass — see claim)
-          try {
-            if (!this.offline && list[i].node) list[i].node.disconnect();
-          } catch {}
+          if (!list[i].bed) this._cleanupVoice(list[i]);
           list[i] = list[list.length - 1];
           list.pop();
         }
     }
-    let voice = { node: null, amp: null, pri: pri, start: start, end: end, loop: false };
+    let voice = {
+      node: null,
+      filter: null,
+      amp: null,
+      panner: null,
+      send: null,
+      pri: pri,
+      start: start,
+      end: end,
+      loop: false,
+    };
     if (end > this.maxEnd && end < 1e8) this.maxEnd = end;
     if (list.length < MAX_VOICES) {
       list.push(voice);
@@ -835,16 +846,33 @@ const SoundEngine = class {
       old.amp.gain.cancelScheduledValues(now);
       old.amp.gain.setTargetAtTime(0, now, 0.004);
       old.node.stop(now + 0.03);
-      // 3.46.0: detached now — the stolen voice used to rely on GC (piled up on Safari)
-      // (never offline: the render happens after the scheduling pass — see claim)
-      if (!this.offline) {
-        old.node.disconnect();
-        old.amp.disconnect();
-      }
+      if (!this.offline) setTimeout(() => this._cleanupVoice(old), 60);
     } catch {}
     list[victim] = voice;
     this.dropped++;
     return voice;
+  }
+  /* Disconnect every node of a finished one-shot voice so Firefox's MediaTrackGraph never retains zombie
+     filter / panner / reverb-send chains across long runs. */
+  _cleanupVoice(voice) {
+    if (!voice || this.offline) return;
+    const { node, filter, amp, panner, send } = voice;
+    voice.node = voice.filter = voice.amp = voice.panner = voice.send = null;
+    try {
+      if (node) node.disconnect();
+    } catch {}
+    try {
+      if (filter) filter.disconnect();
+    } catch {}
+    try {
+      if (amp) amp.disconnect();
+    } catch {}
+    try {
+      if (panner) panner.disconnect();
+    } catch {}
+    try {
+      if (send) send.disconnect();
+    } catch {}
   }
   /* opts: to (end pitch), detune, attack, hold (flat level after the attack), lp/q (low-pass; lpTo ends the
      sweep), env (Float32Array, 0..1: the whole level curve replaces the exponential envelope: tremolo), dest/at/pri,
@@ -885,10 +913,12 @@ const SoundEngine = class {
         filter.frequency.exponentialRampToValueAtTime(opts.lpTo, start + dur);
       }
       out.connect(filter);
+      voice.filter = filter;
       out = filter;
     }
     out.connect(amp);
-    this.route(amp, opts);
+    this.route(amp, opts, voice);
+    if (!this.offline) osc.onended = () => this._cleanupVoice(voice);
     osc.start(start);
     osc.stop(start + dur + 0.02);
   }
@@ -939,17 +969,19 @@ const SoundEngine = class {
     filter.Q.value = opts.q || 0.8;
     let amp = ctx.createGain();
     voice.node = src;
+    voice.filter = filter;
     voice.amp = amp;
     this.envelope(amp, start, dur, vol, { ...opts, attack: opts.attack || 0.003 });
     src.connect(filter);
     filter.connect(amp);
-    this.route(amp, opts);
+    this.route(amp, opts, voice);
+    if (!this.offline) src.onended = () => this._cleanupVoice(voice);
     src.start(start, Math.random() * Math.max(0, src.buffer.duration - 0.5));
     src.stop(start + dur + 0.02);
   }
   /* 3.2.0: where a voice goes: its bus (opts.dest, the sounds by default), panned with opts.pan (-1..1) and sent to
        the music reverb with opts.rev (send level) */
-  route(amp, opts) {
+  route(amp, opts, voice = null) {
     // a sound (no bus of its own) takes the pan and the room of the event that is being played
     // 3.9.0: the sounds of the place go to the ambience bus (opts.dest, or curBus while the accents of a biome event
     // play) and ring out in the room of the sounds, not in that of the music
@@ -962,12 +994,14 @@ const SoundEngine = class {
       panner.pan.value = Math.max(-1, Math.min(1, pan));
       amp.connect(panner);
       panner.connect(dest);
+      if (voice) voice.panner = panner;
     } else amp.connect(dest);
     if (rev && room) {
       let send = this.ctx.createGain();
       send.gain.value = rev;
       amp.connect(send);
       send.connect(room);
+      if (voice) voice.send = send;
     }
   }
   /* 3.2.0: the glue of the music: gentle on the calm themes, hard and loud on the boss tracks (a dense wall) */
@@ -1546,9 +1580,10 @@ const SoundEngine = class {
     if (mode === "boss" && !resume) this.bossOver = false;
     this.resumeWanted = !!resume;
     this.mode = mode;
-    // 3.42.0: leaving the fight opens the Whiteout muffle (the storm belongs to the fight alone)
-    if (this.ctx && this.muffle && mode !== "fight" && mode !== "boss")
+    if (this.ctx && this.muffle && mode !== "fight" && mode !== "boss") {
+      this._muffleWant = 18000;
       this.muffle.frequency.setTargetAtTime(18000, this.ctx.currentTime, 0.3);
+    }
     if (biome) {
       this.biome = biome;
       // 3.2.0: the room of the sounds is the room of the biome
@@ -1668,12 +1703,7 @@ const SoundEngine = class {
           voice.amp.gain.cancelScheduledValues(now);
           voice.amp.gain.setValueAtTime(0, now);
           voice.node.stop(now);
-          // 3.46.0: detached now instead of relying on GC
-          // (never offline: the render happens after the scheduling pass — see claim)
-          if (!this.offline) {
-            voice.node.disconnect();
-            voice.amp.disconnect();
-          }
+          this._cleanupVoice(voice);
         } catch {}
         list[i] = list[list.length - 1];
         list.pop();
@@ -1742,21 +1772,23 @@ const SoundEngine = class {
     this.liveT = this.ctx.currentTime;
     this.speed = speed;
     this.amb = AMBIENCE_LEVEL[ambience] ? ambience : null;
-    // 3.42.0: a Whiteout muffles the world behind the storm; anything else (and every non-fight state)
-    // opens the muffle again. setMusic lifts it too, so a pause or the Home never stays muffled.
     if (this.muffle) {
-      const want = this.amb === "whiteout" && speed != null ? 850 : 18000;
-      this.muffle.frequency.setTargetAtTime(want, this.ctx.currentTime, want < 2000 ? 0.5 : 0.35);
+      const want = 18000;
+      if (this._muffleWant !== want) {
+        this._muffleWant = want;
+        this.muffle.frequency.setTargetAtTime(want, this.ctx.currentTime, 0.35);
+      }
     }
     let hum = this.beds.hum;
-    if (hum && speed != null) {
+    if (hum && speed != null && Math.abs(speed - (this._humSpeed ?? -1)) > 0.018) {
+      this._humSpeed = speed;
       let now = this.ctx.currentTime;
       hum.parts.a.frequency.setTargetAtTime(76 + 26 * speed, now, 0.08);
       hum.parts.b.frequency.setTargetAtTime(152 + 52 * speed, now, 0.08);
       hum.parts.lp.frequency.setTargetAtTime(270 + 190 * speed, now, 0.08);
     }
   }
-  /* Beds are the quiet loops: the drone hum and the biome event ambience. */
+  /* Beds are the quiet loops: the lantern-craft hum and the biome event ambience. */
   startBed(name) {
     // 3.43.1: idempotent - a bed that is already up never builds a second copy on top
     if (this.beds[name]) return;
@@ -1767,9 +1799,7 @@ const SoundEngine = class {
       parts = {},
       level = name === "hum" ? 0.02 : AMBIENCE_LEVEL[name] || 0.03;
     gain.gain.setValueAtTime(1e-4, now);
-    // 3.43.0: an event bed gathers (the whiteout storm builds over about three seconds), it does not snap on
     gain.gain.setTargetAtTime(level, now, BED_ATTACK[name] || 0.35);
-    // the drone's hum is an effect; the beds of the biome events are the place (3.9.0: ambience bus)
     gain.connect(name === "hum" ? this.sfx : this.ambBus);
     let bed = { name, gain, nodes, parts };
     this.beds[name] = bed;
@@ -1799,6 +1829,7 @@ const SoundEngine = class {
     // build every tick, stacking a new orphan set each time)
     try {
       if (name === "hum") {
+        this._humSpeed = -1;
         parts.a = osc("sine", 76);
         parts.b = osc("sine", 152);
         setNaturalWave(ctx, parts.b, "bow");
@@ -1810,11 +1841,11 @@ const SoundEngine = class {
         parts.lp.connect(gain);
       } else {
         const beds = {
-          whiteout: [1170, 2.6, 0.15, 329, 0.65],
-          bloom: [450, 2.3, 0.32, 173, 0.59],
-          duskfall: [310, 1.7, 0.11, 107, 0.73],
-          ashfall: [690, 1.6, 0.18, 71, 0.56],
-          riftstorm: [890, 3.9, 0.24, 137, 0.71],
+          aurora: [1120, 2.8, 0.14, 330, 0.62],
+          nectar: [460, 2.4, 0.28, 174, 0.58],
+          festival: [360, 2.0, 0.12, 196, 0.68],
+          forgewind: [640, 1.7, 0.18, 98, 0.56],
+          harmonic: [880, 3.8, 0.22, 220, 0.69],
         };
         const [center, q, pace, pitch, rate] = beds[name];
         const air = filter("bandpass", center, q, loop(rate, "pink"));
@@ -1858,6 +1889,16 @@ const SoundEngine = class {
       bed.gain.gain.cancelScheduledValues(now);
       bed.gain.gain.setTargetAtTime(0, now, fade);
       for (let node of bed.nodes) node.stop(end);
+      if (!this.offline)
+        setTimeout(
+          () => {
+            try {
+              for (let node of bed.nodes) node.disconnect();
+              bed.gain.disconnect();
+            } catch {}
+          },
+          Math.max(0, end - this.ctx.currentTime) * 1000 + 150,
+        );
     } catch {}
     for (let voice of this.voices)
       if (voice.bed === bed) {
@@ -1938,6 +1979,16 @@ const SoundEngine = class {
       bed.out.gain.cancelScheduledValues(now);
       bed.out.gain.setTargetAtTime(0, now, fade / 4);
       for (let node of bed.nodes) node.stop(now + fade + 0.1);
+      if (!this.offline)
+        setTimeout(
+          () => {
+            try {
+              for (let node of bed.nodes) node.disconnect();
+              bed.out.disconnect();
+            } catch {}
+          },
+          (fade + 0.25) * 1000,
+        );
     } catch {}
   }
   /* 3.43.0: the room tone - the quiet, steady bed of a biome. It plays wherever the game is (home,
@@ -2094,6 +2145,7 @@ const SoundEngine = class {
     if (this.voices.length > 8) {
       for (let i = this.voices.length - 1; i >= 0; i--)
         if (this.voices[i].end < now) {
+          if (!this.voices[i].bed) this._cleanupVoice(this.voices[i]);
           this.voices[i] = this.voices[this.voices.length - 1];
           this.voices.pop();
         }
@@ -2112,11 +2164,11 @@ const SoundEngine = class {
   }
   accentOf(name, now) {
     const accents = {
-      whiteout: [874, 1417, 1.2, "bow", 0.024],
-      bloom: [334, 472, 0.43, "reed", 0.02],
-      duskfall: [193, 121, 0.84, "ceramic", 0.034],
-      riftstorm: [277, 415, 0.98, "brass", 0.023],
-      ashfall: [208, 128, 0.76, "reed", 0.031],
+      aurora: [880, 1320, 1.15, "celesta", 0.024],
+      nectar: [349, 523, 0.48, "kalimba", 0.022],
+      festival: [294, 440, 0.78, "harp", 0.03],
+      harmonic: [330, 494, 0.92, "celesta", 0.024],
+      forgewind: [196, 294, 0.72, "brass", 0.028],
     };
     this.accentT = now + 4.3 + Math.random() * 5.1;
     const recipe = accents[name];
@@ -2124,8 +2176,8 @@ const SoundEngine = class {
     const [start, end, dur, wave, vol] = recipe;
     const drift = 0.91 + Math.random() * 0.18;
     const pan = (Math.random() - 0.5) * 1.05;
-    this.tone(start * drift, dur, wave, vol, { to: end * drift, attack: dur * 0.19, pan, lp: 1900 });
-    this.noise(dur * 1.2, vol * 0.7, {
+    this.tone(start * drift, dur, wave, vol, { to: end * drift, attack: dur * 0.19, pan, lp: 2200 });
+    this.noise(dur * 1.2, vol * 0.6, {
       f: start * 2.4,
       to: end * 2.4,
       type: "bandpass",
@@ -2157,7 +2209,7 @@ const SoundEngine = class {
             }
           }
         }
-      }, 30);
+      }, 75);
     }
   }
   schedule() {
@@ -2173,7 +2225,7 @@ const SoundEngine = class {
     if (this.nextT < ctx.currentTime - 0.5) {
       this.nextT = ctx.currentTime + 0.05;
     }
-    for (; this.nextT < ctx.currentTime + 0.14;) {
+    for (; this.nextT < ctx.currentTime + 0.22;) {
       let info = trackInfo(this.playKind, this.playBiome);
       try {
         if (this.playKind !== "off" && this.musVol > 0) {
@@ -2610,7 +2662,7 @@ function rlSoundCatalog() {
   ]);
   // 3.15.0: the boss cards
   ids(["bcCage", "bcLock", "bcShatter", "bcHatch", "bcBurst", "bcImplode"]);
-  for (const id of ["elite", "rain", "duskfall", "whiteout", "bloom", "riftstorm", "ashfall", "devils"])
+  for (const id of ["gilded", "starfall", "festival", "aurora", "nectar", "harmonic", "forgewind", "mirage"])
     ids(["event"], id);
   for (const bed of ["hum", ...Object.keys(AMBIENCE_LEVEL)]) add("bed:" + bed, { bed, stopAt: 1.1, stopRel: 0.1 });
   // 3.43.0: the room tones render too (a short take of each, the real attack is slower than the test fade)

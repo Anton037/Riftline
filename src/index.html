@@ -58,9 +58,6 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--cyan); outl
 #flash.on { opacity: 1; transition: none; }
 #vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 58%, rgba(5, 8, 16, 0.42) 100%); }
 #vignette.low { background: radial-gradient(ellipse at center, transparent 56%, rgba(180, 56, 48, .44)); }
-/* 3.41.0: the Whiteout's frost mist at the edges of the view; fades with the fog ramp (~1.1 s) */
-#vignette::after { content: ""; position: absolute; inset: 0; opacity: 0; transition: opacity 1.1s ease; background: radial-gradient(ellipse at center, transparent 52%, rgba(164, 206, 234, 0.36) 100%); }
-#vignette.whiteout::after { opacity: 1; }
 
 /* ---------------------------------------------------------------- shared bits */
 .screen {
@@ -479,8 +476,8 @@ button.bi.sel { background: color-mix(in srgb, var(--rc, var(--r1)) 22%, transpa
 body:not(.input-touch) #touch { cursor: crosshair; }
 /* 3.25.0: Banish Protocol: a card to be banished */
 .cards.banishing .card { outline: 2px dashed #f29b7e; outline-offset: -4px; cursor: crosshair; }
-.cards.banishing .card::after { content: "TAP TO BANISH"; position: absolute; left: 0; right: 0; bottom: 8px; text-align: center; font: 700 11px/1 var(--display); letter-spacing: 0.2em; color: #f2ac90; }
-body:not(.input-touch) .cards.banishing .card::after { content: "CLICK TO BANISH"; }
+.cards.banishing .card::after { content: "TAP TO SEAL"; position: absolute; left: 0; right: 0; bottom: 8px; text-align: center; font: 700 11px/1 var(--display); letter-spacing: 0.2em; color: #f2ac90; }
+body:not(.input-touch) .cards.banishing .card::after { content: "CLICK TO SEAL"; }
 #banishBtn.on { border-color: #f29b7e; color: #f2ac90; }
 .recap .hits { display: flex; flex-direction: column; gap: 3px; }
 .recap .hit { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: baseline; font-size: 13px; color: var(--text); }
@@ -820,8 +817,6 @@ body.device-desktop #home .home-panel {
   align-self: end;
   gap: 9px;
 }
-body.device-desktop #home .weapon-card,
-body.device-desktop #home .threat-row { backdrop-filter: blur(8px); }
 body.device-desktop #home .bottom-nav {
   width: min(620px, 100%);
   max-width: none;
@@ -1034,7 +1029,6 @@ html, body { min-width: 0; min-height: 100%; }
 #gl, #ov, #touch { width: 100%; height: 100%; }
 .screen { min-width: 0; min-height: 0; overflow: hidden; }
 .screen > *, .topbar > *, .home-grid > *, .set-row > *, .btn-row > *, .row > * { min-width: 0; }
-.panel, .weapon-card, .threat-row, .set-group, .row, .dialog, .card, .payout, .dmg-panel, .run-extra { -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
 
 /* Menu atmosphere: gives the static UI a
    stronger focal field without affecting the WebGL game surface. */
@@ -1481,8 +1475,9 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
 }
 
 #home {
-  background: linear-gradient(90deg, rgba(12,11,20,.14) 18%, rgba(12,11,20,.46) 52%, rgba(12,11,20,.88)),
-    url("textures/title-chart.webp") center / cover no-repeat #12111d;
+  background:
+    radial-gradient(circle at 31% 56%, rgba(255, 206, 128, .08) 0%, rgba(12, 11, 20, .06) 28%, rgba(11, 10, 18, .48) 64%, rgba(10, 9, 16, .84) 100%),
+    linear-gradient(90deg, rgba(10, 9, 16, .12) 0%, rgba(10, 9, 16, .24) 48%, rgba(12, 11, 20, .86) 82%, rgba(12, 11, 20, .94) 100%);
 }
 #home::before { display: none; }
 #home .topbar {
@@ -1492,19 +1487,18 @@ body.device-touch #home .arrow::after { content: ''; position: absolute; inset: 
 #home .brand { position: relative; }
 .logo,
 body.device-desktop #home .logo {
-  font-family: var(--serif); font-weight: 400; letter-spacing: -.045em;
-  line-height: .98; color: #fff5de; text-shadow: 0 3px 0 #6b4924, 0 10px 36px rgba(6, 5, 12, .85);
+  font-family: var(--serif); font-weight: 400; letter-spacing: -.04em;
+  line-height: .98; color: #fff6e2; text-shadow: 0 3px 0 #6b4924, 0 10px 36px rgba(6, 5, 12, .9);
   white-space: nowrap;
 }
 .logo::before, .logo::after { display: none; }
 #home .tagline {
-  color: #ffd89e; font-size: clamp(9px, 1.2vw, 13px); font-weight: 700;
+  color: #ffe2ac; font-size: clamp(9px, 1.2vw, 13px); font-weight: 700;
   letter-spacing: .24em; text-transform: uppercase; text-shadow: 0 2px 10px rgba(6, 5, 12, .92);
 }
 #home .best-line { color: var(--text); text-shadow: 0 2px 10px rgba(6, 5, 12, .9); }
 #home .home-panel { min-width: 0; }
 #home .weapon-card { padding: clamp(12px, 2.25vh, 22px); }
-#home .weapon-card, #home .threat-row { backdrop-filter: blur(10px); }
 .wc-name, .row .row-name, .dialog h3, .card h3, .screen.page h2, .center-col h2, .end-title {
   font-family: var(--serif); font-weight: 400; letter-spacing: .01em; text-transform: none;
 }
@@ -1665,8 +1659,7 @@ body.device-desktop #home .logo {
 .screen.page h2, .center-col h2 { color: var(--amber); font-size: clamp(24px, 4.2vh, 42px); text-shadow: 0 2px 10px rgba(0, 0, 0, .65); }
 #choose .choose-head h2 { color: #fffaf0; text-shadow: 0 2px 12px rgba(0, 0, 0, .82); }
 .screen.overlay {
-  background: radial-gradient(ellipse at 50% 34%, color-mix(in oklab, var(--overlay-bg) 92%, #000 8%), rgba(5, 7, 13, .95));
-  backdrop-filter: blur(9px);
+  background: radial-gradient(ellipse at 50% 34%, rgba(20, 18, 32, .93), rgba(6, 7, 13, .97));
 }
 
 /* Cozy tactile buttons & controls */
@@ -1744,12 +1737,12 @@ input[type=range]::-moz-range-thumb { border-radius: 50%; width: 18px; height: 1
 }
 .hp-block {
   background: var(--hud-pill); border: 1.5px solid var(--hud-border); border-radius: 14px;
-  padding: 6px 10px 7px; backdrop-filter: blur(8px);
+  padding: 6px 10px 7px;
   box-shadow: inset 0 1px 0 var(--hi), 0 6px 16px var(--shadow);
 }
 .wave-block {
   background: var(--hud-pill); border: 1.5px solid var(--hud-border); border-radius: 999px;
-  padding: 6px 16px 5px; backdrop-filter: blur(8px);
+  padding: 6px 16px 5px;
   box-shadow: inset 0 1px 0 var(--hi), 0 6px 16px var(--shadow);
   min-width: 132px;
 }
@@ -1758,18 +1751,17 @@ input[type=range]::-moz-range-thumb { border-radius: 50%; width: 18px; height: 1
 .wave-prog i { background: var(--accent); border-radius: 999px; }
 #hud .shard-chip {
   background: var(--hud-pill); border: 1.5px solid var(--hud-border); border-radius: 999px;
-  padding: 7px 12px; backdrop-filter: blur(8px);
+  padding: 7px 12px;
   box-shadow: inset 0 1px 0 var(--hi), 0 6px 16px var(--shadow);
 }
 #hud #pauseBtn {
   background: var(--hud-btn); border: 1.5px solid var(--hud-border); border-radius: 13px;
-  backdrop-filter: blur(8px);
   box-shadow: inset 0 1px 0 var(--hi), 0 6px 16px var(--shadow);
 }
 .boss-bar {
   top: calc(var(--st) + 74px);
   background: var(--hud-pill); border: 1.5px solid var(--hud-border); border-radius: 15px;
-  padding: 7px 14px 9px; backdrop-filter: blur(8px);
+  padding: 7px 14px 9px;
   box-shadow: inset 0 1px 0 var(--hi), 0 8px 22px var(--shadow);
 }
 .boss-name { color: var(--text); text-shadow: 0 1px 4px var(--shadow); }
@@ -1782,11 +1774,11 @@ input[type=range]::-moz-range-thumb { border-radius: 50%; width: 18px; height: 1
   background: var(--hud-btn); border-color: var(--hud-border); color: var(--text);
 }
 .coach, .toast {
-  border-radius: 14px; border-width: 1.5px; backdrop-filter: blur(8px);
+  border-radius: 14px; border-width: 1.5px;
   box-shadow: inset 0 1px 0 var(--hi), 0 8px 20px var(--shadow);
 }
 .act-btn {
-  border-width: 2px; backdrop-filter: blur(8px);
+  border-width: 2px;
   box-shadow: inset 0 1.5px 0 var(--hi), 0 6px 18px var(--shadow);
 }
 .act-btn.dash, .act-btn.nova, .act-btn.gadget {
@@ -1817,8 +1809,8 @@ input[type=range]::-moz-range-thumb { border-radius: 50%; width: 18px; height: 1
     grid-template-rows: auto; align-content: center; align-items: center;
     width: 100%; max-width: 1320px; gap: clamp(26px, 6vw, 96px);
   }
-  body.device-desktop #home .brand { align-self: center; justify-self: center; text-align: center; }
-  body.device-desktop #home .logo { font-size: clamp(66px, 9vw, 142px); }
+  body.device-desktop #home .brand { align-self: start; margin-top: clamp(6px, 2.2vh, 24px); justify-self: center; text-align: center; }
+  body.device-desktop #home .logo { font-size: clamp(58px, 7.6vw, 118px); }
   body.device-desktop #home .home-panel { justify-self: end; width: 100%; max-width: 440px; }
   body.device-desktop #home .bottom-nav { display: flex; justify-content: flex-end; border-top: 1px solid var(--line); gap: 10px; padding-top: 11px; }
   body.device-desktop #home .bottom-nav button { min-width: 116px; padding-inline: 14px; }
@@ -1934,14 +1926,14 @@ input[type=range]::-moz-range-thumb { border-radius: 50%; width: 18px; height: 1
 .tcard .tc-eye { font: 600 11px/1.2 var(--display); letter-spacing: .19em; text-transform: uppercase; color: var(--amber); }
 .tcard .tc-name { font: 400 clamp(30px, 8vw, 56px)/1.02 var(--serif); letter-spacing: .025em; color: var(--text); text-shadow: 0 3px 12px var(--shadow); animation: tcName .55s ease-out both; }
 .tcard.biome { top: 24%; }
-.tc-band { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 16px calc(var(--sr) + 16px) 18px calc(var(--sl) + 16px); text-align: center; background: linear-gradient(90deg, transparent, var(--hud-pill) 18%, var(--hud-pill) 82%, transparent); backdrop-filter: blur(6px); }
+.tc-band { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 16px calc(var(--sr) + 16px) 18px calc(var(--sl) + 16px); text-align: center; background: linear-gradient(90deg, transparent, var(--hud-pill) 18%, var(--hud-pill) 82%, transparent); }
 .tc-band::before, .tc-band::after { content: ''; position: absolute; left: 0; right: 0; height: 1.5px; background: linear-gradient(90deg, transparent, var(--hud-border) 25%, var(--hud-border) 75%, transparent); animation: tcLine 0.8s ease-out both; }
 .tc-band::before { top: 0; } .tc-band::after { bottom: 0; }
 .tc-haz { font: 600 16px/1.25 var(--body); letter-spacing: 0.03em; color: var(--text); text-wrap: balance; }
 .tc-boss { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; font: 700 12px/1 var(--display); letter-spacing: 0.16em; color: var(--text); background: var(--surf-hi); border: 1.5px solid var(--hud-border); }
 .tc-boss span { font-weight: 600; letter-spacing: 0.24em; text-transform: uppercase; color: var(--amber); }
 .tcard.boss { bottom: 15%; display: flex; justify-content: center; padding: 0 calc(var(--sr) + 16px) 0 calc(var(--sl) + 16px); }
-.tc-panel { position: relative; width: min(580px, 100%); padding: 16px 22px 18px 28px; background: linear-gradient(145deg, var(--surf-hi), var(--surf-lo) 72%); border: 1.5px solid var(--hud-border); border-radius: 18px; box-shadow: inset 0 1px 0 var(--hi), 0 14px 32px var(--shadow); backdrop-filter: blur(8px); }
+.tc-panel { position: relative; width: min(580px, 100%); padding: 16px 22px 18px 28px; background: linear-gradient(145deg, var(--surf-hi), var(--surf-lo) 72%); border: 1.5px solid var(--hud-border); border-radius: 18px; box-shadow: inset 0 1px 0 var(--hi), 0 14px 32px var(--shadow); }
 .tc-accent { position: absolute; left: 10px; top: 12px; bottom: 12px; width: 4px; border-radius: 999px; background: var(--amber); transform-origin: top; animation: tcBar 0.45s ease-out both; }
 .tcard.boss .tc-name { margin-top: 8px; font-size: clamp(34px, 9vw, 64px); letter-spacing: .01em; overflow-wrap: anywhere; }
 .tc-line { display: block; height: 1.5px; margin: 10px 0 8px; background: linear-gradient(90deg, var(--hud-border), transparent); transform-origin: left; animation: tcLine 0.9s 0.15s ease-out both; }
@@ -1982,7 +1974,7 @@ input[type=range]::-moz-range-thumb { border-radius: 50%; width: 18px; height: 1
   <div id="hud" hidden>
     <div class="hud-top">
       <div class="hp-block">
-        <div class="hp-label"><span>HULL</span><span id="hpNum" class="num">100</span><span id="shieldPip" class="pip" hidden title="Aegis"></span></div>
+        <div class="hp-label"><span>WARD</span><span id="hpNum" class="num">100</span><span id="shieldPip" class="pip" hidden title="Glass Bell"></span></div>
         <div class="bar hp"><i id="hpFill"></i></div>
         <div id="buffs" class="buffs"></div>
       </div>
@@ -1998,14 +1990,14 @@ input[type=range]::-moz-range-thumb { border-radius: 50%; width: 18px; height: 1
       </div>
     </div>
     <div id="bossBar" class="boss-bar" hidden>
-      <div class="boss-name"><span id="bossName">BOSS</span><span id="bossPhase"></span></div>
+      <div class="boss-name"><span id="bossName">GUARDIAN</span><span id="bossPhase"></span></div>
       <div class="bar boss"><i id="bossFill"></i><b id="bossLag"></b><span id="bossTicks" class="ticks"></span></div>
     </div>
     <div id="coach" class="coach" hidden><div id="coachDots" class="coach-dots"></div><p id="coachText"></p></div>
     <div class="act">
       <div class="act-row">
-        <button id="gadgetBtn" class="act-btn gadget" aria-label="Throw Singularity"><span class="ring"></span><svg class="gico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="currentColor"/><path d="M12 3.5a8.5 8.5 0 0 1 8.5 8.5M20.5 12a8.5 8.5 0 0 1-8.5 8.5M12 20.5A8.5 8.5 0 0 1 3.5 12M3.5 12A8.5 8.5 0 0 1 12 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="7 6"/><path d="M12 7.2a4.8 4.8 0 0 1 4.8 4.8M12 16.8A4.8 4.8 0 0 1 7.2 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span id="gadgetPips" class="pips" aria-hidden="true"></span><span id="gadgetKey" class="key" aria-hidden="true">G</span></button>
-        <button id="novaBtn" class="act-btn nova" aria-label="Nova blast"><span class="ring"></span><span class="lbl">NOVA</span><span class="key" aria-hidden="true">E</span></button>
+        <button id="gadgetBtn" class="act-btn gadget" aria-label="Toss Gravity Chime"><span class="ring"></span><svg class="gico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="currentColor"/><path d="M12 3.5a8.5 8.5 0 0 1 8.5 8.5M20.5 12a8.5 8.5 0 0 1-8.5 8.5M12 20.5A8.5 8.5 0 0 1 3.5 12M3.5 12A8.5 8.5 0 0 1 12 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="7 6"/><path d="M12 7.2a4.8 4.8 0 0 1 4.8 4.8M12 16.8A4.8 4.8 0 0 1 7.2 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span id="gadgetPips" class="pips" aria-hidden="true"></span><span id="gadgetKey" class="key" aria-hidden="true">G</span></button>
+        <button id="novaBtn" class="act-btn nova" aria-label="Hearthburst"><span class="ring"></span><span class="lbl">BURST</span><span class="key" aria-hidden="true">E</span></button>
       </div>
       <button id="dashBtn" class="act-btn dash" aria-label="Dash"><span class="ring"></span><span class="lbl">DASH</span><span class="key" aria-hidden="true">SPACE</span></button>
     </div>
@@ -2037,14 +2029,14 @@ input[type=range]::-moz-range-thumb { border-radius: 50%; width: 18px; height: 1
     <div class="home-grid">
       <div class="brand">
         <h1 class="logo" data-text="Riftline">Riftline</h1>
-        <p class="tagline">Arena roguelite</p>
+        <p class="tagline">Tactile Cozy Diorama</p>
         <p id="bestLine" class="best-line" hidden></p>
       </div>
       <div class="home-panel">
         <div class="weapon-card panel">
           <div class="wc-head">
             <button id="wPrev" class="arrow" aria-label="Previous weapon" data-icon="back"></button>
-            <div class="wc-title"><div class="eyebrow">WEAPON <span id="wIndex"></span></div><div id="wName" class="wc-name">Pulse Blaster</div></div>
+            <div class="wc-title"><div class="eyebrow">ARTIFICER ARM <span id="wIndex"></span></div><div id="wName" class="wc-name">Lantern Repeater</div></div>
             <button id="wNext" class="arrow flip" aria-label="Next weapon" data-icon="back"></button>
           </div>
           <p id="wBlurb" class="wc-blurb"></p>
@@ -2053,18 +2045,18 @@ input[type=range]::-moz-range-thumb { border-radius: 50%; width: 18px; height: 1
         </div>
         <div class="threat-row panel">
           <button id="tPrev" class="arrow small" aria-label="Lower threat" data-icon="back"></button>
-          <div class="threat-mid"><div id="tName" class="threat-name">Standard</div><div id="tDesc" class="threat-desc"></div></div>
+          <div class="threat-mid"><div id="tName" class="threat-name">Wayfarer</div><div id="tDesc" class="threat-desc"></div></div>
           <button id="tNext" class="arrow small flip" aria-label="Higher threat" data-icon="back"></button>
         </div>
         <button id="continueBtn" class="btn primary alt" hidden></button>
         <p id="continueNote" class="note checkpoint-note" hidden></p>
-        <button id="playBtn" class="btn primary">START RUN</button>
+        <button id="playBtn" class="btn primary">BEGIN EXPEDITION</button>
       </div>
     </div>
     <nav class="bottom-nav" aria-label="Primary">
-      <button data-go="workshop"><span data-icon="wrench"></span>Workshop</button>
-      <button data-go="records"><span data-icon="trophy"></span>Achievements<i id="recBadge" class="badge" hidden></i></button>
-      <button data-go="news"><span data-icon="info"></span>News<i id="newsBadge" class="badge" hidden></i></button>
+      <button data-go="workshop"><span data-icon="wrench"></span>Sanctuary</button>
+      <button data-go="records"><span data-icon="trophy"></span>Journal<i id="recBadge" class="badge" hidden></i></button>
+      <button data-go="news"><span data-icon="info"></span>Chronicle<i id="newsBadge" class="badge" hidden></i></button>
       <button data-go="settings"><span data-icon="gear"></span>Settings</button>
     </nav>
   </section>
@@ -2073,11 +2065,11 @@ input[type=range]::-moz-range-thumb { border-radius: 50%; width: 18px; height: 1
   <section id="workshop" class="screen page" hidden>
     <header class="topbar">
       <button class="icon-btn" data-back aria-label="Back" data-icon="back"></button>
-      <h2>Workshop</h2>
+      <h2>Sanctuary Workshop</h2>
       <div class="spacer"></div>
       <div class="shard-chip big"><span class="shard-ico"></span><span class="num bankMirror">0</span></div>
     </header>
-    <p class="page-intro">Permanent modules. Shards from every run — won or lost — pay for them.</p>
+    <p class="page-intro">Lasting artificer crafts. Star-shards from every expedition — won or lost — forge them.</p>
     <div id="wsList" class="list scroll"></div>
   </section>
 
@@ -2085,14 +2077,14 @@ input[type=range]::-moz-range-thumb { border-radius: 50%; width: 18px; height: 1
   <section id="records" class="screen page" hidden>
     <header class="topbar">
       <button class="icon-btn" data-back aria-label="Back" data-icon="back"></button>
-      <h2>Achievements</h2>
+      <h2>Wayfarer Journal</h2>
       <div class="spacer"></div>
       <div class="shard-chip big"><span class="shard-ico"></span><span class="num bankMirror">0</span></div>
     </header>
     <div class="scroll">
-      <p class="page-intro">Claim rewards for your progress through the rift.</p>
+      <p class="page-intro">Claim star-shard bounties for your deeds across the six realms.</p>
       <div id="msList" class="list"></div>
-      <h3 class="section-h">Run records</h3>
+      <h3 class="section-h">Expedition ledger</h3>
       <div id="statGrid" class="stat-grid"></div>
       <div id="runHist" class="list"></div>
     </div>
@@ -2158,15 +2150,15 @@ input[type=range]::-moz-range-thumb { border-radius: 50%; width: 18px; height: 1
   <section id="choose" class="screen overlay" hidden>
     <div class="choose-head">
       <div id="chooseEyebrow" class="eyebrow">WAVE 1 CLEARED</div>
-      <h2 id="chooseTitle">Choose an upgrade</h2>
-      <p id="chooseFirstHint" class="choose-first-hint" hidden>Cards upgrade your drone for this run. Spend shards in the Workshop for permanent upgrades.</p>
+      <h2 id="chooseTitle">Choose a craft</h2>
+      <p id="chooseFirstHint" class="choose-first-hint" hidden>Cards attune your lantern-craft for this expedition. Spend star-shards in the Sanctuary for lasting crafts.</p>
       <div id="nextWave" class="next-wave" aria-live="polite"></div>
       <div class="choose-hp"><div class="bar hp small"><i id="chooseHp"></i></div><span id="chooseHpNum" class="num"></span></div>
     </div>
     <div id="cards" class="cards"></div>
     <div class="choose-foot">
       <button id="rerollBtn" class="btn ghost"><span data-icon="reroll"></span><span id="rerollTxt">Reroll</span></button>
-      <button id="banishBtn" class="btn ghost" hidden><span data-icon="skull"></span><span id="banishTxt">Banish</span></button>
+      <button id="banishBtn" class="btn ghost" hidden><span data-icon="skull"></span><span id="banishTxt">Seal</span></button>
     </div>
     <div id="buildStrip" class="build-strip"></div>
   </section>
@@ -2174,7 +2166,7 @@ input[type=range]::-moz-range-thumb { border-radius: 50%; width: 18px; height: 1
   <!-- ====================================================== PAUSE -->
   <section id="pause" class="screen overlay" hidden>
     <div class="center-col">
-      <div class="eyebrow">RUN PAUSED</div>
+      <div class="eyebrow">EXPEDITION PAUSED</div>
       <h2 id="pauseTitle">Wave 1</h2>
       <div id="pauseStats" class="mini-stats"></div>
       <button id="resumeBtn" class="btn primary">RESUME</button>
@@ -2185,7 +2177,7 @@ input[type=range]::-moz-range-thumb { border-radius: 50%; width: 18px; height: 1
       <button id="abandonBtn" class="btn danger ghost">Abandon run</button>
       <div class="section-h">Stats</div>
       <div id="pauseStatRows" class="stat-rows"></div>
-      <div class="section-h">Build</div>
+      <div class="section-h">Craft Build</div>
       <div id="pauseBuild" class="build-list"></div>
       <div id="pauseUpInfo" class="up-info" aria-live="polite" hidden></div>
     </div>
@@ -2197,21 +2189,21 @@ input[type=range]::-moz-range-thumb { border-radius: 50%; width: 18px; height: 1
   <section id="over" class="screen overlay" hidden>
     <div class="center-col">
       <div id="overEyebrow" class="eyebrow"></div>
-      <h2 id="overTitle" class="over-title">SIGNAL LOST</h2>
+      <h2 id="overTitle" class="over-title">LANTERN DIMMED</h2>
       <div id="overCause" class="over-cause" hidden></div>
       <div id="overBest" class="chip best" hidden>NEW BEST</div>
       <div id="overStats" class="stat-grid compact"></div>
       <div class="payout panel">
         <div id="payRows"></div>
-        <div class="pay-total"><span>Shards earned</span><span class="shard-chip"><span class="shard-ico"></span><span id="payTotal" class="num">0</span></span></div>
+        <div class="pay-total"><span>Star-shards gathered</span><span class="shard-chip"><span class="shard-ico"></span><span id="payTotal" class="num">0</span></span></div>
       </div>
       <div id="overRecap" class="dmg-panel panel recap" hidden></div>
       <div id="overDmg" class="dmg-panel panel" hidden></div>
       <div id="overExtra" class="run-extra panel" hidden></div>
       <div id="overMs" class="ms-unlocked"></div>
       <button id="endlessBtn" class="btn primary" hidden>CONTINUE · ENDLESS</button>
-      <button id="retryBtn" class="btn primary">RUN AGAIN</button>
-      <button id="homeBtn" class="btn">Home</button>
+      <button id="retryBtn" class="btn primary">EMBARK AGAIN</button>
+      <button id="homeBtn" class="btn">Sanctuary</button>
     </div>
   </section>
 

@@ -69,9 +69,9 @@ const healthBarTypes = {
     rain: "BOMBARDMENT",
     // 3.3.0: the Overdrive attacks of the enraged bosses
     sealgrid: "OVERDRIVE · LANTERN CAGE",
-    whiteout: "OVERDRIVE · WHITEOUT",
-    plague: "OVERDRIVE · PLAGUE",
-    collapse: "OVERDRIVE · COLLAPSE",
+    whiteout: "OVERDRIVE · POLAR GALE",
+    plague: "OVERDRIVE · SPORE TIDE",
+    collapse: "OVERDRIVE · STARFALL",
     // 2.4.6: Frost Prism
     frostbeam: "FROST BEAM",
     icelances: "ICE LANCES",
@@ -79,12 +79,12 @@ const healthBarTypes = {
     frostnova: "FROST NOVA",
     glacier: "GLACIER",
     barrage: "MOLTEN FAN",
-    firestorm: "OVERDRIVE · FIRESTORM",
+    firestorm: "OVERDRIVE · FORGESTORM",
     // 3.56.0: Glasswyrm
     rise: "SAND BURST",
     sunlance: "SUN LANCE",
     mirage: "MIRAGE",
-    noon: "OVERDRIVE · NOON",
+    noon: "OVERDRIVE · HIGH NOON",
   },
   Overlay = class {
     constructor(canvas) {
@@ -94,8 +94,9 @@ const healthBarTypes = {
       this.tmp2 = { x: 0, y: 0, vis: false, nx: 0, ny: 0 };
       this.w = 0;
       this.h = 0;
-      // Match the game canvas's pixel-ratio ceiling.
-      this.dprCap = 2;
+      // Crisp vector HUD overlay without burning 4x pixel fillrate on HiDPI screens in Firefox.
+      this.dprCap = 1.5;
+      this._isClean = false;
       this.hurts = [];
       this.callouts = [];
       this.hpTrails = new WeakMap();
@@ -118,23 +119,37 @@ const healthBarTypes = {
     resize() {
       let w = this.c.clientWidth || window.innerWidth,
         h = this.c.clientHeight || window.innerHeight,
-        dpr = Math.min(window.devicePixelRatio || 1, this.dprCap || 2);
+        dpr = Math.min(window.devicePixelRatio || 1, this.dprCap || 1.5);
       if (!(w === this.w && h === this.h && dpr === this.dpr)) {
         this.w = w;
         this.h = h;
         this.dpr = dpr;
         this.c.width = Math.round(w * dpr);
         this.c.height = Math.round(h * dpr);
+        this._isClean = true;
       }
     }
     clear() {
-      this.resize();
+      if (this._isClean) {
+        if (!this.c.hidden) this.c.hidden = true;
+        return;
+      }
+      if (!this.w) this.resize();
       this.g.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
       this.g.clearRect(0, 0, this.w, this.h);
+      this._isClean = true;
+      if (!this.c.hidden) this.c.hidden = true;
     }
     draw(renderer, world, input, opts = {}) {
-      this.clear();
-      if (!world) return;
+      if (!world) {
+        this.clear();
+        return;
+      }
+      if (this.c.hidden) this.c.hidden = false;
+      if (!this.w || renderer.w !== this.w || renderer.h !== this.h) this.resize();
+      this.g.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+      this.g.clearRect(0, 0, this.w, this.h);
+      this._isClean = false;
       let ctx = this.g,
         pos = this.tmp,
         safe = opts.safe || { t: 0, b: 0, l: 0, r: 0 },

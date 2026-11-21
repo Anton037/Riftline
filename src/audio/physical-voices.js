@@ -774,18 +774,18 @@ export class PhysicalVoices {
     amp.gain.setValueAtTime(p.gain * gain, start + Math.max(0.001, p.dur - 0.02));
     amp.gain.linearRampToValueAtTime(0, start + p.dur);
     src.connect(amp);
-    engine.route(amp, {
-      ...(ambience ? { dest: engine.ambBus } : {}),
-      pan,
-      rev: ambience ? 0.24 : p.warn ? 0.035 : 0.09,
-    });
+    engine.route(
+      amp,
+      {
+        ...(ambience ? { dest: engine.ambBus } : {}),
+        pan,
+        rev: ambience ? 0.24 : p.warn ? 0.035 : 0.09,
+      },
+      voice,
+    );
     src.start(start);
     src.stop(end);
-    if (!engine.offline)
-      src.onended = () => {
-        src.disconnect();
-        amp.disconnect();
-      };
+    if (!engine.offline) src.onended = () => engine._cleanupVoice(voice);
   }
   play(engine, id, arg) {
     if (id === "place") {

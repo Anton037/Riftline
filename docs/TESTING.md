@@ -5,9 +5,9 @@ there is no historical release assertion catalog, always-on soak or hidden exten
 
 | Command | Coverage | Deadline |
 |---|---|---|
-| `npm run check` | Formatting, lint, build and standard tests | Test subprocess 75 s |
-| `npm test` | Node contracts, desktop & tablet/phone flows, onboarding, progression and worker update | Build 30 s; tests 75 s |
-| `npm run test:unit` | Saves, deterministic simulation, data and render geometry | 75 s |
+| `npm run check` | Formatting, lint, build and standard tests | Test subprocess 95 s |
+| `npm test` | Node contracts, desktop & tablet/phone flows, onboarding, progression and worker update | Build 30 s; tests 95 s |
+| `npm run test:unit` | Saves, deterministic simulation, data and render geometry | 30 s |
 | `npm run e2e` | Desktop KB/mouse, touch, onboarding/audio, progression and worker update | Game flows 25–35 s; worker 20 s; process 75 s |
 | `npm run test:render` | Same browser checks with actual drawing | Game flows 180 s each; process 600 s |
 | `npm run audit:visual` | Six biomes and bosses on tablet and landscape phone, High | 240 s per layout |

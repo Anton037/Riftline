@@ -241,6 +241,7 @@ export class WebGL2Engine {
 
     this.programs = new Map();
     this._shaderCache = new Map();
+    this._ctxGen = 1;
     this._wakeHoldT = 0;
     this.dummyVao = gl.createVertexArray();
     this.whiteTex = this._makeSolidTex(255, 255, 255, 255);
@@ -380,6 +381,8 @@ export class WebGL2Engine {
   _initContextHandlers() {
     this.canvas.addEventListener("webglcontextlost", (e) => {
       e.preventDefault();
+      this._ctxGen++;
+      this._curVao = null;
       this.programs.clear();
       this.shadowTarget = null;
       this.msaaTarget = null;
@@ -395,6 +398,8 @@ export class WebGL2Engine {
       this._shaderCache.clear();
     });
     this.canvas.addEventListener("webglcontextrestored", () => {
+      this._ctxGen++;
+      this._curVao = null;
       const gl = this.gl;
       this.hdrExt = gl.getExtension("EXT_color_buffer_float") || gl.getExtension("EXT_color_buffer_half_float");
       this.linearExt = gl.getExtension("OES_texture_half_float_linear");
@@ -507,7 +512,8 @@ export class WebGL2Engine {
   _createMsaaTarget(w, h, useHalf) {
     const gl = this.gl;
     const maxSamples = gl.getParameter(gl.MAX_SAMPLES) || 0;
-    const samples = Math.min(4, maxSamples);
+    const wantSamples = this.dpr >= 1.5 ? 2 : 4;
+    const samples = Math.min(wantSamples, maxSamples);
     if (samples < 2) return null;
     const internalFmt = useHalf ? gl.RGBA16F : gl.RGBA8;
     const fbo = gl.createFramebuffer();
@@ -760,10 +766,17 @@ export class WebGL2Engine {
   _syncTexture(texObj) {
     if (!texObj || !texObj.ready) return this.whiteTex;
     const gl = this.gl;
-    if (texObj._gpu && texObj._gpu.gl === gl && texObj._gpu.version === texObj.version) {
+    const ctxGen = this._ctxGen;
+    if (
+      texObj._gpu &&
+      texObj._gpu.gl === gl &&
+      texObj._gpu.ctxGen === ctxGen &&
+      texObj._gpu.version === texObj.version
+    ) {
       return texObj._gpu.tex;
     }
-    const tex = texObj._gpu && texObj._gpu.gl === gl ? texObj._gpu.tex : gl.createTexture();
+    const tex =
+      texObj._gpu && texObj._gpu.gl === gl && texObj._gpu.ctxGen === ctxGen ? texObj._gpu.tex : gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, texObj.flipY ? 1 : 0);
     if (texObj.image) {
@@ -794,7 +807,7 @@ export class WebGL2Engine {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, minF);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, magF);
-    texObj._gpu = { gl, tex, version: texObj.version };
+    texObj._gpu = { gl, ctxGen, tex, version: texObj.version };
     return tex;
   }
 
@@ -834,8 +847,10 @@ export class WebGL2Engine {
 
   _ensureGeometry(geo) {
     const gl = this.gl;
-    if (geo._gpu && geo._gpu.gl === gl && geo._gpu.version === geo.version) return geo._gpu;
-    if (geo._gpu && geo._gpu.gl === gl) geo.dispose();
+    const ctxGen = this._ctxGen;
+    if (geo._gpu && geo._gpu.gl === gl && geo._gpu.ctxGen === ctxGen && geo._gpu.version === geo.version)
+      return geo._gpu;
+    if (geo._gpu && geo._gpu.gl === gl && geo._gpu.ctxGen === ctxGen) geo.dispose();
 
     const vao = gl.createVertexArray();
     gl.bindVertexArray(vao);
@@ -895,7 +910,20 @@ export class WebGL2Engine {
 
     gl.bindVertexArray(null);
     this._curVao = null;
-    geo._gpu = { gl, vao, vboPos, vboNorm, vboUv, vboCol, vboPart, ibo, indexType, count, version: geo.version };
+    geo._gpu = {
+      gl,
+      ctxGen,
+      vao,
+      vboPos,
+      vboNorm,
+      vboUv,
+      vboCol,
+      vboPart,
+      ibo,
+      indexType,
+      count,
+      version: geo.version,
+    };
     return geo._gpu;
   }
 
@@ -904,9 +932,15 @@ export class WebGL2Engine {
     if (node.isGpuRingMesh) return this._ensureGpuRing(node);
 
     const gl = this.gl;
+    const ctxGen = this._ctxGen;
     const base = this._ensureGeometry(node.geometry);
-    if (!node._gpuInst || node._gpuInst.gl !== gl || node._gpuInst.geoVersion !== base.version) {
-      if (node._gpuInst && node._gpuInst.gl === gl) node.dispose();
+    if (
+      !node._gpuInst ||
+      node._gpuInst.gl !== gl ||
+      node._gpuInst.ctxGen !== ctxGen ||
+      node._gpuInst.geoVersion !== base.version
+    ) {
+      if (node._gpuInst && node._gpuInst.gl === gl && node._gpuInst.ctxGen === ctxGen) node.dispose();
       const vao = gl.createVertexArray();
       gl.bindVertexArray(vao);
       this._bindBaseAttribs(gl, base);
@@ -920,23 +954,35 @@ export class WebGL2Engine {
         gl.vertexAttribDivisor(4 + c, 1);
       }
 
-      const colBuf = gl.createBuffer();
-      gl.bindBuffer(gl.ARRAY_BUFFER, colBuf);
-      gl.bufferData(gl.ARRAY_BUFFER, node.instanceColor.byteLength, gl.DYNAMIC_DRAW);
-      gl.enableVertexAttribArray(8);
-      gl.vertexAttribPointer(8, 3, gl.FLOAT, false, 0, 0);
-      gl.vertexAttribDivisor(8, 1);
+      let colBuf = null;
+      if (node.hasColor !== false) {
+        colBuf = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, colBuf);
+        gl.bufferData(gl.ARRAY_BUFFER, node.instanceColor, gl.DYNAMIC_DRAW);
+        gl.enableVertexAttribArray(8);
+        gl.vertexAttribPointer(8, 3, gl.FLOAT, false, 0, 0);
+        gl.vertexAttribDivisor(8, 1);
+      } else {
+        gl.disableVertexAttribArray(8);
+        gl.vertexAttrib3f(8, 1, 1, 1);
+      }
 
-      const flashBuf = gl.createBuffer();
-      gl.bindBuffer(gl.ARRAY_BUFFER, flashBuf);
-      gl.bufferData(gl.ARRAY_BUFFER, node.instanceFlash.byteLength, gl.DYNAMIC_DRAW);
-      gl.enableVertexAttribArray(9);
-      gl.vertexAttribPointer(9, 1, gl.FLOAT, false, 0, 0);
-      gl.vertexAttribDivisor(9, 1);
+      let flashBuf = null;
+      if (node.hasFlash !== false) {
+        flashBuf = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, flashBuf);
+        gl.bufferData(gl.ARRAY_BUFFER, node.instanceFlash, gl.DYNAMIC_DRAW);
+        gl.enableVertexAttribArray(9);
+        gl.vertexAttribPointer(9, 1, gl.FLOAT, false, 0, 0);
+        gl.vertexAttribDivisor(9, 1);
+      } else {
+        gl.disableVertexAttribArray(9);
+        gl.vertexAttrib1f(9, 0);
+      }
 
       gl.bindVertexArray(null);
       this._curVao = null;
-      node._gpuInst = { gl, vao, matBuf, colBuf, flashBuf, geoVersion: base.version };
+      node._gpuInst = { gl, ctxGen, vao, matBuf, colBuf, flashBuf, geoVersion: base.version };
       node.dirtyCount = Math.max(node.dirtyCount, node.count);
     }
 
@@ -945,11 +991,11 @@ export class WebGL2Engine {
       const gpu = node._gpuInst;
       gl.bindBuffer(gl.ARRAY_BUFFER, gpu.matBuf);
       gl.bufferSubData(gl.ARRAY_BUFFER, 0, node.instanceMatrix, 0, n * 16);
-      if (node.hasColor) {
+      if (node.hasColor && gpu.colBuf) {
         gl.bindBuffer(gl.ARRAY_BUFFER, gpu.colBuf);
         gl.bufferSubData(gl.ARRAY_BUFFER, 0, node.instanceColor, 0, n * 3);
       }
-      if (node.hasFlash) {
+      if (node.hasFlash && gpu.flashBuf) {
         gl.bindBuffer(gl.ARRAY_BUFFER, gpu.flashBuf);
         gl.bufferSubData(gl.ARRAY_BUFFER, 0, node.instanceFlash, 0, n);
       }
@@ -960,9 +1006,15 @@ export class WebGL2Engine {
 
   _ensureCompactInstanced(node) {
     const gl = this.gl;
+    const ctxGen = this._ctxGen;
     const base = this._ensureGeometry(node.geometry);
-    if (!node._gpuInst || node._gpuInst.gl !== gl || node._gpuInst.geoVersion !== base.version) {
-      if (node._gpuInst && node._gpuInst.gl === gl) node.dispose();
+    if (
+      !node._gpuInst ||
+      node._gpuInst.gl !== gl ||
+      node._gpuInst.ctxGen !== ctxGen ||
+      node._gpuInst.geoVersion !== base.version
+    ) {
+      if (node._gpuInst && node._gpuInst.gl === gl && node._gpuInst.ctxGen === ctxGen) node.dispose();
       const vao = gl.createVertexArray();
       gl.bindVertexArray(vao);
       this._bindBaseAttribs(gl, base);
@@ -978,7 +1030,7 @@ export class WebGL2Engine {
 
       gl.bindVertexArray(null);
       this._curVao = null;
-      node._gpuInst = { gl, vao, dataBuf, geoVersion: base.version };
+      node._gpuInst = { gl, ctxGen, vao, dataBuf, geoVersion: base.version };
       node.dirtyCount = Math.max(node.dirtyCount, node.count);
     }
 
@@ -993,10 +1045,16 @@ export class WebGL2Engine {
 
   _ensureGpuRing(node) {
     const gl = this.gl;
+    const ctxGen = this._ctxGen;
     const ring = node.ring;
     const base = this._ensureGeometry(node.geometry);
-    if (!node._gpuInst || node._gpuInst.gl !== gl || node._gpuInst.geoVersion !== base.version) {
-      if (node._gpuInst && node._gpuInst.gl === gl) ring.dispose();
+    if (
+      !node._gpuInst ||
+      node._gpuInst.gl !== gl ||
+      node._gpuInst.ctxGen !== ctxGen ||
+      node._gpuInst.geoVersion !== base.version
+    ) {
+      if (node._gpuInst && node._gpuInst.gl === gl && node._gpuInst.ctxGen === ctxGen) ring.dispose();
       const vao = gl.createVertexArray();
       gl.bindVertexArray(vao);
       this._bindBaseAttribs(gl, base);
@@ -1012,7 +1070,7 @@ export class WebGL2Engine {
 
       gl.bindVertexArray(null);
       this._curVao = null;
-      node._gpuInst = { gl, vao, dataBuf, geoVersion: base.version };
+      node._gpuInst = { gl, ctxGen, vao, dataBuf, geoVersion: base.version };
       ring.d0Start = -1;
       ring.d0End = -1;
       ring.d1Start = -1;

@@ -1,15 +1,15 @@
 {
   "name": "Riftline",
   "short_name": "Riftline",
-  "description": "3D arena roguelite shooter",
+  "description": "Tactile cozy diorama arena roguelite",
   "start_url": "./",
   "scope": "./",
   "id": "./",
   "display": "fullscreen",
   "display_override": ["fullscreen", "standalone"],
   "orientation": "landscape",
-  "background_color": "#161522",
-  "theme_color": "#161522",
+  "background_color": "#0d0e17",
+  "theme_color": "#0d0e17",
   "icons": [
     {
       "src": "icon-192.png",

@@ -8,8 +8,19 @@ const reverse = (map) => Object.fromEntries(Object.entries(map).map(([a, b]) => 
   object = (value) => value && typeof value === "object" && !Array.isArray(value);
 
 // Display names must not change an existing run's map-director random stream.
+const EVENT_RENAMES = {
+  elite: "gilded",
+  rain: "starfall",
+  duskfall: "festival",
+  whiteout: "aurora",
+  bloom: "nectar",
+  riftstorm: "harmonic",
+  ashfall: "forgewind",
+  devils: "mirage",
+};
 export const biomeSeedId = (id) => rename(id, OLD_BIOMES);
-export const eventSeedId = (id) => (id === "ashfall" ? "cinder" : id);
+export const eventSeedId = (id) =>
+  id === "forgewind" || id === "ashfall" ? "cinder" : rename(id, reverse(EVENT_RENAMES));
 
 function record(input, keyOf, combine) {
   if (!object(input)) return input;

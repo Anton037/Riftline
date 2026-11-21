@@ -1,5 +1,5 @@
-// Ground-up Cozy Storybook Magitech 3D models for Riftline v4.6.0:
-// Cloaked Rift-Artificer Hero + 7 handcrafted magitech weapons, 25 enemies across 5 instant-read storybook
+// Ground-up Tactile Cozy Diorama 3D models for Riftline v5:
+// Cloaked Lantern-Artificer Hero + 7 handcrafted artificer arms, 25 enemies across 5 instant-read storybook
 // role families (<= 810 tris each), 6 monumental biome bosses (<= 3500 tris each), and combat props.
 
 import {
@@ -1664,7 +1664,7 @@ export function variantAttachmentGeometry(id) {
       part(G_OCT, 0xdc9cff, { y: 1.38, z: -0.42, sx: 0.18, sy: 0.28, sz: 0.18, anim: [3, 1.38, 0, 2.8] }),
       part(G_OCT, 0xdc9cff, { y: 1.38, z: 0.42, sx: 0.18, sy: 0.28, sz: 0.18, anim: [3, 1.38, 0, 2.8] }),
     );
-  } else if (id === "corrosive") {
+  } else if (id === "bloomed") {
     // Marsh Bloomed: miniature glowing marsh toadstools sprouting on shoulders/back!
     body.push(
       part(G_CYL6, PARCHMENT, { x: -0.12, y: 1.08, z: -0.26, rx: -0.22, sx: 0.09, sy: 0.28, sz: 0.09 }),

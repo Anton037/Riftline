@@ -212,3 +212,77 @@ test("all six interactive biome props trigger deterministically from shots and d
     Math.random = random;
   }
 });
+
+test("reworked cozy wave events and shot-detonated proximity vessels are deterministic and functional", () => {
+  const random = Math.random;
+  Math.random = () => {
+    throw new Error("simulation touched Math.random");
+  };
+  try {
+    // 1. Gilded Caravan grants Gilded Haste on elite defeat
+    const wg = new World({ seed: 101, weapon: "pulse", threat: 0, ws: {} });
+    wg.event = "gilded";
+    const elite = wg.spawnEnemy("grunt", 3, 2, { elite: true });
+    wg.killEnemy(elite);
+    assert.ok(wg.player.gildT >= 3.0, "Gilded Caravan grants Gilded Haste on elite defeat");
+
+    // 2. Astral Convergence empowers shots warped through portals
+    const wc = new World({ seed: 202, weapon: "pulse", threat: 0, ws: {} });
+    wc.route = ["core"];
+    wc.startWave(17);
+    wc.event = "harmonic";
+    wc.startBiomeEvent("harmonic", 17);
+    assert.ok(wc.arena.portals.length >= 1);
+    const p = wc.arena.portals[0];
+    wc.pb.push({
+      id: 99,
+      x: p.ax,
+      y: p.ay,
+      vx: 10,
+      vy: 0,
+      a: 0,
+      r: 0.17,
+      dmg: 20,
+      life: 1,
+      pierce: 0,
+      bounce: 0,
+      hits: [],
+      w: "pulse",
+    });
+    wc.updateFeatures(1 / 60);
+    assert.ok(wc.pb[0].dmg >= 25.9, "Astral Convergence boosts portal-warped player shots by 30%");
+
+    // 3. Armed proximity vessels detonate when shot for 1.5x pack damage without friendly fire
+    const wt = new World({ seed: 303, weapon: "pulse", threat: 0, ws: {} });
+    wt.arena.obs = [];
+    wt.player.x = 0;
+    wt.player.y = 0;
+    const hpBefore = wt.player.hp;
+    wt.traps = [{ id: 1, fam: "mine", skin: "mine", x: 1.5, y: 0, st: "armed", t: 0 }];
+    const packFoe = wt.spawnEnemy("brute", 2.6, 0.9, {});
+    packFoe.spawnT = 0;
+    const foeHp0 = packFoe.hp;
+    wt.hash.build(wt.enemies);
+    wt.pb.push({
+      id: 100,
+      x: 0.5,
+      y: 0,
+      vx: 90,
+      vy: 0,
+      a: 0,
+      r: 0.17,
+      dmg: 10,
+      life: 1,
+      pierce: 0,
+      bounce: 0,
+      hits: [],
+      w: "pulse",
+    });
+    wt.updatePBullets(1 / 60);
+    assert.equal(wt.traps[0].st, "gone", "armed vessel detonates when shot");
+    assert.equal(wt.player.hp, hpBefore, "shot-detonated vessel does not hurt the player");
+    assert.ok(packFoe.hp <= foeHp0 * 0.74, "shot-detonated vessel deals 1.5x hull fraction damage");
+  } finally {
+    Math.random = random;
+  }
+});

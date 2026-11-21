@@ -184,7 +184,7 @@ function nearestProp(arena, player) {
   for (const ob of arena.obs) take(ob.x, ob.y, COVER_VOICE[biome], 5, 10);
   if (arena.props) {
     for (const p of arena.props) {
-      if (p.cd <= 0 && !p.trig && RELIC_VOICE[p.kind]) take(p.x, p.y, RELIC_VOICE[p.kind], 4.5, 9);
+      if (p.cd <= 0 && p.fuse <= 0 && RELIC_VOICE[p.kind]) take(p.x, p.y, RELIC_VOICE[p.kind], 4.5, 9);
     }
   }
   const cv = CORNER_VOICE[biome];

@@ -4,12 +4,23 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "5.1.0",
+    title: "Lantern-Artificer craft overhaul, festival events and silky browser efficiency",
+    items: [
+      "Eight reworked realm events bring Lantern Festivals, Aurora Tailwinds, Firefly Nectar, Starfall Meteors, and Astral Convergences.",
+      "Every artificer arm, run craft, masterwork evolution, Sanctuary craft, and Wayfarer milestone has been reimagined.",
+      "Armed floor vessels can now be sniped from afar for bonus pack damage, and Gravity Chimes shatter nearby hostile bolts.",
+      "The Home screen showcases the live 3D Sanctuary Plinth and Lantern-Artificer beside warm gilded storybook cards.",
+      "Eliminated WebAudio zombie nodes, per-frame backdrop blurs, and hidden-screen WebGL passes for cool, low-CPU play in Firefox.",
+    ],
+  },
+  {
     version: "5.0.0",
     title: "GPU-First Engine v2, interactive biome relics and living miniatures",
     items: [
       "A GPU-First WebGL2 Engine v2 drives ring-buffer particles, debris, wake ripples, and sub-part animation on the GPU.",
       "Every biome has bespoke perimeter architecture, corner landmarks, sculpted cover, and interactive relics to spark or shatter.",
-      "The Rift-Artificer, all seven weapons, 25 animated enemies with 3D variant/elite gear, and six multi-phase bosses come alive.",
+      "The Lantern-Artificer, all seven arms, 25 animated foes with 3D variant/elite gear, and six multi-phase guardians come alive.",
       "Six per-biome musical arrangements, scale-tuned reward chimes, and handcrafted surface footsteps enrich every run.",
       "The Home sanctuary plinth, weapon-inspection flourish, relic HUD buffs, and accessible storybook frames complete the overhaul.",
     ],
@@ -21,7 +32,7 @@ export const WHATS_NEW = [
       "4x MSAA HDR rendering, 2048 soft hardware-PCF shadows, and delicate dark-ink contours bring every arena to life.",
       "Explore full diorama worlds beyond every arena: canal towns, Nordic lodges, bog huts, astral islands, lava aqueducts, and desert oases.",
       "Upgrade cards and menus now use high-contrast nocturnal velvet frames, jewel rarity badges, and structured stat pills.",
-      "Play as a cloaked Rift-Artificer with seven magitech weapons against 25 distinct enemy kits and six elevated bosses.",
+      "Play as a cloaked Lantern-Artificer with seven handcrafted arms against 25 distinct enemy kits and six elevated guardians.",
       "Calmer walkable floors, dark-inked enemy shots, a hero foot compass, and hit-drain bars keep dense fights readable.",
     ],
   },
@@ -41,19 +52,9 @@ export const WHATS_NEW = [
     title: "Steady lamps and engraved combat cues",
     items: [
       "Lantern Courtyard now has warm gallery lamps, ceramic chimes, and rising charged inlays.",
-      "The Bellkeeper fires brass seals, and the Arc Caster traces copper paths.",
+      "The Bellkeeper fires brass seals, and the Storm-Coil traces copper paths.",
       "Mine fuses, beams, summons, and dash effects use steady inlays and visible progress marks.",
       "Biome titles, boss cards, and combat feedback match the glazed interface.",
-    ],
-  },
-  {
-    version: "4.4.0",
-    title: "Glazed arenas and an original score",
-    items: [
-      "Six biomes have new glazed surfaces, engraved floors, scenery, and lighting.",
-      "The walker, all seven weapons, enemies, bosses, and combat effects have been redesigned.",
-      "An original score and new synthesized sounds accompany every arena and boss fight.",
-      "The title screen, menus, HUD, and install icons share the new ceramic and brass style.",
     ],
   },
 ];

@@ -29,5 +29,12 @@ if (files.some((f) => isBrowser(path.basename(f))) && !args.includes("--no-build
   const code = await run(["build.js"], 30000);
   if (code) process.exit(code);
 }
-process.exitCode = await run(["--test", "--test-concurrency=1", ...files], args.includes("--draw") ? 600000 : 75000);
+const timeoutMs = args.includes("--draw")
+  ? 600000
+  : args.includes("--unit")
+    ? 30000
+    : args.includes("--browser")
+      ? 75000
+      : 95000;
+process.exitCode = await run(["--test", "--test-concurrency=1", ...files], timeoutMs);
 console.log(`Test run: ${((performance.now() - start) / 1000).toFixed(1)} s`);

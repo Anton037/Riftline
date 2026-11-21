@@ -23,7 +23,7 @@ import { upgradesById, upgradeList } from "../data/upgrades.js";
 import { Arena, buildLayout, SpatialHash, rlAddHazard250, rlPortalPair250, rlHazardRoom250 } from "./arena.js";
 import { computeStats, DASH_CD_MIN } from "./stats.js";
 import { BURST_WINDOW, burstFraction, endlessHpBoost } from "./difficulty.js";
-import { rlPlanTraps, rlUpdateTraps } from "./traps.js";
+import { rlPlanTraps, rlUpdateTraps, rlShootTrap } from "./traps.js";
 import { walkStep } from "./walk.js";
 import {
   bossCardOffer,
@@ -158,23 +158,16 @@ function rlNearHazard(world) {
   return false;
 }
 
-const RL_ASHFALL_PERIOD = 3.4,
-  RL_BLOOM_GROW = 1.4,
-  RL_BLOOM_GROW_T = 35,
-  RL_BLOOM_EVERY = 7,
-  // 3.50.0: the tide's breath: after the swell, the radius swings between 44% and 100% of the
-  // gained growth with this period (per pool phase from its position, so the pools do not
-  // all breathe in step). The trough keeps the pool bigger than it started.
+const RL_FORGEWIND_PERIOD = 3.4,
+  RL_NECTAR_GROW = 1.4,
+  RL_NECTAR_GROW_T = 35,
+  RL_NECTAR_EVERY = 7,
   RL_TIDE_PERIOD = 22,
-  RL_STORM_EVERY = 6,
-  RL_STORM_WARN = 1.6,
-  // 3.51.0: the Shelf's blizzard breath: the thin ice freezes and thaws on this period (s) and the
-  // slick floor's grip swings up by RL_THAW_K at freeze peak (a Whiteout - the storm's peak -
-  // swings deeper by RL_THAW_STORM). The phase is the run's own clock (world.time, no rng draw -
-  // the roll sequence is untouched) and the renderer's fog breathes on the same clock.
+  RL_HARMONIC_EVERY = 7.2,
+  RL_HARMONIC_WARN = 1.6,
   RL_THAW_PERIOD = 20,
   RL_THAW_K = 0.4,
-  RL_THAW_STORM = 1.5;
+  RL_THAW_AURORA = 1.35;
 // 3.50.0: a stable phase for a tide pool from where it lies (no rng draw - the run's roll
 // sequence is untouched; the same seed places the same pool with the same phase)
 function rlTidePhase(x, y) {
@@ -340,6 +333,8 @@ const rlStep = 1 / 60,
         air: false,
         tractionT: 0,
         hopT: 0,
+        gildT: 0,
+        festT: 0,
       };
       if (snap) {
         this.player.hp = clamp(snap.hp, 1, this.stats.maxHp);
@@ -447,6 +442,9 @@ const rlStep = 1 / 60,
         player.shieldT = 0;
         player.tractionT = 0;
         player.hopT = 0;
+        player.gildT = 0;
+        player.festT = 0;
+        this.starfallN = 0;
         let novaFloor = 25 * (this.ws.nova || 0);
         player.nova = nova ?? Math.max(player.nova, novaFloor);
         this.waveT = 0;
@@ -620,7 +618,7 @@ const rlStep = 1 / 60,
         return null;
       let rng = eventRng(wave);
       rng.next();
-      return ["elite", "rain"][Math.floor(rng.next() * 2)];
+      return ["gilded", "starfall"][Math.floor(rng.next() * 2)];
     }
     /* 3.22.0: what the next wave brings (a look ahead for the upgrade choice; it changes nothing): the biome and whether
        it is a new one, the boss, the wave event, the mutator that joins in Endless, and whether traps are on the floor */
@@ -998,8 +996,8 @@ const rlStep = 1 / 60,
               this.updatePickups(dt);
               this.updateMarkers(dt);
               this.updateFeatures(dt);
-              if (this.event === "rain" && this.state === "fight") {
-                this.shardRain(dt);
+              if (this.event === "starfall" && this.state === "fight") {
+                this.starfallHarvest(dt);
               }
               this.sweep();
               this.checkWaveEnd();
@@ -1070,17 +1068,22 @@ const rlStep = 1 / 60,
         }
       }
     }
-    shardRain(dt) {
+    starfallHarvest(dt) {
       if (this.planIdx >= this.plan.length && this.enemies.length === 0) return;
       this.rainT -= dt;
       if (this.rainT > 0 || this.pickups.length > 200) return;
-      this.rainT = 0.8 + this.rng.next() * 0.5;
+      this.rainT = 0.85 + this.rng.next() * 0.5;
       let spot = this.arena.freePoint(this.rng, this.player.x, this.player.y, 3, 0.4),
-        pickup = this.mkPickup("shard", spot.x, spot.y, this.rng.chance(0.15) ? 5 : 1);
+        pickup = this.mkPickup("shard", spot.x, spot.y, this.rng.chance(0.18) ? 5 : 1);
       pickup.vx = 0;
       pickup.vy = 0;
       pickup.rain = true;
       this.pickups.push(pickup);
+      this.starfallN = (this.starfallN || 0) + 1;
+      if (this.starfallN % 3 === 0) {
+        this.explode(spot.x, spot.y, 2.35, 52 * this.stats.dmgMul, { enemies: true, knock: 3.2, kind: "payload" });
+        this.dropShards(spot.x, spot.y, 2);
+      }
     }
     updateFeatures(dt) {
       // 2.5.0 C: the biome event ticks first. The player's Acid Coating puddles (mine) are not map
@@ -1257,6 +1260,7 @@ const rlStep = 1 / 60,
                 player.y = toY + dirY * 1.2;
                 this.arena.resolve(player, player.r);
                 player.portalT = 0.9;
+                if (this.event === "harmonic") player.festT = Math.max(player.festT || 0, 3.0);
               }
               for (let list of [this.pb, this.eb])
                 for (let bullet of list)
@@ -1269,6 +1273,10 @@ const rlStep = 1 / 60,
                     bullet.x = toX + (bullet.vx / speed) * 0.9;
                     bullet.y = toY + (bullet.vy / speed) * 0.9;
                     bullet.warpT = this.time + 0.35;
+                    if (this.event === "harmonic" && list === this.pb && !bullet.harmonicBoost) {
+                      bullet.dmg *= 1.3;
+                      bullet.harmonicBoost = true;
+                    }
                     if (bullet.boom) {
                       bullet.back = true;
                     }
@@ -1302,6 +1310,8 @@ const rlStep = 1 / 60,
       let player = this.player;
       if (player.slipT > 0) player.slipT = Math.max(0, player.slipT - dt);
       if (player.heatT > 0) player.heatT = Math.max(0, player.heatT - dt);
+      if (player.gildT > 0) player.gildT = Math.max(0, player.gildT - dt);
+      if (player.festT > 0) player.festT = Math.max(0, player.festT - dt);
       this.updatePickups(dt);
       for (let bullet of this.eb) bullet.life = 0;
       this.sweep();
@@ -1396,15 +1406,21 @@ const rlStep = 1 / 60,
         // the Glowmarsh's mud clings (grip 24) and drags a little speed (biome.mud); 3.51.0: the Shelf's
         // blizzard breathes - the thin ice freezes and thaws on a ~20 s cycle and the grip swings with it
         let baseGrip = onIce ? 2.4 : this.arena.biome.grip || 16;
+        if (onIce && this.event === "aurora") {
+          player.tractionT = Math.max(player.tractionT || 0, 1.8);
+          if (player.dashCdT > 0) player.dashCdT = Math.max(0, player.dashCdT - 0.45 * dt);
+        }
         if (!onIce && this.arena.biome.id === "shelf") {
-          const storm = this.bioEv && this.bioEv.id === "whiteout" ? RL_THAW_STORM : 1;
-          baseGrip *= 1 + RL_THAW_K * storm * (0.5 - 0.5 * Math.cos((this.time / RL_THAW_PERIOD) * Math.PI * 2));
+          const auroraBoost = this.bioEv && this.bioEv.id === "aurora" ? RL_THAW_AURORA : 1;
+          baseGrip *= 1 + RL_THAW_K * auroraBoost * (0.5 - 0.5 * Math.cos((this.time / RL_THAW_PERIOD) * Math.PI * 2));
         }
         if (player.tractionT > 0) baseGrip = Math.max(baseGrip, 18);
+        if (player.gildT > 0) player.gildT = Math.max(0, player.gildT - dt);
+        if (player.festT > 0) player.festT = Math.max(0, player.festT - dt);
         const mudMul = player.hopT > 0 ? 1 : this.arena.biome.mud || 1;
-        const hopMul = player.hopT > 0 ? 1.15 : 1;
+        const hopMul = (player.hopT > 0 ? 1.15 : 1) * (player.gildT > 0 ? 1.14 : 1);
         let grip = dampFactor(baseGrip, dt),
-          speed = stats.speed * (onIce ? 1.12 : 1) * mudMul * hopMul * (player.slowT > 0 ? 0.65 : 1);
+          speed = stats.speed * (onIce ? 1.14 : 1) * mudMul * hopMul * (player.slowT > 0 ? 0.65 : 1);
         player.vx += (mx * speed - player.vx) * grip;
         player.vy += (my * speed - player.vy) * grip;
       }
@@ -1443,7 +1459,12 @@ const rlStep = 1 / 60,
       }
       player.firing = firing;
       player.manual = manual;
-      let rate = stats.weapon.rate * stats.rateMul * (1 + (stats.bloodrush ? 0.04 * player.rushN : 0));
+      let rate =
+        stats.weapon.rate *
+        stats.rateMul *
+        (1 + (stats.bloodrush ? 0.04 * player.rushN : 0)) *
+        (player.gildT > 0 ? 1.2 : 1) *
+        (player.festT > 0 ? 1.25 : 1);
       player.fireT -= dt;
       if (firing && aim != null) {
         let shots = 0;
@@ -1749,6 +1770,12 @@ const rlStep = 1 / 60,
           if (!enemy.dead && !enemy.boss && Math.hypot(enemy.x - sing.tx, enemy.y - sing.ty) < radius + enemy.r)
             enemy.slowT = Math.max(enemy.slowT, 1.2);
         });
+        for (const bullet of this.eb) {
+          if (bullet.life > 0 && Math.hypot(bullet.x - sing.tx, bullet.y - sing.ty) < radius * 1.15) {
+            bullet.life = 0;
+            this.emit("pop", { x: bullet.x, y: bullet.y, src: bullet.src, kind: bullet.kind, frost: bullet.frost });
+          }
+        }
       }
       this.singularities = this.singularities.filter((sing) => !sing.done);
     }
@@ -2439,6 +2466,10 @@ const rlStep = 1 / 60,
         });
         this.emit("championDown", { x: enemy.x, y: enemy.y, type: enemy.type });
       }
+      if (this.event === "gilded" && enemy.elite) {
+        this.player.gildT = Math.max(this.player.gildT || 0, 3.2);
+        this.emit("bountyPulse", { x: enemy.x, y: enemy.y });
+      }
       if (enemy.affix === "volatile") {
         let src = this._src;
         this._src = enemy.type;
@@ -2700,6 +2731,13 @@ const rlStep = 1 / 60,
           rail = !!weaponDefs[bullet.w].rail,
           bounces = bullet.bounce,
           back = bullet.back;
+        if (this.state === "fight" && bullet.life > 0 && !bullet.trapHit && this.traps.length) {
+          if (rlShootTrap(this, bullet, prevX, prevY)) {
+            bullet.trapHit = true;
+            this.emit("spark", { x: bullet.x, y: bullet.y, w: bullet.w });
+            if (bullet.pierce-- <= 0 && !bullet.boom) bullet.life = 0;
+          }
+        }
         for (let i = 0; i < probes && bullet.life > 0; i++) {
           let frac = probes > 1 ? ((i + 1) / probes - 1) * wallFrac : 0,
             sx = bullet.x + bullet.vx * dt * frac,
@@ -3490,7 +3528,7 @@ const rlStep = 1 / 60,
         let dx = player.x - pickup.x,
           dy = player.y - pickup.y,
           dist = Math.hypot(dx, dy) || 0.001,
-          skip = pickup.kind === "heal" && player.hp >= stats.maxHp - 0.5 && this.state === "fight";
+          skip = pickup.kind === "heal" && !pickup.nectar && player.hp >= stats.maxHp - 0.5 && this.state === "fight";
         if (skip && pickup.pull && !vacuum) {
           pickup.pull = false;
         }
@@ -3518,6 +3556,7 @@ const rlStep = 1 / 60,
           } else if (pickup.kind === "heal") {
             let before = player.hp;
             player.hp = Math.min(stats.maxHp, player.hp + pickup.v);
+            if (pickup.nectar || this.event === "nectar") player.hopT = Math.max(player.hopT || 0, 2.6);
             this.emit("heal", { x: player.x, y: player.y, v: Math.round(player.hp - before) });
           }
         }
@@ -3685,7 +3724,6 @@ const rlStep = 1 / 60,
         player = this.player,
         rng = makeRng(hashString(this.seed + ":biome-event:" + eventSeedId(id) + ":" + wave)),
         avoid = [{ x: player.x, y: player.y, r: 3.5 }],
-        // the extra sheets of a Whiteout are smaller, so they still fit between the wave's big ones
         add = (kind, count, size) => {
           for (let k = 0; k < count * 3 && count > 0; k++) {
             if (rlAddHazard250(arena, kind, rng, arena.obs, arena.W, arena.H, { avoid, cap: 9, size, tries: 60 })) {
@@ -3694,68 +3732,91 @@ const rlStep = 1 / 60,
           }
         };
       arena.rlEvent = id;
-      if (id === "devils") {
-        // 3.53.0: three more devils rise and wander the glass from there on
+      if (id === "mirage") {
         add("devils", 3);
-      } else if (id === "duskfall") {
-        // three more charged inlays; they arc in a chain (one after another, ordered around the centre), every 4.8 s
+        this.bioEv = { id, t: 0 };
+      } else if (id === "festival") {
         add("vents", 3);
         const vents = arena.vents.slice().sort((a, b) => Math.atan2(a.y, a.x) - Math.atan2(b.y, b.x)),
           period = 4.8;
         vents.forEach((vent, i) => {
           vent.period = period;
-          // a higher phase arcs sooner; every inlay is idle when the wave starts (cycle < warning at 2.1 s)
           vent.phase = ((vents.length - 1 - i) / vents.length) * 1.9;
           vent.st = "idle";
         });
-      } else if (id === "ashfall") {
-        // 3.49.0: ASHFALL: three more fumaroles, the lights die under the ash (the renderer dims), and
-        // every jet fires in step - the caldera fights back all at once
+        this.bioEv = { id, t: 0 };
+      } else if (id === "forgewind") {
         add("vents", 3);
-        const period = RL_ASHFALL_PERIOD;
+        const period = RL_FORGEWIND_PERIOD;
         for (const vent of arena.vents) {
           vent.period = period;
           vent.phase = 0;
           vent.st = "idle";
         }
-      } else if (id === "whiteout") add("ice", 3, [1.7, 2.5]);
-      else if (id === "bloom") {
+        this.bioEv = { id, t: 0 };
+      } else if (id === "aurora") {
+        add("ice", 3, [1.7, 2.5]);
+        this.bioEv = { id, t: 0 };
+      } else if (id === "nectar") {
         for (const pool of arena.acid) {
           if (pool.life == null) {
             pool.grow = {
               r0: pool.r,
-              to: rlHazardRoom250(arena, pool, pool.r * RL_BLOOM_GROW),
+              to: rlHazardRoom250(arena, pool, pool.r * RL_NECTAR_GROW),
               t0: 0,
-              dur: RL_BLOOM_GROW_T,
+              dur: RL_NECTAR_GROW_T,
               ph: rlTidePhase(pool.x, pool.y),
             };
           }
         }
-        this.bioEv = { id, t: 0, next: RL_BLOOM_EVERY, n: 0, rng };
-      } else if (id === "riftstorm") this.bioEv = { id, t: 0, next: RL_STORM_EVERY, rng };
+        this.bioEv = { id, t: 0, next: RL_NECTAR_EVERY, n: 0, rng };
+      } else if (id === "harmonic") this.bioEv = { id, t: 0, next: RL_HARMONIC_EVERY, rng };
     }
-    // 2.5.0 C: Spore Tide and Rift Storm over the wave (from updateFeatures)
     tickBiomeEvent(event, dt) {
       const arena = this.arena,
         player = this.player;
       event.t += dt;
-      if (event.id === "bloom") {
+      if (event.id === "festival" && arena.props) {
+        for (const prop of arena.props) {
+          if (prop.kind === "lantern" && Math.hypot(player.x - prop.x, player.y - prop.y) < 4.2) {
+            player.festT = Math.max(player.festT || 0, 1.5);
+            break;
+          }
+        }
+      } else if (event.id === "forgewind") {
+        this.addNova(2.0 * dt);
+        for (const vent of arena.vents) {
+          if (vent.st === "warn" || vent.st === "erupt") {
+            this.hash.query(vent.x, vent.y, vent.r + 1.4, (enemy) => {
+              if (!enemy.dead && !enemy.boss && Math.hypot(enemy.x - vent.x, enemy.y - vent.y) < vent.r + 1.4) {
+                enemy.burnT = Math.max(enemy.burnT, 1.6);
+                enemy.burnDps = Math.max(enemy.burnDps || 0, 10 * this.stats.dmgMul);
+              }
+            });
+          }
+        }
+      } else if (event.id === "mirage" && player.dashT > 0 && arena.devils) {
+        for (const devil of arena.devils) {
+          if ((devil.calmT || 0) <= 0 && Math.hypot(player.x - devil.x, player.y - devil.y) < devil.r + 1.8) {
+            devil.calmT = 5.0;
+            this.dropShards(devil.x, devil.y, 3);
+            this.emit("bountyPulse", { x: devil.x, y: devil.y });
+          }
+        }
+      } else if (event.id === "nectar") {
         for (const pool of arena.acid) {
           if (pool.grow) {
             const g = pool.grow;
             if (event.t < g.dur) {
-              // the swell: the tide creeps in over the wave (as Spore Bloom always grew)
               pool.r = g.r0 + (g.to - g.r0) * clamp((event.t - g.t0) / g.dur, 0, 1);
             } else {
-              // 3.50.0: the breath: a slow pull-back and return around the swell's high mark
               const k = 0.72 + 0.28 * Math.sin(((event.t - g.dur) / RL_TIDE_PERIOD) * Math.PI * 2 + g.ph * Math.PI * 2);
               pool.r = g.r0 + (g.to - g.r0) * k;
             }
           }
         }
         if (event.t >= event.next && event.n < 4) {
-          event.next += RL_BLOOM_EVERY;
-          // not on the player, not on an enemy about to spawn
+          event.next += RL_NECTAR_EVERY;
           const avoid = [
               { x: player.x, y: player.y, r: 4 },
               ...this.markers.map((marker) => ({ x: marker.x, y: marker.y, r: 1.2 })),
@@ -3771,10 +3832,35 @@ const rlStep = 1 / 60,
             pool.grow = { r0: 0.3, to: pool.r, t0: event.t, dur: 2.5, ph: rlTidePhase(pool.x, pool.y) };
             pool.r = 0.3;
             this.emit("hatch", { x: pool.x, y: pool.y, big: true });
+            const nectarSpot = arena.freePoint(event.rng, pool.x, pool.y, 2.6, 0.45);
+            if (nectarSpot) {
+              const globe = this.mkPickup("heal", nectarSpot.x, nectarSpot.y, 8);
+              globe.vx = 0;
+              globe.vy = 0;
+              globe.nectar = true;
+              this.pickups.push(globe);
+            }
           }
         }
-      } else if (event.id === "riftstorm" && arena.portals.length) {
-        if (!event.planned && event.t >= event.next - RL_STORM_WARN) {
+      } else if (event.id === "harmonic" && arena.portals.length) {
+        for (const portal of arena.portals) {
+          for (const [mx, my] of [
+            [portal.ax, portal.ay],
+            [portal.bx, portal.by],
+          ]) {
+            this.hash.query(mx, my, 3.2, (enemy) => {
+              if (enemy.dead || enemy.boss || enemy.ghost) return;
+              const dx = mx - enemy.x,
+                dy = my - enemy.y,
+                d = Math.hypot(dx, dy);
+              if (d > 0.6 && d < 3.2) {
+                enemy.kx += (dx / d) * 3.6 * dt;
+                enemy.ky += (dy / d) * 3.6 * dt;
+              }
+            });
+          }
+        }
+        if (!event.planned && event.t >= event.next - RL_HARMONIC_WARN) {
           event.planned = true;
           const next = { portals: [] };
           for (const portal of arena.portals) {
@@ -3797,12 +3883,11 @@ const rlStep = 1 / 60,
           }
         }
         if (event.t >= event.next) {
-          event.next += RL_STORM_EVERY;
+          event.next += RL_HARMONIC_EVERY;
           event.planned = false;
           for (const portal of arena.portals) {
             const dest = portal.next;
             if (!dest) continue;
-            // the new spots must still be clear of the player (it may have walked there)
             if (
               Math.hypot(player.x - dest.ax, player.y - dest.ay) > 1.6 &&
               Math.hypot(player.x - dest.bx, player.y - dest.by) > 1.6

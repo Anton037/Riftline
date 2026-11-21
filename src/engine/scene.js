@@ -679,7 +679,7 @@ export class GpuDebrisRing {
       this.d1End = -1;
     }
   }
-  spawn(x, y, z, vx, vy, vz, spawnTime, life, size, r, g, b, sx, sy, sz, rotSeed) {
+  spawn(x, y, z, vx, vy, vz, spawnTime, life, size, r, g, b, sx = 0, sy = 0, sz = 0, rotSeed = 0) {
     const dur = Math.max(0.05, life);
     const slot = this.cursor;
     this.cursor = (slot + 1) % this.capacity;
@@ -705,6 +705,16 @@ export class GpuDebrisRing {
     this._markDirty(slot);
     this.mesh.count = this.everUsed;
     this.mesh.visible = true;
+  }
+  clear() {
+    this.cursor = 0;
+    this.everUsed = 0;
+    this.d0Start = -1;
+    this.d0End = -1;
+    this.d1Start = -1;
+    this.d1End = -1;
+    this.mesh.count = 0;
+    this.mesh.visible = false;
   }
   sync() {
     this.mesh.count = this.everUsed;

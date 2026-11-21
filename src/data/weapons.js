@@ -1,15 +1,12 @@
-// Weapon table.
+// Handcrafted Lantern-Artificer Arms.
 
 const weaponDefs = {
   pulse: {
     id: "pulse",
-    name: "Pulse Blaster",
+    name: "Lantern Repeater",
     cost: 0,
     color: 0x91c9b4,
-    blurb: "Reliable rapid fire. Scales with everything.",
-    // 3.58.0: 13 (was 12). Wave-clear balance checks cleared a wave in 39.9 s with the free Pulse against
-    // 25.2 s with the Ember Jet, and it is the one weapon every new player owns - the same gap the Arc Caster
-    // was raised for in 3.40.0.
+    blurb: "Crisp lantern-glass bolts at a steady cadence. Harmonizes with every craft.",
     dmg: 13,
     rate: 6,
     speed: 27,
@@ -24,10 +21,10 @@ const weaponDefs = {
   },
   scatter: {
     id: "scatter",
-    name: "Scattergun",
+    name: "Brass Blunderbuss",
     cost: 120,
     color: 0xe5b878,
-    blurb: "Six piercing pellets at close range. Knocks enemies back.",
+    blurb: "Six warm brass shot-pellets up close. Sends foes tumbling back.",
     dmg: 10,
     rate: 2,
     speed: 26,
@@ -43,12 +40,10 @@ const weaponDefs = {
   },
   tesla: {
     id: "tesla",
-    name: "Arc Caster",
+    name: "Storm-Coil Rod",
     cost: 300,
     color: 0xc98860,
-    blurb: "Bolts that jump to two more enemies.",
-    // 3.40.0: 13 dmg at 5.5/s (was 11.5 at 5) - the weakest weapon sat under the free Pulse even
-    // before the chains; now the single-target DPS reaches Pulse and the chains are the bonus
+    blurb: "Copper-wound leyline arcs that leap across two nearby foes.",
     dmg: 13,
     rate: 5.5,
     speed: 34,
@@ -64,10 +59,10 @@ const weaponDefs = {
   },
   rail: {
     id: "rail",
-    name: "Railgun",
+    name: "Star-Glass Arquebus",
     cost: 450,
     color: 0xc0a6db,
-    blurb: "Slow, heavy slugs that pierce whole lines.",
+    blurb: "Heavy prismatic needles that punch clean through whole ranks.",
     dmg: 58,
     rate: 1.1,
     speed: 95,
@@ -83,10 +78,10 @@ const weaponDefs = {
   },
   rocket: {
     id: "rocket",
-    name: "Rocket Pod",
+    name: "Whistling Bombard",
     cost: 650,
     color: 0xe08c6c,
-    blurb: "Homing rockets with a splash radius.",
+    blurb: "Guided ceramic firework shells that blossom in a warm blast.",
     dmg: 24,
     rate: 1.35,
     speed: 15,
@@ -104,10 +99,10 @@ const weaponDefs = {
   },
   disc: {
     id: "disc",
-    name: "Disc Launcher",
+    name: "Gilded Chakram",
     cost: 800,
     color: 0xaac6b7,
-    blurb: "Spinning discs slice through everything \u2014 and come back.",
+    blurb: "Singing brass sun-rings that carve through crowds \u2014 and curve home.",
     dmg: 26,
     rate: 1.9,
     speed: 22,
@@ -123,10 +118,10 @@ const weaponDefs = {
   },
   flame: {
     id: "flame",
-    name: "Ember Jet",
+    name: "Hearth-Bellows",
     cost: 1e3,
     color: 0xe9a672,
-    blurb: "A short torrent of fire. Everything it touches burns.",
+    blurb: "Roaring ribbons of kiln-flame. Everything caught in its draft ignites.",
     dmg: 5.1,
     rate: 15,
     speed: 23,

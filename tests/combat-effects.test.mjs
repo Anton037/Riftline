@@ -320,7 +320,7 @@ test("canonical biome names preserve pre-update seeded routes and map geometry",
     assert.equal(
       createHash("sha256").update(JSON.stringify(features)).digest("hex"),
       row.digest,
-      `Ashfall event ${row.seed}/${row.wave}`,
+      `Forgewind event ${row.seed}/${row.wave}`,
     );
   }
 });

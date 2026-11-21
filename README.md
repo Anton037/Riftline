@@ -1,13 +1,10 @@
 # Riftline
 
-A 3D arena roguelite for desktop (mouse and keyboard) and phones/tablets in landscape.
+A **Tactile Cozy Diorama** 3D arena roguelite for desktop (mouse and keyboard) and phones/tablets in landscape.
 
 [Play Riftline](https://anton037.github.io/Riftline/)
 
-Fight through six handcrafted diorama biomes with seven weapons, interactive biome relics, evolving
-upgrades, workshop progression and achievements. Each biome has its own perimeter architecture, corner
-landmarks, boss, hazards, surface foley and musical arrangement. Complete the 20-wave run or continue
-into Endless. Saves and installed game assets work offline after the first successful load.
+Journey across six handcrafted miniature realms as a cloaked **Lantern-Artificer** wielding seven bespoke arms, interactive realm relics, evolving masterwork crafts, Sanctuary Workshop progression, and Wayfarer Journal bounties. Each realm features its own perimeter architecture, corner landmarks, guardian boss, interactive hazards, wave events, tactile surface foley, and modal musical score. Complete the 20-wave expedition or venture into Endless Trials. Saves and installed game assets work offline after the first load.
 
 ## Controls
 
@@ -16,10 +13,10 @@ into Endless. Saves and installed game assets work offline after the first succe
 | Move | Drag the left stick | `WASD` or Arrow keys |
 | Aim / fire | Drag the right stick | Hold left mouse button to aim/fire; auto-fire by default |
 | Dash | Tap `DASH` | `Space` / `Shift` |
-| Nova | Tap `NOVA` | `E` / `Q` / `F` |
-| Singularity | Tap `GADGET` | `G` |
+| Hearthburst | Tap `BURST` | `E` / `Q` / `F` |
+| Gravity Chime | Tap `CHIME` | `G` |
 | Pause / Back | Tap Pause | `Esc` / `P` |
-| Upgrades / End | Tap card or button | `1`–`4` pick, `B` banish, `R` reroll / retry |
+| Crafts / End | Tap card or button | `1`–`4` pick, `B` seal, `R` reroll / retry |
 
 Touch controls work in landscape and can be moved and resized in Settings. High detail is standard;
 choose a 30, 60 or 120 FPS cap, with 60 FPS as the default. Input switches automatically between touch

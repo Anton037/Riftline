@@ -6,17 +6,17 @@ import { rarityWeights, bossRarityWeights, upgradeList } from "../data/upgrades.
 import { RL_BIOME_INFO } from "../data/biomes.js";
 
 const waveEvents = {
-  elite: {
-    id: "elite",
-    name: "ELITE SURGE",
-    desc: "Fewer enemies, most of them elite · shards +50%",
+  gilded: {
+    id: "gilded",
+    name: "GILDED CARAVAN",
+    desc: "Treasure-laden elites grant Gilded Haste on defeat · shards +50%",
     shardMul: 1.5,
     plan: { budget: 0.6, elite: 0.5 },
   },
-  rain: {
-    id: "rain",
-    name: "SHARD RAIN",
-    desc: "Shards fall from the sky — and so does the swarm",
+  starfall: {
+    id: "starfall",
+    name: "STARFALL HARVEST",
+    desc: "Falling starlight meteors crush foes into clusters of shards",
     shardMul: 1,
     plan: { weights: { swarmer: 3, bomber: 1.6 } },
   },
@@ -229,78 +229,69 @@ function set_RL_BIOME_MIX_CUR(mix) {
 }
 export { waveEvents, EVENT_CHANCE, planWave, rollUpgradeOffer, set_RL_BIOME_MIX_CUR };
 
-// ---- 2.5.0 C: biome events and signature enemies ----
-// One event per hazard biome, on top of Elite Surge and Shard Rain. World.eventFor gives every
-// visit of a hazard biome one of them (wave 2–4 of the visit, never a boss wave); `biome` says
-// where it may happen. What they do is in world.js (and the renderer for the Whiteout fog).
+// ---- Handcrafted Diorama Biome Events & Signature Enemies ----
+// One bespoke event per biome alongside Gilded Caravan and Starfall Harvest.
 Object.assign(waveEvents, {
-  whiteout: {
-    id: "whiteout",
-    name: "WHITEOUT",
-    desc: "The storm's peak: low sight, more ice · shards +25%",
+  aurora: {
+    id: "aurora",
+    name: "AURORA TAILWIND",
+    desc: "Ribbon auroras sweep the shelf · glacier sheets grant Tailwind haste & dash charge · shards +25%",
     shardMul: 1.25,
     biome: "shelf",
     plan: {},
   },
-  // 3.53.0: the Glass Flats: the devils multiply. Three more dust devils rise when it starts and
-  // wander the glass from there on (the first moving hazard, now in numbers)
-  devils: {
-    id: "devils",
-    name: "DUST DEVILS",
-    desc: "The devils multiply · shards +25%",
+  mirage: {
+    id: "mirage",
+    name: "SUNGLASS MIRAGE",
+    desc: "Mirage whirlwinds dance across the flats · dash near a whirlwind to shatter it into shards · shards +25%",
     shardMul: 1.25,
     biome: "flats",
     plan: {},
   },
-  // 3.50.0: the Glowmarsh: the bloom tide. The id stays "bloom" (the event is wired by id); the
-  // name tells what it is now - the pools swell like before, and once the tide is in it breathes:
-  // a slow pull-back and return, so the glowing water opens windows to cross
-  bloom: {
-    id: "bloom",
-    name: "SPORE TIDE",
-    desc: "The tide breathes: pools swell, pull back, new ones surface · shards +25%",
+  nectar: {
+    id: "nectar",
+    name: "FIREFLY TIDE",
+    desc: "Bioluminescent pools breathe · firefly nectar globes mend Ward & grant Spore Hop · shards +25%",
     shardMul: 1.25,
     biome: "marsh",
     plan: {},
   },
-  // Lantern Hush dims the gallery, then the charged inlays chime and fire in sequence.
-  duskfall: {
-    id: "duskfall",
-    name: "LANTERN HUSH",
-    desc: "Twilight hushes the courtyard and the charged inlays chime in sequence · shards +25%",
+  festival: {
+    id: "festival",
+    name: "LANTERN FESTIVAL",
+    desc: "Festival lanterns warm the courtyard: inlays chime in sequence & braziers boost fire rate · shards +25%",
     shardMul: 1.25,
     biome: "courtyard",
     plan: {},
   },
-  riftstorm: {
-    id: "riftstorm",
-    name: "RIFT STORM",
-    desc: "Portals jump every few seconds · shards +25%",
+  harmonic: {
+    id: "harmonic",
+    name: "ASTRAL CONVERGENCE",
+    desc: "Astral portals radiate leylines: warping empowers shots +30% & tugs foes inward · shards +25%",
     shardMul: 1.25,
     biome: "core",
     plan: {},
   },
-  ashfall: {
-    id: "ashfall",
-    name: "ASHFALL",
-    desc: "The caldera wakes: lights out under the ash, every fumarole jets in step · shards +25%",
+  forgewind: {
+    id: "forgewind",
+    name: "BELLOWS DRAFT",
+    desc: "Great forge bellows roar: rhythmic anvil vents ignite foes & stoke Hearthburst · shards +25%",
     shardMul: 1.25,
     biome: "caldera",
     plan: {},
   },
 });
 const RL_BIOME_EVENT = {
-  courtyard: "duskfall",
-  shelf: "whiteout",
-  marsh: "bloom",
-  core: "riftstorm",
-  caldera: "ashfall",
-  flats: "devils",
+  courtyard: "festival",
+  shelf: "aurora",
+  marsh: "nectar",
+  core: "harmonic",
+  caldera: "forgewind",
+  flats: "mirage",
 };
 // Signature enemies: the enemies a biome's mix favours (weight >= 1) can spawn in that biome from
-// its first wave (before, Shattered Core's phantom came from wave 20 and weaver from 28 although Void
-// Core is waves 16–20). Enemies pulled forward this way spawn at half their weight until their
-// own wave, so they show up without flooding the wave. The first biome visit (waves 1-5) pulls nothing forward (3.4.0).
+// its first wave (e.g. Shattered Core's phantom and weaver). Enemies pulled forward this way spawn
+// at half their weight until their own wave, so they show up without flooding the wave. The first biome visit (waves 1-5) pulls nothing forward.
 const RL_EARLY_WEIGHT_250 = 0.5;
 function rlBiomeStart(wave) {
   return Math.floor((Math.max(1, wave) - 1) / 5) * 5 + 1;

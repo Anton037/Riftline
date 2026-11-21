@@ -71,7 +71,7 @@ function rlRenderHistory() {
         .filter(Boolean)
         .join(" · ");
       const build = run.build.map((id) => upgradesById[id].name).join(" · ");
-      return `<div class="row panel hist ${run.outcome}"><div class="rico">${iconSvg(icon)}</div><div><b>${run.outcome === "win" ? "Rift sealed" : "Wave " + run.wave}${run.endless ? " · Endless" : ""} · ${escapeHtml(weaponDefs[run.weapon].name)}</b><small>${escapeHtml(meta)}</small>${build ? `<small class="hist-build">${escapeHtml(build)}</small>` : ""}</div><span class="chip">${rlAgo(run.t)}</span></div>`;
+      return `<div class="row panel hist ${run.outcome}"><div class="rico">${iconSvg(icon)}</div><div><b>${run.outcome === "win" ? "Realms mended" : "Wave " + run.wave}${run.endless ? " · Endless" : ""} · ${escapeHtml(weaponDefs[run.weapon].name)}</b><small>${escapeHtml(meta)}</small>${build ? `<small class="hist-build">${escapeHtml(build)}</small>` : ""}</div><span class="chip">${rlAgo(run.t)}</span></div>`;
     })
     .join("");
 }
@@ -162,65 +162,64 @@ const getById = (id) => document.getElementById(id),
     ["Range", (stats) => stats.range, (value) => Math.round(value) + " m"],
     ["Pickup radius", (stats) => stats.magnet, (value) => formatTenths(value) + " m"],
     ["Dash cooldown", (stats) => stats.dashCd, formatCooldown],
-    ["Aegis every", (stats) => stats.shieldCd, formatCooldown],
-    ["Regen", (stats) => stats.regen, (value) => formatTenths(value) + " HP/s"],
+    ["Glass Bell", (stats) => stats.shieldCd, formatCooldown],
+    ["Mending", (stats) => stats.regen, (value) => formatTenths(value) + " Ward/s"],
     ["Blades", (stats) => stats.orbit, String],
     ["Blade damage", (stats) => (stats.orbit ? stats.orbitDmg * stats.dmgMul : 0), formatTenths],
-    ["Slow chance", (stats) => stats.cryo, formatPercent],
-    ["Chain chance", (stats) => stats.arc, formatPercent],
+    ["Chill chance", (stats) => stats.cryo, formatPercent],
+    ["Arc chance", (stats) => stats.arc, formatPercent],
     ["Bolt jumps", (stats) => stats.chain, String],
     [
-      "Flame burn",
+      "Kiln burn",
       (stats) => (stats.burn ? stats.burn * stats.burnMul * stats.dmgMul : 0),
       (value) => formatTenths(value) + "/s",
     ],
-    ["Chain jumps", (stats) => (stats.arc ? stats.arcJumps : 0), String],
-    ["Blast", (stats) => stats.payloadF, formatPercent],
-    ["Singularities", (stats) => stats.gadgetMax, String], // 3.0.0, 3.12.0: the Singularity
-    ["Singularity recharge", (stats) => stats.gadgetCd, formatCooldown],
-    ["Collapse damage", (stats) => stats.gadgetDmg, (value) => "\u00d7" + formatTenths(value)],
-    ["Burn", (stats) => stats.thermite, formatPercent],
-    ["Repair chance", (stats) => stats.siphonCh, formatPercent],
-    ["Nova radius", (stats) => stats.novaR, (value) => formatTenths(value) + " m"],
-    ["Nova charge", (stats) => stats.novaMul, (value) => "\u00d7" + formatTenths(value)],
-    ["Drones", (stats) => stats.wingmen, String],
-    ["Bloodrush cap", (stats) => (stats.bloodrush ? 0.4 : 0), formatPercent], // 2.6.0
+    ["Arc jumps", (stats) => (stats.arc ? stats.arcJumps : 0), String],
+    ["Sunburst", (stats) => stats.payloadF, formatPercent],
+    ["Gravity Chimes", (stats) => stats.gadgetMax, String],
+    ["Chime recharge", (stats) => stats.gadgetCd, formatCooldown],
+    ["Chime burst", (stats) => stats.gadgetDmg, (value) => "\u00d7" + formatTenths(value)],
+    ["Kindle", (stats) => stats.thermite, formatPercent],
+    ["Mending chance", (stats) => stats.siphonCh, formatPercent],
+    ["Hearthburst radius", (stats) => stats.novaR, (value) => formatTenths(value) + " m"],
+    ["Hearthburst charge", (stats) => stats.novaMul, (value) => "\u00d7" + formatTenths(value)],
+    ["Sprites", (stats) => stats.wingmen, String],
+    ["Zeal cap", (stats) => (stats.bloodrush ? 0.4 : 0), formatPercent],
   ],
   hitSourceName = (src) =>
     enemyDefs[src]?.name ||
     bossDefs[src]?.name ||
     {
-      lava: "Lava vent",
-      shock: "Charged inlay",
-      acid: "Acid pool",
-      trap: "Arena trap",
+      lava: "Forge vent",
+      shock: "Lantern inlay",
+      acid: "Bog pool",
+      trap: "Floor mechanism",
       devil: "Dust devil",
-      prop: "Biome relic",
+      prop: "Realm relic",
     }[src],
   damageSources = {
-    arc: ["Arc Relay", "#c0a6db"],
-    burn: ["Burning", "#ff8a2a"],
-    payload: ["Payload", "#ffa13d"],
-    orbit: ["Orbital Blades", "#b8dace"],
-    wingman: ["Wingman", "#91c9b4"],
-    dash: ["Shock Dash", "#a7d1bf"],
-    trail: ["Phantom trail", "#a7d1bf"],
-    nova: ["Nova", "#a7d1bf"],
-    pop: ["Bomber blasts", "#e9bf89"],
-    lava: ["Lava", "#ff6a2a"],
-    shock: ["Charged inlays", "#e5b878"],
-    inferno: ["Inferno", "#ff5a3a"],
-    overload: ["Overload", "#ffd27a"],
-    reactive: ["Reactive Plating", "#b8dace"],
-    surge: ["Combo Surge", "#e9bf89"],
-    grenade: ["Singularity", "#b57bff"], // 3.12.0: the old id of the gadget, kept for saved run records
-    trap: ["Arena traps", "#aeb9cf"], // 3.0.0: enemies caught by a trap
-    prop: ["Biome relics", "#f2c879"],
-    // 3.15.0: the boss cards
+    arc: ["Leyline Conduit", "#c0a6db"],
+    burn: ["Kindling", "#ff8a2a"],
+    payload: ["Sunburst Shell", "#ffa13d"],
+    orbit: ["Warding Blades", "#b8dace"],
+    wingman: ["Lantern Sprite", "#91c9b4"],
+    dash: ["Gale-Spark Step", "#a7d1bf"],
+    trail: ["Comet trail", "#a7d1bf"],
+    nova: ["Hearthburst", "#ffd47e"],
+    pop: ["Cinder-Pot blasts", "#e9bf89"],
+    lava: ["Forge vents", "#ff6a2a"],
+    shock: ["Lantern inlays", "#e5b878"],
+    inferno: ["Wildfire", "#ff5a3a"],
+    overload: ["Kiln Surge", "#ffd27a"],
+    reactive: ["Mirror Ward", "#b8dace"],
+    surge: ["Bell-Chime Cadence", "#e9bf89"],
+    grenade: ["Gravity Chime", "#b57bff"],
+    trap: ["Floor mechanisms", "#aeb9cf"],
+    prop: ["Realm relics", "#f2c879"],
     sealgrid: ["Lantern Cage", "#f08e70"],
-    shard: ["Shard Field", "#bacfd9"],
+    shard: ["Rime-Shard Burst", "#bacfd9"],
     fang: ["Glasswyrm Fang", "#ffd98a"],
-    brood: ["Brood", "#c1d291"],
+    brood: ["Glow-Spore Brood", "#c1d291"],
     other: ["Other", "#93a2bf"],
   },
   escapeHtml = (text) =>
@@ -732,15 +731,15 @@ const getById = (id) => document.getElementById(id),
       for (let el of document.querySelectorAll(".bankMirror")) el.textContent = formatCount(save.shards);
       let bossKills = Object.values(stats.bosses).reduce((sum, count) => sum + count, 0),
         cells = [
-          ["Runs", stats.runs],
-          ["Best wave", stats.bestWave || "\u2014"],
-          ["Full clears", stats.clears],
-          ["Enemies destroyed", formatCount(stats.kills)],
-          ["Bosses defeated", bossKills],
-          ["Best threat cleared", stats.bestClearThreat >= 0 ? threatLevels[stats.bestClearThreat].name : "\u2014"],
-          ["Time in the rift", formatTime(stats.playTime)],
-          ["Fastest clear", stats.bestTime > 0 ? formatTime(stats.bestTime) : "—"],
-          ["Shards earned", formatCount(stats.shardsEarned)],
+          ["Expeditions", stats.runs],
+          ["Farthest wave", stats.bestWave || "\u2014"],
+          ["Realms mended", stats.clears],
+          ["Foes defeated", formatCount(stats.kills)],
+          ["Guardians felled", bossKills],
+          ["Highest trial", stats.bestClearThreat >= 0 ? threatLevels[stats.bestClearThreat].name : "\u2014"],
+          ["Time afield", formatTime(stats.playTime)],
+          ["Swiftest clear", stats.bestTime > 0 ? formatTime(stats.bestTime) : "—"],
+          ["Shards gathered", formatCount(stats.shardsEarned)],
         ];
       getById("statGrid").innerHTML = cells
         .map(
@@ -1025,14 +1024,6 @@ const getById = (id) => document.getElementById(id),
       update("low", player.alive && hpFrac < 0.25, (low) => {
         getById("vignette").classList.toggle("low", low);
       });
-      // 3.41.0: the Whiteout draws its white edge over the view (CSS fades it with the fog ramp)
-      update(
-        "whiteout",
-        !!(world.arena && world.event === "whiteout" && world.state === "fight" && world.arena.biome?.id === "shelf"),
-        (on) => {
-          getById("vignette").classList.toggle("whiteout", on);
-        },
-      );
       update("shards", world.shards, (shards) => {
         getById("runShards").textContent = formatCount(shards);
         // 3.45.0: the bump re-reads the layout - at most twice a second; the number itself always moves
@@ -1139,7 +1130,7 @@ const getById = (id) => document.getElementById(id),
         }
         const btn = getById("gadgetBtn");
         btn.classList.toggle("empty", gadgetN <= 0);
-        btn.setAttribute("aria-label", `Throw Singularity, ${gadgetN} of ${gadgetMax} ready`);
+        btn.setAttribute("aria-label", `Toss Gravity Chime, ${gadgetN} of ${gadgetMax} ready`);
       });
       const gadgetPct =
         gadgetN >= gadgetMax || !(stats.gadgetCd > 0)
@@ -1157,24 +1148,23 @@ const getById = (id) => document.getElementById(id),
         stats = world.stats,
         chips = [];
       if (stats.bloodrush && player.rushN > 0) {
-        chips.push(["rush", `RUSH \xD7${player.rushN}`, "#f08e70", player.rushT / 4]);
+        chips.push(["rush", `ZEAL \xD7${player.rushN}`, "#f08e70", player.rushT / 4]);
       }
       if (world.chronoT > 0) {
-        chips.push(["chrono", "SLOW-MO", "#bacfd9", world.chronoT / 1.5]);
+        chips.push(["chrono", "HOURGLASS", "#bacfd9", world.chronoT / 1.5]);
       }
       if ((world.ws.revive || 0) > 0 && !world.revived) {
-        chips.push(["life", "2ND LIFE", "#abd397", -1]);
+        chips.push(["life", "PHOENIX", "#abd397", -1]);
       }
       if (world.barrierT > 0) {
-        chips.push(["barrier", "BARRIER", "#b5dcdc", world.barrierT / Math.max(1, stats.barrierT || 1)]);
+        chips.push(["barrier", "WARD BELL", "#b5dcdc", world.barrierT / Math.max(1, stats.barrierT || 1)]);
       }
       if (world.attuned && world.state === "fight") {
         chips.push(["attune", "ATTUNED", "#ffb86b", -1]);
       }
       if (world.event && world.state === "fight") {
-        chips.unshift(["event", waveEvents[world.event].name, world.event === "elite" ? "#ffc84a" : "#a7d1bf", -1]);
+        chips.unshift(["event", waveEvents[world.event].name, world.event === "gilded" ? "#ffc84a" : "#a7d1bf", -1]);
       }
-      // 3.3.0: the Endless mutators in play (with their level)
       for (const [id, level] of Object.entries(world.mods || {}))
         if (MUTATORS[id])
           chips.push([
@@ -1184,13 +1174,13 @@ const getById = (id) => document.getElementById(id),
             -1,
           ]);
       if (player.onIce && world.state === "fight") {
-        chips.push(["ice", "ICE", "#bff4ff", -1]);
+        chips.push(["ice", "GLACIER", "#bff4ff", -1]);
       }
       if (player.inAcid && world.state === "fight") {
-        chips.push(["acid", "ACID", "#b4ff3d", -1]);
+        chips.push(["acid", "BOG DEW", "#86f8ba", -1]);
       }
       if (player.inDevil && world.state === "fight") {
-        chips.push(["devil", "DUST DEVIL", "#ffe9c4", -1]);
+        chips.push(["devil", "WHIRLWIND", "#ffe9c4", -1]);
       }
       if (player.slowT > 0) {
         // 3.7.1: an electric trap stuns (0.8 s), ice chills (1.6 s)
@@ -1235,19 +1225,25 @@ const getById = (id) => document.getElementById(id),
       const on = world.state === "fight" && player.alive,
         want = [];
       if (on && stats.heatSink && player.heatT > 0) {
-        want.push(["heat", "HEAT", "#ff8a3d", player.heatT / 3]);
+        want.push(["heat", "BELLOWS", "#ff8a3d", player.heatT / 3]);
       }
       if (on && stats.slip && player.slipT > 0) {
-        want.push(["slip", "SLIPSTREAM", "#a7d1bf", player.slipT / 1.37]);
+        want.push(["slip", "TAILWIND", "#a7d1bf", player.slipT / 1.37]);
       }
       if (on && stats.skates && player.skating) {
         want.push(["skate", "SKATES", "#bff4ff", -1]);
       }
       if (on && player.tractionT > 0) {
-        want.push(["rime", "CRYO GRIP", "#9cf4ff", player.tractionT / 3.8]);
+        want.push(["rime", "RIME GRIP", "#9cf4ff", player.tractionT / 3.8]);
       }
       if (on && player.hopT > 0) {
-        want.push(["spore", "SPORE HOP", "#9cf8ae", player.hopT / 3.2]);
+        want.push(["spore", "SPORE HOP", "#9cf8ae", player.hopT / 2.8]);
+      }
+      if (on && player.gildT > 0) {
+        want.push(["gild", "GILDED", "#ffd872", player.gildT / 3.2]);
+      }
+      if (on && player.festT > 0) {
+        want.push(["fest", "HEARTH", "#ffb86c", player.festT / 3.0]);
       }
       const row = buffRow;
       if (!row) return;
@@ -1295,9 +1291,9 @@ const getById = (id) => document.getElementById(id),
     showChoose(world) {
       let bossReward = world.offerBoss;
       getById("chooseEyebrow").textContent = bossReward
-        ? `${bossDefs[world.bossKills[world.bossKills.length - 1]] ? bossDefs[world.bossKills[world.bossKills.length - 1]].name : "BOSS"} DEFEATED`
+        ? `${bossDefs[world.bossKills[world.bossKills.length - 1]] ? bossDefs[world.bossKills[world.bossKills.length - 1]].name : "GUARDIAN"} FELLED`
         : `WAVE ${world.wave} CLEARED`;
-      getById("chooseTitle").textContent = bossReward ? "Claim a rare reward" : "Choose an upgrade";
+      getById("chooseTitle").textContent = bossReward ? "Claim a guardian reward" : "Choose a craft";
       getById("chooseFirstHint").hidden = bossReward || world.wave !== 1;
       let hpFrac = clamp(world.player.hp / world.stats.maxHp, 0, 1);
       getById("chooseHp").style.transform = `scaleX(${hpFrac})`;
@@ -1307,23 +1303,21 @@ const getById = (id) => document.getElementById(id),
       this.coverHud(true);
       getById("choose").hidden = false;
     }
-    /* 3.22.0: what the next wave brings, as chips under the title: the biome (when it is a new one), the boss, the wave
-       event, the mutator that joins in Endless, traps */
     renderNextWave(world) {
       const box = getById("nextWave");
       if (!box) return;
       const next = world.previewWave(world.wave + 1),
         chips = [[`Wave ${next.wave}`, ""]];
       if (next.newBiome) chips.push([`Entering ${biomesById[next.biome].name}`, "biome"]);
-      if (next.boss) chips.push([`Boss \u00b7 ${bossDefs[next.boss] ? bossDefs[next.boss].name : next.boss}`, "boss"]);
+      if (next.boss)
+        chips.push([`Guardian \u00b7 ${bossDefs[next.boss] ? bossDefs[next.boss].name : next.boss}`, "boss"]);
       if (next.event && waveEvents[next.event]) chips.push([waveEvents[next.event].name, "event"]);
       if (next.mutator && MUTATORS[next.mutator])
-        chips.push([`New mutator \u00b7 ${MUTATORS[next.mutator].name}`, "mut"]);
-      if (next.traps) chips.push(["Traps on the floor", ""]);
+        chips.push([`New trial \u00b7 ${MUTATORS[next.mutator].name}`, "mut"]);
+      if (next.traps) chips.push(["Floor mechanisms active", ""]);
       box.innerHTML = chips.map(([text, cls]) => `<span class="nw ${cls}">${escapeHtml(text)}</span>`).join("");
     }
     renderCards(world) {
-      // 2.4.2: the reroll/banish labels survive a re-render, so drop their old key hints first
       for (const id of ["rerollBtn", "banishBtn"])
         getById(id)
           .querySelectorAll(".card-key")
@@ -1333,9 +1327,8 @@ const getById = (id) => document.getElementById(id),
         .map((id, i) => {
           let up = upgradesById[id],
             level = world.up[id] || 0,
-            // 3.15.0: a boss card carries the seal of its boss
             tag = up.boss
-              ? `${bossDefs[up.boss] ? bossDefs[up.boss].name.toUpperCase() : "BOSS"} \xB7 BOSS CARD`
+              ? `${bossDefs[up.boss] ? bossDefs[up.boss].name.toUpperCase() : "GUARDIAN"} \xB7 RELIC`
               : up.evo
                 ? "EVOLUTION"
                 : up.repeat
@@ -1345,7 +1338,7 @@ const getById = (id) => document.getElementById(id),
                     : `NEW \xB7 ${rarityNames[up.rarity].toUpperCase()}`,
             evo = this.evoHint(up, world),
             delta = this.statDelta(id, world);
-          const seal = up.boss ? `<span class="seal" aria-hidden="true">${iconSvg("skull")}</span>` : "";
+          const seal = up.boss ? `<span class="seal" aria-hidden="true">${iconSvg("star")}</span>` : "";
           return `<button class="card r${up.rarity}" data-pick="${id}" style="animation-delay:${i * 70}ms">${seal}<span class="cico">${iconSvg(up.icon)}</span><span><span class="ctop"><b>${escapeHtml(up.name)}</b><span class="lv">${tag}</span></span><p>${escapeHtml(up.desc(level))}</p>${delta}${evo}</span></button>`;
         })
         .join("");
@@ -1374,13 +1367,12 @@ const getById = (id) => document.getElementById(id),
         btn.disabled = world.banishes <= 0 || world.offer.length < 2;
         btn.classList.toggle("on", !!this.banishMode);
         btn.setAttribute("aria-pressed", String(!!this.banishMode));
-        getById("banishTxt").textContent = `Banish (${world.banishes})`;
+        getById("banishTxt").textContent = `Seal (${world.banishes})`;
         cards.classList.toggle("banishing", !!this.banishMode);
       }
       getById("rerollTxt").textContent = `Reroll (${world.rerolls})`;
       getById("rerollBtn").disabled = world.rerolls <= 0;
       getById("buildStrip").innerHTML = this.buildHtml(world);
-      // 2.4.2: keys 1-4 pick/banish a card, B banishes, R rerolls (keyboard players only)
       if (!RL_INPUT.touch) {
         cards.querySelectorAll("[data-pick]").forEach((card, i) => {
           card.classList.add("has-key");
@@ -1400,7 +1392,7 @@ const getById = (id) => document.getElementById(id),
         stats = world.stats;
       if (id === "heal") {
         let healed = Math.min(stats.maxHp, player.hp + stats.maxHp * 0.45);
-        return `<small class="delta">Hull ${Math.ceil(player.hp)} \u2192 ${Math.ceil(healed)}</small>`;
+        return `<small class="delta">Ward ${Math.ceil(player.hp)} \u2192 ${Math.ceil(healed)}</small>`;
       }
       let next = computeStats(world.weapon, { ...world.up, [id]: (world.up[id] || 0) + 1 }, world.ws),
         lines = [];
@@ -1522,7 +1514,7 @@ const getById = (id) => document.getElementById(id),
         ? `${threatLevels[result.threat].name.toUpperCase()} \xB7 ALL ${20} WAVES`
         : `${weaponDefs[result.weapon].name.toUpperCase()} \xB7 ${threatLevels[result.threat].name.toUpperCase()}`;
       let title = getById("overTitle");
-      title.textContent = result.win ? "RIFT SEALED" : result.abandoned ? "RUN ENDED" : "SIGNAL LOST";
+      title.textContent = result.win ? "REALMS MENDED" : result.abandoned ? "EXPEDITION ENDED" : "LANTERN DIMMED";
       title.className = "over-title " + (result.win ? "win" : "lose");
       getById("overBest").hidden = !(result.best || result.fastest);
       getById("overBest").textContent = result.fastest && !result.best ? "NEW FASTEST" : "NEW BEST";
@@ -1756,22 +1748,20 @@ const getById = (id) => document.getElementById(id),
     }
   };
 // 2.5.0 A: HUD chips of the timed upgrades and biome relics, managed next to the chips of GameUI.buffs
-const timedBuffChips = ["heat", "slip", "skate", "rime", "spore"];
-// 2.4.2: closes settings that were opened from the pause menu
+const timedBuffChips = ["heat", "slip", "skate", "rime", "spore", "gild", "fest"];
 function closePauseSettings(ui) {
   ui.rlFromPause = false;
   getById("settings").hidden = true;
   getById("settings").classList.remove("in-run");
 }
 
-// the hazard & interactive relic of each biome in a few words (the RL_BIOME_INFO tag is the fallback for new biomes)
 const RL_BIOME_CARD = {
-  courtyard: "Charged inlays discharge · spark garden lanterns to stun & light the dusk",
-  shelf: "Slick ice under the aurora · shatter rime crystals for frost & skating grip",
-  marsh: "Clinging mud & glowing tide · pop spore puffballs for a swift marsh hop",
-  core: "Portals fold the arena · ring resonance prisms to split shots & slow fire",
-  caldera: "Magma vents & forge basalt · stoke slag crucibles to crack enemy armor",
-  flats: "Wandering dust devils · strike sunglass lenses to fan solar bolts & calm winds",
+  courtyard: "Lantern inlays chime · spark garden braziers to stun foes & warm the flagstones",
+  shelf: "Sapphire ice beneath the aurora · shatter rime crystals for frost & sure footing",
+  marsh: "Velvet moss & firefly pools · pop spore puffballs for a swift marsh hop",
+  core: "Astral portals fold the vault · ring resonance prisms to split bolts & slow shots",
+  caldera: "Basalt forge vents roar · stoke slag crucibles to sunder heavy plating",
+  flats: "Sunglass whirlwinds dance · strike desert lenses to fan solar bolts & calm winds",
 };
 const rlHex = (color) => "#" + ((Number(color) >>> 0) & 0xffffff).toString(16).padStart(6, "0");
 function rlBiomeCardInfo(biome) {

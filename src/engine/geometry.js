@@ -114,6 +114,7 @@ export class Geometry {
     );
   }
   translate(dx, dy, dz) {
+    if (this.shared) return this.clone().translate(dx, dy, dz);
     const p = this.positions;
     for (let i = 0; i < p.length; i += 3) {
       p[i] += dx;
@@ -136,6 +137,7 @@ export class Geometry {
     return this;
   }
   scale(sx, sy = sx, sz = sx) {
+    if (this.shared) return this.clone().scale(sx, sy, sz);
     const p = this.positions,
       n = this.normals;
     const ix = sx ? 1 / sx : 0,
@@ -148,7 +150,7 @@ export class Geometry {
       const nx = n[i] * ix,
         ny = n[i + 1] * iy,
         nz = n[i + 2] * iz;
-      const l = Math.hypot(nx, ny, nz) || 1;
+      const l = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
       n[i] = nx / l;
       n[i + 1] = ny / l;
       n[i + 2] = nz / l;
@@ -176,6 +178,7 @@ export class Geometry {
     return this;
   }
   rotateX(a) {
+    if (this.shared) return this.clone().rotateX(a);
     const c = Math.cos(a),
       s = Math.sin(a),
       p = this.positions,
@@ -196,6 +199,7 @@ export class Geometry {
     return this;
   }
   rotateY(a) {
+    if (this.shared) return this.clone().rotateY(a);
     const c = Math.cos(a),
       s = Math.sin(a),
       p = this.positions,
@@ -216,6 +220,7 @@ export class Geometry {
     return this;
   }
   rotateZ(a) {
+    if (this.shared) return this.clone().rotateZ(a);
     const c = Math.cos(a),
       s = Math.sin(a),
       p = this.positions,
@@ -236,6 +241,7 @@ export class Geometry {
     return this;
   }
   applyMatrix4(mat) {
+    if (this.shared) return this.clone().applyMatrix4(mat);
     const e = mat.elements,
       p = this.positions,
       n = this.normals;
@@ -276,7 +282,7 @@ export class Geometry {
       const rx = n00 * nx + n01 * ny + n02 * nz;
       const ry = n10 * nx + n11 * ny + n12 * nz;
       const rz = n20 * nx + n21 * ny + n22 * nz;
-      const l = Math.hypot(rx, ry, rz) || 1;
+      const l = Math.sqrt(rx * rx + ry * ry + rz * rz) || 1;
       n[i] = rx / l;
       n[i + 1] = ry / l;
       n[i + 2] = rz / l;
@@ -287,6 +293,7 @@ export class Geometry {
     return this;
   }
   setColor(hex) {
+    if (this.shared) return this.clone().setColor(hex);
     _col.setHex(hex);
     const n = this.vertexCount;
     const c = (this.colors ||= new Float32Array(n * 3));
@@ -299,6 +306,7 @@ export class Geometry {
     return this;
   }
   tintGradientY(botHex, topHex) {
+    if (this.shared) return this.clone().tintGradientY(botHex, topHex);
     const b = this.computeBounds();
     const minY = b.min.y,
       span = Math.max(1e-4, b.max.y - minY);
@@ -346,10 +354,13 @@ export class Geometry {
       n[ic + 2] += nz;
     }
     for (let i = 0; i < n.length; i += 3) {
-      const l = Math.hypot(n[i], n[i + 1], n[i + 2]) || 1;
-      n[i] /= l;
-      n[i + 1] /= l;
-      n[i + 2] /= l;
+      const nx = n[i],
+        ny = n[i + 1],
+        nz = n[i + 2];
+      const l = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+      n[i] = nx / l;
+      n[i + 1] = ny / l;
+      n[i + 2] = nz / l;
     }
     this.version++;
     return this;
@@ -381,7 +392,7 @@ export class Geometry {
       let nx = ay * bz - az * by,
         ny = az * bx - ax * bz,
         nz = ax * by - ay * bx;
-      const l = Math.hypot(nx, ny, nz) || 1;
+      const l = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
       nx /= l;
       ny /= l;
       nz /= l;
