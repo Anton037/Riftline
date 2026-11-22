@@ -1,5 +1,7 @@
-# Text files use LF everywhere (Prettier and the build expect it); images and fonts are binary
+# Text files use LF everywhere (Prettier and the build expect it); images, audio and fonts are binary
 * text=auto eol=lf
 *.png binary
 *.jpg binary
+*.webp binary
+*.wav binary
 *.woff2 binary
