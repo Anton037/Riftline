@@ -772,6 +772,16 @@ export class WebGL2Engine {
     return p;
   }
 
+  // 5.1.1: compile every program up front, while the loading screen is up. iOS Safari links GL
+  // programs synchronously on first use - tens to hundreds of ms of main-thread stall per new
+  // program - so the first wave that showed a new biome floor or hazard surface froze right in
+  // the wave transition. Desktop drivers hide this cost; phones cannot. The renderer passes every
+  // key _getProgram can build (the fixed cases here plus floor styles and hazard surfaces), so no
+  // in-run frame ever waits for a link.
+  warmupPrograms(keys) {
+    for (let i = 0; i < keys.length; i++) this._getProgram(keys[i]);
+  }
+
   _useProgram(p) {
     if (this._curProg !== p) {
       this.gl.useProgram(p.program);

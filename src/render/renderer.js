@@ -225,7 +225,43 @@ export class Renderer {
     this.finishAtlasReady = false;
     this.B = { rx: 1, ry: 0, rz: 0, ux: 0, uy: 1, uz: 0, fx: 0, fy: 0, fz: 1 };
 
-    this.engine = new WebGL2Engine(canvas, { shadowSize: 2048, post: true });
+    // 5.1.1: no explicit shadowSize - the engine's own default gives coarse-pointer devices
+    // (phones/tablets) a 1024 shadow map and fine-pointer desktops 2048. The old forced 2048 had
+    // every phone re-render the whole scene into an oversized depth target on top of the main pass.
+    this.engine = new WebGL2Engine(canvas, { post: true });
+    // 5.1.1: link every shader program now, while the loading screen is up (see warmupPrograms).
+    // Floor styles come from the biome GLAZES; hazard surfaces are the kinds HazardView.surf builds.
+    this.engine.warmupPrograms([
+      "shadow",
+      "shadow_inst",
+      "shadow_compact",
+      "shadow_debris",
+      "stylized",
+      "stylized_inst",
+      "stylized_compact",
+      "emissive",
+      "emissive_inst",
+      "emissive_compact",
+      "floor",
+      ...Object.values(RL_BIOME_LOOK).map((look) => `floor_${look.style}`),
+      "aurora",
+      "aegis",
+      "flame_inst",
+      "abilityWave_inst",
+      "abilityField_inst",
+      "abilityCore_inst",
+      "zoneTelegraph_inst",
+      "floorMark_inst",
+      "smoke_inst",
+      "gpuParticle",
+      "gpuDebris",
+      "wakeDecay",
+      "wakeStamp",
+      "bloomPrefilter",
+      "bloomKawase",
+      "postComposite",
+      ...["dust", "molten", "pyro", "ice", "acid", "portal"].map((kind) => `hazard_${kind}_inst`),
+    ]);
     // Alias for diagnostics, browser tests and verification tools
     this.renderer = this.engine;
     this.scene = new Scene();

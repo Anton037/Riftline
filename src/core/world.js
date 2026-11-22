@@ -340,13 +340,14 @@ const rlStep = 1 / 60,
         this.wave = wave;
         this.rng = makeRng(hashString(this.seed + ":" + wave));
         let biome = this.biomeFor(wave),
-          // 3.30.0: built ahead while the upgrade choice was open (prefetchLayout), else now
-          ahead = this.nextLayout && this.nextLayout.wave === wave ? this.nextLayout.layout : null,
-          layout = ahead || buildLayout(biome, this.seed, wave, wave === 1 || !!this.bossFor(wave));
+          // 3.30.0: built ahead while the upgrade choice was open (prefetchLayout), else now.
+          // 5.1.1: the prefetch carries the Arena and SpatialHash built from this exact layout.
+          ahead = this.nextLayout && this.nextLayout.wave === wave ? this.nextLayout : null,
+          layout = ahead ? ahead.layout : buildLayout(biome, this.seed, wave, wave === 1 || !!this.bossFor(wave));
         this.nextLayout = null;
         if (!this.arena || this.arena.key !== layout.key) {
-          this.arena = new Arena(biome, layout);
-          this.hash = new SpatialHash(layout.W, layout.H, 2.5);
+          this.arena = ahead ? ahead.arena : new Arena(biome, layout);
+          this.hash = ahead ? ahead.hash : new SpatialHash(layout.W, layout.H, 2.5);
         } else {
           this.arena.resetProps?.();
         }
@@ -758,11 +759,20 @@ const rlStep = 1 / 60,
     }
     /* 3.30.0: builds the layout of the next wave ahead of time (main.js calls it while the upgrade choice is open). A layout
        only depends on the biome, the seed and the wave, so this changes nothing but when the work is done: building it took
-       13 to 66 ms on a desktop CPU, a hitch at the moment a card was picked. */
+       13 to 66 ms on a desktop CPU, a hitch at the moment a card was picked. 5.1.1: the layout key embeds the wave, so every
+       wave also built a fresh Arena (flow field, biome props) and SpatialHash inside the transition frame - a visible freeze
+       on phones. Both only read the layout (props are seeded from the arena key), so they are built here alongside it. */
     prefetchLayout() {
       const wave = this.wave + 1;
       if (this.state !== "choose" || (this.nextLayout && this.nextLayout.wave === wave)) return;
-      this.nextLayout = { wave, layout: buildLayout(this.biomeFor(wave), this.seed, wave, !!this.bossFor(wave)) };
+      const biome = this.biomeFor(wave),
+        layout = buildLayout(biome, this.seed, wave, !!this.bossFor(wave));
+      this.nextLayout = {
+        wave,
+        layout,
+        arena: new Arena(biome, layout),
+        hash: new SpatialHash(layout.W, layout.H, 2.5),
+      };
     }
     // no cards: repair the hull a bit, pay a few shards and go on with the next wave
     skipEmptyChoice() {

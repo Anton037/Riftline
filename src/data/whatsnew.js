@@ -4,6 +4,15 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "5.1.1",
+    title: "Smooth wave transitions, especially on phones",
+    items: [
+      "Wave changes no longer stutter on phones: the next arena and its props are prepared while you pick a card.",
+      "Every shader compiles during loading, so new floors, hazards and effects never hitch mid-run.",
+      "Phones render shadows at a lighter resolution tuned to their screens, freeing power for busy fights.",
+    ],
+  },
+  {
     version: "5.1.0",
     title: "Audio overhaul, cleaner effects, full aiming animation & smoother play",
     items: [
@@ -45,16 +54,6 @@ export const WHATS_NEW = [
       "All 25 enemies, six bosses, and the walker gain richer miniature detail, biome weathering, and punchier effects.",
       "A new cozy score, handcrafted acoustic instruments, musical UI chimes, and biome soundscapes accompany play.",
       "WebGL2 shader, shadow, and instancing optimizations cut uniform and program overhead across busy waves.",
-    ],
-  },
-  {
-    version: "4.4.1",
-    title: "Steady lamps and engraved combat cues",
-    items: [
-      "Lantern Courtyard now has warm gallery lamps, ceramic chimes, and rising charged inlays.",
-      "The Bellkeeper fires brass seals, and the Storm-Coil traces copper paths.",
-      "Mine fuses, beams, summons, and dash effects use steady inlays and visible progress marks.",
-      "Biome titles, boss cards, and combat feedback match the glazed interface.",
     ],
   },
 ];
