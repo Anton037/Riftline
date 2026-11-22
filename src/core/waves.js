@@ -259,7 +259,7 @@ Object.assign(waveEvents, {
   festival: {
     id: "festival",
     name: "LANTERN FESTIVAL",
-    desc: "Festival lanterns warm the courtyard: inlays chime in sequence & braziers boost fire rate · shards +25%",
+    desc: "Festival lanterns warm the courtyard: bell-censers toll in sequence & braziers boost fire rate · shards +25%",
     shardMul: 1.25,
     biome: "courtyard",
     plan: {},

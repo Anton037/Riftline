@@ -65,36 +65,47 @@ const MODELS = {
       meshPart(icosahedron(0.62, 1), 0xffcf88, { y: 0.44, sy: 0.58 }),
     ],
   }),
-  // Courtyard: recessed rain-slate & antique brass floor inlay
+  // Courtyard: octagonal stone bell-shrine basin with mossy corners & gilded rim
   collar: () => ({
     body: [
-      baseDisk(0x20323e, 1.04, 0.085, 0.042, 12),
-      baseDisk(0x16222c, 0.87, 0.048, 0.085, 12),
-      inscribed(0xdfa65e, 0.91, 0.028, 0.115, 18),
-    ],
-    glow: [inscribed(0x70e8d4, 0.79, 0.042, 0.085, 18)],
-  }),
-  cover: () => ({
-    body: [
-      baseDisk(0x324f5e, 0.81, 0.072, 0.044, 8),
-      ...Array.from({ length: 8 }, (_, i) => {
-        const a = (i * TAU) / 8;
-        return fac(0xdfa864, 0.19, {
-          x: Math.cos(a) * 0.54,
-          z: Math.sin(a) * 0.54,
-          y: 0.095,
+      baseDisk(0x28363e, 1.02, 0.11, 0.055, 8),
+      baseDisk(0x18232b, 0.84, 0.06, 0.11, 8),
+      inscribed(0xcfa056, 0.9, 0.036, 0.13, 16),
+      ...Array.from({ length: 4 }, (_, i) => {
+        const a = (i * TAU) / 4 + Math.PI / 4;
+        return meshPart(icosahedron(0.16, 0), i % 2 ? 0x3b5848 : 0x344a56, {
+          x: Math.cos(a) * 0.94,
+          z: Math.sin(a) * 0.94,
+          y: 0.11,
           ry: -a,
-          sx: 1.15,
-          sy: 0.14,
-          sz: 0.42,
+          sx: 1.1,
+          sy: 0.56,
+          sz: 1.1,
         });
       }),
     ],
-    glow: [inscribed(0x88f0dc, 0.44, 0.018, 0.106, 20), fac(0xf4ead8, 0.12, { y: 0.12, sy: 0.2 })],
+    glow: [inscribed(0xe8b862, 0.76, 0.032, 0.115, 16)],
   }),
+  // Courtyard: suspended bronze temple bell & pagoda crown that lifts and swings to toll
+  cover: () => ({
+    body: [
+      meshPart(cylinder(0.18, 0.44, 0.48, 10), 0xcf9446, { y: 0.34 }),
+      inscribed(0xe8be6e, 0.43, 0.036, 0.13, 14),
+      inscribed(0x8e5c26, 0.28, 0.028, 0.42, 12),
+      meshPart(cylinder(0.05, 0.24, 0.14, 8), 0x2c4652, { y: 0.64 }),
+      meshPart(icosahedron(0.1, 0), 0xf0c874, { y: 0.74 }),
+      meshPart(icosahedron(0.11, 0), 0x7c4c1c, { y: 0.12 }),
+    ],
+    glow: [inscribed(0xffd67c, 0.44, 0.022, 0.14, 16), fac(0xfff0c4, 0.1, { y: 0.78, sy: 1.15 })],
+  }),
+  // Courtyard: miniature arched brass lantern-pillars standing at the 4 corners of the shrine basin
   inlayProng: () => ({
-    body: [fac(FINISH.copper, 0.26, { y: 0.34, sy: 1.7, sx: 0.64, sz: 0.6 })],
-    glow: [fac(FINISH.ivory, 0.09, { y: 0.74, sy: 1.45, sx: 0.52, sz: 0.52 })],
+    body: [
+      meshPart(cylinder(0.06, 0.09, 0.52, 6), 0x344c58, { y: 0.26 }),
+      meshPart(cylinder(0.03, 0.18, 0.12, 6), 0x263c48, { y: 0.68 }),
+      inscribed(0xd49e52, 0.14, 0.02, 0.53, 10),
+    ],
+    glow: [meshPart(cylinder(0.09, 0.09, 0.16, 6), 0xffcf74, { y: 0.56 })],
   }),
   // Shelf: beveled glacier crystals & slate-ice rim stones
   shard: () => ({
@@ -351,52 +362,85 @@ export class HazardView {
   }
   chargedInlays(dt, world, quality) {
     const r = this.r;
+    const time = r.time;
     const collar = this.get("collar");
     const cover = this.get("cover");
-    const prong = this.get("inlayProng", MAX.prong);
+    const pillar = this.get("inlayProng", MAX.prong);
     for (const vent of world.arena.vents) {
       const { state, k } = this.ventState(world, vent);
       const { x, y: z, r: radius } = vent;
       const rot = seedOf(x, z) * TAU;
-      const sc = Math.min(radius * 0.95, 0.92);
-      const live = state === "erupt";
-      const charge = live ? 1 : k;
-      const lift = charge ** 2 * 0.31;
-      const aperture = rot + charge * 0.47;
-      collar.body.y(x, 0, z, rot, sc, 1, sc);
-      collar.glow.colC(collar.glow.y(x, 0, z, rot, sc, 1, sc), AMBER, 0.32 + charge * 0.72);
-      cover.body.y(x, lift, z, aperture, sc, 1, sc);
-      cover.glow.colC(cover.glow.y(x, lift, z, aperture, sc, 1, sc), live ? HEAT : AMBER, 0.4 + charge * 0.62);
-      if (state === "idle") continue;
+      const sc = Math.min(radius * 0.96, 1.05);
+      const friendly = (vent.rungT || 0) > 0;
+      const live = state === "erupt" && !friendly;
+      const warn = state === "warn" && !friendly;
+      const charge = live ? 1 : warn ? k : friendly ? Math.min(1, vent.rungT / 0.7) : 0;
+      const lift = 0.08 + charge * 0.34;
+      const sway = friendly
+        ? Math.sin(time * 22 + rot) * 0.44 * Math.min(1, vent.rungT)
+        : live
+          ? Math.sin(time * 18 + rot) * 0.38
+          : warn
+            ? Math.sin(time * (8 + k * 10) + rot) * (0.1 + 0.24 * k)
+            : Math.sin(time * 1.6 + rot) * 0.04;
+      const glowCol = friendly ? PORTAL_B : live ? HEAT : AMBER;
 
-      const pigment = live ? HEAT : AMBER;
-      this.ring(x, z, radius, pigment, 0.65 + charge * 0.4);
-      r.discs.colC(r.discs.y(x, 0.058, z, rot, radius * 0.95), pigment, live ? 0.35 : 0.12 + charge * 0.14);
+      // Octagonal shrine basin
+      collar.body.y(x, 0, z, rot, sc, 1, sc);
+      collar.glow.colC(collar.glow.y(x, 0, z, rot, sc, 1, sc), glowCol, 0.28 + charge * 0.68);
+      // Swinging suspended bronze temple bell
+      cover.body.yr(x, lift, z, rot, sc, sc, sc, sway, 0);
+      cover.glow.colC(cover.glow.yr(x, lift, z, rot, sc, sc, sc, sway, 0), glowCol, 0.34 + charge * 0.66);
+      // 4 permanent corner brass lantern-pillars around the shrine rim
+      const postDist = sc * 0.88;
       for (let i = 0; i < 4; i++) {
         const angle = rot + (TAU * i) / 4;
-        const px = x + Math.cos(angle) * radius * 0.66;
-        const pz = z + Math.sin(angle) * radius * 0.66;
-        const grow = 0.18 + charge * 0.72;
-        const idx = prong.body.yr(px, 0.015, pz, angle, 0.85, grow, 0.85, 0, 0.22);
-        prong.body.col(idx, 1, 1, 1);
-        prong.glow.colC(prong.glow.yr(px, 0.015, pz, angle, 0.85, grow, 0.85, 0, 0.22), pigment, 0.65 + charge * 0.38);
+        const px = x + Math.cos(angle) * postDist;
+        const pz = z + Math.sin(angle) * postDist;
+        const pScale = 0.85 + charge * 0.16;
+        const idx = pillar.body.yr(px, 0.02, pz, angle, pScale, pScale, pScale, 0, 0);
+        pillar.body.col(idx, 1, 1, 1);
+        pillar.glow.colC(
+          pillar.glow.yr(px, 0.02, pz, angle, pScale, pScale, pScale, 0, 0),
+          glowCol,
+          0.42 + charge * 0.58,
+        );
       }
-      if (live && Math.random() < dt * 13 * quality) {
+
+      if (friendly) {
+        const ripple = 1 - clamp(vent.rungT / 1.4, 0, 1);
+        this.ring(x, z, radius * (0.45 + ripple * 0.85), PORTAL_B, (1 - ripple * 0.75) * 0.9);
+        this.ring(x, z, radius * 1.18, AMBER, (1 - ripple) * 0.55);
+        r.discs.colC(r.discs.y(x, 0.055, z, rot, radius * 1.05), PORTAL_B, (1 - ripple) * 0.24);
+      } else if (warn) {
+        this.ring(x, z, radius, AMBER, 0.52 + k * 0.44);
+        // Inward-contracting brass chime ring showing exact toll timing (shoot to ring early!)
+        this.ring(x, z, radius * Math.max(0.24, 1 - k * 0.74), PYRO_HOT, 0.4 + k * 0.45);
+        r.discs.colC(r.discs.y(x, 0.055, z, rot, radius * 0.95), AMBER, 0.09 + k * 0.14);
+      } else if (live) {
+        const pulse = (time * 2.2 + seedOf(x, z)) % 1;
+        this.ring(x, z, radius, HEAT, 0.92);
+        this.ring(x, z, radius * (0.28 + pulse * 0.74), AMBER, (1 - pulse) * 0.85);
+        r.discs.colC(r.discs.y(x, 0.055, z, rot, radius * 0.96), HEAT, 0.28);
+      }
+
+      if ((live || friendly) && Math.random() < dt * 14 * quality) {
         const a = TAU * Math.random();
+        const spd = 1.6 + Math.random() * 1.2;
         r.emit(
-          x + Math.cos(a) * radius * 0.62,
-          0.4,
-          z + Math.sin(a) * radius * 0.62,
-          Math.cos(a) * 1.4,
-          1.9,
-          Math.sin(a) * 1.4,
-          0.48,
+          x + Math.cos(a) * radius * 0.52,
+          0.45,
+          z + Math.sin(a) * radius * 0.52,
+          Math.cos(a) * spd,
+          2.0,
+          Math.sin(a) * spd,
+          0.52,
           0.14,
-          AMBER,
+          friendly ? PORTAL_B : AMBER,
           {
             spark: true,
-            drag: 2,
-            grav: 3,
+            drag: 2.1,
+            grav: 2.6,
           },
         );
       }

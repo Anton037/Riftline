@@ -157,7 +157,7 @@ function planBiomeRoute(rng) {
 
 // Enemy mixes and the mechanics that distinguish each biome.
 const RL_BIOME_INFO = {
-  courtyard: { tag: "Lantern inlays", mix: { gunner: 2.2, bomber: 1.8, grunt: 1.5, swarmer: 0.6 } },
+  courtyard: { tag: "Bell-censers", mix: { gunner: 2.2, bomber: 1.8, grunt: 1.5, swarmer: 0.6 } },
   shelf: {
     tag: "Glacier drift",
     grip: 6.5,

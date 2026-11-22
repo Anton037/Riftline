@@ -1240,15 +1240,33 @@ const rlStep = 1 / 60,
               return dx * dx + dy * dy < d.r * d.r;
             });
         } else player.inDevil = false;
-        // in the Lantern Courtyard the vents are brass charged inlays: they arc (shock) instead of erupting lava, and the
-        // current stuns the enemies it catches (slowed) besides burning them
-        const shock = arena.biome.id === "courtyard";
+        // In the Lantern Courtyard, floor hazards are interactive Bronze Bell-Censers:
+        // shooting or dashing through a charging bell tolls it for your side (clearing hostile bullets,
+        // knocking back & dazing foes with zero self-harm); an un-rung toll unleashes a wild chime wave.
+        const courtyardBell = arena.biome.id === "courtyard";
         if (arena.vents.length && this.state === "fight")
           for (let vent of arena.vents) {
+            if (vent.rungT > 0) vent.rungT = Math.max(0, vent.rungT - dt);
+            const cycleId = Math.floor((this.waveT + vent.phase) / vent.period);
             let state = arena.ventState(vent, this.waveT);
+            if (courtyardBell && vent.rungCycle === cycleId) {
+              vent.st = "idle";
+              continue;
+            }
+            if (
+              courtyardBell &&
+              state === "warn" &&
+              player.alive &&
+              player.dashT > 0 &&
+              Math.hypot(player.x - vent.x, player.y - vent.y) < vent.r * 0.85 + player.r
+            ) {
+              this.ringCourtyardBell(vent, cycleId, true);
+              continue;
+            }
             if (state !== vent.st) {
               if (state === "erupt") {
                 this.emit("erupt", { x: vent.x, y: vent.y, r: vent.r });
+                if (courtyardBell) this.courtyardBellPulse(vent, false);
               }
               vent.st = state;
             }
@@ -1258,7 +1276,7 @@ const rlStep = 1 / 60,
                   9 * this.dmgMul * Math.max(0, 1 - (this.stats.hazardResist || 0)),
                   vent.x,
                   vent.y,
-                  shock ? "shock" : "lava",
+                  courtyardBell ? "shock" : "lava",
                 );
               }
               this.hash.query(vent.x, vent.y, vent.r, (enemy) => {
@@ -1267,8 +1285,8 @@ const rlStep = 1 / 60,
                 let burn = enemy.burnT > 0 ? enemy.burnDps : 0;
                 enemy.burnT = Math.max(enemy.burnT, 2);
                 enemy.burnDps = Math.max(burn, enemy.maxHp * 0.14);
-                enemy.burnSrc = shock ? "shock" : "lava";
-                if (shock) enemy.slowT = Math.max(enemy.slowT, 1.2);
+                enemy.burnSrc = courtyardBell ? "shock" : "lava";
+                if (courtyardBell) enemy.slowT = Math.max(enemy.slowT, 1.4);
               });
             }
           }
@@ -2778,6 +2796,32 @@ const rlStep = 1 / 60,
             if (bullet.pierce-- <= 0 && !bullet.boom) bullet.life = 0;
           }
         }
+        if (
+          this.state === "fight" &&
+          bullet.life > 0 &&
+          !bullet.bellHit &&
+          arena.biome.id === "courtyard" &&
+          arena.vents.length
+        ) {
+          const segDx = bullet.x - prevX,
+            segDy = bullet.y - prevY,
+            segLen2 = segDx * segDx + segDy * segDy;
+          for (const vent of arena.vents) {
+            const cycleId = Math.floor((this.waveT + vent.phase) / vent.period);
+            if (vent.rungCycle === cycleId || arena.ventState(vent, this.waveT) !== "warn") continue;
+            const along =
+              segLen2 > 1e-8 ? clamp(((vent.x - prevX) * segDx + (vent.y - prevY) * segDy) / segLen2, 0, 1) : 0;
+            const cx = prevX + segDx * along - vent.x,
+              cy = prevY + segDy * along - vent.y,
+              hitR = Math.min(vent.r * 0.72, 1.35) + bullet.r;
+            if (cx * cx + cy * cy <= hitR * hitR) {
+              bullet.bellHit = true;
+              this.ringCourtyardBell(vent, cycleId, true);
+              this.emit("spark", { x: vent.x, y: vent.y, w: bullet.w });
+              break;
+            }
+          }
+        }
         for (let i = 0; i < probes && bullet.life > 0; i++) {
           let frac = probes > 1 ? ((i + 1) / probes - 1) * wallFrac : 0,
             sx = bullet.x + bullet.vx * dt * frac,
@@ -3079,6 +3123,42 @@ const rlStep = 1 / 60,
           bomblet: true,
         });
       }
+    }
+    ringCourtyardBell(vent, cycleId, friendly) {
+      vent.rungCycle = cycleId;
+      vent.rungT = 1.4;
+      vent.st = "idle";
+      this.emit("erupt", { x: vent.x, y: vent.y, r: vent.r * (friendly ? 1.25 : 1) });
+      this.courtyardBellPulse(vent, friendly);
+    }
+    courtyardBellPulse(vent, friendly) {
+      const pulseR = vent.r * (friendly ? 1.28 : 0.92);
+      // Resonant bell chime sweeps away hostile projectiles inside the harmonic ring
+      for (const eb of this.eb) {
+        if (eb.life > 0 && Math.hypot(eb.x - vent.x, eb.y - vent.y) <= pulseR + (eb.r || 0.2)) {
+          eb.life = 0;
+        }
+      }
+      // Radial chime knockback + daze (stronger & damaging when player tolls the bell early)
+      const knock = friendly ? 6.8 : 4.2;
+      this.hash.query(vent.x, vent.y, pulseR, (enemy) => {
+        if (enemy.dead || enemy.ghost) return;
+        const dx = enemy.x - vent.x,
+          dy = enemy.y - vent.y,
+          dist = Math.hypot(dx, dy);
+        if (dist > pulseR + enemy.r * 0.5) return;
+        const nx = dist > 0.01 ? dx / dist : 1,
+          ny = dist > 0.01 ? dy / dist : 0;
+        if (!enemy.boss) {
+          enemy.kx = (enemy.kx || 0) + nx * knock;
+          enemy.ky = (enemy.ky || 0) + ny * knock;
+          enemy.slowT = Math.max(enemy.slowT || 0, friendly ? 2.0 : 1.4);
+        }
+        if (friendly) {
+          const dmg = enemy.boss ? 22 * (this.stats.dmgMul || 1) : Math.max(22, enemy.maxHp * 0.18);
+          this.hurtEnemy(enemy, dmg, nx, ny, 0.8, false, "shock");
+        }
+      });
     }
     triggerBiomeProp(prop) {
       if (!prop || prop.cd > 0 || prop.fuse > 0) return false;

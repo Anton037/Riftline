@@ -431,8 +431,8 @@ const P = {
   galleryChime: { dur: 0.88, model: "ceramic", body: 430, gain: 0.15, gate: 0 },
   kilnResonance: { dur: 1.19, model: "ceramic", body: 126, gain: 0.24, gate: 0 },
   stoneEcho: { dur: 0.67, model: "ceramic", body: 209, gain: 0.18, gate: 0 },
-  inlayCharge: { dur: 0.61, model: "ceramic", body: 295, gain: 0.29, gate: 0 },
-  inlayRelease: { dur: 0.29, sample: "plate", body: 228, air: 0.07, grain: 0.04, gain: 0.32, gate: 0.06 },
+  inlayCharge: { dur: 0.72, model: "ceramic", body: 332, gain: 0.31, gate: 0 },
+  inlayRelease: { dur: 0.48, sample: "plate", body: 248, air: 0.06, grain: 0.03, gain: 0.36, gate: 0.05 },
   buzz: { dur: 0.65, model: "buzz", body: 60, gain: 0.14, gate: 0 },
 };
 const BOSS_TIMBRE = {
