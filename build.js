@@ -1,10 +1,11 @@
 // Build: turns the readable sources into the deployable game in dist/.
-//   src/main.js + the modules it imports (src/core, data, render, audio, ui) and three.js from
-//   npm             -> dist/game-v<version>-<content hash>.js  (one file, bundled and minified by esbuild)
+//   src/main.js + the modules it imports (src/engine, core, data, render, audio, ui)
+//                   -> dist/game-v<version>-<content hash>.js  (one file, bundled and minified by esbuild)
 //   src/index.html, src/sw.js, src/build-info.json -> dist/ (placeholders filled in)
 //   public/*          -> dist/ (icons, fonts, textures, audio, manifest; copied as they are)
 // Version and build id live only in package.json ("version", "riftline.build"). The sources use
-// the placeholders __RL_VERSION__, __RL_BUILD__, __RL_VERSION_DASHED__ and __RL_GAME_FILE__.
+// the placeholders __RL_VERSION__, __RL_BUILD__, __RL_VERSION_DASHED__, __RL_ASSETS__ and
+// __RL_GAME_FILE__.
 // Usage: node build.js [--watch]   (watch also serves dist/ on http://localhost:8124)
 
 import { createHash } from "node:crypto";
@@ -59,9 +60,9 @@ async function build() {
   fs.rmSync(DIST, { recursive: true, force: true });
   copyDir(r("public"), DIST);
 
-  // The game is one IIFE: src/main.js, the modules it imports and the parts of three.js they use
-  // (the package from node_modules, version pinned in package.json). The version constants are plain identifiers
-  // in the source; esbuild swaps them for string literals. The three.js license is in
+  // The game is one IIFE: src/main.js and the modules it imports — the game code is deliberately
+  // zero-dependency, so nothing from node_modules ships. The version constants are plain identifiers
+  // in the source; esbuild swaps them for string literals. The bundled fonts' licenses are in
   // public/THIRD-PARTY-NOTICES.txt, so the bundle carries no license comments.
   await esbuild.build({
     entryPoints: [r("src/main.js")],
