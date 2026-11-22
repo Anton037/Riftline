@@ -2243,13 +2243,14 @@ export class Renderer {
         );
       }
       if (enemy.type === "bulwark") {
+        const brassWard = hexColor(0xf4c46a);
         if (enemy.guardDown <= 0) {
           const alpha =
-            0.4 +
-            0.35 * clamp(enemy.guard / enemy.guardMax, 0, 1) +
+            0.42 +
+            0.36 * clamp(enemy.guard / enemy.guardMax, 0, 1) +
             (enemy.guardFlash > 0 ? enemy.guardFlash * 0.6 : 0);
           const sc = ((enemy.r + 0.5) / 1.35) * scale;
-          this.shieldPool.colC(this.shieldPool.y(enemy.x, 0, enemy.y, enemy.face, sc, scale, sc), pools.color, alpha);
+          this.shieldPool.colC(this.shieldPool.y(enemy.x, 0, enemy.y, enemy.face, sc, scale, sc), brassWard, alpha);
         } else if (Math.random() < dt * 20) {
           this.emit(
             enemy.x,
@@ -2260,7 +2261,7 @@ export class Renderer {
             (Math.random() - 0.5) * 3,
             0.3,
             0.25,
-            pools.color,
+            brassWard,
             { spark: true },
           );
         }
@@ -2709,6 +2710,17 @@ export class Renderer {
         hexColor(0xe0cc9e),
         { drag: 1.2, grav: -3 },
       );
+    if ((boss.type === "bellkeeper" || boss.type === "tyrant") && boss.st === "charge" && boss.sub === 0) {
+      const wind = boss.enraged ? 0.65 : 0.85;
+      this.chargeLine(
+        boss.x,
+        boss.y,
+        boss.ta ?? boss.face,
+        boss.type === "tyrant" ? 10.5 : 13.5,
+        boss.r * 1.45,
+        clamp((boss.subT || 0) / wind, 0, 1),
+      );
+    }
     if (boss.type === "bellkeeper" && rushing && Math.random() < dt * 22) {
       const backward = boss.face + Math.PI;
       this.emit(

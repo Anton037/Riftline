@@ -235,7 +235,7 @@ Object.assign(waveEvents, {
   aurora: {
     id: "aurora",
     name: "AURORA TAILWIND",
-    desc: "Ribbon auroras sweep the shelf · glacier sheets grant Tailwind haste & dash charge · shards +25%",
+    desc: "Ribbon auroras sweep the shelf · glacier sheets grant Rime Grip & faster dash recharge · shards +25%",
     shardMul: 1.25,
     biome: "shelf",
     plan: {},

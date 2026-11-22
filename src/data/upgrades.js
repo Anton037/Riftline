@@ -1,6 +1,6 @@
 // Handcrafted Lantern-Artificer run crafts, masterwork evolutions, and guardian relics.
 
-const rarityNames = ["", "Common", "Rare", "Epic", "Legendary", "Evolution", "Guardian Relic"];
+const rarityNames = ["", "Common", "Rare", "Epic", "Legendary", "Masterwork", "Guardian Relic"];
 const upgradeList = [
   { id: "dmg", name: "Sun-Tempered Rounds", rarity: 1, max: 12, icon: "burst", desc: () => "+18% damage" },
   { id: "rate", name: "Clockwork Escapement", rarity: 1, max: 10, icon: "rate", desc: () => "+15% fire rate" },
@@ -11,7 +11,7 @@ const upgradeList = [
     rarity: 1,
     max: 6,
     icon: "wing",
-    desc: () => "+10% move speed, -8% dash and Glass Bell cooldown",
+    desc: () => "+10% move speed, -8% dash and Glass Ward Bell cooldown",
   },
   {
     id: "crit",
@@ -19,7 +19,7 @@ const upgradeList = [
     rarity: 1,
     max: 8,
     icon: "crosshair",
-    desc: () => "+10% critical hit chance, +0.06 crit multiplier (x2 base), +6% shot speed and range",
+    desc: () => "+10% critical chance, +6% crit power, +6% bolt speed and reach",
   },
   {
     id: "heal",
@@ -153,11 +153,11 @@ const upgradeList = [
   },
   {
     id: "gcells",
-    name: "Chime Bobbins",
+    name: "Lodestone Bobbins",
     rarity: 2,
     max: 3,
     icon: "target",
-    desc: () => "+1 Gravity Chime charge and 12% faster recharge",
+    desc: () => "+1 Lodestone Chime charge and 12% faster recharge",
   },
   {
     id: "gblast",
@@ -165,7 +165,7 @@ const upgradeList = [
     rarity: 2,
     max: 4,
     icon: "burst",
-    desc: () => "Gravity Chime: +30% burst damage, +15% pull and clear radius",
+    desc: () => "Lodestone Chime: +30% burst damage, +15% draw and shatter radius",
   },
   {
     id: "gfire",
@@ -173,7 +173,7 @@ const upgradeList = [
     rarity: 3,
     max: 1,
     icon: "flame",
-    desc: () => "Gravity Chime's burst ignites foes and leaves glowing embers for 3 s",
+    desc: () => "Lodestone Chime's peal kindles foes and leaves glowing embers for 3 s",
   },
   {
     id: "bloodrush",
@@ -214,7 +214,7 @@ const upgradeList = [
     max: 1,
     icon: "orbit",
     evo: { orbit: 3, shield: 1 },
-    desc: () => "Warding Blades grow, strike twice as hard and sweep wider. Glass Bell recharges 30% faster.",
+    desc: () => "Warding Blades grow, strike twice as hard and sweep wider. Glass Ward Bell recharges 30% faster.",
   },
   {
     id: "cluster",
@@ -360,7 +360,7 @@ upgradeList.push(
     max: 3,
     icon: "burst",
     desc: (level, count = level + 1) =>
-      `Every 4th shot vents a warm brass pulse (${45 + 15 * count} damage, scales with your damage)`,
+      `Every 4th shot vents a warm brass flare (${45 + 15 * count} damage, scales with your damage)`,
   },
   {
     id: "resonance",
@@ -411,7 +411,7 @@ upgradeList.push(
     name: "Spore-Dew Glaze",
     rarity: 3,
     max: 2,
-    icon: "skull",
+    icon: "brood",
     desc: (level, count = level + 1) =>
       `${22 * count}% of hits leave glowing dew for 3 s (foes in it take +25% damage). Wider in the Glowmarsh`,
   },
@@ -422,7 +422,7 @@ upgradeList.push(
     max: 2,
     icon: "flame",
     desc: (level, count = level + 1) =>
-      `Vents, bog pools, whirlwinds or live hazards nearby: +${25 * count}% fire rate for 3 s and Hearthburst charge`,
+      `Near vents, bog pools, ice, portals, whirlwinds or traps: +${25 * count}% fire rate for 3 s and Hearthburst charge`,
   },
   {
     id: "slipstream",
@@ -447,7 +447,8 @@ upgradeList.push(
     rarity: 2,
     max: 2,
     icon: "shield",
-    desc: (level) => `Taking a hit rings out a repulse wave (${45 + 25 * level} damage) that shatters nearby shots`,
+    desc: (level) =>
+      `Taking a hit rings out a resonant chime wave (${45 + 25 * level} damage) that shatters nearby shots`,
   },
 );
 
@@ -486,7 +487,7 @@ upgradeList.push(
     max: 1,
     boss: "core",
     icon: "collapse",
-    desc: () => "Your Hearthburst first draws foes inward, then detonates 40% stronger",
+    desc: () => "Your Hearthburst first draws foes inward, then rings out 40% stronger",
   },
   {
     id: "tribute",

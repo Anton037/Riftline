@@ -22,28 +22,29 @@ const spawnWeights = {
 
 /* ---- enemy intros: one short hint the first time each enemy type appears ---- */
 const RL_ENEMY_TIPS = {
-  swarmer: "Skitter-Mites rush in packs. Keep moving and let splash crafts thin them out.",
-  grunt: "Kettle-Guards are sturdy clockwork sentries. Kite them in wide arcs.",
+  swarmer: "Skitter-Mites rush in packs. Keep moving and let sweeping crafts thin them out.",
+  grunt: "Kettle-Guards are sturdy porcelain sentries. Kite them in wide arcs.",
   gunner: "Brass Musketeers brace and gleam before a volley — that glow is your cue to step aside.",
-  bomber: "Cinder-Pots burst up close. Crack them early or dash clear when their fuse flashes.",
+  bomber: "Cinder-Pots burst up close. Crack them early or dash clear when their wick flares.",
   splitter: "Spore-Pods pop into three skittering podlings when broken.",
   brute: "Iron Golems line up, then charge straight ahead. Sidestep — monoliths stun them.",
-  sniper: "Long-Glass Marksmen project a ruby sightline before firing. Break sight or dash.",
+  sniper: "Long-Glass Marksmen sight through a gleaming brass spyglass before firing. Break sight or dash.",
   hive: "Toadstool Mounds keep sprouting mites until you fell them.",
   bulwark: "Pavise Wardens turn away frontal fire. Circle behind or crack their brass shield.",
   striker: "Blink-Blades step beside you — watch the ring marking their landing.",
   mortar: "Bell-Mortars lob shells ahead of your stride. Weave your footing.",
   mender: "Moss-Menders weave healing light into nearby foes. Fell them first.",
   leaper: "Bog-Hoppers crouch, then pounce. Step sideways the instant they coil.",
-  turret: "Clockwork Turrets lock on with a sightline before firing a heavy bolt.",
-  charger: "Ram-Engines wind up and barrel across the floor. Sidestep at the last beat.",
-  minebot: "Vessel-Planters lay proximity pots as they retreat. Shoot armed pots to clear the lane.",
-  sapper: "Fuse-Tinkers set timed charges on the flagstones. Keep moving.",
-  phantom: "Star-Wraiths veil themselves in starlight — strike as soon as they rematerialize.",
+  turret: "Watch-Belfries brace and sight before loosing a heavy bronze bell-bolt.",
+  charger: "Battering Boars lower their gilded rams and barrel across the floor. Sidestep at the last beat.",
+  minebot:
+    "Cinder-Sowers leave smoldering ember-pots in their wake as they retreat. Keep clear of their glowing rings.",
+  sapper: "Powder-Tinkers lob timed powder-kegs onto your flank. Keep weaving.",
+  phantom: "Star-Wraiths veil themselves in starlight — strike the moment they step back into view.",
   sentinel: "Prism Obelisks sweep a searing beam. Cross out of the line before it blazes.",
-  carrier: "Spore-Barges hang back and loose homing wisps. Close the distance.",
+  carrier: "Galleon-Kites drift aloft and loose homing brass-wing darts. Close the distance.",
   drone: "Needle-Sprites dart and loose homing glass needles. Stay on the move.",
-  driller: "Auger-Constructs bore ahead and erupt where they halt.",
+  driller: "Burrow-Moles churn ahead and erupt where they halt.",
   beacon: "Mending Cairns bathe every nearby foe in restorative light. Shatter them first.",
   weaver: "Astral Weavers step across the sanctuary and loose star-fans after each jump.",
 };
@@ -218,7 +219,7 @@ const enemyDefs = {
   },
   turret: {
     id: "turret",
-    name: "Clockwork Turret",
+    name: "Watch-Belfry",
     hp: 52,
     speed: 1.1,
     r: 0.68,
@@ -248,10 +249,10 @@ const enemyOrder = [
 const biomeVariants = {
   courtyard: {
     id: "shorted",
-    name: "Shorted",
+    name: "Brim-Lit",
     types: ["grunt", "gunner", "bomber"],
-    color: 0x8fd0ff,
-    desc: "Crackles with stolen current. Where one dies, the ground arcs a moment later: step away, or lure others in.",
+    color: 0xf6c46e,
+    desc: "Brims with spilled lantern oil. Where one falls, a warm brass-gold flame ring flares a moment later — step clear, or lure others in.",
   },
   shelf: {
     id: "frost",
@@ -262,35 +263,31 @@ const biomeVariants = {
   },
   core: {
     id: "phase",
-    name: "Phase",
+    name: "Star-Stepping",
     types: ["swarmer", "grunt", "gunner"],
     color: 16732120,
-    desc: "Blinks a few steps towards you every couple of seconds.",
+    desc: "Steps through starlight a few paces closer every couple of seconds.",
   },
   marsh: {
-    // 3.50.0: the Glowmarsh's Bloomed - the same acid burst,
-    // in the glow family
     id: "bloomed",
     name: "Bloomed",
     types: ["grunt", "splitter", "swarmer", "bomber"],
     color: 0x46ffc0,
-    desc: "Sick with the glow: bursts into a shining pool when it dies.",
+    desc: "Ripe with glowing spores: bursts into a shining bog pool on defeat.",
   },
-  // 3.53.0: the Glass Flats: it gleams, then sprints - a short solar burst toward its aim
   flats: {
     id: "sunstruck",
     name: "Sunstruck",
     types: ["grunt", "gunner", "charger", "driller"],
     color: 0xffd27a,
-    desc: "It gleams and sprints - a short solar burst every few seconds.",
+    desc: "Gleams and sprints — a short solar burst every few seconds.",
   },
-  // 3.49.0: the Caldera: they go out in a flare - the fumaroles jet where they fall (was the Caldera's Flareheart)
   caldera: {
     id: "flareheart",
     name: "Flareheart",
     types: ["gunner", "brute", "bomber"],
     color: 0xffb520,
-    desc: "It goes out in a flare: the magma vents jet where it falls.",
+    desc: "Goes out in a hearth-flare: a molten fumarole jets where it falls.",
   },
 };
 const eliteAffixes = {
@@ -383,7 +380,7 @@ const bossOrder = ["bellkeeper", "queen", "prism", "tyrant", "core", "wyrm"];
 Object.assign(enemyDefs, {
   charger: {
     id: "charger",
-    name: "Ram-Engine",
+    name: "Battering Boar",
     hp: 50,
     speed: 4.5,
     r: 0.62,
@@ -395,7 +392,7 @@ Object.assign(enemyDefs, {
   },
   minebot: {
     id: "minebot",
-    name: "Vessel-Planter",
+    name: "Cinder-Sower",
     hp: 62,
     speed: 2.05,
     r: 0.7,
@@ -413,7 +410,7 @@ Object.assign(heavyEnemies, { charger: 2, minebot: 3 });
 Object.assign(enemyDefs, {
   sapper: {
     id: "sapper",
-    name: "Fuse-Tinker",
+    name: "Powder-Tinker",
     hp: 54,
     speed: 2.8,
     r: 0.62,
@@ -449,7 +446,7 @@ Object.assign(enemyDefs, {
   },
   carrier: {
     id: "carrier",
-    name: "Spore-Barge",
+    name: "Galleon-Kite",
     hp: 72,
     speed: 2.2,
     r: 0.82,
@@ -479,7 +476,7 @@ Object.assign(enemyDefs, {
   },
   driller: {
     id: "driller",
-    name: "Auger-Construct",
+    name: "Burrow-Mole",
     hp: 90,
     speed: 2.3,
     r: 0.78,
@@ -499,7 +496,7 @@ Object.assign(enemyDefs, {
     cost: 7,
     shards: 10,
     from: 26,
-    color: 0x00ffa2,
+    color: 0x5ae8a8,
   },
   weaver: {
     id: "weaver",

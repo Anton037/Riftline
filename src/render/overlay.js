@@ -54,37 +54,49 @@ const healthBarTypes = {
     weaver: 1,
   },
   bossAttackNames = {
-    charge: "CHARGE",
-    ring: "BULLET RING",
-    stomp: "STOMP",
-    summon: "SUMMON",
-    spiral: "SPIRAL",
-    burst: "VOLLEY",
-    eggs: "BROOD",
-    sweep: "LASER SWEEP",
-    teleport: "BLINK",
-    shards: "HOMING SHARDS",
-    lances: "LANCES",
-    cross: "LASER CROSS",
-    rain: "BOMBARDMENT",
-    // 3.3.0: the Overdrive attacks of the enraged bosses
-    sealgrid: "OVERDRIVE · LANTERN CAGE",
-    whiteout: "OVERDRIVE · POLAR GALE",
-    plague: "OVERDRIVE · SPORE TIDE",
-    collapse: "OVERDRIVE · STARFALL",
-    // 2.4.6: Frost Prism
-    frostbeam: "FROST BEAM",
-    icelances: "ICE LANCES",
-    iceshards: "ICE SHARDS",
-    frostnova: "FROST NOVA",
-    glacier: "GLACIER",
-    barrage: "MOLTEN FAN",
-    firestorm: "OVERDRIVE · FORGESTORM",
-    // 3.56.0: Glasswyrm
-    rise: "SAND BURST",
-    sunlance: "SUN LANCE",
-    mirage: "MIRAGE",
-    noon: "OVERDRIVE · HIGH NOON",
+    charge: "BELFRY RUSH",
+    ring: "BRASS TOLL",
+    stomp: "CARILLON SLAM",
+    summon: "MUSHROOM RING",
+    spiral: "FIREFLY WHIRL",
+    burst: "NECTAR SALVO",
+    eggs: "SPORE CLUTCH",
+    sweep: "AURORA SWEEP",
+    teleport: "PRISM BLINK",
+    shards: "GLASS FAN",
+    lances: "GLACIER LANCES",
+    cross: "ASTRAL LOOM",
+    rain: "CRUCIBLE RAIN",
+    // Enraged Crescendo signatures
+    sealgrid: "CRESCENDO · CARILLON CHIME",
+    whiteout: "CRESCENDO · AURORA GALE",
+    plague: "CRESCENDO · SPORE TIDE",
+    collapse: "CRESCENDO · CELESTIAL CONVERGENCE",
+    // Frost Prism
+    frostbeam: "AURORA SWEEP",
+    icelances: "GLACIER LANCES",
+    iceshards: "CRYSTAL FLOCK",
+    frostnova: "RIME BLOOM",
+    glacier: "PERMAFROST",
+    // Ash Tyrant
+    barrage: "SLAG FOUNDRY",
+    firestorm: "CRESCENDO · HEARTH-STORM",
+    // Glasswyrm
+    rise: "DUNE BREACH",
+    sunlance: "SOLAR LANCE",
+    mirage: "DESERT MIRAGE",
+    noon: "CRESCENDO · ZENITH DIAL",
+  },
+  bossCalloutByBoss = {
+    tyrant: { charge: "ANVIL CLEAVE", ring: "CALDERA QUAKE", summon: "FORGE-KIN", rain: "CRUCIBLE RAIN" },
+    core: {
+      spiral: "ORRERY WALTZ",
+      summon: "ASTRAL CHOIR",
+      ring: "CONSTELLATION",
+      cross: "ASTRAL LOOM",
+      burst: "COMET FAN",
+      rain: "METEOR CHIME",
+    },
   },
   Overlay = class {
     constructor(canvas) {
@@ -111,7 +123,7 @@ const healthBarTypes = {
       this.hurts.push({ a: angle, life: 0.8 });
     }
     callout(attack, id) {
-      let label = attack === "shards" && id === "wyrm" ? "GLASS FAN" : bossAttackNames[attack];
+      let label = bossCalloutByBoss[id]?.[attack] || bossAttackNames[attack];
       if (label) {
         this.callouts = [{ t: label, life: 1.4 }];
       }

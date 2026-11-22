@@ -1,42 +1,42 @@
-// 3.0.0: traps. From wave 6 the arena itself fights back: floor strikes, sweeping beams and mines, each
-// with a skin that belongs to the biome (a brass lantern beam in the Lantern Courtyard, magma jets in the Ashfall
-// Caldera, ice spikes in the Aurora Shelf, bloom geysers and spore pods in the Glowmarsh, rift bursts,
-// rift beams and rift mines in the Shattered Core, sunspikes in the Glass Flats). The three families
-// share their mechanics, so the skins only change numbers, colours and one side
-// effect (chill, acid puddle, knock-back). Everything is announced first (a warning ring or line), hurts
-// the player and, as a share of their hull, the enemies too, and grows with the wave; in Endless there are
-// more of them, they come faster, warn shorter and some of the floor strikes hunt the player.
-//
-// The world keeps them in `world.traps` (plain objects, for the renderer) and calls
-// rlPlanTraps once per wave and rlUpdateTraps every step. Placement uses its own random stream
-// (seed + wave), so it never disturbs the world's.
+// Biome-native realm hazards (from wave 6): floor strikes, sweeping beacons/bellows, and shootable vessels.
+// Every biome gives each family its own distinct tactical twist (chime knockback & daze, wide rime halo,
+// corrosive bog blooms, inward astral pull, lingering caldera burn pools, dust-devil calming glass bursts,
+// shorter/wider dragon-kiln bellows, and pendulum astrolabe ribbons).
 
 import { makeRng, hashString, TAU, clamp } from "./util.js";
 import { BIOME_TRAP_EFFECTS as BIOME_TRAPS } from "../data/combat-effects.js";
 
-// skins: family, base damage (times the enemies' damage multiplier), radius, warning, pause, side effect
+// skins: family, base damage (times wave enemy damage multiplier), radius, warning, pause, biome-native twist
 const TRAP_SKINS = {
-  laser: { fam: "beam", dmg: 16, w: 0.8, len: 26, warn: 1.1, dur: 2.0, rot: 0.5, cd: 3.6 },
-  rift: { fam: "beam", dmg: 18, w: 1.1, len: 22, warn: 1.2, dur: 2.4, rot: -0.4, cd: 3.8 },
-  plate: { fam: "floor", dmg: 22, r: 2.2, warn: 1.0, cd: 4.2, special: "shock", frac: 0.1 },
-  icespike: { fam: "floor", dmg: 24, r: 2.2, warn: 1.0, cd: 4.2, special: "chill", frac: 0.1 },
+  // Sweeping beacons & bellows
+  laser: { fam: "beam", dmg: 16, w: 0.9, len: 26, warn: 1.1, dur: 2.1, rot: 0.52, cd: 3.6, special: "shock" },
+  rift: { fam: "beam", dmg: 18, w: 1.0, len: 22, warn: 1.15, dur: 2.6, rot: -0.58, swing: 1.35, cd: 3.7 },
+  magma: { fam: "beam", dmg: 18, w: 1.35, len: 15.5, warn: 0.95, dur: 1.85, rot: 0.78, cd: 2.9, special: "burn" },
+  // Floor hazards
+  plate: { fam: "floor", dmg: 22, r: 2.25, warn: 1.0, cd: 4.2, special: "shock", knock: 4.8, frac: 0.11 },
+  icespike: { fam: "floor", dmg: 24, r: 2.2, warn: 1.0, cd: 4.2, special: "chill", chillHalo: 1.35, frac: 0.1 },
   geyser: { fam: "floor", dmg: 20, r: 2.0, warn: 1.0, cd: 4.0, special: "acid", frac: 0.1 },
-  riftburst: { fam: "floor", dmg: 24, r: 2.4, warn: 1.0, cd: 4.2, special: "shock", frac: 0.1 },
-  mine: { fam: "mine", dmg: 30, r: 2.6, trig: 1.5, arm: 1.5, fuse: 0.45, frac: 0.18 },
-  frost: { fam: "mine", dmg: 22, r: 3.0, trig: 1.5, arm: 1.5, fuse: 0.45, special: "chill", frac: 0.12 },
+  riftburst: { fam: "floor", dmg: 24, r: 2.4, warn: 1.05, cd: 4.2, special: "shock", pull: 5.2, frac: 0.11 },
+  pyro: { fam: "floor", dmg: 21, r: 2.1, warn: 1.0, cd: 4.0, special: "burn", frac: 0.12 },
+  sunspike: { fam: "floor", dmg: 22, r: 2.25, warn: 1.0, cd: 4.1, special: "glass", knock: 6.5, frac: 0.12 },
+  // Shootable proximity vessels
+  mine: { fam: "mine", dmg: 28, r: 2.7, trig: 1.5, arm: 1.5, fuse: 0.45, special: "shock", knock: 5.0, frac: 0.18 },
+  frost: { fam: "mine", dmg: 22, r: 3.2, trig: 1.5, arm: 1.5, fuse: 0.45, special: "chill", frac: 0.12 },
   spore: { fam: "mine", dmg: 18, r: 3.0, trig: 1.5, arm: 1.5, fuse: 0.45, special: "acid", frac: 0.1 },
-  riftmine: { fam: "mine", dmg: 26, r: 2.8, trig: 1.5, arm: 1.5, fuse: 0.45, frac: 0.15 },
-  // 3.49.0: the Caldera's fumarole: a molten geyser between the spires (no side effect: it just
-  // cooks whatever stands in it - the jet and the embers are the show)
-  pyro: { fam: "floor", dmg: 21, r: 2.1, warn: 1.0, cd: 4.0, frac: 0.12 },
-  // 3.53.0: the Flats' sunspike: fused glass erupts from the sheet (no side effect - the shards
-  // are the hit; the noon light does the rest)
-  sunspike: { fam: "floor", dmg: 22, r: 2.1, warn: 1.0, cd: 4.1, frac: 0.12 },
+  riftmine: { fam: "mine", dmg: 26, r: 2.9, trig: 1.5, arm: 1.5, fuse: 0.56, pull: 8.5, frac: 0.16 },
+  embermine: { fam: "mine", dmg: 28, r: 2.7, trig: 1.5, arm: 1.5, fuse: 0.45, special: "burn", frac: 0.17 },
+  glassmine: {
+    fam: "mine",
+    dmg: 26,
+    r: 2.8,
+    trig: 1.5,
+    arm: 1.5,
+    fuse: 0.45,
+    special: "glass",
+    knock: 7.0,
+    frac: 0.17,
+  },
 };
-// Distinct natural appearances keep the existing trap balance and collision dimensions.
-TRAP_SKINS.magma = { ...TRAP_SKINS.laser };
-TRAP_SKINS.embermine = { ...TRAP_SKINS.mine };
-TRAP_SKINS.glassmine = { ...TRAP_SKINS.mine };
 // first wave of each family, and the number of traps per family on a wave
 const TRAP_FROM = { floor: 6, beam: 9, mine: 12 };
 function trapCount(fam, wave) {
@@ -48,7 +48,7 @@ function trapCount(fam, wave) {
   if (wave > 20) count = Math.ceil(count * 1.5) + Math.floor(Math.max(0, wave - 40) / 20);
   return Math.min(count, fam === "floor" ? 9 : fam === "beam" ? 4 : 12);
 }
-// endless pace: pauses 20% shorter, warnings 15% shorter (never below 0.7 s); 3.3.0: the Trap Storm mutator takes
+// endless pace: pauses 20% shorter, warnings 15% shorter (never below 0.7 s); 3.3.0: the Realm Tempest mutator takes
 // another 12% off the pauses per level
 const pace = (wave, storm = 0) => (wave > 20 ? { cd: 0.8 * (1 - 0.12 * storm), warn: 0.85 } : { cd: 1, warn: 1 });
 
@@ -108,20 +108,17 @@ function rlPlanTraps(world, wave, boss) {
   return traps;
 }
 
-// a family that is in play at this wave (the Trap Storm adds to those only)
+// a family that is in play at this wave (Realm Tempest adds to those only)
 const base0 = (fam, wave) => wave >= TRAP_FROM[fam];
 
 // damage of a trap on the player: its base times the wave's enemy damage multiplier
-// 3.40.0: past wave 20 the trap grows by 1 % of its base a wave as well - the enemy hull curve is
-// quadratic while the player's hazard pressure was linear, and the traps faded out of Endless runs
+// 3.40.0: past wave 20 the trap grows by 1 % of its base a wave as well
 const trapDamage = (world, skin) =>
   skin.dmg *
   world.dmgMul *
   (1 + 0.01 * Math.max(0, (world.wave || 1) - 20)) *
   Math.max(0, 1 - (world.stats.hazardResist || 0));
 
-// 3.7.1: an ice trap chills, an electric one (plate, rift burst) stuns: both slow the drone, but a stun has its own
-// look and sound (it used to send the frost sparkle and ping of "chill")
 function trapEffectsOnPlayer(world, skin, trap) {
   const player = world.player;
   if (skin.special === "chill" || skin.special === "shock") {
@@ -132,11 +129,37 @@ function trapEffectsOnPlayer(world, skin, trap) {
   }
 }
 
+// Gently draws nearby foes (and lightly tugs the player on floor snares) inward during Star-Vault warnings/fuses.
+function trapPull(world, trap, strength, pullR, tugPlayer, dt) {
+  const player = world.player;
+  world.hash.query(trap.x, trap.y, pullR, (enemy) => {
+    if (enemy.dead || enemy.ghost || enemy.boss) return;
+    const dx = trap.x - enemy.x,
+      dy = trap.y - enemy.y,
+      dist = Math.hypot(dx, dy);
+    if (dist <= 0.45 || dist > pullR) return;
+    const step = Math.min(dist - 0.4, strength * (1 - (dist / pullR) * 0.45) * dt);
+    enemy.x += (dx / dist) * step;
+    enemy.y += (dy / dist) * step;
+    world.arena.resolve(enemy, enemy.r);
+  });
+  if (tugPlayer && player.alive && player.dashT <= 0) {
+    const dx = trap.x - player.x,
+      dy = trap.y - player.y,
+      dist = Math.hypot(dx, dy);
+    if (dist > 0.6 && dist < pullR) {
+      const step = Math.min(dist - 0.5, strength * 0.28 * dt);
+      player.x += (dx / dist) * step;
+      player.y += (dy / dist) * step;
+      world.arena.resolve(player, player.r);
+    }
+  }
+}
+
 // an area strike: the player, and every enemy as a share of its hull (shotDetonated skips friendly fire & boosts enemy damage)
 function trapStrike(world, trap, skin, radius, enemyMul = 1, shotDetonated = false) {
   const player = world.player;
   world._src = "trap";
-  // 3.7.1: a strike that misses (a dash, the shield, the moment of safety after a hit) neither chills nor stuns
   if (
     !shotDetonated &&
     player.alive &&
@@ -144,17 +167,50 @@ function trapStrike(world, trap, skin, radius, enemyMul = 1, shotDetonated = fal
     world.hurtPlayer(trapDamage(world, skin), trap.x, trap.y, "trap")
   )
     trapEffectsOnPlayer(world, skin, trap);
-  world.hash.query(trap.x, trap.y, radius, (enemy) => {
-    if (enemy.dead || enemy.boss || Math.hypot(enemy.x - trap.x, enemy.y - trap.y) > radius + enemy.r) return;
-    world.hurtEnemy(enemy, enemy.maxHp * skin.frac * enemyMul, enemy.x - trap.x, enemy.y - trap.y, 3.5, false, "trap");
-    if (skin.special === "chill") enemy.slowT = Math.max(enemy.slowT, 1.8);
+  const queryR = skin.chillHalo ? radius * skin.chillHalo : radius;
+  const knock = skin.knock || 3.5;
+  world.hash.query(trap.x, trap.y, queryR, (enemy) => {
+    if (enemy.dead || enemy.boss) return;
+    const dist = Math.hypot(enemy.x - trap.x, enemy.y - trap.y);
+    if (dist <= radius + enemy.r) {
+      world.hurtEnemy(
+        enemy,
+        enemy.maxHp * skin.frac * enemyMul,
+        enemy.x - trap.x,
+        enemy.y - trap.y,
+        knock,
+        false,
+        "trap",
+      );
+      if (skin.special === "chill") enemy.slowT = Math.max(enemy.slowT, 2.4);
+      else if (skin.special === "shock") enemy.slowT = Math.max(enemy.slowT, 1.4);
+      else if (skin.special === "acid") enemy.corrode = true;
+      else if (skin.special === "burn" && !enemy.dead && !enemy.shielded) {
+        enemy.burnT = Math.max(enemy.burnT || 0, 2.8);
+        enemy.burnDps = Math.max(enemy.burnDps || 0, enemy.maxHp * 0.06);
+        enemy.burnSrc = "trap";
+      }
+    } else if (skin.chillHalo && dist <= queryR + enemy.r) {
+      enemy.slowT = Math.max(enemy.slowT, 2.0);
+    }
   });
-  // the acid puddle stays off a spot where an enemy is about to appear (spawns keep away from hazards)
+  // Glowmarsh bog spout / puff-cap leaves a corrosive bog pool
   if (
     skin.special === "acid" &&
     !world.markers.some((marker) => Math.hypot(marker.x - trap.x, marker.y - trap.y) < radius * 0.85 + 0.8)
   )
     world.arena.acid.push({ x: trap.x, y: trap.y, r: radius * 0.85, life: 7 });
+  // Caldera slag fissure / ember keg leaves a brief smoldering ember pool
+  if (skin.special === "burn" && world.burnPools && world.burnPools.length < 10) {
+    world.burnPools.push({ x: trap.x, y: trap.y, r: radius * 0.82, life: 2.5, dps: 16 * (world.stats.dmgMul || 1) });
+  }
+  // Glass Flats sun-rose / amphora calms nearby dust devils on burst
+  if (skin.special === "glass" && world.arena.devils && world.arena.devils.length) {
+    for (const devil of world.arena.devils) {
+      const d = Math.hypot(devil.x - trap.x, devil.y - trap.y);
+      if (d <= radius + devil.r + 1.8) devil.calmT = Math.max(devil.calmT || 0, 4.0);
+    }
+  }
   world.emit("boom", { x: trap.x, y: trap.y, r: radius, kind: "trap" });
   world.emit("trapFire", { id: trap.id, fam: trap.fam, skin: trap.skin, x: trap.x, y: trap.y, r: radius });
 }
@@ -173,6 +229,7 @@ function rlShootTrap(world, bullet, prevX, prevY) {
       hitR = 0.62 + bullet.r;
     if (cx * cx + cy * cy <= hitR * hitR) {
       const skin = TRAP_SKINS[trap.skin];
+      if (skin.pull) trapPull(world, trap, skin.pull * 1.6, skin.r * 1.4, false, 0.16);
       trapStrike(world, trap, skin, skin.r * 1.15, 1.5, true);
       trap.st = "gone";
       trap.t = 0;
@@ -209,11 +266,14 @@ function rlUpdateTraps(world, dt) {
           r: skin.r,
           delay: trap.delay,
         });
-      } else if (trap.st === "warn" && trap.t >= trap.delay) {
-        trapStrike(world, trap, skin, skin.r);
-        trap.st = "idle";
-        trap.t = 0;
-        trap.wait = skin.cd * p.cd * (0.85 + 0.3 * ((trap.id * 0.618) % 1));
+      } else if (trap.st === "warn") {
+        if (skin.pull) trapPull(world, trap, skin.pull, skin.r * 1.55, true, dt);
+        if (trap.t >= trap.delay) {
+          trapStrike(world, trap, skin, skin.r);
+          trap.st = "idle";
+          trap.t = 0;
+          trap.wait = skin.cd * p.cd * (0.85 + 0.3 * ((trap.id * 0.618) % 1));
+        }
       }
     } else if (trap.fam === "beam") {
       if (trap.st === "idle" && trap.t >= trap.wait) {
@@ -231,7 +291,10 @@ function rlUpdateTraps(world, dt) {
           warn,
           dur: skin.dur,
           rot: skin.rot * trap.dir,
+          swing: skin.swing || 0,
           dmg: trapDamage(world, skin),
+          fromTrap: true,
+          special: skin.special || null,
         });
         // Endless: a second beam crosses the first
         if (world.wave > 20)
@@ -245,7 +308,10 @@ function rlUpdateTraps(world, dt) {
             warn,
             dur: skin.dur,
             rot: skin.rot * trap.dir,
+            swing: skin.swing || 0,
             dmg: trapDamage(world, skin),
+            fromTrap: true,
+            special: skin.special || null,
           });
         trap.span = warn + skin.dur;
         world.emit("trapWarn", {
@@ -291,12 +357,15 @@ function rlUpdateTraps(world, dt) {
             delay: skin.fuse,
           });
         }
-      } else if (trap.st === "fuse" && trap.t >= skin.fuse) {
-        trapStrike(world, trap, skin, skin.r);
-        trap.st = "gone";
-        trap.t = 0;
-        // re-armed somewhere else after a pause (shorter in Endless)
-        trap.respawn = (world.wave > 20 ? 9 : 14) + trap.id * 0.7;
+      } else if (trap.st === "fuse") {
+        if (skin.pull) trapPull(world, trap, skin.pull, skin.r * 1.45, false, dt);
+        if (trap.t >= skin.fuse) {
+          trapStrike(world, trap, skin, skin.r);
+          trap.st = "gone";
+          trap.t = 0;
+          // re-armed somewhere else after a pause (shorter in Endless)
+          trap.respawn = (world.wave > 20 ? 9 : 14) + trap.id * 0.7;
+        }
       } else if (trap.st === "gone" && trap.t >= trap.respawn) {
         const spot = rlPlaceAgain(world, trap);
         if (spot) {

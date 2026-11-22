@@ -1,7 +1,8 @@
-// Biome trap views (floor plates/spikes/geysers, beam emitters, proximity mines) on custom WebGL2 engine.
+// Biome-native diorama trap views (carillon pads, glacier fissures, pitcher spouts, star-wells, slag craters,
+// sun-roses, pagoda lighthouse beacons, armillary looms, kiln bellows, and shootable miniature vessels).
 
 import { Color } from "../engine/math.js";
-import { cylinder, octahedron, torus, meshPart, mergeGeometries } from "../engine/geometry.js";
+import { cylinder, octahedron, icosahedron, torus, meshPart, mergeGeometries } from "../engine/geometry.js";
 import { worldMaterial, emissiveMaterial } from "./materials.js";
 import { FINISH } from "./palette.js";
 import { clamp, TAU, angleDiff } from "../core/util.js";
@@ -12,127 +13,226 @@ const tint = new Color();
 const hex = (v) => new Color(v);
 
 const LOOK = {
-  plate: { main: hex(FINISH.brass), alt: hex(FINISH.ivory), dust: hex(0x9fb4c8) },
+  plate: { main: hex(FINISH.brass), alt: hex(0xfff0c4), dust: hex(0x8e9da8) },
   icespike: { main: hex(FINISH.glacier), alt: hex(FINISH.ivory), dust: hex(0xdff6ff) },
   geyser: { main: hex(FINISH.jade), alt: hex(0xd6f5e2), dust: hex(0x1c4a3c) },
-  riftburst: { main: hex(FINISH.lavender), alt: hex(0xf0b8d8), dust: hex(0x2a1650) },
-  laser: { main: hex(FINISH.copper), alt: hex(0xffd0a0), dust: hex(0x9fb4c8) },
+  riftburst: { main: hex(FINISH.lavender), alt: hex(0xf6d8a8), dust: hex(0x2a1650) },
+  laser: { main: hex(0xf6be58), alt: hex(0xfff1c4), dust: hex(0x9fb4c8) },
   magma: { main: hex(0xff7a1f), alt: hex(0xffd27a), dust: hex(0x746957) },
-  rift: { main: hex(0xae7cff), alt: hex(0xf0b8e4), dust: hex(0x2a1650) },
+  rift: { main: hex(0xae7cff), alt: hex(0xf4d29a), dust: hex(0x2a1650) },
   cryo: { main: hex(FINISH.glacier), alt: hex(0xe8fbff), dust: hex(0xdff6ff) },
   acid: { main: hex(FINISH.jade), alt: hex(0xd6f5e2), dust: hex(0x1c4a3c) },
-  mine: { main: hex(0xff8a3a), alt: hex(0xffe0a0), dust: hex(0x6a6a72), led: hex(FINISH.vermilion) },
-  frost: { main: hex(FINISH.glacier), alt: hex(FINISH.ivory), dust: hex(0xdff6ff), led: hex(0xc8f6ff) },
-  spore: { main: hex(FINISH.jade), alt: hex(0xd6f5e2), dust: hex(0x1c4a3c), led: hex(0x8fffd9) },
-  riftmine: { main: hex(FINISH.lavender), alt: hex(0xf0b8d8), dust: hex(0x2a1650), led: hex(0xf0b8d8) },
-  embermine: { main: hex(0xff9248), alt: hex(0xffd27a), dust: hex(0x63584d), led: hex(0xff9e39) },
-  glassmine: { main: hex(0xffd98a), alt: hex(0xfff0c4), dust: hex(0xc8b38b), led: hex(0xffd98a) },
-  pyro: { main: hex(0xffb45a), alt: hex(0xffe9b0), dust: hex(0x3a2418) },
-  sunspike: { main: hex(0xffe9c4), alt: hex(0xfff3d6), dust: hex(0xd8c8a8) },
+  mine: { main: hex(0xf4a842), alt: hex(0xffe6a8), dust: hex(0x6e5b48), wick: hex(0xffbc58) },
+  frost: { main: hex(FINISH.glacier), alt: hex(FINISH.ivory), dust: hex(0xdff6ff), wick: hex(0xc8f6ff) },
+  spore: { main: hex(FINISH.jade), alt: hex(0xd6f5e2), dust: hex(0x1c4a3c), wick: hex(0x98ffba) },
+  riftmine: { main: hex(FINISH.lavender), alt: hex(0xf6d8a8), dust: hex(0x2a1650), wick: hex(0xe6b6ff) },
+  embermine: { main: hex(0xff8438), alt: hex(0xffd27a), dust: hex(0x523a2c), wick: hex(0xff9e39) },
+  glassmine: { main: hex(0x46d8c8), alt: hex(0xfff0c4), dust: hex(0xc8b38b), wick: hex(0xffe08a) },
+  pyro: { main: hex(0xff8c32), alt: hex(0xffe9b0), dust: hex(0x3a2418) },
+  sunspike: { main: hex(0x42d2c0), alt: hex(0xfff3d6), dust: hex(0xd8c8a8) },
   sun: { main: hex(0xff9a2e), alt: hex(0xffd27a), dust: hex(0xffe0b0) },
 };
-const ARMING = hex(FINISH.copper);
-const TRIGGER = hex(0xcfd8e6);
+const ARMING = hex(FINISH.brass);
+const TRIGGER = hex(0xe8d9be);
 
 const easeOut = (k) => 1 - (1 - k) * (1 - k);
 const facets = (n, fn) => Array.from({ length: n }, (_, i) => fn((i * TAU) / n, i));
-const disk = (r, h, color, y, n = 12) => meshPart(cylinder(r * 0.93, r, h, n), color, { y });
+const disk = (r, h, color, y, n = 10) => meshPart(cylinder(r * 0.92, r, h, n), color, { y });
+const cone = (rTop, rBot, h, color, y, n = 10) => meshPart(cylinder(rTop, rBot, h, n), color, { y });
 const gem = (r, color, p) => meshPart(octahedron(r), color, p);
-const bezel = (r, w, color, y, n = 20) => meshPart(torus(r, w, 5, n), color, { y, rx: Math.PI / 2 });
+const stone = (r, color, p) => meshPart(icosahedron(r, 0), color, p);
+const bezel = (r, w, color, y, n = 18) => meshPart(torus(r, w, 5, n), color, { y, rx: Math.PI / 2 });
 
-function tile(baseCol, color, trimCol, glowColor, slots, shape) {
-  return {
-    body: [
-      disk(0.96, 0.09, baseCol, 0.045, Math.max(8, slots)),
-      disk(0.82, 0.08, color, 0.095, slots),
-      bezel(0.85, 0.032, trimCol, 0.128, Math.max(16, slots * 2)),
-    ],
-    glow: facets(slots, (a) =>
-      gem(0.12, glowColor, {
-        x: Math.cos(a) * 0.66,
-        z: Math.sin(a) * 0.66,
-        y: 0.142,
-        ry: -a,
-        sx: 1.05,
-        sy: 0.16,
-        sz: 0.44,
-      }),
-    ),
-    ...(shape ? { mover: shape } : {}),
-  };
-}
-
-function obelisk(color, n) {
-  return facets(n, (a, i) =>
-    gem(i === 0 ? 0.54 : 0.26, color, {
-      x: i === 0 ? 0 : Math.cos(a) * 0.36,
-      z: i === 0 ? 0 : Math.sin(a) * 0.36,
-      y: i === 0 ? 0.44 : 0.26,
-      ry: a,
-      rz: Math.cos(a) * 0.28,
-      sy: i === 0 ? 1.05 : 0.92,
+// Organic ring of sculpted diorama stones/roots/rocks around a natural floor hazard
+function stoneRing(count, r, colA, colB, sy = 0.52) {
+  return facets(count, (a, i) =>
+    stone(i % 2 ? 0.2 : 0.16, i % 2 ? colA : colB, {
+      x: Math.cos(a) * r,
+      z: Math.sin(a) * r,
+      y: 0.075,
+      ry: -a,
+      sx: 1.05,
+      sy,
+      sz: 1.35,
     }),
   );
 }
 
-function emitter(baseCol, color, trimCol, accent, h, profile) {
-  return {
-    body: [
-      disk(0.66, 0.16, baseCol, 0.08, 8),
-      disk(0.52, 0.15, color, 0.21, profile),
-      disk(0.24, h, color, h * 0.5 + 0.27, profile),
-      bezel(0.31, 0.05, trimCol, h * 0.4 + 0.26, 16),
-    ],
-    glow: facets(4, (a) => gem(0.095, accent, { x: Math.cos(a) * 0.52, z: Math.sin(a) * 0.52, y: 0.22, sy: 0.45 })),
-    mover: [
-      disk(0.36, 0.22, baseCol, 0, profile),
-      gem(0.48, color, { x: 0.17, sy: 0.61, sz: 0.84, ry: TAU / profile }),
-      meshPart(torus(0.22, 0.042, 5, profile * 3), trimCol, { x: 0.43, ry: Math.PI / 2 }),
-    ],
-    moverGlow: [gem(0.16, accent, { x: 0.46, sx: 0.38 }), gem(0.075, accent, { x: 0.08, y: 0.3, sy: 1.28 })],
-  };
+// Rising crystal / glass-rose bloom cluster
+function crystalBloom(color, alt, n, spread = 0.34) {
+  return facets(n, (a, i) =>
+    gem(i === 0 ? 0.5 : 0.27, i % 2 ? color : alt, {
+      x: i === 0 ? 0 : Math.cos(a) * spread,
+      z: i === 0 ? 0 : Math.sin(a) * spread,
+      y: i === 0 ? 0.44 : 0.26,
+      ry: a,
+      rz: Math.cos(a) * 0.32,
+      sy: i === 0 ? 1.08 : 0.92,
+    }),
+  );
 }
 
-function mine(baseCol, color, trimCol, sides, profile) {
-  return {
-    body: [
-      disk(0.34, 0.1, baseCol, 0.055, sides),
-      disk(0.27, 0.15, color, 0.147, sides),
-      bezel(0.235, 0.026, trimCol, 0.2, 16),
-      ...facets(sides, (a) =>
-        gem(0.085, color, { y: 0.12, x: Math.cos(a) * 0.3, z: Math.sin(a) * 0.3, sy: 0.7, ry: -a }),
-      ),
-    ],
-    glow: [gem(0.11, 0xffffff, { y: 0.24, sy: 0.58 }), bezel(0.22, 0.015, 0xffffff, 0.21, 16)],
-    ...(profile ? { mover: [gem(0.12, color, { y: 0.09, sy: 1.33 }), bezel(0.16, 0.022, trimCol, 0.07, 12)] } : {}),
-  };
-}
-
-// Biome-native floor plates, beam emitters & proximity mines (every biome uses its own stone/ice/moss/obsidian/basalt/sandstone)
+// Bespoke handcrafted 3D diorama models for every biome trap
 const MODELS = {
-  // Courtyard: rain-darkened slate & warm antique brass
-  plate: () => tile(0x1f2e3a, 0x335464, 0xd89c52, 0x6cdcc8, 8),
-  // Shelf: deep glacial sapphire stone, slate-blue plate & crisp ice crystal bezel
-  icespike: () => tile(0x26486a, 0x4b82aa, 0x8cccee, 0xb6e4fa, 6, obelisk(0x6eb8e4, 5)),
-  // Marsh: mossy bog stone, velvety lichen plate & soft glowing moss-root rim
-  geyser: () => tile(0x1b3428, 0x2f6044, 0x4ea86e, 0x8ae88e, 7, [gem(0.62, 0x56be74, { y: 0.36, sy: 0.62 })]),
-  // Core: deep midnight obsidian, carved amethyst stone & radiant lavender rim
-  riftburst: () => tile(0x16102c, 0x2c1f50, 0x8c5ee0, 0xcba0f4, 6, obelisk(0x9a6ad8, 4)),
-  // Caldera: dark charred volcanic basalt, glowing ember-slag rim & molten core
-  pyro: () => tile(0x231719, 0x562b22, 0xb85228, 0xee9c46, 6, [gem(0.6, 0xe46a2c, { y: 0.32, sy: 0.6 })]),
-  // Flats: warm terracotta-umber stone, burnished ochre inlay & deep jewel turquoise rim
-  sunspike: () => tile(0x5e3d24, 0x9c7242, 0x26a89a, 0xe8bc66, 8, obelisk(0x28a89c, 6)),
-  // Beam emitters (biome-native pedestals)
-  laser: () => emitter(0x1f2e3a, 0x385864, 0xd89c52, 0xf29460, 0.72, 6),
-  magma: () => emitter(0x231719, 0x6c2f24, 0xc85c2a, 0xee9a4e, 0.24, 5),
-  rift: () => emitter(0x1d163a, 0x523a82, 0xb07ee8, 0xdba0ee, 0.59, 4),
-  // Proximity mines (biome-native shells)
-  mine: () => mine(0x20303c, 0x506c7a, 0xd89c52, 6, false),
-  frost: () => mine(0x284c70, 0x4c88b2, 0x94d2f0, 8, true),
-  spore: () => mine(0x1c3428, 0x366c4a, 0x5ec27e, 6, true),
-  riftmine: () => mine(0x1d163a, 0x5c3e92, 0xbe86f0, 5, true),
-  embermine: () => mine(0x24171a, 0x7a3426, 0xd65e24, 6, false),
-  glassmine: () => mine(0x5e3e24, 0x986e40, 0x28a89a, 7, true),
+  // --- FLOOR HAZARDS ---
+  // Courtyard: sunken bronze carillon basin with a rising brass temple-bell clapper
+  plate: () => ({
+    body: [
+      disk(0.95, 0.08, 0x20303b, 0.04, 8),
+      bezel(0.84, 0.045, 0xdca052, 0.095, 16),
+      ...facets(4, (a) => stone(0.11, 0x385466, { x: Math.cos(a) * 0.88, z: Math.sin(a) * 0.88, y: 0.1, sy: 0.65 })),
+    ],
+    glow: [
+      bezel(0.58, 0.025, 0xf6c86e, 0.1, 18),
+      ...facets(8, (a) => gem(0.085, 0xffe4a0, { x: Math.cos(a) * 0.72, z: Math.sin(a) * 0.72, y: 0.11, sy: 0.24 })),
+    ],
+    mover: [
+      cone(0.14, 0.34, 0.38, 0xe4a852, 0.24, 10),
+      bezel(0.34, 0.03, 0xfff0c4, 0.07, 14),
+      stone(0.09, 0xb87634, { y: 0.45 }),
+    ],
+  }),
+  // Aurora Shelf: snow-crusted glacier rock fissure + erupting sapphire rime spires
+  icespike: () => ({
+    body: [...stoneRing(9, 0.84, 0x3c6c94, 0x6ba2cc, 0.48), disk(0.76, 0.05, 0x274c6e, 0.028, 7)],
+    glow: [bezel(0.56, 0.028, 0x9ce2ff, 0.07, 14)],
+    mover: crystalBloom(0x6ec4ee, 0xc8f0ff, 5, 0.34),
+  }),
+  // Glowmarsh: mossy bog-root collar + bulbous botanical pitcher-plant spout
+  geyser: () => ({
+    body: [
+      ...stoneRing(8, 0.8, 0x244834, 0x326444, 0.46),
+      cone(0.52, 0.66, 0.26, 0x2f6848, 0.14, 8),
+      bezel(0.52, 0.06, 0x56b874, 0.26, 14),
+    ],
+    glow: [bezel(0.42, 0.032, 0x96f6a6, 0.28, 14)],
+    mover: [stone(0.48, 0x62d888, { y: 0.34, sy: 0.72 })],
+  }),
+  // Star-Vault: carved obsidian astrolabe well + spinning gilded star-ring
+  riftburst: () => ({
+    body: [...stoneRing(6, 0.86, 0x1e1538, 0x352560, 0.58), bezel(0.74, 0.034, 0xc89a5c, 0.1, 16)],
+    glow: [bezel(0.54, 0.025, 0xc896f8, 0.11, 16)],
+    mover: [
+      gem(0.34, 0xb07ef0, { y: 0.0, sy: 1.25 }),
+      meshPart(torus(0.52, 0.034, 5, 16), 0xe8bc6c, { rx: 0.65, rz: 0.4 }),
+    ],
+  }),
+  // Ashfall Caldera: jagged charred basalt anvil-fissure + swelling molten slag crest
+  pyro: () => ({
+    body: [...stoneRing(10, 0.84, 0x2a1b1c, 0x4b2820, 0.54), disk(0.74, 0.05, 0x361a16, 0.028, 7)],
+    glow: [bezel(0.62, 0.034, 0xf48c36, 0.075, 16)],
+    mover: [stone(0.5, 0xf27028, { y: 0.3, sy: 0.65 })],
+  }),
+  // Glass Flats: sun-baked sandstone basin + blooming turquoise-gold desert glass-rose petals
+  sunspike: () => ({
+    body: [...stoneRing(8, 0.84, 0x764f2c, 0xa87c4a, 0.46), bezel(0.72, 0.032, 0x2ca89a, 0.085, 16)],
+    glow: [bezel(0.54, 0.025, 0xf4c868, 0.095, 16)],
+    mover: crystalBloom(0x32bca8, 0xf4d078, 6, 0.38),
+  }),
+
+  // --- SWEEPING BEACONS & BELLOWS ---
+  // Courtyard: miniature pagoda lighthouse tower with curved eaves & spinning Fresnel brass lantern
+  laser: () => ({
+    body: [
+      disk(0.62, 0.16, 0x22323e, 0.08, 8),
+      cone(0.38, 0.5, 0.68, 0x365260, 0.48, 8),
+      bezel(0.44, 0.04, 0xdca052, 0.82, 16),
+      cone(0.14, 0.62, 0.24, 0x26404c, 1.56, 8),
+      bezel(0.58, 0.035, 0xe4aa56, 1.45, 16),
+    ],
+    glow: facets(4, (a) => gem(0.08, 0xffd078, { x: Math.cos(a) * 0.44, z: Math.sin(a) * 0.44, y: 0.52, sy: 0.8 })),
+    mover: [
+      cone(0.24, 0.28, 0.42, 0xdca052, 0.0, 8),
+      meshPart(torus(0.2, 0.04, 5, 14), 0xf6c868, { x: 0.3, ry: Math.PI / 2 }),
+    ],
+    moverGlow: [stone(0.18, 0xffe8a4, { x: 0.18 }), gem(0.12, 0xfff6d2, { x: 0.32, sx: 0.45 })],
+  }),
+  // Ashfall Caldera: squat forged-iron dragon-kiln chimney & brass bellows nozzle
+  magma: () => ({
+    body: [
+      ...stoneRing(6, 0.58, 0x2c1b1a, 0x4c2820, 0.72),
+      cone(0.42, 0.52, 0.34, 0x3c2220, 0.22, 6),
+      bezel(0.45, 0.05, 0xd0682c, 0.38, 12),
+    ],
+    glow: [bezel(0.36, 0.03, 0xff923c, 0.4, 12)],
+    mover: [
+      cone(0.26, 0.36, 0.34, 0x5c2c22, 0.0, 6),
+      cone(0.18, 0.26, 0.42, 0xc8642c, 0.04, 6)
+        .rotateZ(-Math.PI / 2)
+        .translate(0.28, 0, 0),
+    ],
+    moverGlow: [stone(0.18, 0xff9a38, { x: 0.44, sx: 0.6 })],
+  }),
+  // Star-Vault: carved obsidian dais with hovering gilded brass-and-amethyst armillary sphere
+  rift: () => ({
+    body: [
+      disk(0.58, 0.16, 0x1d1438, 0.08, 6),
+      cone(0.28, 0.44, 0.56, 0x352460, 0.44, 6),
+      bezel(0.36, 0.038, 0xd8a864, 0.72, 16),
+    ],
+    glow: facets(4, (a) => gem(0.085, 0xd49eff, { x: Math.cos(a) * 0.42, z: Math.sin(a) * 0.42, y: 0.26, sy: 0.7 })),
+    mover: [
+      meshPart(torus(0.38, 0.035, 5, 16), 0xe2b668, { rx: 0.5 }),
+      meshPart(torus(0.32, 0.03, 5, 16), 0x8e62d8, { ry: 0.7, rz: 0.6 }),
+      gem(0.16, 0x543a86, { x: 0.34, sx: 1.3, sy: 0.65, sz: 0.65 }),
+    ],
+    moverGlow: [gem(0.18, 0xecd0ff, { y: 0 }), gem(0.1, 0xfff0c8, { x: 0.42 })],
+  }),
+
+  // --- SHOOTABLE PROXIMITY VESSELS ---
+  // Courtyard: plump ceramic wick-lantern pot with brass collar & glowing wax wick
+  mine: () => ({
+    body: [
+      stone(0.32, 0x5c4230, { y: 0.22, sy: 0.88 }),
+      bezel(0.28, 0.038, 0xe0a450, 0.34, 14),
+      cone(0.18, 0.24, 0.12, 0x324b58, 0.42, 8),
+    ],
+    glow: [gem(0.14, 0xffffff, { y: 0.54, sy: 1.4 }), bezel(0.25, 0.022, 0xffffff, 0.24, 14)],
+  }),
+  // Aurora Shelf: faceted frost-glass bauble perched on a snow cushion
+  frost: () => ({
+    body: [
+      disk(0.34, 0.09, 0x9ecae4, 0.045, 8),
+      stone(0.29, 0x5696c4, { y: 0.26, sy: 0.92 }),
+      bezel(0.29, 0.028, 0xc8eeff, 0.26, 14),
+    ],
+    glow: [gem(0.16, 0xffffff, { y: 0.28 }), bezel(0.22, 0.018, 0xffffff, 0.42, 12)],
+    mover: [gem(0.14, 0x88d4f4, { y: 0.52, sy: 1.45 })],
+  }),
+  // Glowmarsh: plump speckled puff-cap toadstool on a mossy stem
+  spore: () => ({
+    body: [cone(0.14, 0.18, 0.24, 0x486e4c, 0.12, 7), stone(0.34, 0x3a8458, { y: 0.34, sy: 0.62 })],
+    glow: [
+      ...facets(5, (a) => stone(0.065, 0xffffff, { x: Math.cos(a) * 0.23, z: Math.sin(a) * 0.23, y: 0.4, sy: 0.6 })),
+      stone(0.1, 0xffffff, { y: 0.52, sy: 0.5 }),
+    ],
+    mover: [bezel(0.28, 0.024, 0x72e89c, 0.22, 14)],
+  }),
+  // Star-Vault: levitating gilded star-snare urn ringed by an orbit hoop
+  riftmine: () => ({
+    body: [disk(0.24, 0.07, 0x22173e, 0.035, 6), gem(0.28, 0x5c3e92, { y: 0.34, sy: 1.15 })],
+    glow: [gem(0.15, 0xffffff, { y: 0.36 }), bezel(0.28, 0.018, 0xffffff, 0.34, 14)],
+    mover: [meshPart(torus(0.35, 0.026, 5, 14), 0xe2b668, { y: 0.34, rx: 0.85 })],
+  }),
+  // Ashfall Caldera: iron-banded terracotta furnace slag keg
+  embermine: () => ({
+    body: [
+      cone(0.26, 0.3, 0.38, 0x6e3022, 0.2, 8),
+      bezel(0.3, 0.036, 0x2c1b1c, 0.14, 12),
+      bezel(0.28, 0.036, 0xd87032, 0.32, 12),
+    ],
+    glow: [stone(0.16, 0xffffff, { y: 0.42, sy: 0.72 }), bezel(0.24, 0.02, 0xffffff, 0.24, 12)],
+  }),
+  // Glass Flats: handcrafted sandstone desert amphora crowned with a turquoise glass prism
+  glassmine: () => ({
+    body: [
+      cone(0.22, 0.16, 0.18, 0x9e7040, 0.09, 8),
+      cone(0.14, 0.26, 0.24, 0xb8864e, 0.3, 8),
+      bezel(0.24, 0.03, 0x2ca89a, 0.2, 14),
+    ],
+    glow: [gem(0.15, 0xffffff, { y: 0.52, sy: 1.35 }), bezel(0.18, 0.018, 0xffffff, 0.42, 12)],
+    mover: [gem(0.13, 0x42c8b8, { y: 0.5, sy: 1.4 })],
+  }),
 };
 const MAX = { floor: 12, beam: 8, mine: 16 };
 
@@ -244,17 +344,21 @@ export class TrapView {
     const glow = 0.45 + Math.sin(time * 2 + trap.id) * 0.1 + k * 0.7 + hit * 0.7;
     const emit = Math.random() < dt * (3 + k * 22) * quality;
     switch (trap.skin) {
-      case "plate":
+      case "plate": {
         P.glow.colC(P.glow.y(x, 0, z, 0, rr, 1, rr), WHITE, glow);
+        const lift = warn ? 0.12 + k * 0.65 : s.fire < 0.25 ? 0.05 + (1 - s.fire / 0.25) * 0.12 : 0.1;
+        const swing = warn ? Math.sin(time * (12 + k * 14)) * 0.14 * k : 0;
+        if (P.mover) P.mover.y(x, lift, z, time * 0.5 + swing, rr * 0.68, rr * 0.68, rr * 0.68);
         if (emit) {
-          const a = Math.floor(Math.random() * 4) * 1.5708;
-          const d = (0.2 + Math.random() * 0.6) * rr;
-          r.emit(x + Math.cos(a) * d, 0.15, z + Math.sin(a) * d, 0, 1 + k * 2, 0, 0.35, 0.16, look.main, {
+          const a = Math.random() * TAU;
+          const d = (0.25 + Math.random() * 0.55) * rr;
+          r.emit(x + Math.cos(a) * d, 0.18, z + Math.sin(a) * d, 0, 1.1 + k * 1.8, 0, 0.42, 0.15, look.alt, {
             spark: true,
-            drag: 1,
+            drag: 1.4,
           });
         }
         break;
+      }
       case "icespike":
       case "sunspike": {
         P.glow.colC(P.glow.y(x, 0, z, 0, rr, 1, rr), WHITE, 0.38 + k * 0.9 + hit);
@@ -385,7 +489,7 @@ export class TrapView {
     const charge = a1 !== null && bt < 1 ? bt : 0;
     const live = bt >= 1 ? 1 : 0;
     const hover =
-      trap.skin === "magma" ? 0.55 : trap.skin === "rift" ? 1.3 + Math.sin(time * 2.4 + trap.id) * 0.1 : 1.3;
+      trap.skin === "magma" ? 0.56 : trap.skin === "rift" ? 1.32 + Math.sin(time * 2.4 + trap.id) * 0.1 : 1.15;
     P.body.y(x, 0, z, 0, 1.35, 1.35, 1.35);
     P.glow.colC(
       P.glow.y(x, 0, z, 0, 1.35, 1.35, 1.35),
@@ -406,9 +510,9 @@ export class TrapView {
     const cy = Math.cos(s.yaw),
       sy = Math.sin(s.yaw);
     if (charge > 0) {
-      const tx = x + cy * 1.25,
-        tz = z + sy * 1.25;
-      if (Math.random() < dt * (14 + charge * 40) * quality) {
+      const tx = x + cy * 1.15,
+        tz = z + sy * 1.15;
+      if (Math.random() < dt * (14 + charge * 36) * quality) {
         const ang = Math.random() * TAU,
           d = 0.8,
           life = 0.3;
@@ -428,10 +532,7 @@ export class TrapView {
       r.sprites.colC(r.sprites.bb(tx, hover, tz, 0.5 + charge * 1.3, r.B), look.main, 0.4 + charge * 0.5);
     }
     if (live) {
-      r.sprites.colC(r.sprites.bb(x + cy * 1.3, hover, z + sy * 1.3, 1.6, r.B), look.main, 0.4);
-    }
-    if (!charge && !live) {
-      r.beams.colC(r.beams.seg(x + cy * 1.1, z + sy * 1.1, x + cy * 4, z + sy * 4, 0.05, 0.03, 0.02), look.main, 0.12);
+      r.sprites.colC(r.sprites.bb(x + cy * 1.2, hover, z + sy * 1.2, 1.6, r.B), look.main, 0.42);
     }
   }
   drawBeam(beam, ex, ez, len, time, dt) {
@@ -542,11 +643,14 @@ export class TrapView {
       b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.3, beam.w * 0.3), look.alt, 0.64);
       b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.12, beam.w * 0.12), WHITE, 0.72);
     } else {
-      r.warningEdges.colC(r.warningEdges.seg(beam.x, beam.y, ex, ez, 0.055, beam.w, 0.04), hex(FINISH.ink), 0.78);
-      b.colC(b.seg(beam.x, beam.y, ex, ez, 0.75, beam.w * 0.22, beam.w * 0.14), WHITE, 0.72);
-      for (const side of [-1, 1]) {
-        const o = side * beam.w * 0.42;
-        b.colC(b.seg(beam.x - sa * o, beam.y + ca * o, ex - sa * o, ez + ca * o, 0.74, 0.09, 0.065), look.main, 0.76);
+      // Warm golden-amber lighthouse lantern ribbon (replaces old dual-rail laser)
+      r.warningEdges.colC(r.warningEdges.seg(beam.x, beam.y, ex, ez, 0.055, beam.w * 1.06, 0.045), hex(0x281808), 0.72);
+      b.colC(b.seg(beam.x, beam.y, ex, ez, 0.85, beam.w * 0.92 * sheen, beam.w * 0.42), look.main, 0.48);
+      b.colC(b.seg(beam.x, beam.y, ex, ez, 0.88, beam.w * 0.38, beam.w * 0.24), look.alt, 0.66);
+      b.colC(b.seg(beam.x, beam.y, ex, ez, 0.9, beam.w * 0.14, beam.w * 0.14), WHITE, 0.72);
+      if (Math.random() < dt * 16) {
+        const d = Math.random() * len;
+        r.emit(beam.x + ca * d, 0.75, beam.y + sa * d, 0, 1.3, 0, 0.45, 0.15, look.alt, { spark: true, drag: 1.5 });
       }
     }
     r.sprites.colC(r.sprites.bb(ex, 1, ez, 1.05, r.B), look.main, 0.36);
@@ -576,20 +680,23 @@ export class TrapView {
     const fuse = trap.st === "fuse";
     const armed = trap.st === "armed";
     const rise = trap.st === "unarmed" ? easeOut(clamp(s.pop / 0.6, 0, 1)) : 1;
-    const k = fuse ? clamp(trap.t / 0.45, 0, 1) : 0;
+    const fuseDur = trap.skin === "riftmine" ? 0.56 : 0.45;
+    const k = fuse ? clamp(trap.t / fuseDur, 0, 1) : 0;
     const y0 = -0.4 * (1 - rise);
-    const sc = (0.7 + 0.3 * rise) * 1.3;
+    const sc = (0.7 + 0.3 * rise) * 1.28;
+    const flicker = 0.88 + Math.sin(time * 13 + trap.id * 2.1) * 0.12;
     let col = ARMING,
-      lum = 0.2 + clamp(trap.t / 1.5, 0, 1) * 0.35;
+      lum = 0.22 + clamp(trap.t / 1.5, 0, 1) * 0.35;
     if (armed) {
-      col = look.led;
-      lum = 0.72;
+      col = look.wick || look.main;
+      lum = 0.72 * flicker;
     } else if (fuse) {
       col = WARN;
-      lum = 0.95 + k * 0.4;
+      lum = 0.95 + k * 0.45;
     }
     let breathe = 1;
-    if (trap.skin === "spore") breathe = (armed ? 1 + Math.sin(time * 5) * 0.05 : 1) * (fuse ? 1 + k * 0.55 : 1);
+    if (trap.skin === "spore") breathe = (armed ? 1 + Math.sin(time * 5) * 0.06 : 1) * (fuse ? 1 + k * 0.55 : 1);
+    else if (fuse) breathe = 1 + k * 0.18;
     P.body.y(x, y0, z, trap.id, sc * breathe, sc * breathe, sc * breathe);
     tint.copy(col).multiplyScalar(lum);
     const gy = trap.skin === "riftmine" ? y0 + Math.sin(time * 2.4 + trap.id) * 0.08 : y0;
@@ -608,10 +715,31 @@ export class TrapView {
     );
     if (P.mover) P.mover.y(x, gy, z, time * (fuse ? 6 : 1.4), sc, sc, sc);
     if (armed || fuse) {
-      r.sprites.colC(r.sprites.bb(x, 0.3, z, 1.2 + (fuse ? k * 0.6 : 0), r.B), col, fuse ? 0.24 + k * 0.18 : 0.14);
+      r.sprites.colC(r.sprites.bb(x, 0.42, z, 1.15 + (fuse ? k * 0.65 : 0), r.B), col, fuse ? 0.25 + k * 0.2 : 0.14);
       if (armed) r.ringPool.colC(r.ringPool.y(x, 0.04, z, 0, 1.5), TRIGGER, 0.12 + Math.sin(time * 3 + trap.id) * 0.03);
     }
-    if (fuse) this.warnRing(x, z, trap.r, k);
+    if (fuse) {
+      this.warnRing(x, z, trap.r, k);
+      if (trap.skin === "riftmine" && Math.random() < dt * 28 * quality) {
+        const a = Math.random() * TAU,
+          d = trap.r * 1.15;
+        r.emit(
+          x + Math.cos(a) * d,
+          0.35,
+          z + Math.sin(a) * d,
+          -Math.cos(a) * d * 2.6,
+          0.2,
+          -Math.sin(a) * d * 2.6,
+          0.36,
+          0.18,
+          look.main,
+          {
+            spark: true,
+            drag: 0,
+          },
+        );
+      }
+    }
     if (!fuse && !armed && Math.random() < dt * 2 * quality)
       r.emit(x, 0.3, z, 0, 0.6, 0, 0.5, 0.1, ARMING, { spark: true, drag: 1 });
   }
@@ -620,8 +748,8 @@ export class TrapView {
     const look = LOOK[ev.skin];
     if (!look) return;
     if (ev.k === "trapArm") {
-      r.ring(ev.x, ev.y, 0.2, 1.1, look.led || look.main, 0.3);
-      r.burst(ev.x, ev.y, 0.3, 4, 3, look.led || look.main, 0.3, 0.2, { spark: true });
+      r.ring(ev.x, ev.y, 0.2, 1.1, look.wick || look.main, 0.3);
+      r.burst(ev.x, ev.y, 0.3, 4, 3, look.wick || look.main, 0.3, 0.2, { spark: true });
       return;
     }
     const s = this.st.get(ev.id);
@@ -634,18 +762,13 @@ export class TrapView {
     }
     switch (ev.skin) {
       case "plate":
-        r.ring(x, z, rad * 0.2, rad * 1.1, look.main, 0.35);
-        r.ring(x, z, rad * 0.1, rad * 0.7, WHITE, 0.2);
-        for (let i = 0; i < 6; i++) {
-          const angle = (i * TAU) / 6;
-          const dx = Math.cos(angle) * rad,
-            dz = Math.sin(angle) * rad;
-          r.line(x + dx * 0.28, z + dz * 0.28, x + dx * 0.92, z + dz * 0.92, look.main, 0.34, 0.07, 0.18, 0.1);
-        }
-        r.burst(x, z, 0.25, 9, Math.min(6, rad * 2), look.alt, 0.46, 0.16, { spark: true, drag: 3 });
+        // Double-peal golden brass carillon resonance wave
+        r.ring(x, z, rad * 0.18, rad * 1.2, look.main, 0.42);
+        r.ring(x, z, rad * 0.08, rad * 0.85, look.alt, 0.28);
+        r.burst(x, z, 0.28, 12, Math.min(6.5, rad * 2.2), look.alt, 0.52, 0.18, { spark: true, drag: 2.5, up: 2.2 });
         r.debrisBurst(x, z, 0.2, 5, look.dust, 0.1, 4);
-        r.addScorch(x, z, rad * 0.45);
-        r.addShake(0.12 * shakeK);
+        r.flash(x, z, rad * 1.5, 1.0, look.main, 5);
+        r.addShake(0.14 * shakeK);
         break;
       case "icespike":
       case "sunspike":

@@ -520,6 +520,16 @@ export function physicalProfile(id, arg, place = false) {
   if (!place && id === "lob" && arg?.frost)
     Object.assign(p, P.glass, { family: "frostLob", dur: 0.23, body: 510, gain: 0.22 });
   if (!place && id === "tbFlame") Object.assign(p, P.bwFlame, { family: "magmaWarning" });
+  if (!place && id === "tsPlate")
+    Object.assign(p, { ...P.reward, family: id, sample: "plate", body: 310, dur: 0.42, gain: 0.28 });
+  if (!place && (id === "tsGeyser" || id === "tsSpore"))
+    Object.assign(p, { ...P.organic, family: id, sample: "flesh", body: 125, dur: 0.36, gain: 0.28 });
+  if (!place && (id === "tsPyro" || id === "tsEmber"))
+    Object.assign(p, { ...P.boom, family: id, sample: "wood", body: 68, lowpass: 1200, dur: 0.44, gain: 0.32 });
+  if (!place && (id === "tsSun" || id === "tsGlass"))
+    Object.assign(p, { ...P.glass, family: id, sample: "glass", body: 540, dur: 0.32, gain: 0.26 });
+  if (!place && (id === "tsRift" || id === "tsRiftmine"))
+    Object.assign(p, { ...P.wind, family: id, sample: "soft", body: 195, dur: 0.44, gain: 0.28 });
   if (!place && id === "mend")
     Object.assign(
       p,
@@ -538,6 +548,7 @@ export function physicalProfile(id, arg, place = false) {
     );
   if (!place && id === "tArm") {
     const arm = {
+      mine: ["plate", 240],
       frost: ["glass", 510],
       spore: ["flesh", 120],
       riftmine: ["soft", 210],
@@ -797,8 +808,10 @@ export class PhysicalVoices {
     this.source(engine, id, p);
     if (["scatter", "rail"].includes(id))
       this.source(engine, "chamber", { ...P.ui, sample: "metal", gain: 0.11 }, { at: id === "scatter" ? 0.13 : 0.18 });
-    if (/^tb/.test(id) && arg?.dur)
-      this.source(engine, id + "-active", { ...P.tesla, dur: Math.min(1.2, arg.dur) }, { at: p.dur, gain: 0.7 });
+    if (/^tb/.test(id) && arg?.dur) {
+      const base = id === "tbFlame" ? P.bwFlame : id === "tbLaser" ? P.wind : P.tesla;
+      this.source(engine, id + "-active", { ...base, dur: Math.min(1.2, arg.dur) }, { at: p.dur, gain: 0.7 });
+    }
   }
   place(engine, id, a = {}) {
     this.source(engine, id, physicalProfile(id, null, true), { gain: a.g ?? 1, pan: a.pan || 0, ambience: true });

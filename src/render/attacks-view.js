@@ -27,10 +27,10 @@ const SHOT = {
   orb: new Color(0xff4284),
   bolt: new Color(0xff845c),
   fast: new Color(0xff3030),
-  turret: new Color(0xff3c5e),
-  drone: new Color(0xff529c),
-  weaver: new Color(0xd654ff),
-  carrier: new Color(0xff5c6e),
+  turret: new Color(0xe85a4a),
+  drone: new Color(0xf06b62),
+  weaver: new Color(0xd684ff),
+  carrier: new Color(0xf48658),
   ...Object.fromEntries(Object.values(BOSS_EFFECTS).map((effect) => [effect.projectile, new Color(effect.color)])),
 };
 
@@ -302,11 +302,16 @@ export class AttackView {
     if (hazard.kind === "mine" || hazard.kind === "sapper") {
       const P = this.get(hazard.kind === "mine" ? "mine" : "charge");
       const pop = clamp(hazard.t / 0.12, 0, 1);
-      const s = 0.4 + 0.6 * pop + (k > 0.85 ? Math.sin(time * 60) * 0.04 : 0);
+      const s = 0.4 + 0.6 * pop + (k > 0.8 ? Math.sin(time * 38) * 0.05 : 0);
       const yaw = seed * TAU;
       P.body.y(x, 0, z, yaw, s);
-      const led = P.glow.y(x, 0, z, yaw, s);
-      P.glow.colC(led, r.warnColor, Math.sin(time * (8 + 50 * k * k)) > 0 ? 1.5 : 0.3);
+      const wick = P.glow.y(x, 0, z, yaw, s);
+      P.glow.colC(wick, k > 0.72 ? r.warnColor : FIRE_HOT, 0.85 + 0.65 * Math.abs(Math.sin(time * (6 + 18 * k))));
+      if (chance(8 + k * 20))
+        r.emit(x, 0.34, z, (Math.random() - 0.5) * 1.4, 1.8 + k * 2, (Math.random() - 0.5) * 1.4, 0.3, 0.12, FIRE_HOT, {
+          spark: true,
+          drag: 2,
+        });
     }
     if (hazard.sx != null) {
       const hx = hazard.sx + (x - hazard.sx) * k;
@@ -335,23 +340,16 @@ export class AttackView {
       }
     }
     if (hazard.kind === "shorted") {
-      for (let i = 0; i < 6; i++) {
-        const a = (i * TAU) / 6 + seed * TAU;
-        const dx = Math.cos(a) * rr,
-          dz = Math.sin(a) * rr;
-        r.beams.colC(
-          r.beams.seg(
-            x + dx * 0.18,
-            z + dz * 0.18,
-            x + dx * (0.42 + k * 0.36),
-            z + dz * (0.42 + k * 0.36),
-            0.09,
-            0.055,
-            0.028,
-          ),
-          ARC,
-          0.5 + k * 0.5,
-        );
+      // Courtyard Brim-Lit: warm spilled lantern-oil brass ring & rising amber flame motes
+      r.ringPool.colC(r.ringPool.y(x, 0.08, z, time * 2.2, rr * (0.45 + k * 0.52)), FIRE_HOT, 0.55 + k * 0.4);
+      r.discs.colC(r.discs.y(x, 0.06, z, seed * TAU, rr * (0.3 + k * 0.65)), FIRE, 0.14 + k * 0.16);
+      if (chance(12 + k * 24)) {
+        const a = Math.random() * TAU,
+          d = rr * (0.2 + Math.random() * 0.65);
+        r.emit(x + Math.cos(a) * d, 0.14, z + Math.sin(a) * d, 0, 1.6 + k * 2.4, 0, 0.42, 0.16, FIRE_HOT, {
+          spark: true,
+          drag: 1.8,
+        });
       }
     }
     switch (look) {

@@ -35,7 +35,7 @@ const workshopModules = [
   { id: "power", name: "Kiln Core", icon: "burst", desc: "+5% damage per level", costs: [80, 160, 260, 400, 600] },
   {
     id: "thrust",
-    name: "Gale-Weave Boots",
+    name: "Wayfarer's Stride",
     icon: "wing",
     desc: "+4% move speed per level",
     costs: [60, 130, 220, 340],

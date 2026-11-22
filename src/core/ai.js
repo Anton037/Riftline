@@ -631,12 +631,14 @@ function updateBoss(game, boss, dt) {
   switch (boss.type) {
     case "bellkeeper": {
       if (boss.st === "charge") {
+        // Belfry Rush: telegraphed rush leaving 2 delayed brass chime-inlays in its wake
         let charges = 2 + rage;
         if (boss.t2 === 0) {
           boss.t2 = 1;
           boss.ta = aim;
           boss.sub = 0;
           boss.subT = 0;
+          boss.wakeN = 0;
           game.emit("charge", { x: boss.x, y: boss.y, type: "bellkeeper" });
         }
         boss.subT += dt;
@@ -650,17 +652,30 @@ function updateBoss(game, boss, dt) {
           if (boss.subT > (rage ? 0.65 : 0.85)) {
             boss.sub = 1;
             boss.subT = 0;
+            boss.wakeN = 0;
           }
         } else if (boss.sub === 1) {
-          let chargeSpeed = rage ? 18 : 15.5;
+          let chargeSpeed = rage ? 17.5 : 15;
           boss.vx = Math.cos(boss.ta) * chargeSpeed;
           boss.vy = Math.sin(boss.ta) * chargeSpeed;
           boss.charging = true;
+          // Drop brass chime-inlays along the rush wake
+          if (boss.wakeN < 2 && boss.subT >= 0.22 + boss.wakeN * 0.28) {
+            boss.wakeN++;
+            game.hazard({
+              x: clamp(boss.x, -game.arena.W + 1.5, game.arena.W - 1.5),
+              y: clamp(boss.y, -game.arena.H + 1.5, game.arena.H - 1.5),
+              r: 1.9,
+              delay: 0.95,
+              dmg: boss.dmg * 0.72,
+              kind: "stomp",
+              src: "bellkeeper",
+            });
+          }
           if ((boss.hitWall && boss.subT > 0.1) || boss.subT > 0.8) {
             boss.charging = false;
             if (boss.hitWall) {
               game.emit("thud", { x: boss.x, y: boss.y, big: true });
-              // the wall cracks where the Bellkeeper hits it (the look and sound of its stomp, no damage)
               game.explode(boss.x, boss.y, 2.4, 0, { kind: "stomp", src: "bellkeeper" });
               if (rage) {
                 shootRing(game, boss, 10, 7.5, shotDmg, boss.spin);
@@ -675,7 +690,7 @@ function updateBoss(game, boss, dt) {
           if (boss.subT > 0.45) {
             boss.n++;
             if (boss.n >= charges) {
-              endBossAttack(boss, 2.2 - rage * 0.6);
+              endBossAttack(boss, 2.1 - rage * 0.55);
             } else {
               boss.sub = 0;
               boss.subT = 0;
@@ -687,47 +702,50 @@ function updateBoss(game, boss, dt) {
         return;
       }
       if (boss.st === "ring") {
+        // Brass Toll: rhythmic alternating fast outer bell-waves & slower counter-offset inner chimes
         boss.vx *= 0.85;
         boss.vy *= 0.85;
-        let rings = 3 + rage,
-          gap = 0.55;
-        if (boss.t >= 0.4 + boss.n * gap && boss.n < rings) {
-          shootRing(game, boss, 16 + rage * 6, 7 + rage, shotDmg, (boss.n % 2) * (Math.PI / (16 + rage * 6)));
+        let tolls = 3 + rage,
+          gap = 0.54;
+        if (boss.t >= 0.38 + boss.n * gap && boss.n < tolls) {
+          const fast = boss.n % 2 === 0;
+          const count = fast ? 14 + rage * 4 : 12 + rage * 4;
+          const spd = fast ? 8.6 + rage * 0.8 : 5.8 + rage * 0.6;
+          shootRing(game, boss, count, spd, shotDmg, boss.spin + (fast ? 0 : Math.PI / count));
           boss.n++;
         }
-        if (boss.t > 0.4 + rings * gap + 0.4) {
-          endBossAttack(boss, 2.4 - rage * 0.7);
+        if (boss.t > 0.38 + tolls * gap + 0.45) {
+          endBossAttack(boss, 2.3 - rage * 0.65);
         }
         return;
       }
       if (boss.st === "stomp") {
+        // Carillon Slam: 3-beat concentric ripple — inner slam, 4 cardinal chime-pads, then outer brass seal ring
         boss.vx = 0;
         boss.vy = 0;
-        const firstStomp = boss.n === 0;
-        if (firstStomp) {
+        if (boss.n === 0) {
           boss.n = 1;
-          game.hazard({ x: boss.x, y: boss.y, r: 4.8, delay: 1, dmg: boss.dmg, kind: "stomp" });
+          game.hazard({ x: boss.x, y: boss.y, r: 4.2, delay: 0.95, dmg: boss.dmg, kind: "stomp", src: "bellkeeper" });
+          game.emit("charge", { x: boss.x, y: boss.y, type: "bellkeeper" });
         }
-        if (firstStomp && rage)
-          for (let k = 0; k < 3; k++) {
-            let angle = game.rng.next() * TAU,
-              off = game.rng.range(0, 3);
-            game.hazard({
-              x: clamp(player.x + Math.cos(angle) * off, -game.arena.W + 1, game.arena.W - 1),
-              y: clamp(player.y + Math.sin(angle) * off, -game.arena.H + 1, game.arena.H - 1),
-              r: 2.4,
-              delay: 1.25 + k * 0.2,
-              dmg: boss.dmg * 0.8,
-              kind: "stomp",
-            });
-          }
-        if (boss.n === 1 && boss.t > 1) {
+        if (boss.n === 1 && boss.t >= 0.42) {
           boss.n = 2;
-          shootRing(game, boss, 12, 9, shotDmg, 0);
+          const base = aim + (rage ? Math.PI / 4 : 0);
+          const pads = rage ? 6 : 4;
+          for (let k = 0; k < pads; k++) {
+            const angle = base + (k / pads) * TAU;
+            const px = clamp(boss.x + Math.cos(angle) * 5.6, -game.arena.W + 1.4, game.arena.W - 1.4);
+            const py = clamp(boss.y + Math.sin(angle) * 5.6, -game.arena.H + 1.4, game.arena.H - 1.4);
+            game.hazard({ x: px, y: py, r: 2.05, delay: 1.05, dmg: boss.dmg * 0.8, kind: "stomp", src: "bellkeeper" });
+          }
+        }
+        if (boss.n === 2 && boss.t > 1.0) {
+          boss.n = 3;
+          shootRing(game, boss, 14 + rage * 4, 8.4, shotDmg, aim);
           game.emit("thud", { x: boss.x, y: boss.y, big: true });
         }
-        if (boss.t > 1.6) {
-          endBossAttack(boss, 2);
+        if (boss.t > 1.75) {
+          endBossAttack(boss, 1.95 - rage * 0.35);
         }
         return;
       }
@@ -736,84 +754,132 @@ function updateBoss(game, boss, dt) {
     case "queen": {
       moveBoss(game, boss, dt, aim, dist, 0.4);
       if (boss.st === "summon") {
+        // Mushroom Ring: protective spore-puff around herself while hatching a fairy-ring of marsh brood
         if (boss.n === 0) {
           boss.n = 1;
-          // 2.8.1: summons stop while the arena is crowded (no cap before)
-          let count = game.enemies.length > 70 ? 0 : 5 + rage * 2;
+          game.hazard({ x: boss.x, y: boss.y, r: 3.4, delay: 0.85, dmg: boss.dmg * 0.72, kind: "rain", src: "queen" });
+          let count = game.enemies.length > 70 ? 0 : 4 + rage * 2;
           for (let k = 0; k < count; k++) {
             let angle = (k / count) * TAU + boss.spin,
-              kid = game.spawnEnemy("swarmer", boss.x + Math.cos(angle) * 2.4, boss.y + Math.sin(angle) * 2.4, {
-                hpF: 1,
-              });
+              kid = game.spawnEnemy(
+                k % 2 ? "mite" : "swarmer",
+                boss.x + Math.cos(angle) * 2.4,
+                boss.y + Math.sin(angle) * 2.4,
+                {
+                  hpF: 1,
+                },
+              );
             kid.spawnT = 0.3;
             kid.noDrop = game.rng.chance(0.6);
-            kid.kx = Math.cos(angle) * 5;
-            kid.ky = Math.sin(angle) * 5;
+            kid.kx = Math.cos(angle) * 5.5;
+            kid.ky = Math.sin(angle) * 5.5;
           }
           game.emit("hatch", { x: boss.x, y: boss.y, big: true });
         }
-        if (boss.t > 1) {
+        if (boss.t > 1.1) {
           endBossAttack(boss, 1.4);
         }
         return;
       }
       if (boss.st === "spiral") {
-        let count = 3 + rage * 2;
-        for (boss.t2 += dt; boss.t2 > 0.1;) {
-          boss.t2 -= 0.1;
-          boss.ta = (boss.ta || 0) + 0.24;
-          for (let k = 0; k < count; k++)
-            game.shoot(boss.x, boss.y, boss.ta + (k / count) * TAU, 6.2, shotDmg, { r: 0.26 });
+        // Firefly Whirl: breathing dual-speed twin-helix spore waltz
+        let arms = 3 + rage;
+        for (boss.t2 += dt; boss.t2 > 0.12;) {
+          boss.t2 -= 0.12;
+          const sway = Math.sin(boss.t * 3.2) * 0.14;
+          boss.ta = (boss.ta || 0) + 0.22 + sway;
+          const fast = boss.n++ % 2 === 0;
+          const spd = fast ? 7.4 : 4.9;
+          for (let k = 0; k < arms; k++)
+            game.shoot(boss.x, boss.y, boss.ta + (k / arms) * TAU, spd, shotDmg, { r: fast ? 0.25 : 0.29 });
           bossVolley(game, boss, 0.3);
         }
-        if (boss.t > 3.2) {
+        if (boss.t > 3.1) {
           endBossAttack(boss, 1.4);
         }
         return;
       }
       if (boss.st === "burst") {
-        if (boss.t >= 0.35 + boss.n * 0.42 && boss.n < 3 + rage) {
-          for (let k = 0; k < 5; k++) game.shoot(boss.x, boss.y, aim + (k - 2) * 0.16, 9.5, shotDmg);
+        // Nectar Salvo: flanking arcing marsh globules paired with tight aimed spore fans
+        if (boss.n === 0) {
+          for (const side of [-1, 1]) {
+            const a = aim + side * 0.55;
+            const tx = clamp(player.x + Math.cos(a) * 3.0, -game.arena.W + 1.2, game.arena.W - 1.2);
+            const ty = clamp(player.y + Math.sin(a) * 3.0, -game.arena.H + 1.2, game.arena.H - 1.2);
+            game.hazard({
+              x: tx,
+              y: ty,
+              r: 1.75,
+              delay: 1.15,
+              dmg: boss.dmg * 0.7,
+              kind: "mortar",
+              src: "queen",
+              sx: boss.x,
+              sy: boss.y,
+            });
+          }
+        }
+        if (boss.t >= 0.35 + boss.n * 0.44 && boss.n < 3 + rage) {
+          for (let k = 0; k < 5; k++) game.shoot(boss.x, boss.y, aim + (k - 2) * 0.15, 9.2, shotDmg);
           boss.n++;
           game.emit("eshot", { x: boss.x, y: boss.y, type: "boss", boss: boss.type });
         }
-        if (boss.t > 2) {
+        if (boss.t > 2.1) {
           endBossAttack(boss, 1.3);
         }
         return;
       }
       if (boss.st === "eggs") {
+        // Spore Clutch: hatches marsh Spore-Pods (splitters) & Podlings in glowing pools (zero clockwork bombers!)
         if (boss.n === 0) {
           boss.n = 1;
-          for (let k = 0; k < 3 + rage; k++) {
-            let angle = aim + (k - 1) * 0.6,
-              egg = game.spawnEnemy("bomber", boss.x + Math.cos(angle) * 2, boss.y + Math.sin(angle) * 2, {});
+          const room = Math.max(0, 70 - game.enemies.length);
+          const count = Math.min(room, 2 + rage);
+          for (let k = 0; k < count; k++) {
+            let angle = aim + (k - (count - 1) / 2) * 0.65,
+              kind = k % 2 === 0 ? "splitter" : "mite",
+              egg = game.spawnEnemy(kind, boss.x + Math.cos(angle) * 2.1, boss.y + Math.sin(angle) * 2.1, {
+                hpF: kind === "splitter" ? 0.65 : 1,
+              });
             egg.spawnT = 0.3;
-            egg.kx = Math.cos(angle) * 9;
-            egg.ky = Math.sin(angle) * 9;
+            egg.kx = Math.cos(angle) * 8.5;
+            egg.ky = Math.sin(angle) * 8.5;
             egg.noDrop = true;
-            // 2.4.6: every hatched egg leaves a short-lived acid puddle where it lay (the Glowmarsh)
             if (game.arena.acid.filter((puddle) => puddle.life != null).length < 12) {
               game.arena.acid.push({
-                x: clamp(boss.x + Math.cos(angle) * 2, -game.arena.W + 1, game.arena.W - 1),
-                y: clamp(boss.y + Math.sin(angle) * 2, -game.arena.H + 1, game.arena.H - 1),
-                r: 1.3,
-                life: 4.5,
+                x: clamp(boss.x + Math.cos(angle) * 2.2, -game.arena.W + 1, game.arena.W - 1),
+                y: clamp(boss.y + Math.sin(angle) * 2.2, -game.arena.H + 1, game.arena.H - 1),
+                r: 1.45,
+                life: 5.0,
               });
             }
           }
+          // Lob 2 glowing spore globules ahead of the player
+          for (let k = 0; k < 2; k++) {
+            const tx = clamp(player.x + player.vx * (0.6 + k * 0.45), -game.arena.W + 1.2, game.arena.W - 1.2);
+            const ty = clamp(player.y + player.vy * (0.6 + k * 0.45), -game.arena.H + 1.2, game.arena.H - 1.2);
+            game.hazard({
+              x: tx,
+              y: ty,
+              r: 1.75,
+              delay: 1.05 + k * 0.25,
+              dmg: boss.dmg * 0.72,
+              kind: "mortar",
+              src: "queen",
+              sx: boss.x,
+              sy: boss.y,
+            });
+          }
           game.emit("hatch", { x: boss.x, y: boss.y, big: true });
         }
-        if (boss.t > 1.2) {
-          endBossAttack(boss, 1.6);
+        if (boss.t > 1.35) {
+          endBossAttack(boss, 1.55);
         }
         return;
       }
       break;
     }
     case "prism": {
-      // 2.4.6: the Frost Prism of the Aurora Shelf. Frost Beam, Ice Lances and Ice Shards were the Laser
-      // Sweep, Lances and Homing Shards of the old Prism; Frost Nova and Glacier are new.
       if (boss.st === "frostbeam") {
         boss.vx *= 0.8;
         boss.vy *= 0.8;
@@ -833,7 +899,6 @@ function updateBoss(game, boss, dt) {
               follow: boss,
               len: 34,
               color: PRISM_ICE,
-              // 3.33.0: a lance of ice (it was the plain beam of 2.4.6 in the Prism's colour)
               skin: "cryo",
             };
           game.beam({ ...beam, a: angle });
@@ -848,11 +913,13 @@ function updateBoss(game, boss, dt) {
         return;
       }
       if (boss.st === "teleport") {
+        // Prism Blink: leaves a crystalline departure burst before reappearing with a rime ring
         boss.vx = 0;
         boss.vy = 0;
         if (boss.n === 0) {
           boss.n = 1;
           boss.ghost = true;
+          shootRing(game, boss, 8, 5.2, shotDmg * 0.85, boss.spin, "shard");
           game.emit("blink", { x: boss.x, y: boss.y });
         }
         if (boss.n === 1 && boss.t > 0.45) {
@@ -911,7 +978,6 @@ function updateBoss(game, boss, dt) {
             dmg: boss.dmg,
             len: 34,
             color: PRISM_ICE,
-            // 3.33.0: a lance of ice (it was the plain beam of 2.4.6 in the Prism's colour)
             skin: "cryo",
           });
           boss.n++;
@@ -923,8 +989,6 @@ function updateBoss(game, boss, dt) {
         return;
       }
       if (boss.st === "frostnova") {
-        // Frost Nova: the Prism roots itself, a marked zone around it freezes over (close range
-        // only), then the ice shatters outwards in two (enraged: three) staggered shard rings.
         boss.vx *= 0.8;
         boss.vy *= 0.8;
         let rings = 2 + rage;
@@ -953,34 +1017,32 @@ function updateBoss(game, boss, dt) {
         return;
       }
       if (boss.st === "glacier") {
-        // Glacier: marked zones on and around the player freeze one after another; a zone that
-        // catches the player chills it (slower for 1.6 s, see World.updateHazards 2.4.6).
+        // Permafrost: advancing glacial fracture line chasing across the ice toward the player
         moveBoss(game, boss, dt, aim, dist, 0.5);
         if (boss.n === 0) {
           boss.n = 1;
           game.emit("charge", { x: boss.x, y: boss.y, type: "prism" });
-          let count = 3 + rage;
-          for (let k = 0; k < count; k++) {
-            let spot =
-              k === 0
-                ? {
-                    x: clamp(player.x + player.vx * 0.4, -game.arena.W + 1, game.arena.W - 1),
-                    y: clamp(player.y + player.vy * 0.4, -game.arena.H + 1, game.arena.H - 1),
-                  }
-                : findOpenSpot(game, player.x, player.y, 2.5, 6.5);
-            if (spot) {
-              game.hazard({
-                x: spot.x,
-                y: spot.y,
-                r: 2.3,
-                delay: 1.25 + k * 0.22,
-                dmg: boss.dmg * 0.55,
-                kind: "glacier",
-              });
-            }
+          const steps = 4 + rage;
+          const dir = aim;
+          for (let k = 0; k < steps; k++) {
+            const reach = 3.2 + k * 2.55;
+            const px = clamp(boss.x + Math.cos(dir) * reach, -game.arena.W + 1.4, game.arena.W - 1.4);
+            const py = clamp(boss.y + Math.sin(dir) * reach, -game.arena.H + 1.4, game.arena.H - 1.4);
+            game.hazard({
+              x: px,
+              y: py,
+              r: 2.15,
+              delay: 0.95 + k * 0.16,
+              dmg: boss.dmg * 0.58,
+              kind: "glacier",
+            });
+          }
+          if (rage) {
+            const spot = findOpenSpot(game, player.x, player.y, 2.0, 4.5);
+            if (spot) game.hazard({ x: spot.x, y: spot.y, r: 2.3, delay: 1.35, dmg: boss.dmg * 0.55, kind: "glacier" });
           }
         }
-        if (boss.t > 2.6) {
+        if (boss.t > 2.5) {
           endBossAttack(boss, 1.3);
         }
         return;
@@ -991,14 +1053,19 @@ function updateBoss(game, boss, dt) {
       let phase = boss.phaseN;
       moveBoss(game, boss, dt, aim, dist, 0.2);
       if (boss.st === "spiral") {
-        let shots = 4 + (phase - 1) * 1;
+        // Orrery Waltz: dual counter-rotating armillary star-spirals
+        let arms = 3 + phase;
         boss.t2 += dt;
-        let interval = phase === 3 ? 0.08 : 0.11;
+        let interval = phase === 3 ? 0.1 : 0.12;
         for (; boss.t2 > interval;) {
           boss.t2 -= interval;
-          boss.ta = (boss.ta || 0) + (phase === 2 ? -0.2 : 0.2);
-          for (let k = 0; k < shots; k++)
-            game.shoot(boss.x, boss.y, boss.ta + (k / shots) * TAU, 6 + phase * 0.5, shotDmg, { r: 0.26 });
+          boss.ta = (boss.ta || 0) + 0.21;
+          const step = boss.n++;
+          const counter = phase >= 2 && step % 2 === 1;
+          const base = counter ? -boss.ta : boss.ta;
+          const spd = counter ? 7.6 + phase * 0.4 : 5.4 + phase * 0.35;
+          for (let k = 0; k < arms; k++)
+            game.shoot(boss.x, boss.y, base + (k / arms) * TAU, spd, shotDmg, { r: counter ? 0.23 : 0.27 });
           bossVolley(game, boss, 0.3);
         }
         if (boss.t > 3) {
@@ -1007,16 +1074,15 @@ function updateBoss(game, boss, dt) {
         return;
       }
       if (boss.st === "summon") {
+        // Astral Choir: summons authentic Star-Vault spirits & sprites
         if (boss.n === 0) {
           boss.n = 1;
           let types =
             phase === 1
-              ? ["grunt", "grunt", "gunner", "gunner"]
+              ? ["striker", "drone", "striker", "drone"]
               : phase === 2
-                ? ["grunt", "gunner", "bomber", "striker"]
-                : ["brute", "bulwark", "striker", "mortar"];
-          // Like the other summoning bosses, stop filling an already crowded arena.
-          // Pending markers count too: they become enemies one second later.
+                ? ["phantom", "striker", "drone", "phantom"]
+                : ["weaver", "phantom", "striker", "weaver"];
           const room = Math.max(0, 74 - game.enemies.length - game.markers.length);
           types = types.slice(0, room);
           for (let type of types) {
@@ -1031,16 +1097,26 @@ function updateBoss(game, boss, dt) {
         return;
       }
       if (boss.st === "ring") {
-        if (boss.t >= 0.3 + boss.n * 0.5 && boss.n < 2 + phase) {
-          shootRing(game, boss, 18 + phase * 2, 7, shotDmg, (boss.n % 2) * 0.15);
+        // Constellation: geometric 5-point (or 6-point) star-shaped expanding rings
+        if (boss.t >= 0.32 + boss.n * 0.56 && boss.n < 2 + phase) {
+          const count = 20 + phase * 5;
+          const points = phase >= 3 ? 6 : 5;
+          const start = boss.spin + boss.n * 0.32;
+          for (let k = 0; k < count; k++) {
+            const a = start + (k / count) * TAU;
+            const starWave = Math.abs(Math.cos((k * points * Math.PI) / count));
+            game.shoot(boss.x, boss.y, a, 5.2 + 2.8 * starWave, shotDmg, { r: 0.26 });
+          }
+          bossVolley(game, boss);
           boss.n++;
         }
-        if (boss.t > 0.3 + (2 + phase) * 0.5 + 0.3) {
+        if (boss.t > 0.32 + (2 + phase) * 0.56 + 0.35) {
           endBossAttack(boss, 1.3);
         }
         return;
       }
       if (boss.st === "cross") {
+        // Astral Loom: rotating celestial ribbons + aimed starlight chimes
         if (phase === 1) {
           nextBossAttack(game, boss);
           return;
@@ -1048,7 +1124,7 @@ function updateBoss(game, boss, dt) {
         if (boss.n === 0) {
           boss.n = 1;
           let count = phase === 3 ? 4 : 3,
-            rot = (game.rng.chance(0.5) ? 1 : -1) * (phase === 3 ? 0.55 : 0.42);
+            rot = (game.rng.chance(0.5) ? 1 : -1) * (phase === 3 ? 0.52 : 0.4);
           for (let k = 0; k < count; k++)
             game.beam({
               x: boss.x,
@@ -1056,47 +1132,62 @@ function updateBoss(game, boss, dt) {
               a: aim + 0.6 + (k / count) * TAU,
               rot,
               warn: 1.2,
-              dur: 3.2,
+              dur: 3.1,
               w: 0.9,
               dmg: boss.dmg,
               follow: boss,
               len: 34,
-              // 3.16.0: the Rift Core's beams are ribbons of the rift (the warning stays red)
               skin: "rift",
             });
-          game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, skin: boss.type === "core" ? "rift" : "laser" });
+          game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, skin: "rift" });
         }
         if (phase === 3) boss.t2 += dt;
-        if (phase === 3 && boss.t2 > 0.7) {
+        if (phase === 3 && boss.t2 > 0.72) {
           boss.t2 = 0;
-          for (let k = -1; k <= 1; k++) game.shoot(boss.x, boss.y, aim + k * 0.2, 8.5, shotDmg);
+          for (let k = -1; k <= 1; k++) game.shoot(boss.x, boss.y, aim + k * 0.22, 8.5, shotDmg);
           bossVolley(game, boss, 0.3);
         }
-        if (boss.t > 4.6) {
+        if (boss.t > 4.5) {
           endBossAttack(boss, 1.4);
         }
         return;
       }
       if (boss.st === "burst") {
-        if (boss.t >= 0.3 + boss.n * 0.35 && boss.n < 3 + phase) {
-          for (let k = 0; k < 7; k++) game.shoot(boss.x, boss.y, aim + (k - 3) * 0.13, 9 + phase * 0.5, shotDmg);
+        // Comet Fan: curved crescent comet arcs (center faster, wings trailing)
+        if (boss.t >= 0.3 + boss.n * 0.42 && boss.n < 3 + phase) {
+          const swing = (boss.n % 2 ? 1 : -1) * 0.08;
+          for (let k = 0; k < 7; k++) {
+            const off = k - 3;
+            const spd = 10.6 - Math.abs(off) * 0.9 + phase * 0.4;
+            game.shoot(boss.x, boss.y, aim + swing + off * 0.14, spd, shotDmg, { r: 0.26 });
+          }
           boss.n++;
           game.emit("eshot", { x: boss.x, y: boss.y, type: "boss", boss: boss.type });
         }
-        if (boss.t > 0.3 + (3 + phase) * 0.35 + 0.4) {
+        if (boss.t > 0.3 + (3 + phase) * 0.42 + 0.4) {
           endBossAttack(boss, 1.2);
         }
         return;
       }
       if (boss.st === "rain") {
+        // Meteor Chime: geometric constellation star-ring of starfall strikes around the player
         if (boss.n === 0) {
           boss.n = 1;
-          let count = 4 + phase * 2;
-          for (let k = 0; k < count; k++) {
-            let spot = k === 0 ? { x: player.x, y: player.y } : findOpenSpot(game, player.x, player.y, 1.5, 7);
-            if (spot) {
-              game.hazard({ x: spot.x, y: spot.y, r: 2.2, delay: 1.1 + k * 0.12, dmg: boss.dmg * 0.8, kind: "rain" });
-            }
+          const pts = 4 + phase;
+          const rot0 = boss.spin;
+          game.hazard({
+            x: clamp(player.x, -game.arena.W + 1.5, game.arena.W - 1.5),
+            y: clamp(player.y, -game.arena.H + 1.5, game.arena.H - 1.5),
+            r: 2.1,
+            delay: 1.05,
+            dmg: boss.dmg * 0.8,
+            kind: "rain",
+          });
+          for (let k = 0; k < pts; k++) {
+            const a = rot0 + (k / pts) * TAU;
+            const px = clamp(player.x + Math.cos(a) * 4.6, -game.arena.W + 1.5, game.arena.W - 1.5);
+            const py = clamp(player.y + Math.sin(a) * 4.6, -game.arena.H + 1.5, game.arena.H - 1.5);
+            game.hazard({ x: px, y: py, r: 2.1, delay: 1.15 + k * 0.11, dmg: boss.dmg * 0.8, kind: "rain" });
           }
         }
         if (boss.t > 2.4) {
@@ -1110,26 +1201,41 @@ function updateBoss(game, boss, dt) {
     case "wyrm":
       if (updateGlasswyrm(game, boss, dt, aim, dist, shotDmg, rage)) return;
       break;
-    // 3.49.0: THE ASH TYRANT of the Ashfall Caldera
+    // THE ASH TYRANT of Ashfall Caldera — Forge-Lord of Anvil Cleaves, Radial Magma Fissures & Hearth-Storms
     case "tyrant": {
       if (boss.st === "barrage") {
-        // the cinder fan: it plants its feet and walks a spray of molten slugs through the room; the fan swings
-        // with the drone, side to side with every burst
+        // Slag Foundry: sweeping molten hammer-fans + 2 arcing slag boulders
         boss.vx *= 0.82;
         boss.vy *= 0.82;
+        if (boss.n === 0 && boss.t >= 0.25) {
+          for (const side of [-0.55, 0.55]) {
+            const tx = clamp(player.x + Math.cos(aim + side) * 2.8, -game.arena.W + 1.3, game.arena.W - 1.3);
+            const ty = clamp(player.y + Math.sin(aim + side) * 2.8, -game.arena.H + 1.3, game.arena.H - 1.3);
+            game.hazard({
+              x: tx,
+              y: ty,
+              r: 1.8,
+              delay: 1.1,
+              dmg: boss.dmg * 0.72,
+              kind: "rain",
+              src: "tyrant",
+              sx: boss.x,
+              sy: boss.y,
+            });
+          }
+        }
         if (boss.t >= 0.45 + boss.n * 0.5 && boss.n < 3 + rage) {
-          const swing = (boss.n % 2 ? 1 : -1) * (0.12 + 0.06 * boss.n);
-          for (let k = 0; k < 5; k++) game.shoot(boss.x, boss.y, aim + swing + (k - 2) * 0.13, 10.5, shotDmg);
+          const swing = (boss.n % 2 ? 1 : -1) * (0.14 + 0.05 * boss.n);
+          for (let k = 0; k < 5; k++) game.shoot(boss.x, boss.y, aim + swing + (k - 2) * 0.13, 10.2, shotDmg);
           boss.n++;
           bossVolley(game, boss, 0.25);
         }
-        if (boss.t > 2.2) endBossAttack(boss, 1.8 - rage * 0.4);
+        if (boss.t > 2.3) endBossAttack(boss, 1.7 - rage * 0.35);
         return;
       }
       if (boss.st === "charge") {
-        // the shoulder charge: he lines it up like the Bellkeeper, but with a shorter
-        // wind-up, and a slug ring only when he hits the wall while enraged
-        let charges = 2 + rage;
+        // Anvil Cleave: short heavy forge-surge followed by a 3-step directional molten fissure-cleave
+        let cleaves = 1 + rage;
         if (boss.t2 === 0) {
           boss.t2 = 1;
           boss.ta = aim;
@@ -1141,33 +1247,45 @@ function updateBoss(game, boss, dt) {
         if (boss.sub === 0) {
           boss.vx = 0;
           boss.vy = 0;
-          if (boss.subT < 0.5) boss.ta = turnToward(boss.ta, aim, 3 * dt);
+          if (boss.subT < 0.45) boss.ta = turnToward(boss.ta, aim, 3.2 * dt);
           boss.face = turnToward(boss.face, boss.ta, 8 * dt);
-          if (boss.subT > (rage ? 0.55 : 0.7)) {
+          if (boss.subT > (rage ? 0.58 : 0.72)) {
             boss.sub = 1;
             boss.subT = 0;
           }
         } else if (boss.sub === 1) {
-          let chargeSpeed = rage ? 17 : 14.5;
+          let chargeSpeed = rage ? 15.5 : 13.5;
           boss.vx = Math.cos(boss.ta) * chargeSpeed;
           boss.vy = Math.sin(boss.ta) * chargeSpeed;
           boss.charging = true;
-          if ((boss.hitWall && boss.subT > 0.1) || boss.subT > 0.75) {
+          if ((boss.hitWall && boss.subT > 0.1) || boss.subT > 0.42) {
             boss.charging = false;
-            if (boss.hitWall) {
-              game.emit("thud", { x: boss.x, y: boss.y, big: true });
-              game.explode(boss.x, boss.y, 2.2, 0, { kind: "stomp", src: "tyrant" });
-              if (rage) shootRing(game, boss, 10, 7.5, shotDmg, boss.spin);
+            game.emit("thud", { x: boss.x, y: boss.y, big: true });
+            // Unleash 3 sequential molten fissure-cracks forward along boss.ta
+            for (let k = 0; k < 3 + rage; k++) {
+              const reach = 2.6 + k * 2.5;
+              const fx = clamp(boss.x + Math.cos(boss.ta) * reach, -game.arena.W + 1.2, game.arena.W - 1.2);
+              const fy = clamp(boss.y + Math.sin(boss.ta) * reach, -game.arena.H + 1.2, game.arena.H - 1.2);
+              game.hazard({
+                x: fx,
+                y: fy,
+                r: 1.85,
+                delay: 0.62 + k * 0.14,
+                dmg: boss.dmg * 0.82,
+                kind: "stomp",
+                src: "tyrant",
+              });
             }
+            if (rage) shootRing(game, boss, 10, 7.8, shotDmg, boss.ta);
             boss.sub = 2;
             boss.subT = 0;
           }
         } else {
           boss.vx *= 0.8;
           boss.vy *= 0.8;
-          if (boss.subT > 0.4) {
+          if (boss.subT > 0.5) {
             boss.n++;
-            if (boss.n >= charges) endBossAttack(boss, 2 - rage * 0.5);
+            if (boss.n >= cleaves) endBossAttack(boss, 1.9 - rage * 0.45);
             else {
               boss.sub = 0;
               boss.subT = 0;
@@ -1179,15 +1297,16 @@ function updateBoss(game, boss, dt) {
         return;
       }
       if (boss.st === "summon") {
-        // the boys in the back room: a mixed crew of his own mob pours out around him
-        moveBoss(game, boss, dt, aim, dist, 0.4);
+        // Forge-Kin: calls Caldera smith-kin alongside a protective bellows ember-quake
+        moveBoss(game, boss, dt, aim, dist, 0.35);
         if (boss.n === 0) {
           boss.n = 1;
+          game.hazard({ x: boss.x, y: boss.y, r: 3.6, delay: 0.9, dmg: boss.dmg * 0.78, kind: "stomp", src: "tyrant" });
           let count = game.enemies.length > 70 ? 0 : 4 + rage * 2,
-            crew = ["gunner", "brute", "bomber"];
+            crew = ["bomber", "grunt", "gunner"];
           for (let k = 0; k < count; k++) {
             let angle = (k / count) * TAU + boss.spin,
-              kid = game.spawnEnemy(crew[k % 3], boss.x + Math.cos(angle) * 2.4, boss.y + Math.sin(angle) * 2.4, {
+              kid = game.spawnEnemy(crew[k % 3], boss.x + Math.cos(angle) * 2.5, boss.y + Math.sin(angle) * 2.5, {
                 hpF: 1,
               });
             kid.spawnT = 0.3;
@@ -1197,38 +1316,56 @@ function updateBoss(game, boss, dt) {
           }
           game.emit("hatch", { x: boss.x, y: boss.y, big: true });
         }
-        if (boss.t > 1) endBossAttack(boss, 1.5);
+        if (boss.t > 1.15) endBossAttack(boss, 1.5);
         return;
       }
       if (boss.st === "ring") {
-        // the caldera quake: a basalt slam splits the ground before a cinder ring
+        // Caldera Quake: 4-spoke radial magma fissure cross erupting outward + cinder-slug ring
         boss.vx *= 0.85;
         boss.vy *= 0.85;
         if (boss.n === 0) {
           boss.n = 1;
-          game.hazard({ x: boss.x, y: boss.y, r: 4.2, delay: 0.9, dmg: boss.dmg * 0.9, kind: "stomp", src: "tyrant" });
+          const base = aim + Math.PI / 4;
+          for (let spoke = 0; spoke < 4; spoke++) {
+            const a = base + (spoke / 4) * TAU;
+            for (let step = 0; step < 2 + rage; step++) {
+              const reach = 3.0 + step * 2.7;
+              const fx = boss.x + Math.cos(a) * reach;
+              const fy = boss.y + Math.sin(a) * reach;
+              if (game.arena.outside(fx, fy, 1.0)) continue;
+              game.hazard({
+                x: fx,
+                y: fy,
+                r: 1.75,
+                delay: 0.85 + step * 0.22,
+                dmg: boss.dmg * 0.8,
+                kind: "stomp",
+                src: "tyrant",
+              });
+            }
+          }
+          game.emit("charge", { x: boss.x, y: boss.y, type: "tyrant" });
         }
-        let rings = 2 + rage,
-          gap = 0.6;
-        if (boss.t >= 1 + boss.n * gap && boss.n < rings) {
-          shootRing(game, boss, 14 + rage * 6, 8 + rage, shotDmg, (boss.n % 2) * (Math.PI / (14 + rage * 6)));
-          boss.n++;
+        if (boss.n === 1 && boss.t >= 0.95) {
+          boss.n = 2;
+          shootRing(game, boss, 14 + rage * 6, 8.2 + rage * 0.6, shotDmg, aim);
+          game.emit("thud", { x: boss.x, y: boss.y, big: true });
         }
-        if (boss.t > 1 + rings * gap + 0.4) endBossAttack(boss, 2.2 - rage * 0.6);
+        if (boss.t > 1.9) endBossAttack(boss, 2.0 - rage * 0.5);
         return;
       }
       if (boss.st === "rain") {
-        // magma bombs lobbed where you are heading, they burst into fire on landing
+        // Crucible Rain: dramatic arcing barrage of glowing forge-boulders leading the player
         moveBoss(game, boss, dt, aim, dist, 0.4);
-        if (boss.t >= 0.5 + boss.n * 0.55 && boss.n < 4 + rage) {
-          const lead = 1.5,
-            tx = clamp(player.x + player.vx * lead, -game.arena.W + 1, game.arena.W - 1),
-            ty = clamp(player.y + player.vy * lead, -game.arena.H + 1, game.arena.H - 1);
+        if (boss.t >= 0.42 + boss.n * 0.48 && boss.n < 5 + rage) {
+          const lead = 1.25,
+            tx = clamp(player.x + player.vx * lead, -game.arena.W + 1.2, game.arena.W - 1.2),
+            ty = clamp(player.y + player.vy * lead, -game.arena.H + 1.2, game.arena.H - 1.2);
           game.hazard({
             x: tx,
             y: ty,
-            r: 1.9,
-            delay: 1.15,
+            r: 1.95,
+            delay: 1.1,
             dmg: boss.dmg * 0.75,
             kind: "rain",
             src: "tyrant",
@@ -1237,7 +1374,7 @@ function updateBoss(game, boss, dt) {
           });
           boss.n++;
         }
-        if (boss.t > 3) endBossAttack(boss, 1.5);
+        if (boss.t > 3.1) endBossAttack(boss, 1.45);
         return;
       }
       break;
@@ -1266,33 +1403,55 @@ function updateOverdrive(game, boss, dt, aim, dist, shotDmg) {
     H = arena.H;
   switch (boss.st) {
     case "sealgrid": {
-      // a grid of brass beams across the whole arena (cells 6 m wide), then a second grid shifted by half a cell: the
-      // player has to step into a new cell; a bullet ring closes it
+      // Carillon Chime: paired golden lantern corridors frame a generous courtyard center, then pivot 45 deg
+      // while four corner bell-slams ring out and a grand brass toll closes the cadence
       boss.vx = 0;
       boss.vy = 0;
-      const grid = (shift, warn) => {
-        for (let x = -W + 3 + shift; x < W - 1; x += 6)
-          // brass lantern beams across the Lantern Courtyard (the warning stays red)
-          game.beam({ x, y: -H, a: Math.PI / 2, len: H * 2, warn, dur: 1.1, w: 0.7, dmg: boss.dmg, skin: "laser" });
-        for (let y = -H + 3 + shift; y < H - 1; y += 6)
-          game.beam({ x: -W, y, a: 0, len: W * 2, warn, dur: 1.1, w: 0.7, dmg: boss.dmg, skin: "laser" });
-        game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, skin: boss.type === "core" ? "rift" : "laser" });
+      const corridorPair = (angle, warn) => {
+        const span = Math.hypot(W, H) * 2 + 2,
+          nx = -Math.sin(angle),
+          ny = Math.cos(angle);
+        for (const offset of [-5.2, 5.2]) {
+          const cx = nx * offset,
+            cy = ny * offset;
+          game.beam({
+            x: cx - Math.cos(angle) * (span * 0.5),
+            y: cy - Math.sin(angle) * (span * 0.5),
+            a: angle,
+            len: span,
+            warn,
+            dur: 1.15,
+            w: 0.78,
+            dmg: boss.dmg,
+            skin: "laser",
+          });
+        }
       };
       if (boss.n === 0) {
         boss.n = 1;
-        grid(0, 1.3);
+        corridorPair(0, 1.25);
+        corridorPair(Math.PI / 2, 1.25);
+        game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, skin: "laser" });
         game.emit("charge", { x: boss.x, y: boss.y, type: "bellkeeper" });
       }
-      if (boss.n === 1 && boss.t > 2.5) {
+      if (boss.n === 1 && boss.t > 2.35) {
         boss.n = 2;
-        grid(3, 1.1);
+        corridorPair(Math.PI / 4, 1.1);
+        corridorPair((3 * Math.PI) / 4, 1.1);
+        game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, skin: "laser" });
+        for (let k = 0; k < 4; k++) {
+          const a = (k / 4) * TAU + Math.PI / 4,
+            cx = clamp(boss.x + Math.cos(a) * 6.8, -W + 1.8, W - 1.8),
+            cy = clamp(boss.y + Math.sin(a) * 6.8, -H + 1.8, H - 1.8);
+          game.hazard({ x: cx, y: cy, r: 2.0, delay: 1.05, dmg: boss.dmg * 0.78, kind: "stomp", src: "bellkeeper" });
+        }
       }
-      if (boss.n === 2 && boss.t > 4.2) {
+      if (boss.n === 2 && boss.t > 4.0) {
         boss.n = 3;
-        shootRing(game, boss, 20, 7.5, shotDmg, boss.spin);
+        shootRing(game, boss, 20, 7.6, shotDmg, boss.spin);
         game.emit("thud", { x: boss.x, y: boss.y, big: true });
       }
-      if (boss.t > 4.8) endBossAttack(boss, 1.8);
+      if (boss.t > 4.65) endBossAttack(boss, 1.8);
       return;
     }
     case "whiteout": {
@@ -1334,75 +1493,102 @@ function updateOverdrive(game, boss, dt, aim, dist, shotDmg) {
       return;
     }
     case "plague": {
-      // the bloom wells up in a loose ring around the player, two eggs hatch, then a dense spiral
+      // Tidal Bloom: a staggered fairy-ring of bog blooms swells around the player, two marsh Spore-Pods hatch,
+      // and a counter-twirling firefly helix drifts outward
       moveBoss(game, boss, dt, aim, dist, 0.3);
       if (boss.n === 0) {
         boss.n = 1;
         const start = game.rng.next() * TAU;
         for (let k = 0; k < 6; k++) {
           const angle = start + (k / 6) * TAU,
-            x = clamp(player.x + Math.cos(angle) * 4.6, -W + 1, W - 1),
-            y = clamp(player.y + Math.sin(angle) * 4.6, -H + 1, H - 1);
-          game.hazard({ x, y, r: 1.5, delay: 1, dmg: boss.dmg * 0.6, kind: "rain" });
+            x = clamp(player.x + Math.cos(angle) * 4.7, -W + 1, W - 1),
+            y = clamp(player.y + Math.sin(angle) * 4.7, -H + 1, H - 1);
+          game.hazard({
+            x,
+            y,
+            r: 1.55,
+            delay: 0.85 + k * 0.14,
+            dmg: boss.dmg * 0.62,
+            kind: "rain",
+            sx: boss.x,
+            sy: boss.y,
+          });
           if (arena.acid.filter((puddle) => puddle.life != null).length < 16)
             arena.acid.push({ x, y, r: 1.4, life: 6 });
         }
         for (let k = 0; k < 2; k++) {
-          const angle = aim + (k ? 0.7 : -0.7),
-            egg = game.spawnEnemy("bomber", boss.x + Math.cos(angle) * 2, boss.y + Math.sin(angle) * 2, {});
+          const angle = aim + (k ? 0.75 : -0.75),
+            egg = game.spawnEnemy("splitter", boss.x + Math.cos(angle) * 2.1, boss.y + Math.sin(angle) * 2.1, {});
           egg.spawnT = 0.3;
           egg.noDrop = true;
-          egg.kx = Math.cos(angle) * 9;
-          egg.ky = Math.sin(angle) * 9;
+          egg.kx = Math.cos(angle) * 8.5;
+          egg.ky = Math.sin(angle) * 8.5;
         }
         game.emit("hatch", { x: boss.x, y: boss.y, big: true });
       }
-      if (boss.t > 1.2)
-        for (boss.t2 += dt; boss.t2 > 0.1;) {
-          boss.t2 -= 0.1;
-          boss.ta = (boss.ta || 0) + 0.27;
-          for (let k = 0; k < 5; k++) game.shoot(boss.x, boss.y, boss.ta + (k / 5) * TAU, 6.4, shotDmg, { r: 0.26 });
+      if (boss.t > 1.15)
+        for (boss.t2 += dt; boss.t2 > 0.13;) {
+          boss.t2 -= 0.13;
+          boss.ta = (boss.ta || 0) + 0.3;
+          for (let k = 0; k < 3; k++) {
+            const base = (k / 3) * TAU;
+            game.shoot(boss.x, boss.y, boss.ta + base, 6.9, shotDmg, { r: 0.25 });
+            game.shoot(boss.x, boss.y, -boss.ta * 0.85 + base + 0.45, 5.2, shotDmg, { r: 0.23 });
+          }
           bossVolley(game, boss, 0.3);
         }
       if (boss.t > 3.6) endBossAttack(boss, 1.4);
       return;
     }
     case "collapse": {
-      // a grid of bombardments under and around the player while a cross of six beams turns
+      // Celestial Convergence: a gentle astral tide draws inward as a 4-arm Astral Orrery revolves,
+      // a spiraling constellation of 7 starfall meteors descends, and a closing star-ring pulses
       moveBoss(game, boss, dt, aim, dist, 0.2);
+      if (boss.t < 1.15 && dist > 3.0) {
+        const pull = 3.2 * dt;
+        player.x -= ((player.x - boss.x) / dist) * pull;
+        player.y -= ((player.y - boss.y) / dist) * pull;
+      }
       if (boss.n === 0) {
         boss.n = 1;
-        for (let i = -1; i <= 1; i++)
-          for (let j = -1; j <= 1; j++) {
-            const x = clamp(player.x + i * 3.4, -W + 1.5, W - 1.5),
-              y = clamp(player.y + j * 3.4, -H + 1.5, H - 1.5);
-            game.hazard({
-              x,
-              y,
-              r: 1.9,
-              delay: 1.2 + (Math.abs(i) + Math.abs(j)) * 0.3,
-              dmg: boss.dmg * 0.8,
-              kind: "rain",
-            });
-          }
-        const rot = game.rng.chance(0.5) ? 0.5 : -0.5;
-        for (let k = 0; k < 6; k++)
+        const rot = game.rng.chance(0.5) ? 0.55 : -0.55;
+        for (let k = 0; k < 4; k++)
           game.beam({
             x: boss.x,
             y: boss.y,
-            a: aim + 0.5 + (k / 6) * TAU,
+            a: aim + 0.65 + (k / 4) * TAU,
             rot,
-            warn: 1.3,
+            warn: 1.25,
             dur: 2.8,
-            w: 0.85,
+            w: 0.82,
             dmg: boss.dmg,
             follow: boss,
-            len: 34,
+            len: 32,
             skin: "rift",
           });
-        game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, skin: boss.type === "core" ? "rift" : "laser" });
+        const start = aim + 0.4;
+        for (let k = 0; k < 7; k++) {
+          const a = start + k * 1.12,
+            rad = 2.0 + k * 0.72,
+            x = clamp(player.x + Math.cos(a) * rad, -W + 1.5, W - 1.5),
+            y = clamp(player.y + Math.sin(a) * rad, -H + 1.5, H - 1.5);
+          game.hazard({
+            x,
+            y,
+            r: 1.8,
+            delay: 1.05 + k * 0.24,
+            dmg: boss.dmg * 0.78,
+            kind: "rain",
+          });
+        }
+        game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, skin: "rift" });
       }
-      if (boss.t > 4.4) endBossAttack(boss, 1.4);
+      if (boss.n === 1 && boss.t >= 3.2) {
+        boss.n = 2;
+        shootRing(game, boss, 12, 7.2, shotDmg, boss.spin);
+        bossVolley(game, boss, 0.35);
+      }
+      if (boss.t > 4.35) endBossAttack(boss, 1.4);
       return;
     }
     case "noon": {
@@ -1453,10 +1639,9 @@ function updateOverdrive(game, boss, dt, aim, dist, shotDmg) {
       return;
     }
     case "firestorm": {
-      // 3.49.0: FIRESTORM: the Tyrant calls the burning dead in (a squad of the Caldera's champions
-      // through the portals and a crew of cinders around it), torches the ground around the drone
-      // (a ring of magma bombs) and sweeps the floor while they pour out
-      moveBoss(game, boss, dt, aim, dist, 0.3);
+      // Hearth-Storm: the Ash Tyrant summons Caldera forge-kin, rings the player with gapped caldera bombs,
+      // and sweeps twin counter-turning Dragon-Kiln flame streams alongside aimed cinder volleys
+      moveBoss(game, boss, dt, aim, dist, 0.28);
       if (boss.n === 0) {
         boss.n = 1;
         bossReinforce(game, boss);
@@ -1470,32 +1655,51 @@ function updateOverdrive(game, boss, dt, aim, dist, shotDmg) {
           kid.kx = Math.cos(angle) * 6;
           kid.ky = Math.sin(angle) * 6;
         }
-        // the magma bombs close the ring around the drone: six fires, one gap left to find
+        // Gapped caldera ring: six forge boulders around the player with one clear escape lane
         const start = game.rng.next() * TAU,
           gap = game.rng.int(0, 6);
         for (let k = 0; k < 7; k++) {
           const angle = start + (k / 7) * TAU;
           if (k === gap) continue;
           game.hazard({
-            x: clamp(player.x + Math.cos(angle) * 4.6, -arena.W + 1, arena.W - 1),
-            y: clamp(player.y + Math.sin(angle) * 4.6, -arena.H + 1, arena.H - 1),
+            x: clamp(player.x + Math.cos(angle) * 4.8, -arena.W + 1, arena.W - 1),
+            y: clamp(player.y + Math.sin(angle) * 4.8, -arena.H + 1, arena.H - 1),
             r: 1.9,
-            delay: 1.3,
-            dmg: boss.dmg * 0.7,
+            delay: 1.25,
+            dmg: boss.dmg * 0.72,
             kind: "rain",
             src: "tyrant",
+            sx: boss.x,
+            sy: boss.y,
           });
         }
+        // Twin counter-sweeping forge flame streams
+        const dir = game.rng.chance(0.5) ? 1 : -1;
+        for (const side of [-1, 1]) {
+          game.beam({
+            x: boss.x,
+            y: boss.y,
+            a: aim + side * 0.95,
+            rot: side * dir * 0.52,
+            warn: 1.15,
+            dur: 2.3,
+            w: 1.2,
+            dmg: boss.dmg * 0.95,
+            follow: boss,
+            len: 16.5,
+            skin: "magma",
+          });
+        }
+        game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, skin: "magma" });
         game.emit("hatch", { x: boss.x, y: boss.y, big: true });
       }
-      if (boss.t > 1.1)
-        for (boss.t2 += dt; boss.t2 > 0.11;) {
-          boss.t2 -= 0.11;
-          boss.ta = (boss.ta || 0) + 0.26;
-          for (let k = 0; k < 6; k++) game.shoot(boss.x, boss.y, boss.ta + (k / 6) * TAU, 6.6, shotDmg, { r: 0.26 });
-          bossVolley(game, boss, 0.3);
-        }
-      if (boss.t > 3.4) endBossAttack(boss, 1.6);
+      if (boss.t >= 1.3 + (boss.n - 1) * 0.65 && boss.n <= 4) {
+        boss.n++;
+        for (const off of [-0.26, 0, 0.26])
+          game.shoot(boss.x, boss.y, aim + off, 7.6 + (off === 0 ? 1.0 : 0), shotDmg, { r: 0.27 });
+        bossVolley(game, boss, 0.3);
+      }
+      if (boss.t > 3.7) endBossAttack(boss, 1.6);
       return;
     }
   }
@@ -1866,12 +2070,24 @@ function updateEnemyRole(game, enemy, dt) {
       enemy.vy = (retreat ? -game.cdy : game.cdy) * enemy.speed * (retreat ? 1.35 : 1);
       enemy.t -= dt;
       enemy.face = turnToward(enemy.face, ang, 8 * dt);
-      if (player.alive && dist < 9.5 && dist > 4.2 && enemy.t <= 0 && enemy.los) {
+      if (player.alive && dist < 10.5 && dist > 3.6 && enemy.t <= 0 && enemy.los) {
         enemy.st = 1;
-        enemy.t2 = 0.72;
+        enemy.t2 = 0.65;
         enemy.vx *= 0.15;
         enemy.vy *= 0.15;
-        game.hazard({ x: enemy.x, y: enemy.y, r: 1.25, delay: 0.72, dmg: enemy.dmg * 1.25, kind: "sapper" });
+        const flank = ang + (game.rng.chance(0.5) ? 0.42 : -0.42),
+          tx = clamp(player.x + Math.cos(flank) * 2.8, -game.arena.W + 1.2, game.arena.W - 1.2),
+          ty = clamp(player.y + Math.sin(flank) * 2.8, -game.arena.H + 1.2, game.arena.H - 1.2);
+        game.hazard({
+          x: tx,
+          y: ty,
+          r: 1.55,
+          delay: 1.05,
+          dmg: enemy.dmg * 1.25,
+          kind: "sapper",
+          sx: enemy.x,
+          sy: enemy.y,
+        });
         game.emit("mine", { x: enemy.x, y: enemy.y });
       }
     } else {
@@ -2125,12 +2341,21 @@ function updateGlasswyrm(game, boss, dt, aim, dist, shotDmg, rage) {
       if (boss.t >= 0.4 + boss.n * 0.62 && boss.n < salvos) {
         boss.n++;
         if (boss.n % 2) {
-          // a fan of hot glass at the drone
-          const wide = 5 + rage * 2;
-          for (let k = 0; k < wide; k++) game.shoot(boss.x, boss.y, aim + (k - (wide - 1) / 2) * 0.15, 9, shotDmg);
+          // Prism-split crescent fan: center glass splinters surge ahead, edges sweep wide
+          const wide = 5 + rage * 2,
+            mid = (wide - 1) / 2;
+          for (let k = 0; k < wide; k++) {
+            const off = k - mid,
+              speed = 10.2 - Math.abs(off) * 0.72;
+            game.shoot(boss.x, boss.y, aim + off * 0.16, speed, shotDmg);
+          }
         } else {
-          // a full ring between the fans
-          shootRing(game, boss, 10 + rage * 4, 6.2, shotDmg, boss.spin);
+          // Shimmering desert glass ring offset from the previous fan
+          const count = 10 + rage * 4;
+          for (let k = 0; k < count; k++) {
+            const a = boss.spin + (k / count) * TAU;
+            game.shoot(boss.x, boss.y, a, k % 2 ? 7.2 : 5.6, shotDmg);
+          }
         }
         bossVolley(game, boss, 0.28);
       }

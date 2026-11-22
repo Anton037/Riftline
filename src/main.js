@@ -393,7 +393,7 @@ const overlay = new Overlay(elementById("ov")),
       if (world && world.banish(id)) {
         ui.banishMode = false;
         ui.renderCards(world);
-        ui.toast(`Banished: ${upgradesById[id] ? upgradesById[id].name : id}`, "", 2600);
+        ui.toast(`Sealed: ${upgradesById[id] ? upgradesById[id].name : id}`, "", 2600);
         store.data.run = world.snapshot();
         store.save("banish");
       }
@@ -558,7 +558,7 @@ const overlay = new Overlay(elementById("ov")),
         rows.push([`${threatLevels[world.threat].name} \xD7${mods.shards.toFixed(2)}`, "\xD7"]);
       }
       if (salvage > 1) {
-        rows.push([`Shard Refinery \xD7${salvage.toFixed(1)}`, "\xD7"]);
+        rows.push([`Shard Kiln \xD7${salvage.toFixed(1)}`, "\xD7"]);
       }
       let claimedBefore = new Set(this.claimable()),
         unlocks = [],
@@ -971,15 +971,15 @@ function announceMutator(ev) {
   const mutator = MUTATORS[ev.id];
   if (!mutator) return;
   ui.banner(
-    `TRIAL · ${mutator.name.toUpperCase()}${ev.level > 1 ? " " + "I".repeat(ev.level) : ""}`,
+    `OMEN · ${mutator.name.toUpperCase()}${ev.level > 1 ? " " + "I".repeat(ev.level) : ""}`,
     mutator.desc,
     "warn",
     2600,
   );
   sound.play("mutator", ev.id);
 }
-/* 2.7.0: what the sound engine needs every frame of a running world: the drone speed for the engine
- hum (null: no hum, e.g. between waves and while the boss card shows) and the biome event that is on
+/* 2.7.0: what the sound engine needs every frame of a running world: the artificer speed for movement
+ foley (null: idle, e.g. between waves and while the boss card shows) and the biome event that is on
  for its ambience. The engine switches both off by itself when this stops (pause, menus). */
 function rlAudioState(world) {
   const fight = world.state === "fight" && !game.intro,
@@ -1009,7 +1009,7 @@ function handleWorldEvents(world) {
       ui.toast(`WAYFARER PACK · ${ev.ids.map((id) => upgradesById[id]?.name || id).join(", ")}`, "good hint", 3200);
     } else {
       if (ev.k === "barrier") {
-        ui.banner("GLASS WARD BELL", "Ward critical — bell raised", "good", 1400);
+        ui.banner("SANCTUARY BELL", "Ward critical — sanctuary bell raised", "good", 1400);
       }
     }
   }
@@ -1042,25 +1042,23 @@ function handleWorldEvents(world) {
             ev.boss ? 3e3 : 2e3,
           );
         if (!ev.boss && world.arena.vents.length) {
-          // The Courtyard’s charged inlays signal a shock before discharging.
           if (world.arena.biome.id === "courtyard")
-            showTipOnce("shock", "Charged inlays rise before they discharge. Lure enemies onto them to stun them.");
-          // 3.49.0: the Caldera's vents are the fumaroles
+            showTipOnce("shock", "Lantern inlays chime and glow before they flare. Lure foes onto them to daze them.");
           else if (world.arena.biome.id === "caldera")
             showTipOnce(
               "pyro",
-              "A fumarole glows before it jets. Lure enemies onto it \u2014 the rock burns them too.",
+              "Forge fumaroles glow before they jet. Lure foes onto them \u2014 the molten rock sears them too.",
             );
-          else showTipOnce("lava", "Lava vents glow before they erupt. Lure enemies onto them \u2014 they burn too.");
+          else showTipOnce("lava", "Forge vents glow before they erupt. Lure foes onto them \u2014 they burn too.");
         }
         if (!ev.boss && world.arena.ice.length) {
           showTipOnce(
             "ice",
-            "The Aurora Shelf: the whole floor is slick, the ice sheets even more \u2014 enemies slide on them too.",
+            "The Aurora Shelf: the whole floor is slick, the ice sheets even more \u2014 foes slide on them too.",
           );
         }
         if (!ev.boss && world.arena.acid.length) {
-          showTipOnce("acid", "Bog pools sap your ward \u2014 but foes wading in them take 25% more damage.");
+          showTipOnce("acid", "Bog pools sap your Ward \u2014 but foes wading in them take 25% more damage.");
         }
         if (!ev.boss && world.arena.portals.length) {
           showTipOnce("portal", "Astral portals step you across the sanctuary. Shots fly through them too.");
@@ -1081,8 +1079,8 @@ function handleWorldEvents(world) {
           showTipOnce(
             "singularity",
             rlKeys()
-              ? "Tip: G tosses a Gravity Chime at the thickest crowd: it gathers foes, then bursts. Charges refill."
-              : "Tip: tap CHIME to toss a Gravity Chime at the thickest crowd. Hold the aim side to pick the spot.",
+              ? "Tip: G tosses a Lodestone Chime at the thickest crowd: it draws foes in, then rings out. Charges refill."
+              : "Tip: tap CHIME to toss a Lodestone Chime at the thickest crowd. Hold the aim side to pick the spot.",
           );
         }
         if (ev.n === 3) {
@@ -1090,7 +1088,7 @@ function handleWorldEvents(world) {
             "aim",
             rlKeys()
               ? "Tip: hold the left mouse button to aim and fire at the cursor."
-              : "Tip: drag the right side to aim yourself. Holding it fires at the nearest enemy.",
+              : "Tip: drag the right side to aim yourself. Holding it fires at the nearest foe.",
           );
         }
         break;
@@ -1098,7 +1096,7 @@ function handleWorldEvents(world) {
       case "trapWarn":
         showTipOnce(
           "trap",
-          "Floor traps flash before they strike: lure foes in, or shoot armed vessels to detonate them!",
+          "Realm hazards warn before they strike \u2014 lure foes in, or shoot armed vessels to burst them!",
         );
         break;
       case "gadgetReady":
@@ -1110,11 +1108,8 @@ function handleWorldEvents(world) {
       case "boss":
         // 3.1.0: the boss track starts on the spot, at the camera pan
         sound.setMusic("boss", world.biomeFor(world.wave).id);
-        showTipOnce("boss", "Bosses telegraph every attack. Marked zones and lines hit hard \u2014 move out.");
+        showTipOnce("boss", "Guardians telegraph every attack. Marked zones and paths hit hard \u2014 step clear.");
         if (world.player.alive && world.boss && renderer) {
-          // 3.43.1: not on a dead player - the 3 s camera pan used to freeze the death animation and
-          // hold the game-over screen back
-          // 3.45.0: the intro card carries name and title through the pan - no second banner on top
           game.intro = { t: 0 };
           renderer.focusOn(world.boss.x, world.boss.y);
           input.settle();
@@ -1131,7 +1126,7 @@ function handleWorldEvents(world) {
         );
         break;
       case "cleared":
-        ui.banner(ev.boss ? "BOSS DOWN" : "CLEARED", ev.flawless ? "Flawless" : `Wave ${ev.n}`, "good", 1500);
+        ui.banner(ev.boss ? "GUARDIAN FELLED" : "CLEARED", ev.flawless ? "Flawless" : `Wave ${ev.n}`, "good", 1500);
         if (!ev.boss) {
           game.slowMo = Math.max(game.slowMo, 0.45);
         }
@@ -1147,22 +1142,21 @@ function handleWorldEvents(world) {
       case "champion":
         ui.banner(
           "CHAMPION",
-          `A ${enemyDefs[ev.type].name} leads the pack \u2014 its allies move faster`,
+          `A ${enemyDefs[ev.type].name} leads the pack \u2014 its allies stride faster`,
           "warn",
           2200,
         );
-        showTipOnce("champion", "Champions rally nearby enemies. Take one down and the pack is stunned.");
+        showTipOnce("champion", "Champions rally nearby foes. Fell one and the pack falters.");
         break;
       case "championDown":
-        ui.banner("CHAMPION DOWN", "The pack is stunned", "good", 1400);
+        ui.banner("CHAMPION FELLED", "The pack falters", "good", 1400);
         game.slowMo = Math.max(game.slowMo, 0.5);
         hitStop(0.08);
         break;
       case "mend":
-        showTipOnce("mender", "Menders heal other enemies. Kill them first.");
+        showTipOnce("mender", "Moss-Menders weave healing light into nearby foes. Fell them first.");
         break;
       case "kill":
-        // 3.43.1: the escorts a boss death sweeps away vanish, but they no longer punch the screen
         if ((ev.elite || ev.r >= 0.8) && !ev.cleanup) {
           hitStop(ev.elite ? 0.05 : 0.025);
         }
@@ -1183,18 +1177,17 @@ function handleWorldEvents(world) {
         }
         break;
       case "maxed":
-        // 2.9.1: nothing left to offer: no choice screen, the run goes on with a small reward
-        ui.toast(`ALL UPGRADES MAXED · hull +${ev.heal}, +${ev.shards} shards`, "gold", 3500);
+        ui.toast(`ALL CRAFTS MASTERED · Ward +${ev.heal}, +${ev.shards} shards`, "gold", 3500);
         break;
       case "combo":
         ui.comboPop(ev.n, ev.bonus);
         break;
       case "bountyPulse":
-        ui.toast(`BOUNTY · +${ev.amount} shards`, "good hint", 1500);
+        if (ev.amount > 0) ui.toast(`TITHE · +${ev.amount} shards`, "good hint", 1500);
         break;
       case "pick":
         if (ev.evo) {
-          ui.banner("EVOLVED", upgradesById[ev.id].name, "good", 1800);
+          ui.banner("MASTERWORK", upgradesById[ev.id].name, "good", 1800);
         }
         break;
       case "dash":
@@ -1204,25 +1197,22 @@ function handleWorldEvents(world) {
         }
         break;
       case "enrage":
-        ui.banner("ENRAGED", "", "warn", 1400);
+        ui.banner("CRESCENDO", "The guardian intensifies", "warn", 1400);
         break;
       case "mutator":
-        // 3.3.0: an Endless mutator joins the run (or gets a level stronger): after the title card if one shows
         if (world.wave === 1 || world.biomeFor(world.wave - 1).id !== world.biomeFor(world.wave).id)
           cardMutator = { ...ev, wave: world.wave };
         else announceMutator(ev);
         break;
       case "phase":
-        ui.banner(`PHASE ${ev.n}`, "The core adapts", "warn", 1600);
+        ui.banner(`PHASE ${ev.n}`, ev.n === 2 ? "The Star-Vault shifts" : "The Shattered Heart awakens", "warn", 1600);
         break;
       case "bossDown":
         game.slowMo = 1.1;
-        // 3.43.1: a boss killed by the last burn of a dead player pays no medal (the kill itself pays
-        // nothing after death - the stats agreed, the medal did not)
         if (world.player.alive) awardBossMedal(ev, world);
         break;
       case "revive":
-        ui.banner("SECOND LIFE", "Hull restored", "good", 1600);
+        ui.banner("PHOENIX EMBER", "Ward rekindled", "good", 1600);
         break;
       case "die":
         rumble("die", store.data.settings.vibration !== false);
@@ -1726,7 +1716,7 @@ window.addEventListener("storage", (ev) => {
   }
 });
 // Shared browser interface for the functional flows and visual/audio probes.
-window.__riftTest = { game, ui, store, renderer, World, biomeList, health: rlRunHealth };
+window.__riftTest = { game, ui, store, renderer, overlay, World, biomeList, health: rlRunHealth };
 
 /* ==========================================================================
    2.5.0 B: workshop merge notice and the events of the new modules

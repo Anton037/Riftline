@@ -202,7 +202,7 @@ function updateSplinters(world, dt) {
     world.hash.query(s.x, s.y, 1, (enemy) => {
       if (s.life <= 0 || enemy.dead || enemy.ghost || enemy.id === s.from) return;
       if (Math.hypot(enemy.x - s.x, enemy.y - s.y) > enemy.r + 0.15) return;
-      world.hurtEnemy(enemy, s.dmg, s.vx, s.vy, 0.6, false, "fang");
+      world.hurtEnemy(enemy, s.dmg, s.vx, s.vy, 0.6, false, "shard");
       if (!enemy.dead && !enemy.shielded) enemy.slowT = Math.max(enemy.slowT, 1.5);
       world.emit("splinterHit", { x: s.x, y: s.y });
       s.life = 0;

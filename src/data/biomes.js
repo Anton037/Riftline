@@ -57,9 +57,9 @@ const biomeList = [
     ],
   },
   {
-    // Broken rift strata and floating debris pulse on the Core's heartbeat.
+    // Broken rift strata and floating astrolabes pulse on the Heart's cadence.
     id: "core",
-    name: "The Shattered Core",
+    name: "The Star-Vault",
     W: 17,
     H: 17,
     floor: 854040,

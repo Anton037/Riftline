@@ -186,7 +186,7 @@ function buildStatRows(weaponId, run, workshop, hp) {
     row("Range", (s) => s.range, " m", "up", 1),
     row("Move speed", (s) => s.speed, " m/s", "up", 1),
     row("Dash cooldown", (s) => s.dashCd, " s", "down", 2),
-    row("Plating", (s) => s.armor * 100, "%", "up", 0),
+    row("Ward Mail", (s) => s.armor * 100, "%", "up", 0),
     row("Mending", (s) => s.regen, "/s", "up", 1),
     row("Pickup radius", (s) => s.magnet, " m", "up", 1),
     row("Hearthburst charge", (s) => s.novaMul, "\u00d7", "up", 2),

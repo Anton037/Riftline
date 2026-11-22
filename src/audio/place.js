@@ -163,9 +163,9 @@ const CORNER_VOICE = {
   flats: ["crystals", 5, 10],
 };
 const RELIC_VOICE = {
-  lantern: "lampBuzz",
+  lantern: "galleryChime",
   rime: "iceTink",
-  puffball: "frogs",
+  puffball: "drip",
   prism: "shimmer",
   crucible: "emberPop",
   sunglass: "glassPing",

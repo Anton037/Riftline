@@ -42,15 +42,15 @@ function rlRenderHistory() {
   }
   const killerName = (id) =>
     id === "lava"
-      ? "a lava vent"
+      ? "a forge vent"
       : id === "shock"
-        ? "a charged inlay"
+        ? "a lantern inlay"
         : id === "acid"
-          ? "acid"
+          ? "a bog pool"
           : id === "devil"
             ? "a dust devil"
             : id === "trap"
-              ? "a trap"
+              ? "a realm hazard"
               : enemyDefs[id]
                 ? "a " + enemyDefs[id].name
                 : bossDefs[id]
@@ -105,7 +105,7 @@ const iconPaths = {
   bolt: '<path d="M13 2 5 13h6l-1 9 9-12h-7z"/>',
   flame: '<path d="M12 22c-4 0-7-3-7-7 0-4 4-5 3-10l4 5 3-7c2 5 4 7 4 12 0 4-3 7-7 7zm0-2-3-4 3-4 3 4z"/>',
   map: '<path d="m3 5 6-2 6 3 6-2v15l-6 2-6-3-6 2zm6-2v15m6-12v15"/><circle cx="12" cy="12" r="1"/>',
-  drone: '<path d="m12 6 5 6-5 6-5-6zm-9 3 4 3-4 3m18-6-4 3 4 3"/>',
+  drone: '<path d="M12 5l3 5-3 7-3-7zm-3 5C5 7 3 8 4 12c1 2 3 2 5 0m6 0c4-3 6-2 5 2-1 2-3 2-5 0M12 2v3"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 5v7l4 2m-4 5v2m-9-9h2m14 0h2"/>',
   reroll: '<path d="M21 10a9 9 0 00-15-5m-1-3v4h5m-7 8a9 9 0 0015 5m1 3v-4h-5"/>',
   eye: '<path d="m2 12 5-5 5-2 5 2 5 5-5 5-5 2-5-2zm10-4 3 4-3 4-3-4z"/>',
@@ -119,7 +119,7 @@ const iconPaths = {
   skull:
     '<path d="m12 3 7 4 2 6-5 4v4H8v-4l-5-4 2-6zm-2 14v4m4-4v4"/><circle cx="8.5" cy="11" r="1.2"/><circle cx="15.5" cy="11" r="1.2"/>',
   target: '<circle cx="12" cy="12" r="9"/><path d="m12 6 6 6-6 6-6-6z"/><circle cx="12" cy="12" r="1.2"/>',
-  sealgrid: '<path d="M4 3v18M20 3v18M4 7h16m-16 10h16m-8-7 2 2-2 2-2-2z"/>',
+  sealgrid: '<path d="M8 4h8l2 5v8l-6 4-6-4V9zm4-2v2m-4 5h8m-4 0v9m-3-4h6"/>',
   brood: '<path d="m12 4 5 6 1 6-6 5-6-5 1-6zm-5 6-4-3m14 3 4-3M7 16l-4 2m14-2 4 2"/>',
   collapse: '<path d="m12 2 10 10-10 10L2 12zm0 5 5 5-5 5-5-5z"/>',
   tribute: '<path d="m12 3 5 7-5 8-5-8zM4 15l3 5h10l3-5"/>',
@@ -130,12 +130,12 @@ function iconSvg(name, cls = "") {
 }
 const getById = (id) => document.getElementById(id),
   BIOME_THEME_COLOR = {
-    courtyard: "#0f1722",
-    shelf: "#0d1929",
-    marsh: "#0c1a15",
-    core: "#120c24",
-    caldera: "#160d0c",
-    flats: "#17110c",
+    courtyard: "#14100d",
+    shelf: "#0e1a28",
+    marsh: "#0e1a14",
+    core: "#150e24",
+    caldera: "#1c100d",
+    flats: "#1b140d",
   },
   setBiomeTheme = (id) => {
     const app = getById("app");
@@ -144,7 +144,7 @@ const getById = (id) => document.getElementById(id),
       else delete app.dataset.biome;
     }
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute("content", BIOME_THEME_COLOR[id] || "#0d0e17");
+    if (meta) meta.setAttribute("content", BIOME_THEME_COLOR[id] || "#14100d");
   },
   menuScreens = ["home", "workshop", "records", "news", "settings"],
   formatTenths = (value) => (Math.round(value * 10 + 1e-6) / 10).toString(),
@@ -153,16 +153,16 @@ const getById = (id) => document.getElementById(id),
   statRows = [
     ["Damage", (stats) => (stats.weapon.dmg + (stats.weapon.explodeDmg || 0)) * stats.dmgMul, formatTenths],
     ["Fire rate", (stats) => stats.weapon.rate * stats.rateMul, (value) => formatTenths(value) + "/s"],
-    ["Projectiles", (stats) => stats.weapon.count + (stats.weapon.cone ? stats.extra * 2 : stats.extra), String],
+    ["Bolts", (stats) => stats.weapon.count + (stats.weapon.cone ? stats.extra * 2 : stats.extra), String],
     ["Pierce", (stats) => (stats.pierce > 99 ? 0 : stats.pierce), String],
     ["Bounces", (stats) => stats.bounce, String],
     ["Crit", (stats) => stats.crit, formatPercent],
-    ["Max HP", (stats) => stats.maxHp, String],
+    ["Max Ward", (stats) => stats.maxHp, String],
     ["Speed", (stats) => stats.speed, (value) => formatTenths(value) + " m/s"],
     ["Range", (stats) => stats.range, (value) => Math.round(value) + " m"],
     ["Pickup radius", (stats) => stats.magnet, (value) => formatTenths(value) + " m"],
     ["Dash cooldown", (stats) => stats.dashCd, formatCooldown],
-    ["Glass Bell", (stats) => stats.shieldCd, formatCooldown],
+    ["Glass Ward Bell", (stats) => stats.shieldCd, formatCooldown],
     ["Mending", (stats) => stats.regen, (value) => formatTenths(value) + " Ward/s"],
     ["Blades", (stats) => stats.orbit, String],
     ["Blade damage", (stats) => (stats.orbit ? stats.orbitDmg * stats.dmgMul : 0), formatTenths],
@@ -176,7 +176,7 @@ const getById = (id) => document.getElementById(id),
     ],
     ["Arc jumps", (stats) => (stats.arc ? stats.arcJumps : 0), String],
     ["Sunburst", (stats) => stats.payloadF, formatPercent],
-    ["Gravity Chimes", (stats) => stats.gadgetMax, String],
+    ["Lodestone Chimes", (stats) => stats.gadgetMax, String],
     ["Chime recharge", (stats) => stats.gadgetCd, formatCooldown],
     ["Chime burst", (stats) => stats.gadgetDmg, (value) => "\u00d7" + formatTenths(value)],
     ["Kindle", (stats) => stats.thermite, formatPercent],
@@ -193,7 +193,7 @@ const getById = (id) => document.getElementById(id),
       lava: "Forge vent",
       shock: "Lantern inlay",
       acid: "Bog pool",
-      trap: "Floor mechanism",
+      trap: "Realm hazard",
       devil: "Dust devil",
       prop: "Realm relic",
     }[src],
@@ -213,8 +213,8 @@ const getById = (id) => document.getElementById(id),
     overload: ["Kiln Surge", "#ffd27a"],
     reactive: ["Mirror Ward", "#b8dace"],
     surge: ["Bell-Chime Cadence", "#e9bf89"],
-    grenade: ["Gravity Chime", "#b57bff"],
-    trap: ["Floor mechanisms", "#aeb9cf"],
+    grenade: ["Lodestone Chime", "#c89eff"],
+    trap: ["Realm hazards", "#c9bfa8"],
     prop: ["Realm relics", "#f2c879"],
     sealgrid: ["Lantern Cage", "#f08e70"],
     shard: ["Rime-Shard Burst", "#bacfd9"],
@@ -620,9 +620,7 @@ const getById = (id) => document.getElementById(id),
       getById("tName").classList.toggle("hot", this.viewThreat > 0);
       getById("tDesc").textContent = locked
         ? `Clear all ${20} waves on ${threatLevels[this.viewThreat - 1].name} to unlock`
-        : this.viewThreat > 0
-          ? `${threat.desc} Shards \xD7${(1 + 0.25 * this.viewThreat).toFixed(2)}`
-          : threat.desc;
+        : threat.desc;
       getById("tPrev").disabled = this.viewThreat <= 0;
       getById("tNext").disabled = this.viewThreat >= Math.min(5, save.threatMax + 1);
       this.updatePlayState();
@@ -635,11 +633,11 @@ const getById = (id) => document.getElementById(id),
       btn.disabled = !playable;
       btn.textContent = playable
         ? save.run
-          ? "NEW RUN"
-          : "START RUN"
+          ? "NEW EXPEDITION"
+          : "BEGIN EXPEDITION"
         : save.weapons[id]
-          ? "THREAT LOCKED"
-          : "WEAPON LOCKED";
+          ? "TRIAL LOCKED"
+          : "ARM LOCKED";
     }
     stepWeapon(dir) {
       this.viewWeapon = clamp(this.viewWeapon + dir, 0, weaponOrder.length - 1);
@@ -679,9 +677,9 @@ const getById = (id) => document.getElementById(id),
       if (!(
         save.run &&
         !(await this.confirm(
-          "Start a new run?",
-          `Your run at wave ${save.run.wave} ends here. You keep the shards collected in it.`,
-          "New run",
+          "Start a new expedition?",
+          `Your expedition at wave ${save.run.wave} ends here. You keep the star-shards gathered in it.`,
+          "New expedition",
         ))
       )) {
         if (save.run) {
@@ -694,6 +692,14 @@ const getById = (id) => document.getElementById(id),
       let save = this.save;
       for (let el of document.querySelectorAll(".bankMirror")) el.textContent = formatCount(save.shards);
       let list = getById("wsList");
+      const catOf = (id) =>
+        id === "hull" || id === "revive" || id === "armorCore" || id === "hazardSeal" || id === "emergencyShield"
+          ? "cat-ward"
+          : id === "power" || id === "nova" || id === "arsenalLab" || id === "hazardAttune"
+            ? "cat-fire"
+            : id === "thrust" || id === "dash" || id === "magnet" || id === "droneBay"
+              ? "cat-stride"
+              : "cat-fate";
       list.innerHTML = workshopModules
         .map((mod) => {
           let level = save.workshop[mod.id] || 0,
@@ -702,9 +708,9 @@ const getById = (id) => document.getElementById(id),
             pips = Array.from({ length: maxLevel }, (_, i) => `<i class="${i < level ? "on" : ""}"></i>`).join(""),
             btn =
               level >= maxLevel
-                ? '<button class="btn" disabled>MAX</button>'
+                ? '<button class="btn max-btn" disabled>MAX</button>'
                 : `<button class="btn" data-buy="${mod.id}" ${save.shards < cost ? "disabled" : ""}><span class="shard-ico"></span>${cost}</button>`;
-          return `<div class="row panel"><div class="rico">${iconSvg(mod.icon)}</div><div><b>${escapeHtml(mod.name)}</b><small>${escapeHtml(mod.desc)}</small><div class="pips">${pips}</div></div>${btn}</div>`;
+          return `<div class="row panel ${catOf(mod.id)}"><div class="rico">${iconSvg(mod.icon)}</div><div><b>${escapeHtml(mod.name)}</b><small>${escapeHtml(mod.desc)}</small><div class="pips">${pips}</div></div>${btn}</div>`;
         })
         .join("");
       for (let btn of list.querySelectorAll("[data-buy]")) this.click(btn, () => this.buyModule(btn.dataset.buy));
@@ -1070,7 +1076,7 @@ const getById = (id) => document.getElementById(id),
           getById("bossName").textContent = boss.champion
             ? `${enemyDefs[boss.type].name.toUpperCase()} CHAMPION`
             : bossDefs[boss.type].name;
-          getById("bossPhase").textContent = boss.enraged ? "ENRAGED" : boss.champion ? "RALLYING" : "";
+          getById("bossPhase").textContent = boss.enraged ? "CRESCENDO" : boss.champion ? "RALLYING" : "";
         });
         update("bossF", Math.round((boss.hp / boss.maxHp) * 100), (value) => {
           getById("bossFill").style.transform = `scaleX(${clamp(value / 100, 0, 1)})`;
@@ -1130,7 +1136,7 @@ const getById = (id) => document.getElementById(id),
         }
         const btn = getById("gadgetBtn");
         btn.classList.toggle("empty", gadgetN <= 0);
-        btn.setAttribute("aria-label", `Toss Gravity Chime, ${gadgetN} of ${gadgetMax} ready`);
+        btn.setAttribute("aria-label", `Toss Lodestone Chime, ${gadgetN} of ${gadgetMax} ready`);
       });
       const gadgetPct =
         gadgetN >= gadgetMax || !(stats.gadgetCd > 0)
@@ -1183,8 +1189,8 @@ const getById = (id) => document.getElementById(id),
         chips.push(["devil", "WHIRLWIND", "#ffe9c4", -1]);
       }
       if (player.slowT > 0) {
-        // 3.7.1: an electric trap stuns (0.8 s), ice chills (1.6 s)
-        if (player.slowKind === "shock") chips.push(["shock", "STUNNED", "#ffe98a", player.slowT / 0.8]);
+        // 3.7.1: a chime inlay / lantern dazes (0.8 s), ice chills (1.6 s)
+        if (player.slowKind === "shock") chips.push(["shock", "DAZED", "#ffe98a", player.slowT / 0.8]);
         else chips.push(["chill", "CHILLED", "#aee8ff", player.slowT / 1.6]);
       }
       let key = chips.map((chip) => chip[0] + chip[1]).join("|"),
@@ -1243,7 +1249,8 @@ const getById = (id) => document.getElementById(id),
         want.push(["gild", "GILDED", "#ffd872", player.gildT / 3.2]);
       }
       if (on && player.festT > 0) {
-        want.push(["fest", "HEARTH", "#ffb86c", player.festT / 3.0]);
+        if (world.arena?.biome?.id === "core") want.push(["fest", "ASTRAL", "#e0b4ff", player.festT / 3.0]);
+        else want.push(["fest", "HEARTH", "#ffb86c", player.festT / 3.0]);
       }
       const row = buffRow;
       if (!row) return;
@@ -1312,9 +1319,8 @@ const getById = (id) => document.getElementById(id),
       if (next.boss)
         chips.push([`Guardian \u00b7 ${bossDefs[next.boss] ? bossDefs[next.boss].name : next.boss}`, "boss"]);
       if (next.event && waveEvents[next.event]) chips.push([waveEvents[next.event].name, "event"]);
-      if (next.mutator && MUTATORS[next.mutator])
-        chips.push([`New trial \u00b7 ${MUTATORS[next.mutator].name}`, "mut"]);
-      if (next.traps) chips.push(["Floor mechanisms active", ""]);
+      if (next.mutator && MUTATORS[next.mutator]) chips.push([`New omen \u00b7 ${MUTATORS[next.mutator].name}`, "mut"]);
+      if (next.traps) chips.push(["Realm hazards active", ""]);
       box.innerHTML = chips.map(([text, cls]) => `<span class="nw ${cls}">${escapeHtml(text)}</span>`).join("");
     }
     renderCards(world) {
@@ -1322,24 +1328,27 @@ const getById = (id) => document.getElementById(id),
         getById(id)
           .querySelectorAll(".card-key")
           .forEach((el) => el.remove());
+      const tierCrests = ["", "\u25c7", "\u25c6", "\u25c8", "\u2605", "\u2726", "\u265b"];
       let cards = getById("cards");
       cards.innerHTML = world.offer
         .map((id, i) => {
           let up = upgradesById[id],
             level = world.up[id] || 0,
+            crest = tierCrests[up.rarity] || "",
+            tierName = (rarityNames[up.rarity] || "").toUpperCase(),
             tag = up.boss
-              ? `${bossDefs[up.boss] ? bossDefs[up.boss].name.toUpperCase() : "GUARDIAN"} \xB7 RELIC`
+              ? `${crest} ${bossDefs[up.boss] ? bossDefs[up.boss].name.toUpperCase() : "GUARDIAN"} \xB7 RELIC`
               : up.evo
-                ? "EVOLUTION"
+                ? `${crest} MASTERWORK`
                 : up.repeat
-                  ? rarityNames[up.rarity].toUpperCase()
+                  ? `${crest} ${tierName}`
                   : level
-                    ? `LV ${level} \u2192 ${level + 1}`
-                    : `NEW \xB7 ${rarityNames[up.rarity].toUpperCase()}`,
+                    ? `${crest} ${tierName} \xB7 LV ${level}\u2192${level + 1}`
+                    : `${crest} NEW \xB7 ${tierName}`,
             evo = this.evoHint(up, world),
             delta = this.statDelta(id, world);
           const seal = up.boss ? `<span class="seal" aria-hidden="true">${iconSvg("star")}</span>` : "";
-          return `<button class="card r${up.rarity}" data-pick="${id}" style="animation-delay:${i * 70}ms">${seal}<span class="cico">${iconSvg(up.icon)}</span><span><span class="ctop"><b>${escapeHtml(up.name)}</b><span class="lv">${tag}</span></span><p>${escapeHtml(up.desc(level))}</p>${delta}${evo}</span></button>`;
+          return `<button class="card r${up.rarity}" data-pick="${id}" style="animation-delay:${i * 70}ms">${seal}<span class="cico">${iconSvg(up.icon)}</span><span><span class="ctop"><b>${escapeHtml(up.name)}</b><span class="lv">${escapeHtml(tag)}</span></span><p>${escapeHtml(up.desc(level))}</p>${delta}${evo}</span></button>`;
         })
         .join("");
       cards.classList.add("locked");
@@ -1447,7 +1456,7 @@ const getById = (id) => document.getElementById(id),
                 `<span class="bi r${upgrade.rarity}" title="${escapeHtml(upgrade.name)}">${iconSvg(upgrade.icon)}${escapeHtml(upgrade.name)}${world.up[upgrade.id] > 1 ? " \xD7" + world.up[upgrade.id] : ""}</span>`,
             )
             .join("")
-        : '<span class="note">No upgrades yet.</span>';
+        : '<span class="note">No crafts yet.</span>';
     }
     showPause(world) {
       getById("pauseTitle").textContent = `Wave ${world.wave}${world.endless ? " \xB7 Endless" : ""}`;
@@ -1470,7 +1479,7 @@ const getById = (id) => document.getElementById(id),
             .join("")
         : this.buildHtml(world);
       info.hidden = !own.length;
-      info.innerHTML = '<p class="note">Select an upgrade to see what it does.</p>';
+      info.innerHTML = '<p class="note">Select a craft to see what it does.</p>';
     }
     /* 3.22.0: the numbers behind the build: the value now and, next to it, how far it is from what the weapon has without the
        upgrades of the run (green: better, red: worse) */
@@ -1527,7 +1536,7 @@ const getById = (id) => document.getElementById(id),
         ["Wave", result.wave],
         ["Time", formatTime(result.time)],
         ["Kills", result.kills],
-        ["Bosses", result.bosses],
+        ["Guardians", result.bosses],
       ]
         .map(([label, value]) => `<div class="cell"><div class="k">${label}</div><div class="v">${value}</div></div>`)
         .join("");
@@ -1705,7 +1714,7 @@ const getById = (id) => document.getElementById(id),
       holdTitleCard(
         this,
         "biome",
-        `<div class="tcard biome hold" data-biome="${escapeHtml(info.id)}" style="--bc:${info.color}"><div class="tc-band"><div class="tc-eye">${wave ? `Wave ${escapeHtml(wave)} \xB7 ` : ""}Entering</div><div class="tc-name">${escapeHtml(info.name)}</div>${info.hazard ? `<div class="tc-haz">${escapeHtml(info.hazard)}</div>` : ""}${info.boss ? `<div class="tc-boss"><span>Boss</span>${escapeHtml(info.boss)}</div>` : ""}</div></div>`,
+        `<div class="tcard biome hold" data-biome="${escapeHtml(info.id)}" style="--bc:${info.color}"><div class="tc-band"><div class="tc-eye">${wave ? `Wave ${escapeHtml(wave)} \xB7 ` : ""}Entering</div><div class="tc-name">${escapeHtml(info.name)}</div>${info.hazard ? `<div class="tc-haz">${escapeHtml(info.hazard)}</div>` : ""}${info.boss ? `<div class="tc-boss"><span>Guardian</span>${escapeHtml(info.boss)}</div>` : ""}</div></div>`,
         2500,
         ms,
       );
@@ -1718,7 +1727,7 @@ const getById = (id) => document.getElementById(id),
       holdTitleCard(
         this,
         "boss",
-        `<div class="tcard boss hold" data-boss="${escapeHtml(id)}" style="--bc:${rlHex(boss.color)}"><div class="tc-panel"><i class="tc-accent"></i><div class="tc-eye">Boss${biome ? " \xB7 " + escapeHtml(biome.name) : ""}</div><div class="tc-name">${escapeHtml(boss.name)}</div><i class="tc-line"></i><div class="tc-title">${escapeHtml(boss.title)}</div></div></div>`,
+        `<div class="tcard boss hold" data-boss="${escapeHtml(id)}" style="--bc:${rlHex(boss.color)}"><div class="tc-panel"><i class="tc-accent"></i><div class="tc-eye">Guardian${biome ? " \xB7 " + escapeHtml(biome.name) : ""}</div><div class="tc-name">${escapeHtml(boss.name)}</div><i class="tc-line"></i><div class="tc-title">${escapeHtml(boss.title)}</div></div></div>`,
         2800,
         ms,
       );
@@ -1756,10 +1765,10 @@ function closePauseSettings(ui) {
 }
 
 const RL_BIOME_CARD = {
-  courtyard: "Lantern inlays chime · spark garden braziers to stun foes & warm the flagstones",
+  courtyard: "Lantern inlays chime · spark garden lanterns to daze foes & warm the flagstones",
   shelf: "Sapphire ice beneath the aurora · shatter rime crystals for frost & sure footing",
   marsh: "Velvet moss & firefly pools · pop spore puffballs for a swift marsh hop",
-  core: "Astral portals fold the vault · ring resonance prisms to split bolts & slow shots",
+  core: "Astral portals fold the vault · ring resonance prisms to empower bolts & slow shots",
   caldera: "Basalt forge vents roar · stoke slag crucibles to sunder heavy plating",
   flats: "Sunglass whirlwinds dance · strike desert lenses to fan solar bolts & calm winds",
 };

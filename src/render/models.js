@@ -1643,13 +1643,13 @@ export function variantAttachmentGeometry(id) {
   const body = [];
   const glow = [];
   if (id === "shorted") {
-    // Courtyard Shorted: crackling brass lightning-rod spire & copper insulator rings on back/shoulders
+    // Courtyard Brim-Lit: tilted antique-brass oil-lantern brazier brimming with warm amber flame
     body.push(
-      part(G_CYL6, COPPER, { x: -0.18, y: 1.18, sx: 0.14, sy: 0.56, sz: 0.14 }),
-      part(G_TOR_SM, BRASS, { x: -0.18, y: 1.18, rx: Math.PI / 2, sx: 0.34, sy: 0.34, sz: 0.34 }),
-      part(G_TOR_SM, BRASS, { x: -0.18, y: 1.36, rx: Math.PI / 2, sx: 0.28, sy: 0.28, sz: 0.28 }),
+      part(G_CYL6, BRASS, { x: -0.14, y: 1.16, sx: 0.24, sy: 0.16, sz: 0.24 }),
+      part(G_TOR_SM, COPPER, { x: -0.14, y: 1.24, rx: Math.PI / 2, sx: 0.42, sy: 0.42, sz: 0.42 }),
+      part(G_CONE6, BRASS, { x: -0.14, y: 1.54, sx: 0.34, sy: 0.18, sz: 0.34 }),
     );
-    glow.push(part(G_OCT, 0x8ef8ff, { x: -0.18, y: 1.56, sx: 0.24, sy: 0.3, sz: 0.24, anim: [3, 1.56, -0.18, 3.4] }));
+    glow.push(part(G_OCT, 0xffcc68, { x: -0.14, y: 1.38, sx: 0.24, sy: 0.32, sz: 0.24, anim: [3, 1.38, -0.14, 2.4] }));
   } else if (id === "frost") {
     // Shelf Frost: crystalline sapphire ice-horn crown & rime shoulder shards
     body.push(

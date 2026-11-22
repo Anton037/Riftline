@@ -12,7 +12,7 @@ const MUTATORS = {
     hasted: { name: "Wind-Spurred", desc: "Foes stride faster across the sanctuary", color: "#ffd84a" },
     armored: { name: "Iron-Clad", desc: "Foes wear heavier forged plating", color: "#c9c2b8" },
     barrage: { name: "Volley-Struck", desc: "Hostile bolts fly swifter and strike harder", color: "#ff5ab4" },
-    trapstorm: { name: "Clockwork Frenzy", desc: "More floor mechanisms, cycling faster", color: "#b4ff3d" },
+    trapstorm: { name: "Realm Tempest", desc: "More biome hazards, cycling faster", color: "#b4ff3d" },
   },
   MUTATOR_IDS = Object.keys(MUTATORS),
   MUTATOR_FROM = 21,

@@ -13,8 +13,8 @@ import { getById } from "./ui.js";
 /* the movable controls: element, name in the editor, smallest size on screen (px) */
 const CONTROL_INFO = {
     dash: { el: "dashBtn", name: "DASH", min: 40 },
-    nova: { el: "novaBtn", name: "NOVA", min: 40 },
-    gadget: { el: "gadgetBtn", name: "GADGET", min: 40 },
+    nova: { el: "novaBtn", name: "BURST", min: 40 },
+    gadget: { el: "gadgetBtn", name: "CHIME", min: 40 },
     pause: { el: "pauseBtn", name: "PAUSE", min: 36 },
   },
   HUD_CONTROLS = HUD_CONTROL_IDS.map((id) => ({ id, ...CONTROL_INFO[id] })),
@@ -446,7 +446,7 @@ class HudEditor {
     if (!back) return;
     if (!drag.from) this.draft.layouts[drag.orient] = null;
     else Object.assign(this.spotOf(this.draft.layouts[drag.orient], drag.id), drag.from);
-    if (!cancelled) this.note = "Not there: it would cover another button or the hull and wave display.";
+    if (!cancelled) this.note = "Not there: it would cover another button or the ward and wave display.";
   }
   /* the size slider: the picked control grows or shrinks around its centre (never below its smallest size on screen) */
   setSize(value) {
@@ -540,7 +540,7 @@ class HudEditor {
     note.textContent =
       this.note ||
       (bad.size
-        ? "Red buttons cover another button or the hull and wave display: move them."
+        ? "Red buttons cover another button or the ward and wave display: move them."
         : this.draft.stickFixed
           ? "Drag a button or the stick to move it, tap a button to resize it."
           : "Drag a button to move it, tap it to resize it. The move stick starts where your thumb lands.");

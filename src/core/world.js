@@ -899,7 +899,7 @@ const rlStep = 1 / 60,
           rate = stats.rateMul,
           dashId = player.dashId;
         if (tuned) {
-          // Heat Sink: an erupting vent or dust devil within 2.5 m of its edge keeps the heat up and charges Nova
+          // Bellows Vent: vents, bog pools, ice, portals, whirlwinds or active traps within 2.5 m stoke fire rate & Hearthburst
           if (stats.heatSink && fight) {
             let heated = false;
             for (const vent of this.arena.vents)
@@ -910,6 +910,36 @@ const rlStep = 1 / 60,
             if (!heated && this.arena.devils)
               for (const devil of this.arena.devils)
                 if (Math.hypot(player.x - devil.x, player.y - devil.y) < devil.r + 2.5) {
+                  heated = true;
+                  break;
+                }
+            if (!heated && this.arena.acid)
+              for (const pool of this.arena.acid)
+                if (!pool.mine && Math.hypot(player.x - pool.x, player.y - pool.y) < pool.r + 2.2) {
+                  heated = true;
+                  break;
+                }
+            if (!heated && this.arena.ice)
+              for (const patch of this.arena.ice)
+                if (Math.hypot(player.x - patch.x, player.y - patch.y) < patch.r + 2.0) {
+                  heated = true;
+                  break;
+                }
+            if (!heated && this.arena.portals)
+              for (const portal of this.arena.portals)
+                if (
+                  Math.hypot(player.x - portal.ax, player.y - portal.ay) < 3.2 ||
+                  Math.hypot(player.x - portal.bx, player.y - portal.by) < 3.2
+                ) {
+                  heated = true;
+                  break;
+                }
+            if (!heated && this.traps)
+              for (const trap of this.traps)
+                if (
+                  (trap.st === "warn" || trap.st === "live" || trap.st === "fuse") &&
+                  Math.hypot(player.x - trap.x, player.y - trap.y) < (trap.r || 2) + 2.5
+                ) {
                   heated = true;
                   break;
                 }
@@ -1459,12 +1489,21 @@ const rlStep = 1 / 60,
       }
       player.firing = firing;
       player.manual = manual;
+      let lanternWarm = false;
+      if (this.arena?.props?.length) {
+        for (const prop of this.arena.props) {
+          if (prop.kind === "lantern" && prop.auraT > 0 && Math.hypot(player.x - prop.x, player.y - prop.y) <= 4.4) {
+            lanternWarm = true;
+            break;
+          }
+        }
+      }
       let rate =
         stats.weapon.rate *
         stats.rateMul *
         (1 + (stats.bloodrush ? 0.04 * player.rushN : 0)) *
         (player.gildT > 0 ? 1.2 : 1) *
-        (player.festT > 0 ? 1.25 : 1);
+        (player.festT > 0 ? 1.25 : lanternWarm ? 1.15 : 1);
       player.fireT -= dt;
       if (firing && aim != null) {
         let shots = 0;
@@ -2468,7 +2507,8 @@ const rlStep = 1 / 60,
       }
       if (this.event === "gilded" && enemy.elite) {
         this.player.gildT = Math.max(this.player.gildT || 0, 3.2);
-        this.emit("bountyPulse", { x: enemy.x, y: enemy.y });
+        this.dropShards(enemy.x, enemy.y, 2);
+        this.emit("bountyPulse", { x: enemy.x, y: enemy.y, amount: 2 });
       }
       if (enemy.affix === "volatile") {
         let src = this._src;
@@ -2743,6 +2783,19 @@ const rlStep = 1 / 60,
             sx = bullet.x + bullet.vx * dt * frac,
             sy = bullet.y + bullet.vy * dt * frac;
           this.hash.query(sx, sy, bullet.r + 0.8, (enemy) => this.probeHit(bullet, enemy, sx, sy, rail));
+        }
+        if (this.state === "fight" && !bullet.prismBoost && arena.props && arena.props.length) {
+          for (const prop of arena.props) {
+            if (prop.kind === "prism" && prop.auraT > 0) {
+              const dx = bullet.x - prop.x,
+                dy = bullet.y - prop.y;
+              if (dx * dx + dy * dy <= 20.25) {
+                bullet.prismBoost = true;
+                bullet.dmg *= 1.25;
+                break;
+              }
+            }
+          }
         }
         if (this.state === "fight" && !bullet.propHit && arena.props && arena.props.length) {
           const segDx = bullet.x - prevX,
@@ -3120,10 +3173,41 @@ const rlStep = 1 / 60,
         this.emit("biomeProp", { kind: "crucible", state: "fire", x, y, r });
       } else if (prop.kind === "sunglass") {
         const r = 4.8;
+        let aim = this.player.aim || 0,
+          best = 1e9;
+        this.hash.query(x, y, 12, (enemy) => {
+          if (enemy.dead || enemy.ghost) return;
+          const d = Math.hypot(enemy.x - x, enemy.y - y);
+          if (d < best) {
+            best = d;
+            aim = Math.atan2(enemy.y - y, enemy.x - x);
+          }
+        });
         this.hash.query(x, y, r, (enemy) => {
           if (enemy.dead || enemy.ghost || Math.hypot(enemy.x - x, enemy.y - y) > r + enemy.r) return;
           this.hurtEnemy(enemy, 36 * dmgMul, enemy.x - x, enemy.y - y, 3.2, false, "prop");
         });
+        if (this.pb.length < 415) {
+          for (let i = 0; i < 5; i++) {
+            const a = aim + (i - 2) * 0.24;
+            this.pb.push({
+              id: this.nextId++,
+              x,
+              y,
+              vx: Math.cos(a) * 18,
+              vy: Math.sin(a) * 18,
+              a,
+              r: 0.2,
+              dmg: 22 * dmgMul,
+              life: 0.72,
+              pierce: 1,
+              bounce: 0,
+              hits: [],
+              w: "pulse",
+              src: "prop",
+            });
+          }
+        }
         if (this.arena.devils && this.arena.devils.length) {
           for (const devil of this.arena.devils) {
             const dx = devil.x - x,
@@ -3360,7 +3444,10 @@ const rlStep = 1 / 60,
       let player = this.player;
       for (let beam of this.beams) {
         beam.t += dt;
-        if (beam.rot) {
+        if (beam.swing && beam.t >= beam.warn) {
+          const liveT = beam.t - beam.warn;
+          beam.a = beam.a0 + Math.sin(liveT * beam.swing) * (beam.rot >= 0 ? 1 : -1) * 0.92;
+        } else if (beam.rot) {
           beam.a += beam.rot * dt;
         }
         if (beam.follow) {
@@ -3371,31 +3458,56 @@ const rlStep = 1 / 60,
           }
         }
         beam.live = beam.t >= beam.warn && beam.t < beam.warn + beam.dur;
-        // 3.46.0: a beam that never moves or turns keeps its wall distance (a dozen static grid
-        // beams used to be re-raycast every step for the whole attack)
-        if (beam.rot || beam.follow) {
+        // 3.46.0: a beam that never moves or turns keeps its wall distance
+        if (beam.rot || beam.swing || beam.follow) {
           beam.cur = this.arena.rayLen(beam.x, beam.y, beam.a, beam.len);
         } else if (!beam.curSet) {
           beam.cur = this.arena.rayLen(beam.x, beam.y, beam.a, beam.len);
           beam.curSet = true;
         }
-        if (beam.live && beam.cur > 0 && player.alive) {
+        if (beam.live && beam.cur > 0) {
           let endX = beam.x + Math.cos(beam.a) * beam.cur,
             endY = beam.y + Math.sin(beam.a) * beam.cur,
             dx = endX - beam.x,
             dy = endY - beam.y,
-            lenSq = dx * dx + dy * dy,
-            along = lenSq > 0 ? ((player.x - beam.x) * dx + (player.y - beam.y) * dy) / lenSq : 0;
-          along = clamp(along, 0, 1);
-          let cx = beam.x + dx * along,
-            cy = beam.y + dy * along,
-            hitR = beam.w * 0.5 + player.r * 0.7;
-          // The rounded collision end must not reach through the wall that clipped the beam.
-          if (
-            (player.x - cx) ** 2 + (player.y - cy) ** 2 < hitR * hitR &&
-            this.arena.los(beam.x, beam.y, player.x, player.y)
-          ) {
-            this.hurtPlayer(beam.dmg, cx, cy, beam.src);
+            lenSq = dx * dx + dy * dy;
+          if (player.alive) {
+            let along = lenSq > 0 ? ((player.x - beam.x) * dx + (player.y - beam.y) * dy) / lenSq : 0;
+            along = clamp(along, 0, 1);
+            let cx = beam.x + dx * along,
+              cy = beam.y + dy * along,
+              hitR = beam.w * 0.5 + player.r * 0.7;
+            // The rounded collision end must not reach through the wall that clipped the beam.
+            if (
+              (player.x - cx) ** 2 + (player.y - cy) ** 2 < hitR * hitR &&
+              this.arena.los(beam.x, beam.y, player.x, player.y)
+            ) {
+              this.hurtPlayer(beam.dmg, cx, cy, beam.src);
+            }
+          }
+          // Trap beams scorch/daze non-boss enemies too so players can lure packs across them
+          if (beam.fromTrap && lenSq > 0) {
+            for (const enemy of this.enemies) {
+              if (enemy.dead || enemy.boss || enemy.ghost) continue;
+              let along = clamp(((enemy.x - beam.x) * dx + (enemy.y - beam.y) * dy) / lenSq, 0, 1);
+              let cx = beam.x + dx * along,
+                cy = beam.y + dy * along,
+                hitR = beam.w * 0.5 + enemy.r * 0.85;
+              if ((enemy.x - cx) ** 2 + (enemy.y - cy) ** 2 < hitR * hitR) {
+                enemy.trapBeamAcc = (enemy.trapBeamAcc || 0) + enemy.maxHp * 0.14 * dt;
+                if (enemy.trapBeamAcc >= Math.max(4, enemy.maxHp * 0.05)) {
+                  this.hurtEnemy(enemy, enemy.trapBeamAcc, enemy.x - cx, enemy.y - cy, 0.8, false, "trap");
+                  enemy.trapBeamAcc = 0;
+                }
+                if (beam.special === "burn" && !enemy.dead && !enemy.shielded) {
+                  enemy.burnT = Math.max(enemy.burnT || 0, 1.8);
+                  enemy.burnDps = Math.max(enemy.burnDps || 0, enemy.maxHp * 0.06);
+                  enemy.burnSrc = "trap";
+                } else if (beam.special === "shock" && !enemy.dead && !enemy.shielded) {
+                  enemy.slowT = Math.max(enemy.slowT || 0, 0.8);
+                }
+              }
+            }
           }
         }
       }
@@ -3410,6 +3522,7 @@ const rlStep = 1 / 60,
         x: opts.x,
         y: opts.y,
         a: opts.a,
+        a0: opts.a,
         len: opts.len || 30,
         cur: opts.len || 30,
         w: opts.w || 0.8,
@@ -3417,11 +3530,14 @@ const rlStep = 1 / 60,
         dur: opts.dur ?? 0.5,
         t: 0,
         rot: opts.rot || 0,
+        swing: opts.swing || 0,
         dmg: opts.dmg || 20,
         follow: opts.follow || null,
         live: false,
         color: opts.color || 0,
-        skin: opts.skin || null, // 3.0.0: trap beams name their skin (laser, flame, rift)
+        skin: opts.skin || null,
+        fromTrap: !!opts.fromTrap,
+        special: opts.special || null,
         src: opts.src ?? this._src,
       };
       this.beams.push(beam);
@@ -3800,7 +3916,7 @@ const rlStep = 1 / 60,
           if ((devil.calmT || 0) <= 0 && Math.hypot(player.x - devil.x, player.y - devil.y) < devil.r + 1.8) {
             devil.calmT = 5.0;
             this.dropShards(devil.x, devil.y, 3);
-            this.emit("bountyPulse", { x: devil.x, y: devil.y });
+            this.emit("bountyPulse", { x: devil.x, y: devil.y, amount: 3 });
           }
         }
       } else if (event.id === "nectar") {
