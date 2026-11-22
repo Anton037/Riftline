@@ -4,6 +4,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { openGame } from "./support/game.mjs";
 
+globalThis.__RL_VERSION__ ??= "test";
+globalThis.__RL_BUILD__ ??= "test";
+const { bossPatterns, OVERDRIVE } = await import("../src/core/ai.js");
+
 const visible = (page, id) =>
   page.waitForFunction((id) => {
     const e = document.getElementById(id);
@@ -233,13 +237,30 @@ test(
       [],
       "Startup health checks must pass on desktop",
     );
-    const homeState = await page.evaluate(() => ({
-      desktop: document.body.classList.contains("device-desktop"),
-      touchInput: document.body.classList.contains("input-touch"),
-      audit: window.__riftLayoutAudit(),
-    }));
+    const homeState = await page.evaluate(async () => {
+      const specs = ['400 16px "Baskervville"', '700 16px "Instrument Sans"'];
+      const loaded = await Promise.all(specs.map((spec) => document.fonts.load(spec)));
+      const { store, ui } = window.__riftTest;
+      store.data.threatMax = 1;
+      ui.stepThreat(1);
+      const trial1Desc = document.getElementById("tDesc").textContent;
+      ui.stepThreat(-1);
+      return {
+        desktop: document.body.classList.contains("device-desktop"),
+        touchInput: document.body.classList.contains("input-touch"),
+        fontsLoaded: loaded.every((faces) => faces.length > 0),
+        logoFont: getComputedStyle(document.querySelector("#home .logo")).fontFamily,
+        ctaFont: getComputedStyle(document.querySelector("#playBtn")).fontFamily,
+        trial1Desc,
+        audit: window.__riftLayoutAudit(),
+      };
+    });
     assert.equal(homeState.desktop, true);
     assert.equal(homeState.touchInput, false);
+    assert.equal(homeState.fontsLoaded, true, "Bundled Baskervville & Instrument Sans fonts must load");
+    assert.match(homeState.logoFont, /Baskervville/);
+    assert.match(homeState.ctaFont, /Instrument Sans/);
+    assert.doesNotMatch(homeState.trial1Desc, /Shards ×/, "Trial I description must not duplicate shards multiplier");
     assert.equal(homeState.audit.ok, true, JSON.stringify(homeState.audit.findings));
 
     await press('[data-go="settings"]');
@@ -400,6 +421,62 @@ test(
     assert.equal(chooseBadges.banish, "B");
     assert.equal(chooseBadges.reroll, "R");
     assert.equal(chooseBadges.audit.ok, true, JSON.stringify(chooseBadges.audit.findings));
+
+    const rarityCheck = await page.evaluate(() => {
+      const { game, ui } = window.__riftTest;
+      const w = game.world;
+      const savedOffer = w.offer;
+      w.offer = ["dmg", "orbit", "arc", "bloodrush", "halo", "sealgrid"];
+      ui.renderCards(w);
+      const cards = [...document.querySelectorAll("#cards .card")];
+      const styles = cards.map((el) => {
+        const cs = getComputedStyle(el);
+        return {
+          cls: el.className,
+          bg: cs.backgroundColor,
+          border: cs.borderTopColor,
+          titleFont: getComputedStyle(el.querySelector("b")).fontFamily,
+          badge: el.querySelector(".lv")?.textContent || "",
+        };
+      });
+      w.offer = savedOffer;
+      ui.renderCards(w);
+      document.getElementById("cards").classList.remove("locked");
+      return styles;
+    });
+    assert.equal(new Set(rarityCheck.map((s) => s.bg)).size, 6, "all 6 card tiers must have distinct card body colors");
+    assert.equal(
+      new Set(rarityCheck.map((s) => s.border)).size,
+      6,
+      "all 6 card tiers must have distinct border colors",
+    );
+    for (const row of rarityCheck) {
+      assert.match(row.titleFont, /Baskervville/, "upgrade card titles must use Baskervville serif");
+      assert.match(row.badge, /^[◇◆◈★✦♛]\s/, `tier badge must include geometric crest: ${row.badge}`);
+    }
+
+    const bossPairs = Object.entries(bossPatterns).flatMap(([boss, attacks]) =>
+      [...new Set([...attacks, OVERDRIVE[boss]])].map((attack) => [boss, attack]),
+    );
+    const calloutRows = await page.evaluate((pairs) => {
+      const { overlay } = window.__riftTest;
+      const out = pairs.map(([boss, attack]) => {
+        overlay.callouts = [];
+        overlay.callout(attack, boss);
+        return { boss, attack, label: overlay.callouts[0]?.t || "" };
+      });
+      overlay.callouts = [];
+      return out;
+    }, bossPairs);
+    const legacyCallouts = /\b(BULLET RING|LASER CROSS|OVERDRIVE|BOMBARDMENT|FROST NOVA)\b/i;
+    for (const row of calloutRows) {
+      assert.ok(row.label.length > 0, `boss ${row.boss} attack "${row.attack}" must have a callout label`);
+      assert.doesNotMatch(
+        row.label,
+        legacyCallouts,
+        `boss ${row.boss} attack "${row.attack}" used legacy callout "${row.label}"`,
+      );
+    }
 
     await page.keyboard.press("KeyR");
     await page.waitForFunction(() => window.__riftTest.game.world.rerolls === 1);

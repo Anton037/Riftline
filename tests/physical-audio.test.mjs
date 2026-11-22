@@ -2,6 +2,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+globalThis.__RL_VERSION__ ??= "test";
+globalThis.__RL_BUILD__ ??= "test";
 import { PhysicalVoices, physicalProfile } from "../src/audio/physical-voices.js";
 import { PLACE_IDS, SCAPE } from "../src/audio/place.js";
 import { SOURCE_CLIPS } from "../src/audio/source-bank.js";
@@ -148,4 +150,27 @@ test("Lantern Courtyard ambience uses resonators and leaves illumination to the 
   assert.equal(physicalProfile("galleryChime", null, true).model, "ceramic");
   assert.equal(physicalProfile("kilnResonance", null, true).model, "ceramic");
   assert.ok(courtyard.far.every((cue) => !("light" in cue)));
+});
+
+test("all 15 biome trap sounds and 6 mine arming voices synthesize finite non-silent buffers", async () => {
+  const { RL_TRAP_SOUND } = await import("../src/audio/sound.js");
+  const { TRAP_SKINS } = await import("../src/core/traps.js");
+  const bank = new PhysicalVoices(ctx, { decode: false });
+  for (const [skin, cues] of Object.entries(RL_TRAP_SOUND)) {
+    for (const cueId of [cues.warn, cues.fire].filter(Boolean)) {
+      const p = physicalProfile(cueId, { delay: 0.4 });
+      const data = bank.buffer(p, 0).getChannelData(0);
+      assert.ok(data.every(Number.isFinite), `${skin}/${cueId}: non-finite samples`);
+      assert.ok(
+        data.some((v) => Math.abs(v) > 0.005),
+        `${skin}/${cueId}: silent buffer`,
+      );
+    }
+    if (TRAP_SKINS[skin]?.fam === "mine") {
+      const arm = physicalProfile("tArm", skin);
+      assert.equal(arm.family, `arm:${skin}`, `${skin}: missing dedicated mine arm voice`);
+      const data = bank.buffer(arm, 0).getChannelData(0);
+      assert.ok(data.every(Number.isFinite) && data.some((v) => Math.abs(v) > 0.005), `${skin}: silent tArm`);
+    }
+  }
 });

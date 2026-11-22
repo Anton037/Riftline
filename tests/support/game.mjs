@@ -1,7 +1,7 @@
 // Fresh browser/context/server per flow, bounded waits and optional pixel rendering.
 import { chromium } from "playwright";
 import { serve } from "../../tools/serve.js";
-import { launchArgs } from "../../tools/browser.js";
+import { launchOptions } from "../../tools/browser.js";
 import { fileURLToPath } from "node:url";
 export async function openGame(t, mode, { fresh = false, audio = false, dpr = 1, viewport } = {}) {
   const profile = mode === true ? "tablet" : mode === false ? "phone" : mode || "phone";
@@ -24,7 +24,7 @@ export async function openGame(t, mode, { fresh = false, audio = false, dpr = 1,
     await browser?.close();
     await stopServer();
   });
-  browser = await chromium.launch({ args: launchArgs() });
+  browser = await chromium.launch(launchOptions());
   t.signal.addEventListener(
     "abort",
     () => {

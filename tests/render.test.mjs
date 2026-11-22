@@ -229,3 +229,30 @@ test("Engine v2 freezeStatic skips matrix recomputation, GpuParticleRing expires
   dRing.spawn(1, 0.5, -1, 2, 3, -1, 0.25, 0.9, 0.08, 0.9, 0.7, 0.3);
   assert.ok(dRing.data.subarray(0, 16).every(Number.isFinite), "debris ring attributes must all be finite");
 });
+
+test("all 15 biome trap 3D models build finite bounded geometry within budget", async () => {
+  const { TrapView } = await import("../src/render/traps-view.js");
+  const { TRAP_SKINS } = await import("../src/core/traps.js");
+  class StubPool {
+    constructor(geometry, material, max) {
+      this.mesh = new MeshNode(geometry, material);
+      this.max = max;
+      this.n = 0;
+    }
+  }
+  const view = new TrapView({ scene: new Node() }, StubPool);
+  for (const skin of Object.keys(TRAP_SKINS)) {
+    const set = view.get(skin);
+    let tris = 0;
+    for (const part of [set.body, set.glow, set.mover, set.moverGlow]) {
+      if (!part) continue;
+      const g = part.mesh.geometry;
+      assert.ok(g.positions.every(Number.isFinite), `${skin}: non-finite positions`);
+      const sz = g.computeBounds().getSize(new Vec3());
+      assert.ok(sz.length() > 0 && sz.length() < 12, `${skin}: unreasonable trap bounds (${sz.length()})`);
+      tris += g.triangleCount;
+    }
+    assert.ok(tris > 0 && tris <= 1500, `${skin}: trap triangle count ${tris} out of budget`);
+  }
+  for (const p of view.list) p.mesh.geometry.dispose();
+});

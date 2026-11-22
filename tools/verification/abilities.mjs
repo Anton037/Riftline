@@ -2,7 +2,7 @@
 import { chromium } from "playwright";
 import fs from "node:fs";
 import assert from "node:assert/strict";
-import { launchArgs } from "../browser.js";
+import { launchOptions } from "../browser.js";
 const [url = "http://localhost:8124/", tag = "current", layout = "tablet", filter = "all"] = process.argv.slice(2);
 const phone = layout === "land" || layout === "phone";
 const out = `verification-output/${tag}-abilities-${phone ? "phone" : "tablet"}`;
@@ -36,7 +36,7 @@ const selected = specs.filter(
         (s.kind === "sky" && ["centre", "north", "east", "south"].includes(s.position)))),
 );
 assert.ok(selected.length, "Unknown abilities filter");
-const browser = await chromium.launch({ args: launchArgs() });
+const browser = await chromium.launch(launchOptions());
 try {
   const page = await browser.newPage({
     viewport: phone ? { width: 844, height: 390 } : { width: 1024, height: 768 },

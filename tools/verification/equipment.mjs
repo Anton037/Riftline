@@ -3,12 +3,12 @@ import { chromium } from "playwright";
 import fs from "node:fs";
 import assert from "node:assert/strict";
 import { weaponDefs } from "../../src/data/weapons.js";
-import { launchArgs } from "../browser.js";
+import { launchOptions } from "../browser.js";
 const url = process.argv[2] || "http://localhost:8124/",
   tag = process.argv[3] || "equipment";
 const out = `verification-output/${tag}-equipment`;
 fs.mkdirSync(out, { recursive: true });
-const browser = await chromium.launch({ args: launchArgs() });
+const browser = await chromium.launch(launchOptions());
 try {
   const page = await browser.newPage({
     viewport: { width: 1024, height: 768 },

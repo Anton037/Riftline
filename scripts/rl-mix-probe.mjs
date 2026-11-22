@@ -11,12 +11,12 @@
 
 import { chromium } from "playwright";
 import { writeFileSync } from "node:fs";
-import { launchArgs } from "../tools/browser.js";
+import { launchOptions } from "../tools/browser.js";
 import { openAudioPage } from "../tools/verification/audio-page.mjs";
 
 const BASE = process.argv[2] || "http://localhost:8124/index.html";
 
-const browser = await chromium.launch({ args: launchArgs() });
+const browser = await chromium.launch(launchOptions());
 const page = await openAudioPage(browser, BASE);
 page.on("pageerror", (err) => console.log("PAGEERROR:", err.message));
 

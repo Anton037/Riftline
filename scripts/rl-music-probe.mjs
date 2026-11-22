@@ -6,7 +6,7 @@
 
 import { chromium } from "playwright";
 import { writeFileSync } from "node:fs";
-import { launchArgs } from "../tools/browser.js";
+import { launchOptions } from "../tools/browser.js";
 import { openAudioPage } from "../tools/verification/audio-page.mjs";
 
 const BASE = process.argv[2] || "http://localhost:8124/index.html";
@@ -14,9 +14,9 @@ const BASE = process.argv[2] || "http://localhost:8124/index.html";
 // the browser process, the collector frees them late, and five biomes of budget went past the box's
 // memory (the OOM killer took chrome while the JS heap still showed 15 MB). One boot is about 10 s.
 const withPage = async (fn) => {
-  const browser = await chromium.launch({
-    args: [...launchArgs(), "--disable-dev-shm-usage", "--no-sandbox", "--js-flags=--expose-gc"],
-  });
+  const browser = await chromium.launch(
+    launchOptions(["--disable-dev-shm-usage", "--no-sandbox", "--js-flags=--expose-gc"]),
+  );
   try {
     const page = await openAudioPage(browser, BASE);
     page.on("pageerror", (err) => console.log("PAGEERROR:", err.message));

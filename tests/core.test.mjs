@@ -286,3 +286,202 @@ test("reworked cozy wave events and shot-detonated proximity vessels are determi
     Math.random = random;
   }
 });
+
+test("reimagined biome traps apply distinct mechanics across all six realms", async () => {
+  const { rlUpdateTraps, TRAP_SKINS } = await import("../src/core/traps.js");
+
+  // 1. Star-Vault Astrolabe Well pulls enemies inward during warn telegraph
+  const wPull = new World({ seed: 41, weapon: "pulse", threat: 0, ws: {} });
+  wPull.arena.obs = [];
+  wPull.enemies.length = 0;
+  const foePull = wPull.spawnEnemy("grunt", 3.5, 0, { noVariant: true });
+  foePull.spawnT = 0;
+  wPull.hash.build(wPull.enemies);
+  wPull.traps = [
+    { id: 1, fam: "floor", skin: "riftburst", x: 0, y: 0, st: "warn", t: 0.5, delay: 1.5, a: 0, dir: 1, wait: 0 },
+  ];
+  rlUpdateTraps(wPull, 0.25);
+  assert.ok(foePull.x < 3.4, "riftburst must pull foes inward during telegraph");
+
+  // 2. Caldera Slag Crater ignites foes and leaves a lingering burn pool
+  const wBurn = new World({ seed: 42, weapon: "pulse", threat: 0, ws: {} });
+  wBurn.arena.obs = [];
+  wBurn.enemies.length = 0;
+  wBurn.player.x = 12;
+  const foeBurn = wBurn.spawnEnemy("brute", 0.5, 0, { noVariant: true });
+  foeBurn.spawnT = 0;
+  wBurn.hash.build(wBurn.enemies);
+  wBurn.traps = [
+    { id: 1, fam: "floor", skin: "pyro", x: 0, y: 0, st: "warn", t: 0.01, delay: 0.02, a: 0, dir: 1, wait: 0 },
+  ];
+  rlUpdateTraps(wBurn, 0.05);
+  assert.ok(foeBurn.burnT > 0, "pyro crater must ignite nearby foes");
+  assert.ok(wBurn.burnPools.length > 0, "pyro crater must leave a lingering burn pool");
+
+  // 3. Glowmarsh Pitcher Spout corrodes foes and spawns a bog pool
+  const wBog = new World({ seed: 43, weapon: "pulse", threat: 0, ws: {} });
+  wBog.arena.obs = [];
+  wBog.arena.acid = [];
+  wBog.enemies.length = 0;
+  wBog.player.x = 12;
+  const foeBog = wBog.spawnEnemy("brute", 0.5, 0, { noVariant: true });
+  foeBog.spawnT = 0;
+  wBog.hash.build(wBog.enemies);
+  wBog.traps = [
+    { id: 1, fam: "floor", skin: "geyser", x: 0, y: 0, st: "warn", t: 0.01, delay: 0.02, a: 0, dir: 1, wait: 0 },
+  ];
+  rlUpdateTraps(wBog, 0.05);
+  assert.equal(foeBog.corrode, true, "geyser spout must corrode foes");
+  assert.ok(wBog.arena.acid.length > 0, "geyser spout must spawn a bog pool");
+
+  // 4. Glass Flats Sun-Glass Spire calms nearby dust devils and strongly knocks foes back
+  const wSun = new World({ seed: 44, weapon: "pulse", threat: 0, ws: {} });
+  wSun.arena.obs = [];
+  wSun.arena.devils = [{ x: 1.5, y: 0, r: 2.2, vx: 1, vy: 0, a: 0, calmT: 0 }];
+  wSun.enemies.length = 0;
+  wSun.player.x = 12;
+  const foeSun = wSun.spawnEnemy("grunt", 1.0, 0, { noVariant: true });
+  foeSun.spawnT = 0;
+  wSun.hash.build(wSun.enemies);
+  wSun.traps = [
+    { id: 1, fam: "floor", skin: "sunspike", x: 0, y: 0, st: "warn", t: 0.01, delay: 0.02, a: 0, dir: 1, wait: 0 },
+  ];
+  rlUpdateTraps(wSun, 0.05);
+  assert.ok(wSun.arena.devils[0].calmT > 0, "sunspike must calm nearby dust devils");
+  assert.ok(Math.hypot(foeSun.kx, foeSun.ky) > 4, "sunspike must knock foes back strongly");
+
+  // 5. Star-Vault Armillary Lens swings as a pendulum; Caldera Dragon-Kiln beam burns foes
+  const wBeam = new World({ seed: 45, weapon: "pulse", threat: 0, ws: {} });
+  wBeam.arena.obs = [];
+  wBeam.enemies.length = 0;
+  wBeam.player.x = 12;
+  wBeam.traps = [
+    { id: 1, fam: "beam", skin: "rift", x: 0, y: 0, st: "idle", t: 0.01, a: 0, dir: 1, wait: 0 },
+    { id: 2, fam: "beam", skin: "magma", x: 0, y: 5, st: "idle", t: 0.01, a: 0, dir: 1, wait: 0 },
+  ];
+  rlUpdateTraps(wBeam, 0.05);
+  assert.equal(wBeam.beams.length, 2);
+  const riftBeam = wBeam.beams.find((b) => b.skin === "rift");
+  const magmaBeam = wBeam.beams.find((b) => b.skin === "magma");
+  assert.ok(riftBeam.swing > 0, "Star-Vault rift beam must use pendulum swing");
+  const startA = riftBeam.a;
+  wBeam.updateBeams(magmaBeam.warn + 0.05);
+  const foeMagma = wBeam.spawnEnemy(
+    "brute",
+    magmaBeam.x + Math.cos(magmaBeam.a) * 4,
+    magmaBeam.y + Math.sin(magmaBeam.a) * 4,
+    { noVariant: true },
+  );
+  foeMagma.spawnT = 0;
+  wBeam.hash.build(wBeam.enemies);
+  wBeam.updateBeams(0.1);
+  assert.notEqual(riftBeam.a, startA, "pendulum beam angle must oscillate");
+  assert.ok(foeMagma.burnT > 0, "Dragon-Kiln trap beam must burn non-boss foes in its path");
+});
+
+test("relic auras, bountyPulse amounts and Frost Prism splinter damage attribution stay accurate", async () => {
+  // 1. Star-Vault prism aura empowers passing player bolts by 25%
+  const wPrism = new World({ seed: 501, weapon: "pulse", threat: 0, ws: {} });
+  wPrism.arena.obs = [];
+  wPrism.arena.props = [{ kind: "prism", x: 3, y: 0, r: 0.8, auraT: 4, cd: 0 }];
+  wPrism.pb.push({
+    id: 1,
+    x: 2.5,
+    y: 0,
+    vx: 15,
+    vy: 0,
+    a: 0,
+    r: 0.17,
+    dmg: 20,
+    life: 1,
+    pierce: 0,
+    bounce: 0,
+    hits: [],
+    w: "pulse",
+  });
+  wPrism.updatePBullets(1 / 60);
+  assert.equal(wPrism.pb[0].prismBoost, true, "bolt passing lit prism aura is marked empowered");
+  assert.equal(wPrism.pb[0].dmg, 25, "prism aura empowers passing bolt by +25%");
+
+  // 2. Glass Flats sunglass fires a 5-lance solar fan
+  const wSun = new World({ seed: 502, weapon: "pulse", threat: 0, ws: {} });
+  wSun.arena.obs = [];
+  wSun.enemies.length = 0;
+  wSun.pb.length = 0;
+  const foe = wSun.spawnEnemy("brute", 6, 0, { noVariant: true });
+  foe.spawnT = 0;
+  const prop = { kind: "sunglass", x: 0, y: 0, r: 0.8, auraT: 0, cd: 0 };
+  wSun.arena.props = [prop];
+  wSun.hash.build(wSun.enemies);
+  assert.equal(wSun.triggerBiomeProp(prop), true);
+  assert.equal(wSun.pb.length, 5, "Glass Flats sunglass relic must launch a 5-lance solar fan");
+
+  // 3. Gilded Caravan elite kill emits bountyPulse with numeric amount > 0 (never undefined)
+  const wGild = new World({ seed: 503, weapon: "pulse", threat: 0, ws: {} });
+  wGild.event = "gilded";
+  wGild.fx.length = 0;
+  const elite = wGild.spawnEnemy("grunt", 2, 0, { elite: true });
+  wGild.killEnemy(elite);
+  const pulse = wGild.fx.find((e) => e.k === "bountyPulse");
+  assert.ok(pulse && typeof pulse.amount === "number" && pulse.amount > 0, "bountyPulse must carry numeric amount");
+
+  // 4. Frost Prism splinters credit 'shard', not Glasswyrm 'fang'
+  const { updateBossCards } = await import("../src/core/boss-cards.js");
+  const wShard = new World({ seed: 504, weapon: "pulse", threat: 0, ws: {} });
+  wShard.arena.obs = [];
+  wShard.enemies.length = 0;
+  const target = wShard.spawnEnemy("brute", 2, 0, { noVariant: true });
+  target.spawnT = 0;
+  wShard.hash.build(wShard.enemies);
+  wShard.splinters = [{ x: 1.9, y: 0, vx: 12, vy: 0, dmg: 30, life: 1, glass: false }];
+  updateBossCards(wShard, 1 / 60);
+  assert.ok((wShard.dmgSrc.shard || 0) > 0, "Frost Prism splinter must record under dmgSrc.shard");
+  assert.equal(wShard.dmgSrc.fang || 0, 0, "Frost Prism splinter must not leak into dmgSrc.fang");
+});
+
+test("Masterwork evolutions validate prerequisites and Powder-Tinker lobs kegs onto flanks", async () => {
+  const { upgradesById } = await import("../src/data/upgrades.js");
+  const { updateEnemy } = await import("../src/core/ai.js");
+
+  // 1. Every Masterwork evolution references valid prerequisites and becomes offerable when met
+  const evos = upgradeList.filter((u) => u.evo);
+  assert.ok(evos.length >= 10);
+  for (const evo of evos) {
+    assert.equal(evo.rarity, 5, `${evo.id}: evolution must be rarity 5`);
+    for (const [reqId, reqLv] of Object.entries(evo.evo)) {
+      assert.ok(upgradesById[reqId], `${evo.id}: unknown prerequisite ${reqId}`);
+      assert.ok(reqLv >= 1 && reqLv <= (upgradesById[reqId].max || 99), `${evo.id}: invalid req level for ${reqId}`);
+    }
+  }
+  const wOffer = new World({ seed: 601, weapon: "pulse", threat: 0, ws: {} });
+  wOffer.up = { orbit: 3, shield: 1 }; // prerequisites for Gilded Halo ('halo')
+  let sawHalo = false;
+  for (let i = 0; i < 12 && !sawHalo; i++) {
+    const offer = wOffer.makeOffer();
+    assert.equal(new Set(offer).size, offer.length, "offer must never contain duplicate cards");
+    for (const id of offer) assert.ok(upgradesById[id], `offer returned unknown card ${id}`);
+    if (offer.includes("halo")) sawHalo = true;
+  }
+  assert.equal(sawHalo, true, "satisfied Masterwork evolution must appear in craft offers");
+
+  // 2. Powder-Tinker (sapper) lobs timed kegs onto the player's flank, distinct from Cinder-Sower (minebot)
+  const wAi = new World({ seed: 602, weapon: "pulse", threat: 0, ws: {} });
+  wAi.arena.obs = [];
+  wAi.player.x = 7;
+  wAi.player.y = 0;
+  const sapper = wAi.spawnEnemy("sapper", 0, 0, { noVariant: true });
+  const minebot = wAi.spawnEnemy("minebot", 0, 0, { noVariant: true });
+  Object.assign(sapper, { spawnT: 0, t: 0, los: true });
+  Object.assign(minebot, { spawnT: 0, t: 0, los: true });
+  wAi.hazards.length = 0;
+  updateEnemy(wAi, minebot, 1 / 60);
+  const mineH = wAi.hazards.find((h) => h.kind === "mine");
+  assert.ok(mineH, "minebot must plant a mine hazard");
+  assert.ok(Math.hypot(mineH.x - minebot.x, mineH.y - minebot.y) < 0.2, "minebot plants at its own feet");
+  wAi.hazards.length = 0;
+  updateEnemy(wAi, sapper, 1 / 60);
+  const sapperH = wAi.hazards.find((h) => h.kind === "sapper");
+  assert.ok(sapperH, "sapper must lob a powder-keg hazard");
+  assert.ok(Number.isFinite(sapperH.sx) && Number.isFinite(sapperH.sy), "sapper hazard must record lob origin");
+  assert.ok(Math.hypot(sapperH.x - sapper.x, sapperH.y - sapper.y) > 3, "sapper lobs onto the player's flank");
+});

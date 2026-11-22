@@ -1,6 +1,6 @@
 // Audio-only pages: stop decorative animation once booted, retaining real WebAudio APIs.
 import { chromium } from "playwright";
-import { launchArgs } from "../browser.js";
+import { launchOptions } from "../browser.js";
 
 export async function openAudioPage(browser, url) {
   const page = await browser.newPage({ viewport: { width: 640, height: 360 } });
@@ -40,7 +40,7 @@ export async function openAudioPage(browser, url) {
 }
 
 export async function withAudioPage(url, fn, arg) {
-  const browser = await chromium.launch({ args: launchArgs() });
+  const browser = await chromium.launch(launchOptions());
   try {
     const page = await openAudioPage(browser, url);
     return await page.evaluate(fn, arg);

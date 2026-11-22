@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { chromium } from "playwright";
 import { serve } from "../tools/serve.js";
-import { launchArgs } from "../tools/browser.js";
+import { launchOptions } from "../tools/browser.js";
 
 const template = fs.readFileSync(new URL("../src/sw.js", import.meta.url), "utf8");
 const release = (name) => {
@@ -52,7 +52,7 @@ test("updates keep installed snapshots intact and old bundles available offline"
     await browser?.close();
     await stopServer();
   });
-  browser = await chromium.launch({ args: launchArgs() });
+  browser = await chromium.launch(launchOptions());
   t.signal.addEventListener("abort", () => void browser.close().catch(() => {}), { once: true });
   const page = await browser.newPage();
   page.setDefaultTimeout(5000);

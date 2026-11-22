@@ -1,11 +1,11 @@
 // Chaos checks for the audio-engine reliability fixes (audit H1/H2 + the room pool).
 // Usage: node scripts/rl-audio-check.mjs [base-url]   (a server must already serve the build)
 import { chromium } from "playwright";
-import { launchArgs } from "../tools/browser.js";
+import { launchOptions } from "../tools/browser.js";
 import { openAudioPage } from "../tools/verification/audio-page.mjs";
 
 const BASE = process.argv[2] || "http://localhost:8124/index.html";
-const browser = await chromium.launch({ args: [...launchArgs(), "--autoplay-policy=no-user-gesture-required"] });
+const browser = await chromium.launch(launchOptions(["--autoplay-policy=no-user-gesture-required"]));
 const page = await openAudioPage(browser, BASE);
 page.on("pageerror", (err) => console.log("PAGEERROR:", err.message));
 

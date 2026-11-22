@@ -3,7 +3,7 @@
 import { chromium } from "playwright";
 import fs from "node:fs";
 import assert from "node:assert/strict";
-import { launchArgs } from "../browser.js";
+import { launchOptions } from "../browser.js";
 import { BOSS_EFFECTS, WEAPON_EFFECTS, SENTINEL_BEAMS } from "../../src/data/combat-effects.js";
 import { bossByBiome } from "../../src/data/enemies.js";
 const pkg = JSON.parse(fs.readFileSync(new URL("../../package.json", import.meta.url)));
@@ -82,7 +82,7 @@ specs.push(
   { kind: "boss", boss: "tyrant", biome: "caldera", attack: "barrage", time: 1.15, close: true },
   { kind: "boss", boss: "tyrant", biome: "caldera", attack: "rain", time: 0.85, close: true },
 );
-const browser = await chromium.launch({ args: launchArgs() });
+const browser = await chromium.launch(launchOptions());
 try {
   const page = await browser.newPage({
     viewport: mobile ? { width: 844, height: 390 } : { width: 1024, height: 768 },

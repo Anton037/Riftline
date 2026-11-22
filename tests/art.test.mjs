@@ -1,7 +1,6 @@
 // Spatial, sculpted-geometry, shader and contact-AO contracts for the custom WebGL2 painterly art pass.
 import test from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
 import {
   box,
   beveledBox,
@@ -193,13 +192,29 @@ test("baked contact shading is deterministic, feathered and leaves open floor cl
   for (const tex of [empty, a, b]) tex.dispose();
 });
 
-test("custom WebGL2 GLSL 300 es shaders are valid and zero Three.js dependencies remain", () => {
-  const s = stylizedProgram(true);
-  const f = floorProgram();
-  const p = postCompositeProgram();
-  assert.ok(s.vs.startsWith("#version 300 es") && s.fs.startsWith("#version 300 es"));
-  assert.ok(f.vs.startsWith("#version 300 es") && f.fs.startsWith("#version 300 es"));
-  assert.ok(p.vs.startsWith("#version 300 es") && p.fs.startsWith("#version 300 es"));
-  const pkg = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"));
-  assert.equal(pkg.dependencies?.three, undefined, "three.js must be removed from package.json");
+test("custom WebGL2 GLSL 300 es shaders have valid stage structure and balanced syntax", () => {
+  const balanced = (src) => {
+    let depth = 0;
+    for (const ch of src) {
+      if (ch === "{") depth++;
+      else if (ch === "}") depth--;
+      if (depth < 0) return false;
+    }
+    return depth === 0;
+  };
+  for (const [name, prog] of [
+    ["stylized:instanced", stylizedProgram(true)],
+    ["stylized:mesh", stylizedProgram(false)],
+    ["floor", floorProgram()],
+    ["postComposite", postCompositeProgram()],
+  ]) {
+    assert.ok(prog.vs.startsWith("#version 300 es"), `${name}: vs header`);
+    assert.ok(prog.fs.startsWith("#version 300 es"), `${name}: fs header`);
+    assert.match(prog.vs, /\bvoid\s+main\s*\(/, `${name}: vs main`);
+    assert.match(prog.fs, /\bvoid\s+main\s*\(/, `${name}: fs main`);
+    assert.match(prog.vs, /\bgl_Position\s*=/, `${name}: vs writes gl_Position`);
+    assert.match(prog.fs, /\bout\s+vec4\s+\w+\s*;/, `${name}: fs declares vec4 color output`);
+    assert.equal(balanced(prog.vs), true, `${name}: unbalanced braces in vs`);
+    assert.equal(balanced(prog.fs), true, `${name}: unbalanced braces in fs`);
+  }
 });

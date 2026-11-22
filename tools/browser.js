@@ -7,3 +7,10 @@ export function launchArgs() {
   if (mode !== "auto") throw new Error(`Unknown RIFT_RENDERER: ${mode}`);
   return ["--ignore-gpu-blocklist", "--enable-gpu", "--enable-unsafe-swiftshader"];
 }
+export function launchOptions(extraArgs = []) {
+  const opts = { args: [...launchArgs(), ...extraArgs] };
+  if (process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH) {
+    opts.executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+  }
+  return opts;
+}

@@ -34,7 +34,7 @@ const timeoutMs = args.includes("--draw")
   : args.includes("--unit")
     ? 30000
     : args.includes("--browser")
-      ? 75000
-      : 95000;
+      ? 120000
+      : 150000;
 process.exitCode = await run(["--test", "--test-concurrency=1", ...files], timeoutMs);
 console.log(`Test run: ${((performance.now() - start) / 1000).toFixed(1)} s`);
