@@ -1,12 +1,12 @@
-// Handcrafted Lantern-Artificer Arms.
+// Player weapons table.
 
 const weaponDefs = {
   pulse: {
     id: "pulse",
-    name: "Lantern Repeater",
+    name: "Pulse Blaster",
     cost: 0,
     color: 0x91c9b4,
-    blurb: "Crisp lantern-glass bolts at a steady cadence. Harmonizes with every craft.",
+    blurb: "Reliable rapid fire. Works well with every upgrade.",
     dmg: 13,
     rate: 6,
     speed: 27,
@@ -21,10 +21,10 @@ const weaponDefs = {
   },
   scatter: {
     id: "scatter",
-    name: "Brass Blunderbuss",
+    name: "Scattergun",
     cost: 120,
     color: 0xe5b878,
-    blurb: "Six warm brass shot-pellets up close. Sends foes tumbling back.",
+    blurb: "Six piercing pellets at close range. Knocks enemies back.",
     dmg: 10,
     rate: 2,
     speed: 26,
@@ -40,10 +40,10 @@ const weaponDefs = {
   },
   tesla: {
     id: "tesla",
-    name: "Storm-Coil Rod",
+    name: "Arc Caster",
     cost: 300,
     color: 0xc98860,
-    blurb: "Copper-wound leyline arcs that leap across two nearby foes.",
+    blurb: "Lightning bolts that jump to two nearby enemies.",
     dmg: 13,
     rate: 5.5,
     speed: 34,
@@ -59,10 +59,10 @@ const weaponDefs = {
   },
   rail: {
     id: "rail",
-    name: "Star-Glass Arquebus",
+    name: "Railgun",
     cost: 450,
     color: 0xc0a6db,
-    blurb: "Heavy prismatic needles that punch clean through whole ranks.",
+    blurb: "Slow, heavy shots that pierce through whole lines of enemies.",
     dmg: 72,
     rate: 1.1,
     speed: 95,
@@ -78,10 +78,10 @@ const weaponDefs = {
   },
   rocket: {
     id: "rocket",
-    name: "Whistling Bombard",
+    name: "Rocket Launcher",
     cost: 650,
     color: 0xe08c6c,
-    blurb: "Guided ceramic firework shells that blossom in a warm blast.",
+    blurb: "Homing rockets that explode in a splash area.",
     dmg: 24,
     rate: 1.35,
     speed: 15,
@@ -99,10 +99,10 @@ const weaponDefs = {
   },
   disc: {
     id: "disc",
-    name: "Gilded Chakram",
+    name: "Saw Disc",
     cost: 800,
     color: 0xaac6b7,
-    blurb: "Singing brass sun-rings that carve through crowds \u2014 and curve home.",
+    blurb: "Spinning blades that cut through crowds and fly back to you.",
     dmg: 26,
     rate: 1.9,
     speed: 22,
@@ -118,10 +118,10 @@ const weaponDefs = {
   },
   flame: {
     id: "flame",
-    name: "Hearth-Bellows",
+    name: "Flamethrower",
     cost: 1e3,
     color: 0xe9a672,
-    blurb: "Roaring ribbons of kiln-flame. Everything caught in its draft ignites.",
+    blurb: "Continuous stream of fire that sets enemies burning.",
     dmg: 5.1,
     rate: 15,
     speed: 23,

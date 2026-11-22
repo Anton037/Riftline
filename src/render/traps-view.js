@@ -617,17 +617,12 @@ export class TrapView {
     const sheen = 0.95 + Math.sin(time * 5) * 0.04;
     if (beam.skin === "flame" || beam.skin === "magma") {
       r.weaponView.flameBeam(beam, len);
-      r.warningEdges.colC(r.warningEdges.seg(beam.x, beam.y, ex, ez, 0.04, beam.w, 0.025), hex(0x160e09), 0.65);
+      b.colC(b.seg(beam.x, beam.y, ex, ez, 0.08, beam.w * 0.9, 0.03), look.main, 0.24);
       if (Math.random() < dt * 14) {
         const d = Math.random() * len;
         r.emit(beam.x + ca * d, 0.8, beam.y + sa * d, ca, 1.5, sa, 0.4, 0.14, look.main, { drag: 2, grav: -1 });
       }
     } else if (beam.skin === "rift") {
-      r.warningEdges.colC(
-        r.warningEdges.seg(beam.x, beam.y, ex, ez, 0.96, beam.w * 1.04, beam.w * 0.42),
-        hex(0x1b0b34),
-        0.66,
-      );
       let px = beam.x,
         pz = beam.y;
       for (let i = 1; i <= 8; i++) {
@@ -635,20 +630,15 @@ export class TrapView {
         const off = Math.sin(time * 9 + i * 1.3) * beam.w * 0.45 * (i < 8 ? 1 : 0);
         const qx = beam.x + ca * along - sa * off;
         const qz = beam.y + sa * along + ca * off;
-        b.colC(b.seg(px, pz, qx, qz, 1, beam.w * 0.88 * sheen, beam.w * 0.52), look.main, 0.56);
+        b.colC(b.seg(px, pz, qx, qz, 1, beam.w * 0.92 * sheen, beam.w * 0.56), look.main, 0.64);
         px = qx;
         pz = qz;
       }
-      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.24, beam.w * 0.24), WHITE, 0.72);
+      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.26, beam.w * 0.26), WHITE, 0.82);
     } else if (beam.skin === "cryo") {
-      r.warningEdges.colC(
-        r.warningEdges.seg(beam.x, beam.y, ex, ez, 0.96, beam.w * 1.06, beam.w * 0.48),
-        hex(0x0b2a4c),
-        0.74,
-      );
-      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * (0.86 + sheen * 0.06), beam.w * 0.58), look.main, 0.48);
-      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.36, beam.w * 0.3), look.alt, 0.58);
-      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.14, beam.w * 0.14), WHITE, 0.72);
+      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * (0.9 + sheen * 0.06), beam.w * 0.6), look.main, 0.56);
+      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.38, beam.w * 0.32), look.alt, 0.66);
+      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.16, beam.w * 0.16), WHITE, 0.82);
       const n = Math.max(4, Math.round(len / 1.4));
       const reach = Math.max(0.22, beam.w * 0.75);
       const thin = Math.max(0.05, beam.w * 0.09);
@@ -669,16 +659,11 @@ export class TrapView {
               thin * 0.5,
             ),
             look.main,
-            0.64,
+            0.68,
           );
         }
       }
     } else if (beam.skin === "acid") {
-      r.warningEdges.colC(
-        r.warningEdges.seg(beam.x, beam.y, ex, ez, 0.96, beam.w * 1.02, beam.w * 0.44),
-        hex(0x08261a),
-        0.64,
-      );
       let px = beam.x,
         pz = beam.y;
       for (let i = 1; i <= 6; i++) {
@@ -686,17 +671,12 @@ export class TrapView {
         const qx = beam.x + ca * along;
         const qz = beam.y + sa * along;
         const swell = 0.8 + 0.3 * Math.sin(time * 14 - i * 1.6);
-        b.colC(b.seg(px, pz, qx, qz, 1, beam.w * swell * sheen, beam.w * 0.52), look.main, 0.55);
+        b.colC(b.seg(px, pz, qx, qz, 1, beam.w * swell * sheen, beam.w * 0.54), look.main, 0.64);
         px = qx;
         pz = qz;
       }
-      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.26, beam.w * 0.26), look.alt, 0.72);
+      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.28, beam.w * 0.28), look.alt, 0.8);
     } else if (beam.skin === "sun") {
-      r.warningEdges.colC(
-        r.warningEdges.seg(beam.x, beam.y, ex, ez, 0.96, beam.w * 1.12, beam.w * 0.48),
-        hex(0x4a1d08),
-        0.74,
-      );
       let px = beam.x,
         pz = beam.y;
       for (let i = 1; i <= 7; i++) {
@@ -705,21 +685,20 @@ export class TrapView {
         const qx = beam.x + ca * along - sa * off;
         const qz = beam.y + sa * along + ca * off;
         b.colC(
-          b.seg(px, pz, qx, qz, 1, beam.w * (1.12 + 0.12 * Math.sin(time * 8 - i)) * sheen, beam.w * 0.56),
+          b.seg(px, pz, qx, qz, 1, beam.w * (1.14 + 0.12 * Math.sin(time * 8 - i)) * sheen, beam.w * 0.58),
           look.main,
-          0.56,
+          0.64,
         );
         px = qx;
         pz = qz;
       }
-      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.3, beam.w * 0.3), look.alt, 0.64);
-      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.12, beam.w * 0.12), WHITE, 0.72);
+      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.32, beam.w * 0.32), look.alt, 0.72);
+      b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.14, beam.w * 0.14), WHITE, 0.82);
     } else {
-      // Warm golden-amber lighthouse lantern ribbon (replaces old dual-rail laser)
-      r.warningEdges.colC(r.warningEdges.seg(beam.x, beam.y, ex, ez, 0.055, beam.w * 1.06, 0.045), hex(0x281808), 0.72);
-      b.colC(b.seg(beam.x, beam.y, ex, ez, 0.85, beam.w * 0.92 * sheen, beam.w * 0.42), look.main, 0.48);
-      b.colC(b.seg(beam.x, beam.y, ex, ez, 0.88, beam.w * 0.38, beam.w * 0.24), look.alt, 0.66);
-      b.colC(b.seg(beam.x, beam.y, ex, ez, 0.9, beam.w * 0.14, beam.w * 0.14), WHITE, 0.72);
+      // Warm golden-amber lighthouse lantern ribbon
+      b.colC(b.seg(beam.x, beam.y, ex, ez, 0.85, beam.w * 0.96 * sheen, beam.w * 0.44), look.main, 0.58);
+      b.colC(b.seg(beam.x, beam.y, ex, ez, 0.88, beam.w * 0.4, beam.w * 0.26), look.alt, 0.72);
+      b.colC(b.seg(beam.x, beam.y, ex, ez, 0.9, beam.w * 0.15, beam.w * 0.15), WHITE, 0.82);
       if (Math.random() < dt * 16) {
         const d = Math.random() * len;
         r.emit(beam.x + ca * d, 0.75, beam.y + sa * d, 0, 1.3, 0, 0.45, 0.15, look.alt, { spark: true, drag: 1.5 });

@@ -5,13 +5,13 @@ export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
     version: "5.1.0",
-    title: "Lantern-Artificer craft overhaul, festival events and silky browser efficiency",
+    title: "Audio overhaul, cleaner effects, full aiming animation & smoother play",
     items: [
-      "Eight reworked realm events bring Lantern Festivals, Aurora Tailwinds, Firefly Nectar, Starfall Meteors, and Astral Convergences.",
-      "Every artificer arm, run craft, masterwork evolution, Sanctuary craft, and Wayfarer milestone has been reimagined.",
-      "Armed floor vessels can now be sniped from afar for bonus pack damage, and Gravity Chimes shatter nearby hostile bolts.",
-      "The Home screen showcases the live 3D Sanctuary Plinth and Lantern-Artificer beside warm gilded storybook cards.",
-      "Eliminated WebAudio zombie nodes, per-frame backdrop blurs, and hidden-screen WebGL passes for cool, low-CPU play in Firefox.",
+      "Overhauled sound & music: unique acoustic effects per weapon and event, richer multi-section music, and distinct boss themes.",
+      "Cleaner combat visuals: removed dark outlines on shots and warnings, added meteor shower comets, crucible bomb targets, and a full player death animation.",
+      "The hero now always turns to face where the weapon aims, with a proper holding arm and natural movement lean.",
+      "Added multi-charge dash pips, 50% boss phase markers, clearer upgrade descriptions, and 8 reworked wave events.",
+      "Eliminated audio leaks, per-frame backdrop blurs, and hidden-screen WebGL passes for smooth, cool browser play.",
     ],
   },
   {

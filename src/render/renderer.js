@@ -2,17 +2,7 @@
 // camera, GPU-instanced pools, particles, biomes, actors, bosses and combat effects.
 
 import { Color, Euler, Mat4, Quat, Vec3, Camera } from "../engine/math.js";
-import {
-  box,
-  cylinder,
-  disc,
-  discXY,
-  octahedron,
-  plane,
-  ring,
-  sculptedCrystal,
-  mergeGeometries,
-} from "../engine/geometry.js";
+import { box, cylinder, disc, octahedron, plane, ring, sculptedCrystal, mergeGeometries } from "../engine/geometry.js";
 import {
   CompactInstancePool,
   GpuDebrisRing,
@@ -74,7 +64,6 @@ import { ui } from "../main.js";
 const whiteColor = hexColor(FINISH.ivory);
 const goldColor = hexColor(FINISH.brass);
 const warnColor = hexColor(FINISH.vermilion);
-const warningDark = hexColor(FINISH.ink);
 const hurtColor = hexColor(0xff4258);
 const healColor = hexColor(0x5effa8);
 const beamColor = hexColor(0xff5268);
@@ -345,19 +334,6 @@ export class Renderer {
     );
     this.sprites = this._addPool(quad, additiveMaterial(0, 0.85, 1.08), 2200, 5);
     this.beams = this._addPool(box(1, 1, 1).translate(0.5, 0, 0), additiveMaterial(-1, 0.88, 1.12), 900, 4);
-    this.warningEdges = this._addPool(
-      box(1, 1, 1).translate(0.5, 0, 0),
-      emissiveMaterial({
-        color: 0xffffff,
-        emissiveIntensity: 1,
-        opacity: 0.9,
-        transparent: true,
-        depthWrite: false,
-        fog: false,
-      }),
-      240,
-      3,
-    );
     this.ringPool = this._addPool(ring(0.87, 1, 36), additiveMaterial(-1, 0.86, 1.1), 260, 3);
     this.discs = this._addPool(disc(1, 32), additiveMaterial(-1, 0.8, 0.92), 160, 2);
     this.columns = this._addPool(
@@ -365,35 +341,6 @@ export class Renderer {
       additiveMaterial(-1, 0.76, 1.05),
       96,
       4,
-    );
-    this.ebInk = this._addPool(
-      discXY(0.5, 16),
-      emissiveMaterial({
-        color: FINISH.ink,
-        emissiveIntensity: 1,
-        opacity: 0.92,
-        transparent: true,
-        depthWrite: false,
-        doubleSide: true,
-        fog: false,
-      }),
-      640,
-      6,
-      { color: false },
-    );
-    this.ebBoltInk = this._addPool(
-      box(1, 1, 1).translate(0.5, 0, 0),
-      emissiveMaterial({
-        color: FINISH.ink,
-        emissiveIntensity: 1,
-        opacity: 0.9,
-        transparent: true,
-        depthWrite: false,
-        fog: false,
-      }),
-      360,
-      6,
-      { color: false },
     );
     this.ebCore = this._addPool(
       octahedron(0.6),
@@ -504,12 +451,9 @@ export class Renderer {
       this.shadows,
       this.sprites,
       this.beams,
-      this.warningEdges,
       this.ringPool,
       this.discs,
       this.columns,
-      this.ebInk,
-      this.ebBoltInk,
       this.ebCore,
       this.rocketBodies,
       this.discPool,
@@ -523,22 +467,13 @@ export class Renderer {
   }
 
   _initHeroLocator() {
-    // Subtle, always-readable double-hairline warm-ivory & weapon-accent compass ring beneath the Hero's feet
+    // Clean warm-ivory & weapon-accent compass ring beneath the Hero's feet (no dark outline)
     const root = new Node();
     root.visible = false;
-    const inkMat = emissiveMaterial({
-      color: FINISH.ink,
-      emissiveIntensity: 1,
-      opacity: 0.58,
-      transparent: true,
-      depthWrite: false,
-      doubleSide: true,
-      fog: false,
-    });
     const ivoryMat = emissiveMaterial({
       color: FINISH.ivory,
-      emissiveIntensity: 1.06,
-      opacity: 0.82,
+      emissiveIntensity: 1.08,
+      opacity: 0.72,
       transparent: true,
       depthWrite: false,
       doubleSide: true,
@@ -546,16 +481,14 @@ export class Renderer {
     });
     const accentMat = emissiveMaterial({
       color: 0x91c9b4,
-      emissiveIntensity: 1.15,
-      opacity: 0.84,
+      emissiveIntensity: 1.18,
+      opacity: 0.86,
       transparent: true,
       depthWrite: false,
       doubleSide: true,
       fog: false,
     });
-    const inkRing = new MeshNode(ring(0.57, 0.72, 36), inkMat);
-    inkRing.renderOrder = 2;
-    const outerRing = new MeshNode(ring(0.62, 0.67, 36), ivoryMat);
+    const outerRing = new MeshNode(ring(0.61, 0.66, 36), ivoryMat);
     outerRing.position.y = 0.004;
     outerRing.renderOrder = 2;
     const innerCompass = new Node();
@@ -567,7 +500,7 @@ export class Renderer {
     const innerMesh = new MeshNode(pointerGeo, accentMat);
     innerMesh.renderOrder = 2;
     innerCompass.add(innerMesh);
-    root.add(inkRing, outerRing, innerCompass);
+    root.add(outerRing, innerCompass);
     this.scene.add(root);
     this.heroLocator = { root, compass: innerCompass, accentMat };
   }
@@ -1141,6 +1074,7 @@ export class Renderer {
             if (existing) {
               existing.v += ev.v;
               existing.crit = existing.crit || ev.crit;
+              existing.superCrit = existing.superCrit || !!ev.superCrit;
               if (ev.burn) existing.life = 0.6;
             } else {
               const num = {
@@ -1150,9 +1084,10 @@ export class Renderer {
                 y: 1.4,
                 v: ev.v,
                 crit: ev.crit,
+                superCrit: !!ev.superCrit,
                 burn: ev.burn,
                 shield: ev.shield,
-                life: ev.crit ? 0.8 : 0.6,
+                life: ev.superCrit ? 0.95 : ev.crit ? 0.8 : 0.6,
                 t0: this.time,
               };
               if (this.nums.length < 24) this.nums.push(num);
@@ -1171,18 +1106,18 @@ export class Renderer {
               { armor: 0xdec48f, organic: 0x62c478, stone: 0x9c8c78, energy: 0xbe8cff, crystal: 0xb6f2ff }[material] ||
                 0xffffff,
             );
-            const n = ev.crit ? 6 : hard ? 3 : 2;
+            const n = ev.superCrit ? 9 : ev.crit ? 6 : hard ? 3 : 2;
             for (let j = 0; j < n; j++) {
               const angle = ev.crit ? a + (j / n) * TAU : a + (j / Math.max(1, n - 1) - 0.5) * 1.75;
-              const length = ev.crit ? 0.78 : hard ? 0.42 : 0.28;
+              const length = ev.superCrit ? 1.15 : ev.crit ? 0.78 : hard ? 0.42 : 0.28;
               this.line(
                 ev.x,
                 ev.y,
                 ev.x + Math.cos(angle) * length,
                 ev.y + Math.sin(angle) * length,
-                ev.crit ? goldColor : impactColor,
-                ev.crit ? 0.14 : 0.085,
-                ev.crit ? 0.036 : 0.026,
+                ev.superCrit ? whiteColor : ev.crit ? goldColor : impactColor,
+                ev.superCrit ? 0.19 : ev.crit ? 0.14 : 0.085,
+                ev.superCrit ? 0.048 : ev.crit ? 0.036 : 0.026,
                 0.68,
               );
             }
@@ -1577,9 +1512,13 @@ export class Renderer {
           this.burst(ev.x, ev.y, 0.7, 40, 9, healColor, 0.7, 0.45);
           break;
         case "die":
-          this.burst(ev.x, ev.y, 0.7, 60, 12, hexColor(0x7ef2ff), 0.9, 0.5);
-          this.ring(ev.x, ev.y, 0.5, 5, hurtColor, 0.5);
-          this.addShake(0.8 * shakeK);
+          this.burst(ev.x, ev.y, 0.85, 36, 9.5, goldColor, 1.15, 0.36, { up: 4.5, spark: true, drag: 1.6 });
+          this.burst(ev.x, ev.y, 0.7, 26, 7.5, hurtColor, 0.85, 0.42, { up: 2.5, drag: 2.1 });
+          this.debrisBurst(ev.x, ev.y, 0.75, 14, hexColor(0xffd27a), 0.14, 6.5);
+          this.ring(ev.x, ev.y, 0.4, 5.4, hurtColor, 0.55);
+          this.ring(ev.x, ev.y, 0.2, 3.2, goldColor, 0.48, 0.12);
+          this.flash(ev.x, ev.y, 6.5, 1.4, goldColor, 3.2);
+          this.addShake(0.75 * shakeK);
           break;
         case "spawn": {
           const def = enemyDefs[ev.type];
@@ -1921,10 +1860,12 @@ export class Renderer {
   drawMenuPlayer(dt) {
     const hero = this.player;
     hero.group.visible = true;
+    hero.resetPose?.();
     hero.group.position.set(0, 0.085 + hero.setWalk(0, 0, 0, this.time), 0);
     hero.shield.visible = false;
-    hero.base.rotation.set(0, this.time * 0.32, 0);
-    hero.aimAt(-Math.sin(this.time * 0.7) * 1.2, dt);
+    const menuWorldAngle = -this.time * 0.32;
+    hero.base.rotation.set(0, -menuWorldAngle, 0);
+    hero.aimAt(menuWorldAngle, dt);
     hero.updateExpression?.(this.time, dt, false, false, 0, false);
     this.corpses.length = 0;
     for (const mat of hero.mats) mat.emissive.setScalar(0);
@@ -1960,7 +1901,8 @@ export class Renderer {
     const time = this.time;
     const player = world.player;
     const hero = this.player;
-    hero.group.visible = player.alive;
+    const dying = !player.alive && world.state === "dead";
+    hero.group.visible = player.alive || dying;
     if (this.heroLocator) {
       this.heroLocator.root.visible = player.alive;
       if (player.alive) {
@@ -1970,21 +1912,39 @@ export class Renderer {
       }
     }
     if (player.alive) {
-      hero.base.rotation.y = -player.face;
+      if (this._heroWasDead) {
+        hero.resetPose?.();
+        this._heroWasDead = false;
+      }
+      // Smoothly update weapon/aim yaw FIRST, then orient the character's entire body to face the exact aim direction
+      // so the head, torso, right arm and weapon ALWAYS align cleanly (zero gun-inside-back clipping!)
+      hero.aimAt(player.aim, dt);
+      const faceYaw = hero.aimYaw;
+      const aimWorld = -faceYaw;
+      const ca = Math.cos(aimWorld),
+        sa = Math.sin(aimWorld);
       const speed = Math.hypot(player.vx, player.vy);
       const moving = world.state === "fight" || world.state === "cleared";
       const amount = moving ? clamp(speed / Math.max(2, world.stats.speed * 0.55), 0, 1) : 0;
+      const maxSpd = Math.max(2, world.stats.speed);
+      const localFwd = moving ? clamp((player.vx * ca + player.vy * sa) / maxSpd, -1, 1) : 0;
+      const localSide = moving ? clamp((-player.vx * sa + player.vy * ca) / maxSpd, -1, 1) : 0;
       const jump = player.dashT > 0 ? Math.sin(Math.PI * clamp(1 - player.dashT / DASH_TIME, 0, 1)) : 0;
-      const turn = angleDiff(hero.faceLast === undefined ? player.face : hero.faceLast, player.face);
-      const k = dampFactor(10, dt);
-      hero.faceLast = player.face;
-      hero.lean += ((player.dashT > 0 ? 0.22 : amount * 0.1) - hero.lean) * k;
-      hero.bank += (clamp((turn * 0.08) / Math.max(dt, 0.008), -0.4, 0.4) - hero.bank) * k;
+      const turn = angleDiff(hero.faceLast === undefined ? aimWorld : hero.faceLast, aimWorld);
+      const k = dampFactor(11, dt);
+      hero.faceLast = aimWorld;
+      const targetLean = player.dashT > 0 ? 0.2 * (localFwd < -0.2 ? -1 : 1) : localFwd * 0.12;
+      const targetBank = clamp(localSide * 0.16 + (turn * 0.04) / Math.max(dt, 0.008), -0.34, 0.34);
+      hero.lean += (targetLean - hero.lean) * k;
+      hero.bank += (targetBank - hero.bank) * k;
+      hero.base.rotation.y = faceYaw;
       hero.base.rotation.z = -hero.lean;
       hero.base.rotation.x = hero.bank;
-      const body = hero.setWalk((player.stride / STEP_LEN) * Math.PI, amount, jump, time);
+      const strideDir = localFwd < -0.25 ? -1 : 1;
+      const body = hero.setWalk((player.stride / STEP_LEN) * Math.PI * strideDir, amount, jump, time);
       hero.group.position.set(player.x, body + jump * 0.6, player.y);
-      hero.aimAt(player.aim, dt);
+      // Re-sync turret attachment point after lean/bank update (preserving smooth aimYaw damping)
+      hero.aimAt(aimWorld, 0);
       hero.updateExpression?.(
         time,
         dt,
@@ -2013,7 +1973,7 @@ export class Renderer {
         );
       }
       if (protectedHull) {
-        this.ringPool.colC(this.ringPool.y(player.x, 0.052, player.y, player.face, 1.04), hexColor(FINISH.brass), 0.55);
+        this.ringPool.colC(this.ringPool.y(player.x, 0.052, player.y, aimWorld, 1.04), hexColor(FINISH.brass), 0.55);
       }
       this.shadows.y(player.x, 0.025, player.y, 0, 1.9);
       if (player.manual) {
@@ -2072,6 +2032,33 @@ export class Renderer {
         this.wing.y(wing.x, Math.sin(time * 4 + wing.x) * 0.1, wing.y, player.aim, 1.3);
         this.sprites.colHex(this.sprites.bb(wing.x, 0.9, wing.y, 1.05, basis), weaponDefs[world.weapon].color, 0.55);
         this.shadows.y(wing.x, 0.025, wing.y, 0, 0.9);
+      }
+    } else if (dying) {
+      // Handcrafted player death fall sequence (stays visible instead of vanishing!)
+      this._heroWasDead = true;
+      const deathT = Math.max(0, world.stateT || 0);
+      hero.shield.visible = false;
+      hero.group.position.set(player.x, 0, player.y);
+      hero.base.rotation.y = hero.aimYaw;
+      hero.setDeath?.(deathT, time);
+      const hurtGlow = Math.max(0, 1 - deathT / 0.55);
+      for (const mat of hero.mats) {
+        mat.emissive.setRGB(hurtGlow * 0.55, hurtGlow * 0.18, hurtGlow * 0.06);
+      }
+      this.shadows.y(player.x, 0.025, player.y, 0, 2.2);
+      if (deathT < 1.35 && dt > 0 && Math.random() < dt * 22 * (1 - deathT / 1.5)) {
+        this.emit(
+          player.x + (Math.random() - 0.5) * 0.7,
+          0.35,
+          player.y + (Math.random() - 0.5) * 0.7,
+          (Math.random() - 0.5) * 0.8,
+          1.4 + Math.random() * 1.2,
+          (Math.random() - 0.5) * 0.8,
+          0.65,
+          0.16,
+          goldColor,
+          { spark: true, drag: 1.5 },
+        );
       }
     }
 
@@ -2417,6 +2404,47 @@ export class Renderer {
         );
         this.ringPool.colC(this.ringPool.y(enemy.x, 1.6 + enemy.r, enemy.y, -time * 3, enemy.r * 0.8), goldColor, 1);
       }
+      if (enemy.caravan) {
+        // Gilded Caravan treasure automaton: shimmering gold ground halo + rotating crown ring + gold sparkles
+        const glint = 0.72 + 0.28 * Math.sin(time * 7);
+        this.ringPool.colC(this.ringPool.y(enemy.x, 0.07, enemy.y, time * 2.2, enemy.r * 2.1), goldColor, 0.85 * glint);
+        this.ringPool.colC(
+          this.ringPool.y(enemy.x, 1.55 + enemy.r * 0.6, enemy.y, -time * 3.5, enemy.r * 0.88),
+          whiteColor,
+          0.72 * glint,
+        );
+        if (Math.random() < dt * 16) {
+          this.emit(
+            enemy.x + (Math.random() - 0.5) * enemy.r * 1.2,
+            0.5 + Math.random() * 0.6,
+            enemy.y + (Math.random() - 0.5) * enemy.r * 1.2,
+            0,
+            1.4,
+            0,
+            0.48,
+            0.2,
+            goldColor,
+            { spark: true, drag: 1.5 },
+          );
+        }
+      }
+      if (enemy.wardedT > 0) {
+        this.ringPool.colC(this.ringPool.y(enemy.x, 0.72, enemy.y, time * 2.8, enemy.r * 1.35), goldColor, 0.55);
+      }
+      if (enemy.chimeVulnT > 0) {
+        this.ringPool.colC(
+          this.ringPool.y(enemy.x, 0.14, enemy.y, -time * 4.0, enemy.r * 1.48),
+          hexColor(0x88f4d4),
+          0.62,
+        );
+      }
+      if (enemy.glazeT > 0) {
+        this.ringPool.colC(
+          this.ringPool.y(enemy.x, 0.1, enemy.y, time * 3.2, enemy.r * 1.38),
+          hexColor(0xff9a38),
+          0.54,
+        );
+      }
       if (enemy.rallyT > 0 && !enemy.champion && Math.random() < dt * 6)
         this.emit(enemy.x, 0.3, enemy.y, 0, 1.5, 0, 0.35, 0.3, goldColor, { drag: 1 });
       if (tint && Math.random() < dt * 8)
@@ -2757,13 +2785,8 @@ export class Renderer {
       if (beam.live && beam.skin && this.trapView.drawBeam(beam, ex, ez, len, time, dt)) continue;
       if (beam.live) {
         const beamCol = beam.color ? hexColor(beam.color) : beamColor;
-        this.warningEdges.colC(
-          this.warningEdges.seg(beam.x, beam.y, ex, ez, 0.7, beam.w * 1.06, beam.w * 0.16),
-          warningDark,
-          0.62,
-        );
-        this.beams.colC(this.beams.seg(beam.x, beam.y, ex, ez, 0.72, beam.w * 0.88, beam.w * 0.18), beamCol, 0.58);
-        this.beams.colC(this.beams.seg(beam.x, beam.y, ex, ez, 0.75, beam.w * 0.18, beam.w * 0.11), whiteColor, 0.68);
+        this.beams.colC(this.beams.seg(beam.x, beam.y, ex, ez, 0.72, beam.w * 0.92, beam.w * 0.2), beamCol, 0.68);
+        this.beams.colC(this.beams.seg(beam.x, beam.y, ex, ez, 0.75, beam.w * 0.22, beam.w * 0.12), whiteColor, 0.82);
         if (Math.random() < dt * 14) {
           const along = Math.random() * len;
           this.emit(
@@ -2786,18 +2809,13 @@ export class Renderer {
         for (let side = -1; side <= 1; side += 2) {
           const x = side * dx,
             z = side * dz;
-          this.warningEdges.colC(
-            this.warningEdges.seg(beam.x + x, beam.y + z, ex + x, ez + z, 0.1, 0.2, 0.04),
-            warningDark,
-            0.92,
-          );
           this.beams.colC(
-            this.beams.seg(beam.x + x, beam.y + z, ex + x, ez + z, 0.125, 0.095, 0.04),
+            this.beams.seg(beam.x + x, beam.y + z, ex + x, ez + z, 0.125, 0.11, 0.045),
             warnColor,
-            0.78 + progress * 0.22,
+            0.84 + progress * 0.24,
           );
         }
-        this.beams.colC(this.beams.seg(beam.x, beam.y, ex, ez, 0.08, beam.w, 0.02), warnColor, 0.14 + progress * 0.2);
+        this.beams.colC(this.beams.seg(beam.x, beam.y, ex, ez, 0.08, beam.w, 0.02), warnColor, 0.16 + progress * 0.22);
       }
     }
   }
@@ -2810,20 +2828,15 @@ export class Renderer {
     const ex = x + cos * dist,
       ez = z + sin * dist;
     if (dist <= from) return;
-    this.warningEdges.colC(
-      this.warningEdges.seg(x + cos * from, z + sin * from, ex, ez, 0.95, locked ? 0.22 : 0.15, 0.04),
-      warningDark,
-      0.94,
+    this.beams.colC(
+      this.beams.seg(x + cos * from, z + sin * from, ex, ez, 0.98, locked ? 0.11 : 0.065, 0.045),
+      warnColor,
+      locked ? 1.15 : 0.58 + clamp(k, 0, 1) * 0.42,
     );
     this.beams.colC(
-      this.beams.seg(x + cos * from, z + sin * from, ex, ez, 0.98, locked ? 0.095 : 0.055, 0.04),
+      this.beams.seg(x + cos * from, z + sin * from, ex, ez, 0.07, locked ? 0.16 : 0.09, 0.02),
       warnColor,
-      locked ? 1.1 : 0.5 + clamp(k, 0, 1) * 0.4,
-    );
-    this.beams.colC(
-      this.beams.seg(x + cos * from, z + sin * from, ex, ez, 0.07, locked ? 0.16 : 0.085, 0.02),
-      warnColor,
-      locked ? 0.65 : 0.28,
+      locked ? 0.68 : 0.3,
     );
   }
 
@@ -2835,26 +2848,21 @@ export class Renderer {
       ez = z + sin * len;
     const dx = -sin * width * 0.5,
       dz = cos * width * 0.5;
-    this.beams.colC(this.beams.seg(x, z, ex, ez, 0.06, width, 0.02), warnColor, 0.12 + k * 0.14);
+    this.beams.colC(this.beams.seg(x, z, ex, ez, 0.06, width, 0.02), warnColor, 0.14 + k * 0.16);
     for (let side = -1; side <= 1; side += 2) {
-      this.warningEdges.colC(
-        this.warningEdges.seg(x + side * dx, z + side * dz, ex + side * dx, ez + side * dz, 0.08, 0.22, 0.025),
-        warningDark,
+      this.beams.colC(
+        this.beams.seg(x + side * dx, z + side * dz, ex + side * dx, ez + side * dz, 0.11, 0.095, 0.028),
+        warnColor,
+        0.82 + k * 0.26,
+      );
+      this.beams.colC(
+        this.beams.seg(ex + side * dx - cos * 0.55, ez + side * dz - sin * 0.55, ex, ez, 0.12, 0.105, 0.028),
+        warnColor,
         0.92,
-      );
-      this.beams.colC(
-        this.beams.seg(x + side * dx, z + side * dz, ex + side * dx, ez + side * dz, 0.11, 0.08, 0.025),
-        warnColor,
-        0.78 + k * 0.25,
-      );
-      this.beams.colC(
-        this.beams.seg(ex + side * dx - cos * 0.55, ez + side * dz - sin * 0.55, ex, ez, 0.12, 0.095, 0.025),
-        warnColor,
-        0.9,
       );
     }
     if (k > 0)
-      this.beams.colC(this.beams.seg(x, z, x + cos * len * k, z + sin * len * k, 0.07, width, 0.02), warnColor, 0.22);
+      this.beams.colC(this.beams.seg(x, z, x + cos * len * k, z + sin * len * k, 0.07, width, 0.02), warnColor, 0.24);
   }
 
   drawBoss(dt, world, boss) {

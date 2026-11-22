@@ -117,7 +117,7 @@ test("every weapon stays attached and aims horizontally through turns, banking a
           );
           const m = model.muzzle.getWorldPosition(b);
           assert.ok(Number.isFinite(m.x) && Number.isFinite(m.y) && Number.isFinite(m.z));
-          assert.ok(Math.abs(model.gun.position.x - (0.14 - 0.07)) < 1e-6);
+          assert.ok(Math.abs(model.gun.position.x - (0.32 - 0.07)) < 1e-6);
         }
       }
     }
@@ -230,7 +230,7 @@ test("Engine v2 freezeStatic skips matrix recomputation, GpuParticleRing expires
   assert.ok(dRing.data.subarray(0, 16).every(Number.isFinite), "debris ring attributes must all be finite");
 });
 
-test("all 15 biome trap 3D models build finite bounded geometry within budget", async () => {
+test("all 18 biome trap 3D models build finite bounded geometry within budget", async () => {
   const { TrapView } = await import("../src/render/traps-view.js");
   const { TRAP_SKINS } = await import("../src/core/traps.js");
   class StubPool {
@@ -255,4 +255,22 @@ test("all 15 biome trap 3D models build finite bounded geometry within budget", 
     assert.ok(tris > 0 && tris <= 1500, `${skin}: trap triangle count ${tris} out of budget`);
   }
   for (const p of view.list) p.mesh.geometry.dispose();
+});
+
+test("player model includes right weapon-holding arm and animates death and pose reset cleanly", async () => {
+  const { buildPlayerModel } = await import("../src/render/models.js");
+  const hero = buildPlayerModel("pulse", 0xffc864);
+  assert.ok(hero.rightArm, "hero model must have a right arm holding the weapon");
+  assert.ok(hero.weaponMount.position.y < 1.25, "weaponMount sits at natural chest/hip height");
+  hero.setDeath(0.9, 1.0);
+  assert.ok(
+    Number.isFinite(hero.base.position.y) && hero.base.position.y < -0.2,
+    "hero drops toward ground during death",
+  );
+  assert.ok(hero.base.rotation.z < -0.5, "hero slumps onto ground during death");
+  assert.ok(hero.lantern.position.y < 0.7, "lantern drops lower beside hero during death");
+  hero.resetPose();
+  assert.equal(hero.base.position.y, 0, "resetPose restores base position");
+  assert.equal(hero.base.rotation.z, 0, "resetPose restores upright base rotation");
+  assert.equal(hero.lantern.position.y, 0.89, "resetPose restores lantern position");
 });

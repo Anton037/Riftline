@@ -5,33 +5,33 @@ import { makeRng, hashString } from "./util.js";
 
 const MUTATORS = {
     volatile: {
-      name: "Cinder-Wick",
-      desc: "Foes may erupt in a telegraphed cinder ring on defeat",
+      name: "Explosive",
+      desc: "Enemies may explode in a warning ring when killed",
       color: "#e88a4a",
     },
     shielded: {
-      name: "Porcelain Ward",
-      desc: "Foes may carry a shimmering glazed glass ward",
+      name: "Shielded",
+      desc: "Enemies may spawn with an energy shield",
       color: "#8cd4e8",
     },
     hasted: {
-      name: "Gale-Bellows",
-      desc: "Tailwind gusts spur foes swifter across the sanctuary",
+      name: "Fast Enemies",
+      desc: "Enemies move faster across the arena",
       color: "#e6c46a",
     },
     armored: {
-      name: "Tolling Dusk",
-      desc: "Elites and heavy foes ring a telegraphed bronze shock-chime at 50% Ward",
+      name: "Shockwave",
+      desc: "Elites and heavy enemies trigger a warning shockwave at 50% HP",
       color: "#d9a75a",
     },
     barrage: {
-      name: "Mirage Winds",
-      desc: "A wandering dust devil joins any realm and curves passing shots",
+      name: "Whirlwind",
+      desc: "A wandering dust devil appears on any map and bends nearby shots",
       color: "#e5b878",
     },
     trapstorm: {
-      name: "Clockwork Tempest",
-      desc: "Additional realm mechanisms awaken and cycle swifter",
+      name: "Extra Traps",
+      desc: "More arena traps spawn and trigger faster",
       color: "#98c9a3",
     },
   },

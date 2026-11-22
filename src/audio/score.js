@@ -20,9 +20,11 @@ const THEMES = {
   courtyard: {
     id: "courtyard",
     roots: [50, 53, 48, 45],
+    bridgeRoots: [55, 53, 52, 45],
     mode: [0, 2, 3, 5, 7, 9],
     line: [2, 4, 0, 3, 5, 4, 2, 1],
     counter: [4, 2, 5, 3, 1, 0, 3, 4],
+    bridgeLine: [5, 4, 3, 2, 4, 5, 3, 0],
     pulse: [0, 3, 6, 10, 13],
     bpm: [88, 132],
     instrument: "kalimba",
@@ -34,9 +36,11 @@ const THEMES = {
   shelf: {
     id: "shelf",
     roots: [53, 57, 50, 55],
+    bridgeRoots: [58, 55, 57, 53],
     mode: [0, 2, 4, 6, 7, 9],
     line: [0, 2, 4, 5, 3, 4, 2, 1],
     counter: [4, 5, 2, 4, 1, 3, 5, 2],
+    bridgeLine: [3, 5, 4, 2, 5, 3, 1, 0],
     pulse: [0, 2, 6, 8, 12, 14],
     bpm: [80, 138],
     instrument: "celesta",
@@ -48,9 +52,11 @@ const THEMES = {
   marsh: {
     id: "marsh",
     roots: [43, 48, 45, 50],
+    bridgeRoots: [48, 50, 45, 43],
     mode: [0, 2, 4, 7, 9, 10],
     line: [0, 2, 3, 1, 4, 3, 2, 5],
     counter: [3, 4, 2, 0, 5, 4, 3, 1],
+    bridgeLine: [4, 5, 3, 2, 4, 1, 3, 0],
     pulse: [0, 3, 6, 8, 11, 14],
     bpm: [94, 126],
     instrument: "marimba",
@@ -62,9 +68,11 @@ const THEMES = {
   core: {
     id: "core",
     roots: [52, 48, 55, 50],
+    bridgeRoots: [48, 50, 55, 54],
     mode: [0, 2, 3, 7, 9, 10],
     line: [3, 1, 4, 0, 2, 5, 3, 1],
     counter: [0, 4, 2, 5, 3, 1, 4, 2],
+    bridgeLine: [5, 3, 4, 2, 1, 3, 4, 0],
     pulse: [0, 3, 6, 9, 12, 14],
     bpm: [84, 144],
     instrument: "harp",
@@ -76,9 +84,11 @@ const THEMES = {
   caldera: {
     id: "caldera",
     roots: [45, 48, 43, 50],
+    bridgeRoots: [50, 48, 52, 45],
     mode: [0, 2, 3, 5, 7, 9],
     line: [0, 3, 4, 2, 5, 4, 3, 1],
     counter: [4, 2, 0, 3, 4, 5, 2, 0],
+    bridgeLine: [4, 5, 3, 4, 2, 3, 1, 0],
     pulse: [0, 4, 7, 10, 14],
     bpm: [88, 130],
     instrument: "brass",
@@ -90,9 +100,11 @@ const THEMES = {
   flats: {
     id: "flats",
     roots: [52, 56, 49, 54],
+    bridgeRoots: [57, 54, 56, 52],
     mode: [0, 2, 4, 7, 9, 11],
     line: [0, 2, 3, 4, 2, 1, 3, 5],
     counter: [4, 3, 5, 2, 4, 1, 2, 0],
+    bridgeLine: [5, 4, 2, 3, 5, 3, 1, 0],
     pulse: [0, 3, 6, 9, 12, 14],
     bpm: [98, 140],
     instrument: "harp",
@@ -131,16 +143,22 @@ export function playScore(engine, kind, biome, step, at) {
   const id = theme.id;
   const bar = step >> 4;
   const beat = step % 16;
-  const section = bar >> 2;
-  const root = theme.roots[(boss ? bar + section : (bar >> 1) + (section & 1)) % 4];
+  // Section structure: 0 = A (sparse groove), 1 = A' (developing), 2 = B (full counter-melody), 3 = C (modal bridge/turnaround)
+  const section = (bar >> 2) % 4;
+  const isSectionA = !boss && !menu && section === 0;
+  const isSectionB = !boss && !menu && section === 2;
+  const isSectionC = !menu && section === 3;
+  const activeRoots = isSectionC && theme.bridgeRoots ? theme.bridgeRoots : theme.roots;
+  const root = activeRoots[(boss ? bar + section : (bar >> 1) + (section & 1)) % activeRoots.length];
+  engine.activeRoot = root;
   const note = (degree) => root + theme.mode[((degree % 6) + 6) % 6];
   const seconds = 240 / (menu ? 84 : musicTrack(kind, biome).bpm);
   const rawEnergy = boss ? 1 + engine.heat * 0.1 : engine.intensity;
-  // Smooth arrangement evolution: gentler opening on bar 0 when calm, blooming as combat heats up
+  // Smooth arrangement evolution: Section A opens sparse, Section B blooms with full counter-melody, Section C bridges & turns around
   const energy = !boss && !menu && bar === 0 ? rawEnergy * 0.72 : rawEnergy;
   const active = boss || (!menu && energy > 0.26);
   const hot = boss || (!menu && energy > 0.56);
-  const phrase = theme.line;
+  const phrase = isSectionC && theme.bridgeLine ? theme.bridgeLine : theme.line;
   const counter = theme.counter || phrase;
   const tone = (midi, dur, wave, vol, opts = {}) =>
     engine.tone(freq(midi), dur, wave, vol, { at, dest: engine.mus, ...opts });
@@ -148,7 +166,7 @@ export function playScore(engine, kind, biome, step, at) {
   // 1. Harmonic Foundation & Bass Movement (distinct per biome!)
   if (id === "courtyard" && !menu) {
     // Courtyard: Walking pizzicato/bowed cello bassline + warm ceramic Rhodes 9th chords
-    if (beat === 0 || (active && beat === 8) || (hot && (beat === 4 || beat === 12))) {
+    if (beat === 0 || (active && beat === 8) || (hot && !isSectionA && (beat === 4 || beat === 12))) {
       const walkDeg = beat === 0 ? 0 : beat === 8 ? 4 : beat === 4 ? 2 : 5;
       const dur = beat === 0 || beat === 8 ? Math.min(0.85, seconds * 0.46) : 0.26;
       tone(note(walkDeg) - 12, dur, beat % 8 === 0 ? "bow" : "harp", boss ? 0.082 : 0.054, {
@@ -177,7 +195,7 @@ export function playScore(engine, kind, biome, step, at) {
         lp: 620,
         dest: engine.pump,
       });
-      tone(note(4) + 12, long * 0.9, "bow", boss ? 0.03 : 0.024, {
+      tone(note(isSectionC ? 3 : 4) + 12, long * 0.9, "bow", boss ? 0.03 : 0.024, {
         attack: long * 0.3,
         hold: long * 0.25,
         lp: 1650,
@@ -197,7 +215,7 @@ export function playScore(engine, kind, biome, step, at) {
     }
   } else if (id === "marsh") {
     // Marsh: Bouncy woody root-fifth bass & playful bog village rhythm
-    if (beat === 0 || beat === 6 || (active && beat === 12)) {
+    if (beat === 0 || beat === 6 || (active && !isSectionA && beat === 12)) {
       const bassDeg = beat === 0 ? 0 : beat === 6 ? 3 : 4;
       tone(note(bassDeg) - 12, 0.34, "marimba", boss ? 0.086 : 0.058, {
         attack: 0.01,
@@ -205,7 +223,7 @@ export function playScore(engine, kind, biome, step, at) {
         dest: engine.pump,
       });
     }
-    if (!boss && active && (beat === 7 || beat === 13)) {
+    if (!boss && active && (beat === 7 || (beat === 13 && !isSectionA))) {
       const reedNote = note(counter[(bar + beat) % counter.length]) + 12;
       tone(reedNote, 0.32, "reed", 0.03, {
         attack: 0.026,
@@ -232,7 +250,7 @@ export function playScore(engine, kind, biome, step, at) {
         dest: engine.pump,
       });
     }
-    if (beat === 4 && (bar % 2 === 0 || boss)) {
+    if (beat === 4 && (bar % 2 === 0 || boss || isSectionC)) {
       tone(note((section + 2) % 6) + 12, Math.min(0.95, seconds * 0.62), "bow", boss ? 0.032 : 0.026, {
         attack: 0.14,
         hold: 0.2,
@@ -254,11 +272,10 @@ export function playScore(engine, kind, biome, step, at) {
         dest: engine.pump,
       });
     }
-    if (!boss && active && (beat === 0 || beat === 10)) {
+    if (!boss && active && (beat === 0 || (!isSectionA && beat === 10))) {
       engine.tone(94, 0.22, "sine", 0.075 * (0.6 + energy * 0.4), { at, to: 52, dest: engine.mus });
     }
-    if (beat === 12 && (bar % 2 === 1 || boss)) {
-      // Soft distant bronze anvil-chime fifth
+    if (beat === 12 && (bar % 2 === 1 || boss || isSectionC)) {
       tone(note(4) + 24, 0.28, "ceramic", boss ? 0.03 : 0.022, {
         attack: 0.005,
         lp: 3400,
@@ -269,7 +286,7 @@ export function playScore(engine, kind, biome, step, at) {
     }
   } else if (id === "flats") {
     // Flats: Sunlit oasis acoustic lute/harp bass + airy desert reed flute phrases
-    if (beat === 0 || beat === 6 || (active && beat === 10)) {
+    if (beat === 0 || beat === 6 || (active && !isSectionA && beat === 10)) {
       const luteDeg = beat === 0 ? 0 : beat === 6 ? 3 : 4;
       tone(note(luteDeg) - 12, 0.36, "harp", boss ? 0.084 : 0.056, {
         attack: 0.01,
@@ -277,7 +294,7 @@ export function playScore(engine, kind, biome, step, at) {
         dest: engine.pump,
       });
     }
-    if (!boss && active && (beat === 5 || beat === 13) && bar % 2 === 0) {
+    if (!boss && active && (beat === 5 || beat === 13) && (bar % 2 === 0 || isSectionB)) {
       tone(note(counter[(section + beat) % counter.length]) + 12, 0.36, "reed", 0.03, {
         attack: 0.028,
         lp: 2450,
@@ -309,73 +326,178 @@ export function playScore(engine, kind, biome, step, at) {
     }
   }
 
-  // 2. Main Biome Melodic Motif & Arpeggio / Counter-Harmony
+  // 2. Main Biome Melodic Motif & A -> B (Counter-Melody) -> C (Modal Bridge/Turnaround)
   const strike = theme.pulse.indexOf(beat);
-  const calmGate = !menu && !boss && !active && strike % 2 === 1 && id === "shelf";
-  if (strike >= 0 && (!menu || strike < 4) && !calmGate) {
+  const sparseA = isSectionA && strike % 2 === 1 && (!active || id === "shelf");
+  if (strike >= 0 && (!menu || strike < 4) && !sparseA) {
     const index = (strike + bar * 2 + section) % phrase.length;
-    const regLift = !menu && section === 2 && strike % 2 === 0 ? 12 : 0;
+    const regLift = !menu && (isSectionB || isSectionC) && strike % 2 === 0 ? 12 : 0;
     const midi = note(phrase[index]) + theme.octave + regLift;
     const pan = strike % 2 ? 0.44 : -0.44;
     const softLead = theme.instrument === "brass" || theme.instrument === "reed";
-    tone(midi, 0.4 + seconds * 0.08, theme.instrument, boss ? 0.076 : menu ? 0.042 : 0.048, {
+    tone(midi, 0.4 + seconds * 0.08, theme.instrument, boss ? 0.074 : menu ? 0.042 : 0.048, {
       attack: softLead ? 0.026 : 0.008,
       pan,
       rev: 0.17,
       lp: softLead ? 2400 : 3800,
       dest: engine.delay,
     });
-    if (boss || (!menu && energy > 0.4 && engine.bloom !== false)) {
+    // Section B blooms with full counter-melody; Section C adds an answering turnaround cadence on bar 15
+    const wantCounter = boss || (!menu && engine.bloom !== false && (isSectionB || (energy > 0.4 && !isSectionA)));
+    if (wantCounter) {
       const cNote = note(counter[(index + 2) % counter.length]) + theme.octave + (strike % 2 ? 0 : 12);
-      tone(cNote, 0.3, theme.companion, boss ? 0.034 : 0.021, {
+      tone(cNote, 0.32, theme.companion, boss ? 0.034 : isSectionB ? 0.026 : 0.02, {
         attack: 0.01,
         pan: -pan * 0.82,
         at: at + 0.052,
         lp: 3600,
         dest: engine.delay,
-        rev: 0.14,
+        rev: 0.15,
       });
     }
   }
+  // Section C modal bridge turnaround flourish at end of 16-bar phrase
+  if (!menu && !boss && isSectionC && bar % 4 === 3 && (beat === 10 || beat === 12 || beat === 14)) {
+    const turnDeg = beat === 10 ? 4 : beat === 12 ? 2 : 1;
+    tone(note(turnDeg) + 24, 0.28, theme.companion, 0.028, {
+      attack: 0.01,
+      pan: beat === 12 ? 0 : beat === 10 ? -0.3 : 0.3,
+      lp: 3400,
+      rev: 0.2,
+      dest: engine.delay,
+    });
+  }
 
-  // 3. Per-Biome Tactile Groove Percussion & Multi-Phase Boss Escalation
+  // 3. Six Distinct Guardian Boss Grooves & Per-Biome Tactile Combat Percussion
   if (boss) {
-    if (beat === 0 || beat === 6 || beat === 10 || (section !== 3 && beat === 13)) {
-      const f = 92 + (theme.roots[0] % 5) * 4;
-      engine.tone(f, 0.28, "sine", 0.26, { at, to: f * 0.54, dest: engine.mus });
-      engine.noise(0.12, 0.09, { at, f: 420, to: 135, q: 1.0, color: "pink", dest: engine.mus });
-    }
-    if (beat === 4 || beat === 12 || (engine.heat >= 1 && beat === 15)) {
-      const accentWave =
-        id === "marsh" || id === "flats" ? "reed" : id === "shelf" || id === "core" ? "celesta" : "brass";
-      tone(note((section + 4) % 6) + 12, 0.27, accentWave, 0.095, {
-        attack: accentWave === "celesta" ? 0.008 : 0.018,
-        lp: accentWave === "celesta" ? 3600 : 2400,
-        pan: beat < 10 ? -0.25 : 0.25,
-        rev: 0.13,
-        dest: id === "shelf" ? engine.delay : engine.mus,
-      });
-      engine.noise(0.1, 0.07 * energy, { at, f: 2200, type: "bandpass", q: 1.1, color: "pink", dest: engine.mus });
-    }
-    if (beat % 2 === 1 && (section !== 3 || engine.heat >= 2)) {
-      const ostWave = id === "core" || id === "flats" ? "harp" : "marimba";
-      tone(note(phrase[(beat + section) % phrase.length]), 0.16, ostWave, 0.058, {
-        dest: engine.pump,
-        lp: 1850,
-        pan: beat % 4 === 1 ? -0.22 : 0.22,
-      });
-    }
-    if (engine.heat >= 1 && beat === 7) {
-      tone(note((bar + 3) % 6) + 12, 0.22, theme.companion, 0.036, {
-        attack: 0.01,
-        lp: 3200,
-        pan: 0.3,
+    const kick = (f, vol = 0.25, dur = 0.26) => {
+      engine.tone(f, dur, "sine", vol, { at, to: f * 0.52, dest: engine.mus });
+      engine.noise(0.1, vol * 0.34, { at, f: 420, to: 140, q: 1.0, color: "pink", dest: engine.mus });
+    };
+    if (id === "courtyard") {
+      // Bellkeeper: 6/8 carillon toll (tripled-feel bell swings & bronze fifths)
+      const tollBeat = step % 6;
+      if (tollBeat === 0) {
+        kick(94, 0.25, 0.28);
+        tone(note(0) + 12, 0.38, "brass", 0.078, { attack: 0.014, lp: 2400, pan: -0.24, rev: 0.18 });
+      } else if (tollBeat === 3) {
+        tone(note(4) + 24, 0.34, "ceramic", 0.062, {
+          attack: 0.008,
+          lp: 3600,
+          pan: 0.28,
+          rev: 0.22,
+          dest: engine.delay,
+        });
+        engine.noise(0.08, 0.055 * energy, { at, f: 2400, type: "bandpass", q: 1.2, color: "pink", dest: engine.mus });
+      } else if (engine.heat >= 1 && (tollBeat === 2 || tollBeat === 5)) {
+        tone(note(phrase[step % phrase.length]) + 12, 0.18, "kalimba", 0.044, {
+          lp: 2600,
+          pan: tollBeat === 2 ? -0.3 : 0.3,
+          dest: engine.pump,
+        });
+      }
+    } else if (id === "shelf") {
+      // Frost Prism: shimmering 16th glass arpeggios + crisp crystalline rim accents
+      const arpNote = note(phrase[(step + section) % phrase.length]) + (beat % 4 === 0 ? 24 : 12);
+      tone(arpNote, 0.16, "celesta", 0.048 + (beat % 4 === 0 ? 0.02 : 0), {
+        attack: 0.005,
+        lp: 4600,
+        pan: ((beat % 8) - 3.5) * 0.12,
+        rev: 0.16,
         dest: engine.delay,
-        rev: 0.12,
       });
+      if (beat === 0 || beat === 8 || (engine.heat >= 1 && beat === 12)) kick(102, 0.22, 0.22);
+      if (beat === 4 || beat === 12) {
+        engine.noise(0.09, 0.065 * energy, { at, f: 3800, type: "bandpass", q: 1.6, color: "pink", dest: engine.mus });
+      }
+    } else if (id === "marsh") {
+      // Brood-Empress: syncopated log-drum bog polyrhythm + breathy reed turns
+      if (beat === 0 || beat === 5 || beat === 10) kick(86, 0.26, 0.25);
+      if (beat === 3 || beat === 8 || beat === 14 || (engine.heat >= 1 && beat === 11)) {
+        const logDeg = beat === 3 ? 2 : beat === 8 ? 4 : beat === 14 ? 1 : 3;
+        tone(note(logDeg), 0.17, "marimba", 0.072, {
+          attack: 0.006,
+          lp: 1550,
+          pan: beat % 2 ? -0.28 : 0.28,
+          dest: engine.pump,
+        });
+      }
+      if (beat === 6 || beat === 13) {
+        tone(note((section + 4) % 6) + 12, 0.3, "reed", 0.068, {
+          attack: 0.02,
+          lp: 2300,
+          pan: beat === 6 ? 0.3 : -0.3,
+          rev: 0.16,
+        });
+      }
+    } else if (id === "core") {
+      // Shattered Heart: 3/4 astral waltz (12-step waltz cycle: 0 = downbeat, 4 & 8 = soaring harp/celesta lift)
+      const waltz = step % 12;
+      if (waltz === 0) {
+        kick(88, 0.25, 0.3);
+        tone(root, 0.42, "bow", 0.064, { attack: 0.03, lp: 1200, dest: engine.pump });
+      } else if (waltz === 4 || waltz === 8) {
+        tone(note(waltz === 4 ? 2 : 4) + 12, 0.3, "harp", 0.066, {
+          attack: 0.008,
+          lp: 3200,
+          pan: waltz === 4 ? -0.32 : 0.32,
+          rev: 0.22,
+          dest: engine.delay,
+        });
+        if (engine.heat >= 1) {
+          tone(note(waltz === 4 ? 4 : 5) + 24, 0.26, "celesta", 0.04, {
+            attack: 0.008,
+            lp: 4200,
+            pan: waltz === 4 ? 0.26 : -0.26,
+            rev: 0.2,
+            dest: engine.delay,
+          });
+        }
+      } else if (waltz % 2 === 0 && engine.heat >= 1) {
+        tone(note(phrase[step % phrase.length]) + 12, 0.16, "harp", 0.042, { lp: 2400, dest: engine.pump });
+      }
+    } else if (id === "caldera") {
+      // Ash Tyrant: half-time forge-anvil stomp (crushing sub on 0, heavy bronze anvil smash on 8 & 14)
+      if (beat === 0 || (engine.heat >= 1 && beat === 10)) kick(76, 0.3, 0.32);
+      if (beat === 8 || beat === 14) {
+        tone(note(0) + 12, 0.32, "brass", 0.095, { attack: 0.012, lp: 2200, pan: beat === 8 ? -0.2 : 0.2, rev: 0.16 });
+        tone(note(4) + 24, 0.26, "ceramic", 0.056, {
+          attack: 0.004,
+          lp: 3800,
+          pan: beat === 8 ? 0.24 : -0.24,
+          rev: 0.2,
+          dest: engine.delay,
+        });
+        engine.noise(0.12, 0.085 * energy, { at, f: 1900, type: "bandpass", q: 1.0, color: "pink", dest: engine.mus });
+      }
+      if (beat % 4 === 2 && (section !== 3 || engine.heat >= 1)) {
+        tone(note(phrase[(beat >> 1) % phrase.length]), 0.18, "marimba", 0.06, { lp: 1650, dest: engine.pump });
+      }
+    } else {
+      // Glasswyrm (flats): 3+3+2 desert darbuka pulse (beats 0, 3, 6, 8, 11, 14) + sinuous reed turns
+      if (beat === 0 || beat === 6 || beat === 8) kick(96, 0.24, 0.22);
+      if (beat === 3 || beat === 11 || beat === 14) {
+        tone(note(beat === 3 ? 2 : 4), 0.14, "kalimba", 0.066, {
+          attack: 0.005,
+          lp: 2600,
+          pan: beat === 3 ? -0.26 : 0.26,
+          dest: engine.pump,
+        });
+        engine.noise(0.07, 0.06 * energy, { at, f: 3100, type: "bandpass", q: 1.5, color: "pink", dest: engine.mus });
+      }
+      if (beat === 4 || beat === 12) {
+        tone(note((section + (beat === 4 ? 3 : 5)) % 6) + 12, 0.28, "reed", 0.072, {
+          attack: 0.018,
+          lp: 2600,
+          pan: beat === 4 ? 0.28 : -0.28,
+          rev: 0.16,
+          dest: engine.delay,
+        });
+      }
     }
+    // Phase 2 / Enraged Crescendo high crystalline tension layer
     if (engine.heat >= 2 && beat % 4 === 2) {
-      tone(note(phrase[beat >> 1]) + 24, 0.26, "celesta", 0.034, {
+      tone(note(phrase[beat >> 1]) + 24, 0.26, "celesta", 0.036, {
         attack: 0.008,
         lp: 4200,
         dest: engine.delay,
@@ -384,7 +506,6 @@ export function playScore(engine, kind, biome, step, at) {
     }
   } else if (!menu && active) {
     if (id === "courtyard" && (beat === 4 || beat === 12)) {
-      // Soft brushed snare / rain-courtyard brush
       engine.noise(0.09, 0.026 * (0.7 + energy * 0.6), {
         at,
         f: 2650,
@@ -394,14 +515,12 @@ export function playScore(engine, kind, biome, step, at) {
         dest: engine.mus,
       });
     } else if (id === "marsh" && (beat === 4 || beat === 10 || (hot && beat === 14))) {
-      // Wooden log-drum / shaker tap
       tone(note((bar + beat) % 5), 0.16, "kalimba", 0.024 * (1 + energy * 0.7), {
         attack: 0.006,
         lp: 1450,
         pan: beat === 4 ? -0.2 : 0.2,
       });
     } else if (id === "flats" && (beat === 2 || beat === 6 || beat === 10 || beat === 14)) {
-      // Breezy sand-brush pulse
       engine.noise(0.075, 0.02 * (0.6 + energy * 0.7), {
         at,
         f: 3300,

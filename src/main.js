@@ -403,7 +403,7 @@ const overlay = new Overlay(elementById("ov")),
       if (world && world.banish(id)) {
         ui.banishMode = false;
         ui.renderCards(world);
-        ui.toast(`Sealed: ${upgradesById[id] ? upgradesById[id].name : id}`, "", 2600);
+        ui.toast(`Banished: ${upgradesById[id] ? upgradesById[id].name : id}`, "", 2600);
         store.data.run = world.snapshot();
         store.save("banish");
       }
@@ -1042,10 +1042,10 @@ function handleWorldEvents(world) {
   // 2.5.0 B: the events of the new modules
   for (const ev of world.fx) {
     if (ev.k === "kit") {
-      ui.toast(`WAYFARER PACK · ${ev.ids.map((id) => upgradesById[id]?.name || id).join(", ")}`, "good hint", 3200);
+      ui.toast(`STARTER PACK · ${ev.ids.map((id) => upgradesById[id]?.name || id).join(", ")}`, "good hint", 3200);
     } else {
       if (ev.k === "barrier") {
-        ui.banner("SANCTUARY BELL", "Ward critical — sanctuary bell raised", "good", 1400);
+        ui.banner("EMERGENCY SHIELD", "Low HP — shield activated", "good", 1400);
       }
     }
   }
@@ -1072,51 +1072,48 @@ function handleWorldEvents(world) {
           }
         } else
           ui.banner(
-            ev.boss ? "GUARDIAN" : `WAVE ${ev.n}`,
-            ev.boss ? "Realm guardian awakening" : newBiome ? rlBiomeTitle(biome) : world.endless ? "Endless" : "",
+            ev.boss ? "BOSS" : `WAVE ${ev.n}`,
+            ev.boss ? "Boss incoming" : newBiome ? rlBiomeTitle(biome) : world.endless ? "Endless" : "",
             ev.boss ? "boss" : "",
             ev.boss ? 3e3 : 2e3,
           );
         if (!ev.boss && world.arena.vents.length) {
           if (world.arena.biome.id === "courtyard")
-            showTipOnce("shock", "Lantern inlays chime and glow before they flare. Lure foes onto them to daze them.");
+            showTipOnce("shock", "Shock pads glow before they zap. Lure enemies onto them to stun them.");
           else if (world.arena.biome.id === "caldera")
             showTipOnce(
               "pyro",
-              "Forge fumaroles glow before they jet. Lure foes onto them \u2014 the molten rock sears them too.",
+              "Lava vents glow before they erupt. Lure enemies onto them \u2014 the lava burns them too.",
             );
-          else showTipOnce("lava", "Forge vents glow before they erupt. Lure foes onto them \u2014 they burn too.");
+          else showTipOnce("lava", "Lava vents glow before they erupt. Lure enemies onto them \u2014 they burn too.");
         }
         if (!ev.boss && world.arena.ice.length) {
-          showTipOnce(
-            "ice",
-            "The Aurora Shelf: the whole floor is slick, the ice sheets even more \u2014 foes slide on them too.",
-          );
+          showTipOnce("ice", "The Aurora Shelf: the floor is icy and slippery \u2014 enemies slide on it too.");
         }
         if (!ev.boss && world.arena.acid.length) {
-          showTipOnce("acid", "Bog pools sap your Ward \u2014 but foes wading in them take 25% more damage.");
+          showTipOnce("acid", "Acid pools drain your HP \u2014 but enemies standing in them take 25% more damage.");
         }
         if (!ev.boss && world.arena.portals.length) {
-          showTipOnce("portal", "Astral portals step you across the sanctuary. Shots fly through them too.");
+          showTipOnce("portal", "Portals teleport you across the arena. Shots fly through them too.");
         }
         if (!ev.boss && world.arena.devils && world.arena.devils.length) {
-          showTipOnce("devil", "Sunglass whirlwinds wander the flats \u2014 strike sunglass pillars to calm them.");
+          showTipOnce("devil", "Dust devils pull you around \u2014 shoot sun pillars to calm them.");
         }
         sound.setMusic("fight", biome.id);
         if (ev.n === 2) {
           showTipOnce(
             "dash",
             rlKeys()
-              ? "Tip: SPACE dashes \u2014 it makes you untouchable for a moment."
-              : "Tip: DASH makes you untouchable for a moment.",
+              ? "Tip: SPACE dashes \u2014 you cannot be hit during a dash."
+              : "Tip: DASH dodges through attacks \u2014 you cannot be hit during it.",
           );
         }
         if (ev.n === 4) {
           showTipOnce(
             "singularity",
             rlKeys()
-              ? "Tip: G tosses a Lodestone Chime at the thickest crowd: it draws foes in, then rings out. Charges refill."
-              : "Tip: tap CHIME to toss a Lodestone Chime at the thickest crowd. Hold the aim side to pick the spot.",
+              ? "Tip: press G to throw a Gravity Grenade. It pulls enemies together and explodes. Charges refill."
+              : "Tip: tap GRENADE to throw a Gravity Grenade at enemies. Hold the right side to aim where it lands.",
           );
         }
         if (ev.n === 3) {
@@ -1124,7 +1121,7 @@ function handleWorldEvents(world) {
             "aim",
             rlKeys()
               ? "Tip: hold the left mouse button to aim and fire at the cursor."
-              : "Tip: drag the right side to aim yourself. Holding it fires at the nearest foe.",
+              : "Tip: drag the right side to aim yourself. Holding it fires at the nearest enemy.",
           );
         }
         break;
@@ -1132,7 +1129,7 @@ function handleWorldEvents(world) {
       case "trapWarn":
         showTipOnce(
           "trap",
-          "Realm hazards warn before they strike \u2014 lure foes in, or shoot armed vessels to burst them!",
+          "Arena traps warn before they trigger \u2014 lure enemies in, or shoot armed bombs to blow them up!",
         );
         break;
       case "gadgetReady":
@@ -1144,7 +1141,7 @@ function handleWorldEvents(world) {
       case "boss":
         // 3.1.0: the boss track starts on the spot, at the camera pan
         sound.setMusic("boss", world.biomeFor(world.wave).id);
-        showTipOnce("boss", "Guardians telegraph every attack. Marked zones and paths hit hard \u2014 step clear.");
+        showTipOnce("boss", "Bosses show warnings before every attack. Step out of marked zones and beams.");
         if (world.player.alive && world.boss && renderer) {
           game.intro = { t: 0 };
           renderer.focusOn(world.boss.x, world.boss.y);
@@ -1157,12 +1154,12 @@ function handleWorldEvents(world) {
         showTipOnce(
           "nova",
           rlKeys()
-            ? "HEARTHBURST is charged \u2014 press E to unleash a clearing sun-blast."
-            : "HEARTHBURST is charged \u2014 tap BURST to unleash a clearing sun-blast.",
+            ? "NOVA is charged \u2014 press E to unleash a huge shockwave."
+            : "NOVA is charged \u2014 tap NOVA to unleash a huge shockwave.",
         );
         break;
       case "cleared":
-        ui.banner(ev.boss ? "GUARDIAN FELLED" : "CLEARED", ev.flawless ? "Flawless" : `Wave ${ev.n}`, "good", 1500);
+        ui.banner(ev.boss ? "BOSS DEFEATED" : "CLEARED", ev.flawless ? "Flawless" : `Wave ${ev.n}`, "good", 1500);
         if (!ev.boss) {
           game.slowMo = Math.max(game.slowMo, 0.45);
         }
@@ -1177,19 +1174,19 @@ function handleWorldEvents(world) {
       case "champion":
         ui.banner(
           "CHAMPION",
-          `A ${enemyDefs[ev.type].name} leads the pack \u2014 its allies stride faster`,
+          `A ${enemyDefs[ev.type].name} leads the pack \u2014 nearby enemies move faster`,
           "warn",
           2200,
         );
-        showTipOnce("champion", "Champions rally nearby foes. Fell one and the pack falters.");
+        showTipOnce("champion", "Champions buff nearby enemies. Kill the champion to weaken the pack.");
         break;
       case "championDown":
-        ui.banner("CHAMPION FELLED", "The pack falters", "good", 1400);
+        ui.banner("CHAMPION DEFEATED", "Enemy buff broken", "good", 1400);
         game.slowMo = Math.max(game.slowMo, 0.5);
         hitStop(0.08);
         break;
       case "mend":
-        showTipOnce("mender", "Moss-Menders weave healing light into nearby foes. Fell them first.");
+        showTipOnce("mender", "Healers restore nearby enemies' HP. Take them out first.");
         break;
       case "kill":
         if ((ev.elite || ev.r >= 0.8) && !ev.cleanup) {
@@ -1212,17 +1209,17 @@ function handleWorldEvents(world) {
         }
         break;
       case "maxed":
-        ui.toast(`ALL CRAFTS MASTERED · Ward +${ev.heal}, +${ev.shards} shards`, "gold", 3500);
+        ui.toast(`ALL UPGRADES MAXED · +${ev.heal} HP, +${ev.shards} shards`, "gold", 3500);
         break;
       case "combo":
         ui.comboPop(ev.n, ev.bonus);
         break;
       case "bountyPulse":
-        if (ev.amount > 0) ui.toast(`TITHE · +${ev.amount} shards`, "good hint", 1500);
+        if (ev.amount > 0) ui.toast(`BONUS · +${ev.amount} shards`, "good hint", 1500);
         break;
       case "pick":
         if (ev.evo) {
-          ui.banner("MASTERWORK", upgradesById[ev.id].name, "good", 1800);
+          ui.banner("EVOLUTION", upgradesById[ev.id].name, "good", 1800);
         }
         break;
       case "dash":
@@ -1231,7 +1228,7 @@ function handleWorldEvents(world) {
         }
         break;
       case "enrage":
-        ui.banner("CRESCENDO", "The guardian intensifies", "warn", 1400);
+        ui.banner("PHASE 2", "The boss speeds up", "warn", 1400);
         break;
       case "mutator":
         if (world.wave === 1 || world.biomeFor(world.wave - 1).id !== world.biomeFor(world.wave).id)
@@ -1239,16 +1236,17 @@ function handleWorldEvents(world) {
         else announceMutator(ev);
         break;
       case "phase":
-        ui.banner(`PHASE ${ev.n}`, ev.n === 2 ? "The Star-Vault shifts" : "The Shattered Heart awakens", "warn", 1600);
+        ui.banner(`PHASE ${ev.n}`, ev.n === 2 ? "The arena shifts" : "Final phase!", "warn", 1600);
         break;
       case "bossDown":
         game.slowMo = 1.1;
         if (world.player.alive) awardBossMedal(ev, world);
         break;
       case "revive":
-        ui.banner("PHOENIX EMBER", "Ward rekindled", "good", 1600);
+        ui.banner("SECOND WIND", "Revived!", "good", 1600);
         break;
       case "die":
+        game.slowMo = 0.55;
         sound.setMusic("off");
         break;
       case "victory":
@@ -1353,10 +1351,10 @@ const // 2.3.4: keyboard/mouse players got the touch texts ("drag the left side"
     () => (rlKeys() ? "Move with W A S D or the arrow keys." : "Drag anywhere on the left side to move."),
     () =>
       rlKeys()
-        ? "Foes ahead! Your lantern-arm fires on its own \u2014 hold the left mouse button to aim yourself."
-        : "Foes ahead! Your lantern-arm fires on its own \u2014 drag the right side to aim yourself.",
+        ? "Enemies ahead! Your weapon shoots automatically \u2014 hold the left mouse button to aim yourself."
+        : "Enemies ahead! Your weapon shoots automatically \u2014 drag the right side to aim yourself.",
     () => (rlKeys() ? "Press SPACE to dash through danger." : "Tap DASH to dodge through danger."),
-    () => "Gather star-shards \u2014 they forge lasting crafts in the Sanctuary Workshop.",
+    () => "Collect shards \u2014 spend them on permanent upgrades in the Workshop.",
   ];
 function updateTutorial(dt, world) {
   let tut = game.tut;

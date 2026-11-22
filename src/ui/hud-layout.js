@@ -13,8 +13,8 @@ import { getById } from "./ui.js";
 /* the movable controls: element, name in the editor, smallest size on screen (px) */
 const CONTROL_INFO = {
     dash: { el: "dashBtn", name: "DASH", min: 40 },
-    nova: { el: "novaBtn", name: "BURST", min: 40 },
-    gadget: { el: "gadgetBtn", name: "CHIME", min: 40 },
+    nova: { el: "novaBtn", name: "NOVA", min: 40 },
+    gadget: { el: "gadgetBtn", name: "GRENADE", min: 40 },
     pause: { el: "pauseBtn", name: "PAUSE", min: 36 },
   },
   HUD_CONTROLS = HUD_CONTROL_IDS.map((id) => ({ id, ...CONTROL_INFO[id] })),

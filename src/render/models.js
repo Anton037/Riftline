@@ -527,9 +527,9 @@ export function buildPlayerModel(weapon = "pulse", weaponColor = 0x5ce8ff) {
   scarf.add(scarfTail);
   base.add(scarf);
 
-  // Weapon bearing pivot on torso + independent horizontal turret mounted on group so aim never drifts with lean/bank
+  // Weapon bearing pivot on torso at natural chest/shoulder height (cleanly below hat brim!)
   const weaponMount = new Node();
-  weaponMount.position.set(0.04, 1.32, 0);
+  weaponMount.position.set(0.02, 1.16, 0);
   base.add(weaponMount);
 
   // Batch static sub-meshes on `base` (torso + hat/hood + left arm -> 1 draw call!) while preserving all moving nodes
@@ -537,11 +537,20 @@ export function buildPlayerModel(weapon = "pulse", weaponColor = 0x5ce8ff) {
   mergeStaticNodes(base, keepStatic);
 
   const turret = new Node();
-  turret.position.set(0.04, 1.32, 0);
+  turret.position.set(0.02, 1.16, 0);
   group.add(turret);
 
+  // Gloved right weapon arm extending cleanly from right shoulder to weapon grip (zero floating gun!)
+  const rightArmGeo = mergeGeometries([
+    part(G_CYL8, CLOAK_TEAL, { x: 0.12, y: -0.17, z: 0.35, rx: -0.22, rz: -1.18, sx: 0.15, sy: 0.32, sz: 0.15 }),
+    part(G_TOR_SM, BRASS, { x: 0.24, y: -0.16, z: 0.36, ry: Math.PI / 2, sx: 0.14, sy: 0.14, sz: 0.14 }),
+    part(G_SPH, LEATHER, { x: 0.3, y: -0.16, z: 0.36, sx: 0.13, sy: 0.13, sz: 0.13 }),
+  ]);
+  const rightArm = new MeshNode(rightArmGeo, armorMat);
+  turret.add(rightArm);
+
   const rig = buildWeaponRig(weapon, weaponColor);
-  rig.gun.position.set(0.14, -0.12, 0.34);
+  rig.gun.position.set(0.32, -0.15, 0.36);
   turret.add(rig.gun);
 
   // Protective Aegis energy sphere
@@ -572,6 +581,7 @@ export function buildPlayerModel(weapon = "pulse", weaponColor = 0x5ce8ff) {
     visorMat,
     weaponMount,
     turret,
+    rightArm,
     gun: rig.gun,
     rig,
     muzzle: rig.muzzle,
@@ -585,6 +595,73 @@ export function buildPlayerModel(weapon = "pulse", weaponColor = 0x5ce8ff) {
     flareT: 0,
     inspectT: 0,
     faceLast: undefined,
+    resetPose() {
+      base.position.set(0, 0, 0);
+      base.rotation.set(0, 0, 0);
+      base.scale.set(1, 1, 1);
+      turret.rotation.set(0, 0, 0);
+      turret.scale.set(1, 1, 1);
+      lantern.position.set(0.35, 0.89, -0.46);
+      lantern.rotation.set(0, 0, 0);
+      lanternGlow.scale.setScalar(1);
+      eyes.visible = true;
+      visorMat.emissiveIntensity = 1.42;
+      lanternGlowMat.emissiveIntensity = 1.52;
+    },
+    setDeath(t, time) {
+      // Handcrafted 1.5s fall: stagger -> drop to knees -> slump gently onto flagstones -> lantern dims out
+      const k1 = Math.min(1, t / 0.28);
+      const k2 = Math.min(1, Math.max(0, (t - 0.22) / 0.58));
+      const easeOut = (v) => 1 - (1 - v) * (1 - v);
+      const stagger = Math.sin(k1 * Math.PI);
+      const slump = easeOut(k2);
+
+      // Knees fold as hero drops down onto flagstones
+      legL.hip.rotation.z = -0.35 * stagger + 1.05 * slump;
+      legR.hip.rotation.z = 0.28 * stagger - 0.68 * slump;
+
+      // Body staggers up/back briefly then drops and collapses forward-sideways
+      base.position.set(0, 0.14 * stagger - 0.48 * slump, 0);
+      base.rotation.z = 0.34 * stagger - 1.12 * slump;
+      base.rotation.x = 0.18 * stagger + 0.36 * slump;
+
+      // Cloak & scarf billow on stagger then drape calmly over the fallen body
+      cloak.rotation.z = -0.58 * stagger + 0.12 * slump + Math.sin(time * 3.5) * 0.04 * (1 - slump);
+      cloakHem.rotation.z = -0.42 * stagger + 0.24 * slump;
+      cloakHem.scale.set(1 + 0.18 * stagger, 1, 1 + 0.22 * stagger);
+      scarf.rotation.z = -0.62 * stagger + 0.18 * slump;
+      scarfTail.rotation.z = -0.45 * stagger + 0.22 * slump;
+
+      // Guiding lantern drops beside hero and flickers out to a dim ember
+      lantern.position.set(0.35 + 0.22 * slump, 0.89 - 0.42 * slump, -0.46 - 0.18 * slump);
+      lantern.rotation.z = -0.45 * stagger + 0.85 * slump;
+      lantern.rotation.x = 0.35 * slump;
+      const dim = Math.max(0.06, 1 - Math.min(1, t / 1.05));
+      const flicker = t < 0.9 ? 0.65 + 0.35 * Math.sin(time * 34) : 1;
+      lanternGlowMat.emissiveIntensity = 1.6 * dim * flicker;
+      lanternGlow.scale.setScalar(0.55 + 0.45 * dim);
+
+      // Eyes widen on fatal hit, flicker, and gently close
+      const eyeFade = Math.max(0, 1 - Math.min(1, t / 0.72));
+      eyes.visible = eyeFade > 0.04;
+      eyes.scale.set(1, (1.35 * (1 - slump) + 0.15) * eyeFade, 1.15);
+      visorMat.emissiveIntensity = 1.9 * eyeFade * flicker;
+
+      // Weapon droops to the ground beside the right hand
+      base.updateLocalMatrix();
+      const e = base.localMatrix.elements;
+      const mx = weaponMount.position.x,
+        my = weaponMount.position.y,
+        mz = weaponMount.position.z;
+      turret.position.set(
+        e[0] * mx + e[4] * my + e[8] * mz + e[12],
+        Math.max(0.24, e[1] * mx + e[5] * my + e[9] * mz + e[13] - 0.12 * slump),
+        e[2] * mx + e[6] * my + e[10] * mz + e[14],
+      );
+      turret.rotation.set(0.28 * slump, this.aimYaw - 0.22 * slump, -0.65 * slump);
+      rig.gun.position.x = 0.32;
+      rig.gun.rotation.set(0, 0, -0.32 * slump);
+    },
     setWalk(phase, amount, jump, time) {
       const sL = Math.sin(phase);
       const sR = -sL;
@@ -598,7 +675,7 @@ export function buildPlayerModel(weapon = "pulse", weaponColor = 0x5ce8ff) {
       const breeze = Math.sin(time * 2.9) * 0.06;
       const runRipple = Math.sin(phase * 2) * 0.09 * amount;
 
-      // 2-stage billowing travel cloak + flaring hem during Dash & Hearthburst
+      // 2-stage billowing travel cloak + flaring hem during Dash & Nova
       cloak.rotation.z = -0.1 - amount * 0.38 - flare * 0.52 + breeze + runRipple;
       cloak.rotation.y = Math.sin(time * 2.1 + phase * 0.5) * (0.06 + amount * 0.08);
       cloakHem.rotation.z =
@@ -629,11 +706,12 @@ export function buildPlayerModel(weapon = "pulse", weaponColor = 0x5ce8ff) {
       const sy = hurt > 0.1 ? 1.4 : (1 - blink * 0.88) * (focus ? 0.62 : 1.0);
       const sz = hurt > 0.1 ? 1.24 : focus ? 1.12 : 1.0;
       const gazeZ = Math.max(-0.022, Math.min(0.022, -this.bank * 0.06));
+      eyes.visible = true;
       eyes.scale.set(1, sy, sz);
       eyes.position.z = gazeZ;
       visorMat.emissiveIntensity = hurt > 0.1 ? 1.9 : firing ? 1.62 : 1.38;
 
-      // Warm flickering guiding-lantern glow (brightens during dash & Hearthburst ready!)
+      // Warm flickering guiding-lantern glow (brightens during dash & Nova ready!)
       const flicker = 0.94 + 0.08 * Math.sin(time * 9.5) + 0.05 * Math.sin(time * 17.1);
       const boost = (dashing ? 0.55 : 0) + (novaReady ? 0.42 : 0) + (this.flareT > 0 ? this.flareT * 0.65 : 0);
       lanternGlowMat.emissiveIntensity = (1.42 + boost) * flicker;
@@ -672,7 +750,7 @@ export function buildPlayerModel(weapon = "pulse", weaponColor = 0x5ce8ff) {
         this.aimYaw = targetYaw;
       }
       turret.rotation.set(0, this.aimYaw, 0);
-      rig.gun.position.x = 0.14 - this.recoil;
+      rig.gun.position.x = 0.32 - this.recoil;
     },
   };
   return model;

@@ -519,8 +519,15 @@ const SoundEngine = class {
      filter / panner / reverb-send chains across long runs. */
   _cleanupVoice(voice) {
     if (!voice || this.offline) return;
-    const { node, filter, amp, panner, send } = voice;
-    voice.node = voice.filter = voice.amp = voice.panner = voice.send = null;
+    const { node, filter, amp, panner, send, extras } = voice;
+    voice.node = voice.filter = voice.amp = voice.panner = voice.send = voice.extras = null;
+    if (extras) {
+      for (let i = 0; i < extras.length; i++) {
+        try {
+          extras[i].disconnect();
+        } catch {}
+      }
+    }
     try {
       if (node) node.disconnect();
     } catch {}
@@ -566,22 +573,70 @@ const SoundEngine = class {
     if (opts.detune) {
       osc.detune.value = opts.detune;
     }
+    const isMusicDest = opts.dest === this.mus || opts.dest === this.pump || opts.dest === this.delay;
+    const isSustained = wave === "bow" || wave === "reed" || wave === "brass" || wave === "ceramic";
+    const isPluck = wave === "harp" || wave === "kalimba" || wave === "marimba";
+    const extras = [];
+
     this.envelope(amp, start, dur, level, opts);
-    let out = osc;
-    if (opts.lp || opts.bp) {
+    let target = amp;
+    if (opts.lp || opts.bp || (isPluck && isMusicDest)) {
       let filter = ctx.createBiquadFilter();
       filter.type = opts.bp ? "bandpass" : "lowpass";
-      filter.frequency.value = opts.bp || opts.lp;
+      const baseCut = opts.bp || opts.lp || 2600;
       filter.Q.value = opts.q || (opts.bp ? 2.2 : 0.7);
       if (opts.lpTo) {
-        filter.frequency.setValueAtTime(opts.bp || opts.lp, start);
+        filter.frequency.setValueAtTime(baseCut, start);
         filter.frequency.exponentialRampToValueAtTime(opts.lpTo, start + dur);
+      } else if (isPluck && !opts.bp && isMusicDest) {
+        // Dynamic lowpass decay envelope (2.4x -> 1.0x cutoff) for organic plucked warmth
+        const nyq = (ctx.sampleRate || 44100) * 0.44;
+        const startCut = Math.min(nyq, Math.max(120, baseCut * 2.4));
+        const endCut = Math.min(nyq, Math.max(120, baseCut));
+        filter.frequency.setValueAtTime(startCut, start);
+        filter.frequency.exponentialRampToValueAtTime(endCut, start + Math.max(0.04, dur * 0.72));
+      } else {
+        filter.frequency.value = baseCut;
       }
-      out.connect(filter);
+      filter.connect(amp);
       voice.filter = filter;
-      out = filter;
+      target = filter;
     }
-    out.connect(amp);
+    osc.connect(target);
+
+    // Subtle 2-voice detune (±6 cents) & delayed vibrato on sustained musical instruments
+    if (isMusicDest && isSustained && dur >= 0.24 && !opts.to) {
+      const osc2 = ctx.createOscillator(),
+        mix2 = ctx.createGain();
+      setNaturalWave(ctx, osc2, wave);
+      osc2.frequency.setValueAtTime(freq, start);
+      const baseDet = opts.detune || 0;
+      osc.detune.setValueAtTime(baseDet - 6, start);
+      osc2.detune.setValueAtTime(baseDet + 6, start);
+      mix2.gain.value = 0.44;
+      osc2.connect(mix2);
+      mix2.connect(target);
+      osc2.start(start);
+      osc2.stop(start + dur + 0.02);
+      extras.push(osc2, mix2);
+      if (dur >= 0.42 && (wave === "bow" || wave === "reed" || wave === "brass")) {
+        const lfo = ctx.createOscillator(),
+          lfoGain = ctx.createGain();
+        lfo.type = "sine";
+        lfo.frequency.setValueAtTime(4.8, start);
+        lfoGain.gain.setValueAtTime(0, start);
+        lfoGain.gain.setValueAtTime(0, start + 0.14);
+        lfoGain.gain.linearRampToValueAtTime(5.5, start + Math.min(dur * 0.65, 0.34));
+        lfo.connect(lfoGain);
+        lfoGain.connect(osc.detune);
+        lfoGain.connect(osc2.detune);
+        lfo.start(start);
+        lfo.stop(start + dur + 0.02);
+        extras.push(lfo, lfoGain);
+      }
+    }
+    if (extras.length) voice.extras = extras;
+
     this.route(amp, opts, voice);
     if (!this.offline) osc.onended = () => this._cleanupVoice(voice);
     osc.start(start);
@@ -705,8 +760,16 @@ const SoundEngine = class {
     this.curRev = SFX_ROOM[id] || 0;
     try {
       this._play(id, arg);
-      const depth = (warning ? 0.15 : MUSIC_DUCK[id] || 0) * atten;
-      if (depth) this.duck(depth);
+      const dramatic =
+        id === "nova" ||
+        id === "inlayRelease" ||
+        id === "bOverdrive" ||
+        id === "bossIntro" ||
+        id === "enrage" ||
+        bossWarning;
+      const baseDepth = dramatic ? 0.29 : warning ? 0.15 : MUSIC_DUCK[id] || 0;
+      const depth = baseDepth * (dramatic ? 1 : atten);
+      if (depth) this.duck(depth, dramatic ? 0.35 : 0.08);
     } catch (err) {
       this.fail(err);
     } finally {
@@ -733,109 +796,113 @@ const SoundEngine = class {
       this.fail(err);
     }
   }
-  /* 2.9.0: a light sidechain: the music gain dips by `depth` (at most 15 %) for about 80 ms and comes back
-     (time constant 70 ms), so that a big hit is heard over the music. Nothing is stopped or skipped. */
-  duck(depth) {
+  /* Sidechain ducking: light 80ms dip on routine hits, and -3 dB (~0.29 depth) for 0.35s on
+     boss callouts, Bell-Censer tolls, and Hearthburst so major cues command the mix cleanly. */
+  duck(depth, holdSec = 0.08) {
     let gain = this.duckGain;
     if (!gain) return;
     let now = this.ctx.currentTime;
     if (now - this.duckT < 0.1 && depth <= this.duckDepth) return;
     this.duckT = now;
     this.duckDepth = depth;
+    const clamped = Math.min(0.29, depth);
     try {
       gain.gain.cancelScheduledValues(now);
-      gain.gain.setTargetAtTime(1 - Math.min(0.15, depth), now, 0.012);
-      gain.gain.setTargetAtTime(1, now + 0.08, 0.07);
+      gain.gain.setTargetAtTime(1 - clamped, now, 0.014);
+      gain.gain.setTargetAtTime(1, now + holdSec, holdSec > 0.2 ? 0.14 : 0.07);
     } catch {}
     if (this.ambDuck) {
       let room = this.ambDuck.gain;
       room.cancelScheduledValues(now);
-      room.setTargetAtTime(1 - Math.min(0.4, depth * 2.4), now, 0.014);
-      room.setTargetAtTime(1, now + 0.1, 0.3);
+      room.setTargetAtTime(1 - Math.min(0.42, clamped * 1.5), now, 0.016);
+      room.setTargetAtTime(1, now + holdSec, 0.3);
     }
   }
   _play(id, arg) {
     this.physical.play(this, id, arg);
     this._cozyChime(id, arg);
   }
-  /* Warm musical chimes layered gently onto UI, pickups, upgrade rarities, readiness, interactive biome
-     relics & clear moments, quantized to the active biome's modal scale via scoreScaleMidi. */
+  /* Restrained, differentiated musical chimes quantized to the active biome's modal scale via scoreScaleMidi.
+     Ordinary UI clicks and rerolls stay clean physical foley with no redundant chime overlay. */
   _cozyChime(id, arg) {
     const note = (midi) => 440 * 2 ** ((midi - 69) / 12);
     const m = (deg, oct = 24) => scoreScaleMidi(this.biome, deg, oct);
-    const bell = (midi, dur, wave, vol, delay = 0, pan = 0) =>
+    const bell = (midi, dur, wave, vol, delay = 0, pan = 0, lp = 3800) =>
       this.tone(note(midi), dur, wave, vol, {
         at: delay,
         attack: 0.008,
-        lp: 3800,
+        lp,
         pan,
         rev: 0.16,
       });
     switch (id) {
-      case "click":
-        if (this.gate("chime:click", 0.045)) bell(m(0, 24), 0.085, "kalimba", 0.036);
-        break;
       case "deny":
       case "gadgetNo":
         if (this.gate("chime:deny", 0.08)) {
-          bell(m(1, 12), 0.11, "marimba", 0.048, 0, -0.1);
-          bell(m(0, 12), 0.14, "marimba", 0.045, 0.065, 0.1);
+          bell(m(1, 12), 0.1, "marimba", 0.042, 0, -0.1, 2200);
+          bell(m(0, 12), 0.13, "marimba", 0.038, 0.06, 0.1, 1900);
         }
         break;
       case "offer":
         if (this.gate("chime:offer", 0.12)) {
-          bell(m(0, 12), 0.2, "harp", 0.048, 0, -0.18);
-          bell(m(2, 24), 0.24, "harp", 0.052, 0.055, 0);
-          bell(m(4, 24), 0.3, "celesta", 0.046, 0.11, 0.18);
-        }
-        break;
-      case "reroll":
-        if (this.gate("chime:reroll", 0.1)) {
-          bell(m(0, 24), 0.14, "kalimba", 0.045, 0, -0.2);
-          bell(m(2, 24), 0.15, "kalimba", 0.046, 0.045, 0);
-          bell(m(4, 24), 0.2, "celesta", 0.048, 0.09, 0.2);
+          bell(m(0, 12), 0.22, "harp", 0.044, 0, -0.18);
+          bell(m(4, 24), 0.28, "celesta", 0.04, 0.075, 0.18);
         }
         break;
       case "pick": {
         if (!this.gate("chime:pick", 0.08)) break;
         const r = Math.max(1, Math.min(6, Number(arg) || 1));
         const chord =
-          r >= 5
-            ? [m(0, 12), m(2, 12), m(0, 24), m(2, 24), m(4, 24)]
-            : r === 4
-              ? [m(0, 12), m(0, 24), m(2, 24), m(4, 24), m(6, 24)]
-              : r === 3
-                ? [m(0, 24), m(2, 24), m(4, 24), m(5, 24)]
-                : r === 2
-                  ? [m(0, 24), m(2, 24), m(4, 24)]
-                  : [m(0, 24), m(4, 24)];
+          r >= 6
+            ? [m(0, 12), m(4, 12), m(0, 24), m(2, 24), m(4, 24), m(6, 24)]
+            : r === 5
+              ? [m(0, 12), m(2, 12), m(4, 24), m(6, 24)]
+              : r === 4
+                ? [m(0, 12), m(2, 24), m(4, 24)]
+                : r === 3
+                  ? [m(0, 24), m(3, 24), m(5, 24)]
+                  : r === 2
+                    ? [m(0, 24), m(4, 24)]
+                    : [m(2, 24), m(4, 24)];
         const wave = r >= 4 ? "celesta" : r >= 2 ? "harp" : "kalimba";
         for (let i = 0; i < chord.length; i++) {
-          bell(chord[i], 0.26 + i * 0.04, wave, 0.052, i * 0.048, (i - (chord.length - 1) / 2) * 0.16);
+          bell(chord[i], 0.24 + i * 0.04, wave, 0.044, i * 0.05, (i - (chord.length - 1) / 2) * 0.18);
         }
         break;
       }
       case "shard":
+        // Soft pentatonic grace-note tracking the score's active chord root
         if (this.gate("chime:shard", 0.055)) {
-          const deg = (this.shardStep = ((this.shardStep || 0) + 1) % 5);
-          bell(m(deg, 24), 0.13, "celesta", 0.042);
+          const pent = [0, 2, 4, 7, 9];
+          const step = (this.shardStep = ((this.shardStep || 0) + 1) % pent.length);
+          const rootBase = Number.isFinite(this.activeRoot) ? this.activeRoot + 24 : m(0, 24);
+          bell(rootBase + pent[step], 0.12, "celesta", 0.024, 0, (step - 2) * 0.08, 4200);
         }
         break;
       case "heal":
       case "heart":
         if (this.gate("chime:heal", 0.1)) {
-          bell(m(2, 12), 0.22, "harp", 0.05, 0, -0.15);
-          bell(m(4, 24), 0.28, "celesta", 0.048, 0.065, 0.15);
+          bell(m(2, 12), 0.22, "harp", 0.046, 0, -0.15);
+          bell(m(4, 24), 0.28, "celesta", 0.042, 0.065, 0.15);
         }
         break;
       case "buy":
       case "supply":
+        // Tactile 4 -> 0 marimba fourth + bright brass anvil clink
+        if (this.gate("chime:buy", 0.1)) {
+          bell(m(4, 24), 0.15, "marimba", 0.048, 0, -0.14, 2400);
+          bell(m(0, 24), 0.22, "marimba", 0.05, 0.068, 0.06, 2200);
+          bell(m(4, 36), 0.14, "celesta", 0.032, 0.105, 0.22, 5200);
+        }
+        break;
       case "bounty":
       case "tribute":
-        if (this.gate("chime:buy", 0.1)) {
-          bell(m(1, 24), 0.18, "kalimba", 0.05, 0, -0.15);
-          bell(m(3, 24), 0.22, "harp", 0.052, 0.055, 0);
-          bell(m(5, 24), 0.28, "celesta", 0.048, 0.11, 0.15);
+        // Descending gilded coin cascade panning across the stereo field
+        if (this.gate("chime:bounty", 0.12)) {
+          const coins = [m(6, 24), m(4, 24), m(2, 24), m(0, 24)];
+          for (let i = 0; i < coins.length; i++) {
+            bell(coins[i], 0.16 + i * 0.03, i % 2 === 0 ? "celesta" : "kalimba", 0.038, i * 0.042, -0.24 + i * 0.16);
+          }
         }
         break;
       case "ready":
@@ -843,20 +910,19 @@ const SoundEngine = class {
       case "gadgetReady":
         if (this.gate("chime:ready", 0.12)) {
           const deg = id === "novaReady" ? 2 : id === "gadgetReady" ? 1 : 0;
-          bell(m(deg, 24), 0.16, "celesta", 0.044, 0, -0.12);
-          bell(m(deg + 4, 24), 0.22, "celesta", 0.048, 0.05, 0.12);
+          bell(m(deg, 24), 0.15, "celesta", 0.038, 0, -0.12);
+          bell(m(deg + 4, 24), 0.2, "celesta", 0.042, 0.05, 0.12);
         }
         break;
       case "combo":
         if (this.gate("chime:combo", 0.08)) {
           const lift = Math.max(0, Math.min(12, Number(arg) || 0));
-          bell(m(lift % 7, 24), 0.18, "kalimba", 0.048);
+          bell(m(lift % 7, 24), 0.16, "kalimba", 0.04);
         }
         break;
       case "propArm":
         if (this.gate("chime:propArm", 0.08)) {
-          bell(m(2, 24), 0.14, "kalimba", 0.042, 0, -0.1);
-          bell(m(4, 24), 0.18, "celesta", 0.045, 0.055, 0.1);
+          bell(m(2, 24), 0.14, "kalimba", 0.032, 0, 0);
         }
         break;
       case "propLantern":
@@ -865,6 +931,7 @@ const SoundEngine = class {
       case "propPrism":
       case "propCrucible":
       case "propSunglass":
+        // Single resonant pedal note so the physical prop blast/bell-toll takes center stage
         if (this.gate("chime:prop", 0.08)) {
           const inst =
             id === "propRime"
@@ -874,49 +941,62 @@ const SoundEngine = class {
                 : id === "propCrucible"
                   ? "brass"
                   : id === "propLantern"
-                    ? "kalimba"
+                    ? "ceramic"
                     : "harp";
-          bell(m(0, 24), 0.2, inst, 0.05, 0, -0.16);
-          bell(m(2, 24), 0.24, inst, 0.052, 0.05, 0);
-          bell(m(4, 24), 0.3, "celesta", 0.048, 0.1, 0.16);
+          const oct = id === "propCrucible" || id === "propPuffball" ? 12 : 24;
+          bell(m(0, oct), 0.34, inst, 0.036, 0, 0, 3200);
         }
         break;
       case "wave":
         if (this.gate("chime:wave", 0.2)) {
-          bell(m(0, 12), 0.34, "brass", 0.048, 0, -0.15);
-          bell(m(4, 12), 0.38, "harp", 0.046, 0.06, 0.15);
+          bell(m(0, 12), 0.34, "brass", 0.044, 0, -0.15, 2400);
+          bell(m(4, 12), 0.38, "harp", 0.042, 0.065, 0.15);
         }
         break;
       case "cleared":
+        // Warm resolving cadence (5 -> 3 -> 1, or extended flawless cadence)
         if (this.gate("chime:cleared", 0.2)) {
-          const notes = arg ? [m(0, 12), m(2, 24), m(4, 24), m(6, 24)] : [m(0, 12), m(2, 24), m(4, 24)];
+          const notes = arg ? [m(4, 12), m(2, 24), m(0, 24), m(4, 24)] : [m(4, 12), m(2, 24), m(0, 24)];
           for (let i = 0; i < notes.length; i++) {
             bell(
               notes[i],
-              0.3 + i * 0.04,
+              0.32 + i * 0.05,
               i === notes.length - 1 ? "celesta" : "harp",
-              0.054,
-              i * 0.06,
-              (i - 1) * 0.18,
+              0.048,
+              i * 0.075,
+              (i - (notes.length - 1) / 2) * 0.18,
+            );
+          }
+        }
+        break;
+      case "evolve":
+        // Radiant Lydian #4 shimmer (Masterwork ascension)
+        if (this.gate("chime:evolve", 0.25)) {
+          const rootBase = scoreScaleMidi(this.biome, 0, 12);
+          const lydian = [0, 4, 6, 7, 11, 14];
+          for (let i = 0; i < lydian.length; i++) {
+            bell(
+              rootBase + lydian[i],
+              0.32 + i * 0.05,
+              i < 2 ? "harp" : "celesta",
+              0.046,
+              i * 0.055,
+              (i - 2.5) * 0.16,
+              4600,
             );
           }
         }
         break;
       case "bossCleared":
-      case "evolve":
       case "victory":
+        // Stereo call-and-response carillon fanfare (left horn/harp call -> right celesta response -> tonic)
         if (this.gate("chime:fanfare", 0.25)) {
-          const notes = [m(0, 12), m(2, 12), m(4, 12), m(0, 24), m(4, 24)];
-          for (let i = 0; i < notes.length; i++) {
-            bell(
-              notes[i],
-              0.38 + i * 0.05,
-              i === 0 ? "brass" : i < 3 ? "harp" : "celesta",
-              0.058,
-              i * 0.07,
-              (i - 2) * 0.18,
-            );
-          }
+          bell(m(0, 12), 0.42, "brass", 0.054, 0, -0.34, 2600);
+          bell(m(4, 12), 0.38, "harp", 0.048, 0.08, -0.24);
+          bell(m(2, 24), 0.36, "celesta", 0.048, 0.2, 0.28);
+          bell(m(4, 24), 0.44, "celesta", 0.052, 0.29, 0.34);
+          bell(m(0, 24), 0.62, "harp", 0.054, 0.4, -0.14);
+          bell(m(0, 36), 0.68, "celesta", 0.044, 0.42, 0.14);
         }
         break;
     }
@@ -934,11 +1014,11 @@ const SoundEngine = class {
     }
     let kills = 0;
     for (let ev of events) {
+      const hasPos = listener && ev.x != null && ev.y != null && lx != null && ly != null;
+      const dist = hasPos ? Math.hypot(ev.x - lx, ev.y - ly) : 0;
       this.curPan = listener && ev.x != null && lx != null ? Math.max(-0.8, Math.min(0.8, (ev.x - lx) / 20)) : 0;
-      this.curAtten =
-        listener && ev.x != null && ev.y != null && lx != null && ly != null
-          ? Math.max(0.28, Math.min(1, 1.15 - Math.hypot(ev.x - lx, ev.y - ly) / 28))
-          : 1;
+      this.curAtten = hasPos ? Math.max(0.28, Math.min(1, 1.15 - dist / 28)) : 1;
+      this.curDistFrac = hasPos ? Math.max(0, Math.min(1, dist / 28)) : 0;
       switch (ev.k) {
         case "shot":
           this.play(rlShotSfx(ev.w));
@@ -1223,12 +1303,12 @@ const SoundEngine = class {
           break;
         case "bossAtk": {
           let voice = RL_BOSS_ATK[ev.atk];
-          if (RL_OVERDRIVE.has(ev.atk)) this.play("bOverdrive", ev.id);
-          if (voice) this.play(voice, ev.id);
+          if (RL_OVERDRIVE.has(ev.atk)) this.play("bOverdrive", ev.id, true);
+          if (voice) this.play(voice, ev.id, true);
           break;
         }
         case "enrage":
-          this.play("enrage", ev.id);
+          this.play("enrage", ev.id, true);
           this.bossPush(2);
           break;
         case "phase":
@@ -1243,6 +1323,7 @@ const SoundEngine = class {
     }
     this.curPan = 0;
     this.curAtten = 1;
+    this.curDistFrac = 0;
   }
   /* 3.1.0: mode "fight" is the calm theme of the biome, "boss" its boss track. The boss track starts on the
      spot (main.js calls this when the boss appears, at the camera pan), not with the wave. */

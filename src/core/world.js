@@ -1181,10 +1181,10 @@ const rlStep = 1 / 60,
       let firing = manual || (!!input.fire && aim != null) || (!!input.auto && aim != null && player.target != null);
       if (aim != null) {
         player.aim = turnToward(player.aim, aim, 30 * dt);
-      } else {
-        if (player.moving) {
-          player.aim = turnToward(player.aim, player.face, 8 * dt);
-        }
+      } else if (input.hasLook) {
+        player.aim = turnToward(player.aim, Math.atan2(input.lookY, input.lookX), 22 * dt);
+      } else if (player.moving) {
+        player.aim = turnToward(player.aim, player.face, 10 * dt);
       }
       player.firing = firing;
       player.manual = manual;

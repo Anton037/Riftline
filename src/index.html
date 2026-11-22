@@ -1385,7 +1385,8 @@ body.device-touch #home .arrow::after {
   -webkit-mask: radial-gradient(circle, transparent 58%, #000 60%);
   mask: radial-gradient(circle, transparent 58%, #000 60%);
 }
-.act-btn.gadget .pips {
+.act-btn.gadget .pips,
+.act-btn.dash .pips {
   position: absolute;
   z-index: 2;
   left: 0;
@@ -1396,7 +1397,10 @@ body.device-touch #home .arrow::after {
   gap: 3px;
   margin-top: 0;
 }
-.act-btn.gadget .pips i {
+.act-btn.dash .pips[hidden] { display: none; }
+.act-btn.dash.multi { padding-bottom: 8px; }
+.act-btn.gadget .pips i,
+.act-btn.dash .pips i {
   width: 5px;
   height: 5px;
   border-radius: 50%;
@@ -1405,6 +1409,10 @@ body.device-touch #home .arrow::after {
 .act-btn.gadget .pips i.on {
   background: var(--violet);
   box-shadow: 0 0 5px rgba(200, 158, 230, 0.9);
+}
+.act-btn.dash .pips i.on {
+  background: var(--accent);
+  box-shadow: 0 0 5px color-mix(in oklab, var(--accent) 88%, #fff);
 }
 .act-btn.gadget.empty {
   color: #b8a3cc;
@@ -3110,6 +3118,18 @@ body.device-desktop #settings > .settings-body {
     padding: 16px 12px 16px;
     gap: 8px;
   }
+  #choose .cards:has(> :nth-child(5)) {
+    max-width: min(1260px, 97vw);
+    gap: clamp(6px, 0.9vw, 10px);
+  }
+  #choose .cards:has(> :nth-child(5)) .card {
+    padding: 14px 10px 14px;
+    gap: 6px;
+  }
+  #choose .cards:has(> :nth-child(5)) .card .cico { width: 48px; height: 48px; }
+  #choose .cards:has(> :nth-child(5)) .card .cico .ico { width: 26px; height: 26px; }
+  #choose .cards:has(> :nth-child(5)) .card b { font-size: 16px; }
+  #choose .cards:has(> :nth-child(5)) .card p { font-size: 13px; }
   #choose .card .cico { width: 60px; height: 60px; }
   #choose .card .cico .ico { width: 32px; height: 32px; }
   #choose .card .ctop {
@@ -3420,7 +3440,8 @@ body.device-phone.is-landscape #hud .act-btn.nova { width: 50px; height: 50px; m
 body.device-phone.is-landscape #hud .act-btn.gadget { width: 50px; height: 50px; padding-bottom: 8px; }
 body.device-phone.is-landscape #hud .act-btn.gadget .gico { width: 16px; height: 16px; margin-top: 0; }
 body.device-phone.is-landscape #hud .act-btn.gadget .lbl { font-size: 10px; letter-spacing: 0.06em; }
-body.device-phone.is-landscape #hud .act-btn.gadget .pips { bottom: 4px; }
+body.device-phone.is-landscape #hud .act-btn.gadget .pips,
+body.device-phone.is-landscape #hud .act-btn.dash .pips { bottom: 4px; }
 body.device-phone.is-landscape #hud .combo-pop { top: calc(var(--st) + 18%); }
 body.device-phone.is-landscape #banner { top: 24%; }
 body.device-phone.is-landscape .coach {
@@ -3793,7 +3814,7 @@ body.device-phone.is-landscape #app:has(#hud:not([hidden])) .toast {
   <div id="hud" hidden>
     <div class="hud-top">
       <div class="hp-block">
-        <div class="hp-label"><span>WARD</span><span id="hpNum" class="num">100</span><span id="shieldPip" class="pip" hidden title="Glass Ward Bell"></span></div>
+        <div class="hp-label"><span>HP</span><span id="hpNum" class="num">100</span><span id="shieldPip" class="pip" hidden title="Energy Shield"></span></div>
         <div class="bar hp"><i id="hpFill"></i></div>
         <div id="buffs" class="buffs"></div>
       </div>
@@ -3809,16 +3830,16 @@ body.device-phone.is-landscape #app:has(#hud:not([hidden])) .toast {
       </div>
     </div>
     <div id="bossBar" class="boss-bar" hidden>
-      <div class="boss-name"><span id="bossName">GUARDIAN</span><span id="bossPhase"></span></div>
+      <div class="boss-name"><span id="bossName">BOSS</span><span id="bossPhase"></span></div>
       <div class="bar boss"><i id="bossFill"></i><b id="bossLag"></b><span id="bossTicks" class="ticks"></span></div>
     </div>
     <div id="coach" class="coach" hidden><div id="coachDots" class="coach-dots"></div><p id="coachText"></p></div>
     <div class="act">
       <div class="act-row">
-        <button id="gadgetBtn" class="act-btn gadget" aria-label="Toss Lodestone Chime"><span class="ring"></span><svg class="gico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="currentColor"/><path d="M12 3.5a8.5 8.5 0 0 1 8.5 8.5M20.5 12a8.5 8.5 0 0 1-8.5 8.5M12 20.5A8.5 8.5 0 0 1 3.5 12M3.5 12A8.5 8.5 0 0 1 12 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="7 6"/><path d="M12 7.2a4.8 4.8 0 0 1 4.8 4.8M12 16.8A4.8 4.8 0 0 1 7.2 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span class="lbl">CHIME</span><span id="gadgetPips" class="pips" aria-hidden="true"></span><span id="gadgetKey" class="key" aria-hidden="true">G</span></button>
-        <button id="novaBtn" class="act-btn nova" aria-label="Hearthburst"><span class="ring"></span><span class="lbl">BURST</span><span class="key" aria-hidden="true">E</span></button>
+        <button id="gadgetBtn" class="act-btn gadget" aria-label="Throw Gravity Grenade"><span class="ring"></span><svg class="gico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="currentColor"/><path d="M12 3.5a8.5 8.5 0 0 1 8.5 8.5M20.5 12a8.5 8.5 0 0 1-8.5 8.5M12 20.5A8.5 8.5 0 0 1 3.5 12M3.5 12A8.5 8.5 0 0 1 12 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="7 6"/><path d="M12 7.2a4.8 4.8 0 0 1 4.8 4.8M12 16.8A4.8 4.8 0 0 1 7.2 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span class="lbl">GRENADE</span><span id="gadgetPips" class="pips" aria-hidden="true"></span><span id="gadgetKey" class="key" aria-hidden="true">G</span></button>
+        <button id="novaBtn" class="act-btn nova" aria-label="Nova"><span class="ring"></span><span class="lbl">NOVA</span><span class="key" aria-hidden="true">E</span></button>
       </div>
-      <button id="dashBtn" class="act-btn dash" aria-label="Dash"><span class="ring"></span><span class="lbl">DASH</span><span class="key" aria-hidden="true">SPACE</span></button>
+      <button id="dashBtn" class="act-btn dash" aria-label="Dash"><span class="ring"></span><span class="lbl">DASH</span><span id="dashPips" class="pips" aria-hidden="true" hidden></span><span class="key" aria-hidden="true">SPACE</span></button>
     </div>
   </div>
   <div id="banner" aria-live="polite"></div>
@@ -3849,34 +3870,34 @@ body.device-phone.is-landscape #app:has(#hud:not([hidden])) .toast {
     <div class="home-grid">
       <div class="brand">
         <h1 class="logo" data-text="Riftline">Riftline</h1>
-        <p class="tagline">Six Miniature Realms · One Lantern-Artificer</p>
+        <p class="tagline">20 Waves · 6 Worlds · Action Roguelite</p>
         <p id="bestLine" class="best-line" hidden></p>
       </div>
       <div class="home-panel">
         <div class="weapon-card panel">
           <div class="wc-head">
-            <button id="wPrev" class="arrow" aria-label="Previous arm" data-icon="back"></button>
-            <div class="wc-title"><div class="eyebrow">ARTIFICER ARM <span id="wIndex"></span></div><div id="wName" class="wc-name">Lantern Repeater</div></div>
-            <button id="wNext" class="arrow flip" aria-label="Next arm" data-icon="back"></button>
+            <button id="wPrev" class="arrow" aria-label="Previous weapon" data-icon="back"></button>
+            <div class="wc-title"><div class="eyebrow">WEAPON <span id="wIndex"></span></div><div id="wName" class="wc-name">Pulse Blaster</div></div>
+            <button id="wNext" class="arrow flip" aria-label="Next weapon" data-icon="back"></button>
           </div>
           <p id="wBlurb" class="wc-blurb"></p>
           <div id="wStats" class="wc-stats"></div>
           <button id="wBuy" class="btn buy" hidden></button>
         </div>
         <div class="threat-row panel">
-          <button id="tPrev" class="arrow small" aria-label="Lower trial" data-icon="back"></button>
-          <div class="threat-mid"><div id="tName" class="threat-name">Wayfarer</div><div id="tDesc" class="threat-desc"></div></div>
-          <button id="tNext" class="arrow small flip" aria-label="Higher trial" data-icon="back"></button>
+          <button id="tPrev" class="arrow small" aria-label="Lower difficulty" data-icon="back"></button>
+          <div class="threat-mid"><div id="tName" class="threat-name">Normal</div><div id="tDesc" class="threat-desc"></div></div>
+          <button id="tNext" class="arrow small flip" aria-label="Higher difficulty" data-icon="back"></button>
         </div>
         <button id="continueBtn" class="btn primary alt" hidden></button>
         <p id="continueNote" class="note checkpoint-note" hidden></p>
-        <button id="playBtn" class="btn primary">BEGIN EXPEDITION</button>
+        <button id="playBtn" class="btn primary">PLAY</button>
       </div>
     </div>
     <nav class="bottom-nav" aria-label="Primary">
-      <button data-go="workshop"><span data-icon="wrench"></span>Sanctuary</button>
-      <button data-go="records"><span data-icon="trophy"></span>Journal<i id="recBadge" class="badge" hidden></i></button>
-      <button data-go="news"><span data-icon="info"></span>Chronicle<i id="newsBadge" class="badge" hidden></i></button>
+      <button data-go="workshop"><span data-icon="wrench"></span>Workshop</button>
+      <button data-go="records"><span data-icon="trophy"></span>Records<i id="recBadge" class="badge" hidden></i></button>
+      <button data-go="news"><span data-icon="info"></span>News<i id="newsBadge" class="badge" hidden></i></button>
       <button data-go="settings"><span data-icon="gear"></span>Settings</button>
     </nav>
   </section>
@@ -3885,11 +3906,11 @@ body.device-phone.is-landscape #app:has(#hud:not([hidden])) .toast {
   <section id="workshop" class="screen page" hidden>
     <header class="topbar">
       <button class="icon-btn" data-back aria-label="Back" data-icon="back"></button>
-      <h2>Sanctuary Workshop</h2>
+      <h2>Workshop</h2>
       <div class="spacer"></div>
       <div class="shard-chip big"><span class="shard-ico"></span><span class="num bankMirror">0</span></div>
     </header>
-    <p class="page-intro">Lasting artificer crafts. Star-shards from every expedition — won or lost — forge them.</p>
+    <p class="page-intro">Permanent upgrades. Spend shards earned from every run — won or lost.</p>
     <div id="wsList" class="list scroll"></div>
   </section>
 
@@ -3897,14 +3918,14 @@ body.device-phone.is-landscape #app:has(#hud:not([hidden])) .toast {
   <section id="records" class="screen page" hidden>
     <header class="topbar">
       <button class="icon-btn" data-back aria-label="Back" data-icon="back"></button>
-      <h2>Wayfarer Journal</h2>
+      <h2>Records</h2>
       <div class="spacer"></div>
       <div class="shard-chip big"><span class="shard-ico"></span><span class="num bankMirror">0</span></div>
     </header>
     <div class="scroll">
-      <p class="page-intro">Claim star-shard bounties for your deeds across the six realms.</p>
+      <p class="page-intro">Claim shard rewards for completing milestones.</p>
       <div id="msList" class="list"></div>
-      <h3 class="section-h">Expedition ledger</h3>
+      <h3 class="section-h">Lifetime stats</h3>
       <div id="statGrid" class="stat-grid"></div>
       <div id="runHist" class="list"></div>
     </div>
@@ -3914,7 +3935,7 @@ body.device-phone.is-landscape #app:has(#hud:not([hidden])) .toast {
   <section id="news" class="screen page" hidden>
     <header class="topbar">
       <button class="icon-btn" data-back aria-label="Back" data-icon="back"></button>
-      <h2>Chronicle</h2>
+      <h2>What's New</h2>
     </header>
     <div id="newsList" class="scroll settings-body"></div>
   </section>
@@ -3950,7 +3971,7 @@ body.device-phone.is-landscape #app:has(#hud:not([hidden])) .toast {
       <div class="set-group">
         <label class="set-row"><span><b>Effects</b></span><span class="row-ctl"><input type="range" id="setSfx" min="0" max="1" step="0.05"><output id="setSfxV" class="num set-val">80%</output></span></label>
         <label class="set-row"><span><b>Music</b></span><span class="row-ctl"><input type="range" id="setMusic" min="0" max="1" step="0.05"><output id="setMusicV" class="num set-val">45%</output></span></label>
-        <label class="set-row"><span><b>Ambience</b><small>Sounds of the realms: wind, forge vents, ice, bog pools, sand, portals, lantern chimes far away.</small></span><span class="row-ctl"><input type="range" id="setAmb" min="0" max="1" step="0.05"><output id="setAmbV" class="num set-val">80%</output></span></label>
+        <label class="set-row"><span><b>Ambience</b><small>Background world sounds: wind, lava vents, ice, acid pools, sand, portals, and distant chimes.</small></span><span class="row-ctl"><input type="range" id="setAmb" min="0" max="1" step="0.05"><output id="setAmbV" class="num set-val">80%</output></span></label>
       </div>
       <div class="set-foot">
         <span class="note">Riftline <span id="verText" class="num"></span> · progress saves automatically<span id="storageWarn" hidden> — <b id="storageWarnText">storage is blocked in this browser</b></span></span>
@@ -3966,15 +3987,15 @@ body.device-phone.is-landscape #app:has(#hud:not([hidden])) .toast {
   <section id="choose" class="screen overlay" hidden>
     <div class="choose-head">
       <div id="chooseEyebrow" class="eyebrow">WAVE 1 CLEARED</div>
-      <h2 id="chooseTitle">Choose a craft</h2>
-      <p id="chooseFirstHint" class="choose-first-hint" hidden>Cards attune your lantern-craft for this expedition. Spend star-shards in the Sanctuary for lasting crafts.</p>
+      <h2 id="chooseTitle">Choose an upgrade</h2>
+      <p id="chooseFirstHint" class="choose-first-hint" hidden>Cards upgrade your build for this run. Spend shards in the Workshop for permanent upgrades.</p>
       <div id="nextWave" class="next-wave" aria-live="polite"></div>
       <div class="choose-hp"><div class="bar hp small"><i id="chooseHp"></i></div><span id="chooseHpNum" class="num"></span></div>
     </div>
     <div id="cards" class="cards"></div>
     <div class="choose-foot">
       <button id="rerollBtn" class="btn ghost"><span data-icon="reroll"></span><span id="rerollTxt">Reroll</span></button>
-      <button id="banishBtn" class="btn ghost" hidden><span data-icon="skull"></span><span id="banishTxt">Seal</span></button>
+      <button id="banishBtn" class="btn ghost" hidden><span data-icon="skull"></span><span id="banishTxt">Banish</span></button>
     </div>
     <div id="buildStrip" class="build-strip"></div>
   </section>
@@ -3982,7 +4003,7 @@ body.device-phone.is-landscape #app:has(#hud:not([hidden])) .toast {
   <!-- ====================================================== PAUSE -->
   <section id="pause" class="screen overlay" hidden>
     <div class="center-col">
-      <div class="eyebrow">EXPEDITION PAUSED</div>
+      <div class="eyebrow">PAUSED</div>
       <h2 id="pauseTitle">Wave 1</h2>
       <div id="pauseStats" class="mini-stats"></div>
       <button id="resumeBtn" class="btn primary">RESUME</button>
@@ -3993,7 +4014,7 @@ body.device-phone.is-landscape #app:has(#hud:not([hidden])) .toast {
       <button id="abandonBtn" class="btn danger ghost">Abandon run</button>
       <div class="section-h">Stats</div>
       <div id="pauseStatRows" class="stat-rows panel"></div>
-      <div class="section-h">Craft Build</div>
+      <div class="section-h">Upgrades</div>
       <div id="pauseBuild" class="build-list"></div>
       <div id="pauseUpInfo" class="up-info" aria-live="polite" hidden></div>
     </div>
@@ -4003,21 +4024,21 @@ body.device-phone.is-landscape #app:has(#hud:not([hidden])) .toast {
   <section id="over" class="screen overlay" hidden>
     <div class="center-col">
       <div id="overEyebrow" class="eyebrow"></div>
-      <h2 id="overTitle" class="over-title">LANTERN DIMMED</h2>
+      <h2 id="overTitle" class="over-title">RUN OVER</h2>
       <div id="overCause" class="over-cause" hidden></div>
       <div id="overBest" class="chip best" hidden>NEW BEST</div>
       <div id="overStats" class="stat-grid compact"></div>
       <div class="payout panel">
         <div id="payRows"></div>
-        <div class="pay-total"><span>Star-shards gathered</span><span class="shard-chip"><span class="shard-ico"></span><span id="payTotal" class="num">0</span></span></div>
+        <div class="pay-total"><span>Shards earned</span><span class="shard-chip"><span class="shard-ico"></span><span id="payTotal" class="num">0</span></span></div>
       </div>
       <div id="overRecap" class="dmg-panel panel recap" hidden></div>
       <div id="overDmg" class="dmg-panel panel" hidden></div>
       <div id="overExtra" class="run-extra panel" hidden></div>
       <div id="overMs" class="ms-unlocked"></div>
       <button id="endlessBtn" class="btn primary" hidden>CONTINUE · ENDLESS</button>
-      <button id="retryBtn" class="btn primary">EMBARK AGAIN</button>
-      <button id="homeBtn" class="btn">Sanctuary</button>
+      <button id="retryBtn" class="btn primary">PLAY AGAIN</button>
+      <button id="homeBtn" class="btn">Home</button>
     </div>
   </section>
 

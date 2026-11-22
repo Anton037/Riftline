@@ -556,6 +556,28 @@ export class HazardView {
           );
         }
       }
+      if (world.event === "harmonic" && world.state === "fight") {
+        // Empowering harmonic leyline connecting the portal pair
+        const pulse = 0.75 + 0.25 * Math.sin(time * 5.2);
+        r.beams.colC(r.beams.seg(portal.ax, portal.ay, portal.bx, portal.by, 0.14, 0.42, 0.04), PORTAL_A, 0.26 * pulse);
+        r.beams.colC(r.beams.seg(portal.ax, portal.ay, portal.bx, portal.by, 0.18, 0.14, 0.04), PORTAL_B, 0.56 * pulse);
+        r.beams.colC(r.beams.seg(portal.ax, portal.ay, portal.bx, portal.by, 0.22, 0.045, 0.03), WHITE, 0.7 * pulse);
+        if (Math.random() < dt * 12 * quality) {
+          const f = Math.random();
+          r.emit(
+            portal.ax + (portal.bx - portal.ax) * f,
+            0.22,
+            portal.ay + (portal.by - portal.ay) * f,
+            0,
+            1.1,
+            0,
+            0.48,
+            0.16,
+            f < 0.5 ? PORTAL_A : PORTAL_B,
+            { spark: true, drag: 1.5 },
+          );
+        }
+      }
     }
     for (const portal of world.arena.portals) {
       const next = portal.next;

@@ -348,14 +348,56 @@ export class AttackView {
       return;
     }
 
-    if (hazard.kind === "mine" || hazard.kind === "sapper") {
-      const P = this.get(hazard.kind === "mine" ? "mine" : "charge");
+    if (hazard.kind === "starfall") {
+      // Falling golden star-comet descending into the gilded harvest ring
+      const hy = 0.28 + Math.pow(1 - k, 1.35) * 14.0;
+      const sx = x + (1 - k) * 2.2;
+      const sz = z - (1 - k) * 1.4;
+      const cometCol = FIRE_HOT;
+      r.ringPool.colC(
+        r.ringPool.y(x, 0.07, z, time * 2.4 + seed * TAU, rr * (0.35 + k * 0.68)),
+        cometCol,
+        0.65 + k * 0.35,
+      );
+      r.ringPool.colC(r.ringPool.y(x, 0.08, z, -time * 3.1, rr * Math.max(0.22, 1 - k * 0.78)), WHITE, 0.52 + k * 0.42);
+      const P = this.get("glasshot");
+      const sc = 0.48 + k * 0.22;
+      P.glow.colC(P.glow.yr(sx, hy, sz, time * 6, sc, sc, sc, 0.8, time * 8), cometCol, 1.45);
+      r.sprites.colC(r.sprites.bb(sx, hy, sz, 1.45, r.B), cometCol, 0.72);
+      r.beams.colC(r.beams.seg(sx, sz, sx + 0.55, sz - 0.35, hy + 0.9, 0.14, 0.14), WHITE, 0.68);
+      if (chance(18 + k * 24)) {
+        r.emit(sx, hy, sz, (Math.random() - 0.5) * 1.6, 1.4, (Math.random() - 0.5) * 1.6, 0.4, 0.15, cometCol, {
+          spark: true,
+          drag: 1.6,
+        });
+      }
+      return;
+    }
+
+    if (hazard.kind === "mine" || hazard.kind === "sapper" || hazard.crucibleBomb) {
+      const P = this.get(hazard.crucibleBomb ? "cinder" : hazard.kind === "mine" ? "mine" : "charge");
       const pop = clamp(hazard.t / 0.12, 0, 1);
-      const s = 0.4 + 0.6 * pop + (k > 0.8 ? Math.sin(time * 38) * 0.05 : 0);
-      const yaw = seed * TAU;
-      P.body.y(x, 0, z, yaw, s);
-      const wick = P.glow.y(x, 0, z, yaw, s);
-      P.glow.colC(wick, k > 0.72 ? r.warnColor : FIRE_HOT, 0.85 + 0.65 * Math.abs(Math.sin(time * (6 + 18 * k))));
+      const baseScale = hazard.crucibleBomb ? 0.58 : 1.0;
+      const s = baseScale * (0.45 + 0.55 * pop + (k > 0.78 ? Math.sin(time * 38) * 0.06 : 0));
+      const yaw = seed * TAU + (hazard.crucibleBomb ? time * 1.8 : 0);
+      const py = hazard.crucibleBomb ? 0.36 : 0;
+      P.body.y(x, py, z, yaw, s);
+      const wick = P.glow.y(x, py, z, yaw, s);
+      P.glow.colC(wick, k > 0.72 ? r.warnColor : FIRE_HOT, 0.9 + 0.65 * Math.abs(Math.sin(time * (6 + 18 * k))));
+      if (hazard.shootable) {
+        // Clear turquoise-gold rotating ring showing players they can shoot this bomb early!
+        const pulse = 0.72 + 0.28 * Math.sin(time * 12);
+        r.ringPool.colC(
+          r.ringPool.y(x, 0.12, z, time * 3.6, hazard.crucibleBomb ? 1.15 : 0.78),
+          ACID_LITE,
+          0.72 * pulse,
+        );
+        r.ringPool.colC(
+          r.ringPool.y(x, 0.14, z, -time * 2.4, hazard.crucibleBomb ? 0.85 : 0.54),
+          FIRE_HOT,
+          0.62 * pulse,
+        );
+      }
       if (chance(8 + k * 20))
         r.emit(x, 0.34, z, (Math.random() - 0.5) * 1.4, 1.8 + k * 2, (Math.random() - 0.5) * 1.4, 0.3, 0.12, FIRE_HOT, {
           spark: true,
@@ -606,11 +648,23 @@ export class AttackView {
         "bomber",
         "shorted",
         "brimlit",
+        "starfall",
+        "crucible",
       ].includes(kind)
     ) {
       return false;
     }
     const shake = (amount) => r.addShake(amount * shakeK);
+    if (kind === "starfall") {
+      this.pillar(x, z, rr * 0.24, 9.5, FIRE_HOT, 0.38);
+      r.burst(x, z, 0.4, 24, 6.5, FIRE_HOT, 0.55, 0.26, { up: 5.5, spark: true, drag: 1.8 });
+      r.burst(x, z, 0.4, 12, 4.5, WHITE, 0.38, 0.18, { up: 6.5, spark: true, drag: 2.2 });
+      r.ring(x, z, rr * 0.2, rr * 1.25, FIRE_HOT, 0.42);
+      r.flash(x, z, rr * 2.0, 1.1, FIRE_HOT, 4.5);
+      this.mark(x, z, rr * 0.85, M.burn);
+      shake(0.14);
+      return true;
+    }
     if (kind === "shorted" || kind === "brimlit") {
       r.burst(x, z, 0.3, 22, 6, WHITE, 0.3, 0.26, { up: 6, spark: true, drag: 1 });
       r.burst(x, z, 0.3, 12, 3.5, ARC, 0.45, 0.3, { up: 3, spark: true });
@@ -759,50 +813,34 @@ export class AttackView {
       const ca = Math.cos(angle),
         sa = Math.sin(angle);
       const chance = (rate) => Math.random() < dt * rate;
-      r.shadows.y(shot.x, 0.035, shot.y, 0, Math.max(0.45, shot.r * 3.5));
-      // Layer 6: crisp dark-ink outer backing halo behind EVERY enemy & boss projectile so zero shots vanish on snow/sand/VFX
-      const inkX = shot.x - basis.fx * 0.14;
-      const inkY = h - basis.fy * 0.14;
-      const inkZ = shot.y - basis.fz * 0.14;
-      if (r.ebInk) r.ebInk.bb(inkX, inkY, inkZ, Math.max(0.36, shot.r * 2.55), basis);
-      let halo = 2.6,
-        light = 0.24;
+      r.shadows.y(shot.x, 0.035, shot.y, 0, Math.max(0.45, shot.r * 3.0));
+      let halo = 2.75,
+        light = 0.32;
       switch (kind) {
         case "bolt":
         case "fast":
         case "turret": {
           const heavy = kind === "turret";
           const len = shot.r * (kind === "fast" ? 5.6 : heavy ? 3.8 : 3.1);
-          if (r.ebBoltInk) {
-            r.ebBoltInk.seg(
-              shot.x - ca * (len * 0.96),
-              shot.y - sa * (len * 0.96),
-              shot.x + ca * (shot.r * 0.7),
-              shot.y + sa * (shot.r * 0.7),
-              h - 0.04,
-              shot.r * (heavy ? 1.5 : 1.25),
-              shot.r * 0.85,
-            );
-          }
-          r.ebCore.colC(r.ebCore.y(shot.x, h, shot.y, angle, len * 0.92, shot.r * 0.74, shot.r * 0.74), color, 1.22);
+          r.ebCore.colC(r.ebCore.y(shot.x, h, shot.y, angle, len * 0.94, shot.r * 0.78, shot.r * 0.78), color, 1.32);
           r.ebCore.col(
             r.ebCore.y(
               shot.x + ca * shot.r * 0.15,
               h + 0.03,
               shot.y + sa * shot.r * 0.15,
               angle,
-              len * 0.45,
-              shot.r * 0.36,
-              shot.r * 0.36,
+              len * 0.48,
+              shot.r * 0.38,
+              shot.r * 0.38,
             ),
             1.0,
-            0.95,
-            0.88,
+            0.96,
+            0.9,
           );
           r.beams.colC(
-            r.beams.seg(shot.x - ca * len, shot.y - sa * len, shot.x, shot.y, h, heavy ? 0.085 : 0.045, 0.045),
+            r.beams.seg(shot.x - ca * len, shot.y - sa * len, shot.x, shot.y, h, heavy ? 0.095 : 0.055, 0.055),
             color,
-            0.72,
+            0.82,
           );
           if (heavy && chance(7)) r.emit(shot.x, h, shot.y, 0, 0.3, 0, 0.16, 0.1, color, { spark: true, drag: 5 });
           break;

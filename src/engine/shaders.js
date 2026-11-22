@@ -509,10 +509,10 @@ void main() {
   vec3 lit = albedo * (keyLight + hemi + fill) * groundShade + spec + rim;
   lit += evalPointLights(vWorldPos, N, albedo);
 
-  float inkMask = smoothstep(0.36, 0.07, ndv) * (1.0 - smoothstep(0.48, 0.85, max(N.y, 0.0)));
-  float inkAmt = inkMask * uInkStrength * (1.0 - uDustFade) * 0.54;
-  vec3 inkCol = mix(vec3(0.015, 0.011, 0.024), uShadowTint * 0.22, 0.44);
-  lit = mix(lit, inkCol, clamp(inkAmt, 0.0, 0.62));
+  float inkMask = smoothstep(0.30, 0.05, ndv) * (1.0 - smoothstep(0.42, 0.80, max(N.y, 0.0)));
+  float inkAmt = inkMask * uInkStrength * (1.0 - uDustFade) * 0.16;
+  vec3 inkCol = mix(uShadowTint * 0.34, albedo * 0.38, 0.45);
+  lit = mix(lit, inkCol, clamp(inkAmt, 0.0, 0.22));
 
   lit += uEmissive * uEmissiveIntensity;
 
@@ -1400,21 +1400,18 @@ void main() {
   float r = length(vP), a = atan(vP.y, vP.x + 1e-5), k = clamp(vI.r, 0.0, 1.0);
   if (r > 1.0) discard;
   int look = int(vI.b * 8.0 + 0.5);
-  // Outer dark-ink outline sits strictly outside the vivid danger rim so it stays razor-sharp on snow & sand
-  float inkOuter = exp(-pow((r - 0.962) * 38.0, 2.0));
-  float inkInner = exp(-pow((r - 0.855) * 44.0, 2.0)) * 0.65;
-  float brightRim = exp(-pow((r - 0.908) * 54.0, 2.0));
+  float brightRim = exp(-pow((r - 0.915) * 44.0, 2.0));
+  float outerGlow = exp(-pow((r - 0.955) * 26.0, 2.0)) * 0.45;
   float fillWave = smoothstep(k + 0.03, k - 0.02, r);
-  float fillEdge = exp(-pow((r - mix(0.14, 0.86, k)) * 34.0, 2.0));
+  float fillEdge = exp(-pow((r - mix(0.14, 0.88, k)) * 34.0, 2.0));
   float ticks = exp(-pow((r - 0.78) * 32.0, 2.0)) * smoothstep(0.74, 0.94, cos(a * 16.0));
   vec3 el = mix(elementColor(look), uWarn * 1.05, 0.30);
-  vec3 ink = vec3(0.014, 0.008, 0.018);
-  vec3 col = mix(el * 0.68, el * 1.15, clamp(brightRim + fillEdge * 0.85 + ticks * 0.55, 0.0, 1.0));
-  col = mix(col, ink, clamp(inkOuter * 0.96 + inkInner * (1.0 - brightRim), 0.0, 0.96));
-  float baseAlpha = (0.20 + 0.30 * fillWave) * (1.0 - r * 0.16);
-  float lineAlpha = max(inkOuter * 0.96, max(brightRim * 0.95, max(fillEdge * 0.88, inkInner * 0.72)));
+  vec3 hotEdge = mix(el * 1.25, vec3(1.18, 1.12, 0.96), 0.32);
+  vec3 col = mix(el * 0.72, hotEdge, clamp(brightRim + fillEdge * 0.85 + ticks * 0.55, 0.0, 1.0));
+  float baseAlpha = (0.18 + 0.28 * fillWave) * (1.0 - r * 0.14);
+  float lineAlpha = max(brightRim * 0.92, max(fillEdge * 0.86, max(outerGlow, ticks * 0.55)));
   float alpha = max(baseAlpha, lineAlpha);
-  fragColor = vec4(col, clamp(alpha * (1.0 - smoothstep(0.985, 1.0, r)), 0.0, 0.96));
+  fragColor = vec4(col, clamp(alpha * (1.0 - smoothstep(0.975, 1.0, r)), 0.0, 0.94));
 }`;
   return { vs, fs };
 }

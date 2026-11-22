@@ -383,20 +383,28 @@ const Input = class {
         this.usedAim = true;
       }
     }
-    if (!aim && world && this.r && this.mouse.down) {
+    let lookX = 0,
+      lookY = 0,
+      hasLook = false;
+    if (!RL_INPUT.touch && world && this.r && Number.isFinite(this.mouse.x) && Number.isFinite(this.mouse.y)) {
       let ground = this.r.groundAt(this.mouse.x, this.mouse.y);
       if (ground) {
         let dx = ground.x - world.player.x,
           dy = ground.y - world.player.y,
           dist = Math.hypot(dx, dy);
         if (dist > 0.3) {
-          ax = dx / dist;
-          ay = dy / dist;
-          aim = true;
-          this.usedAim = true;
+          lookX = dx / dist;
+          lookY = dy / dist;
+          hasLook = true;
+          if (!aim && this.mouse.down) {
+            ax = lookX;
+            ay = lookY;
+            aim = true;
+            this.usedAim = true;
+          }
         }
       }
-      fire = true;
+      if (!aim && this.mouse.down) fire = true;
     }
     this.manualAim = !!(aim || this.mouse.down || this.aim.active);
     this.showReticle = !RL_INPUT.touch && (this.mouse.down || settings.autoFire === false || this.showReticle);
@@ -407,6 +415,9 @@ const Input = class {
       ay,
       aim,
       fire,
+      lookX,
+      lookY,
+      hasLook,
       auto: settings.autoFire !== false,
       assist: settings.assist !== false,
       dash: this.pending.dash,

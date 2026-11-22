@@ -221,10 +221,15 @@ const healthBarTypes = {
         if (world.enemies.length <= 6 || (world.state === "fight" && world.stragglerT > 3)) return true;
         for (let i = 0; i < world.enemies.length; i++) {
           const e = world.enemies[i];
-          if (e.boss || e.st === 1) return true;
+          if (e.boss || e.caravan || e.st === 1) return true;
           if ((e.elite || healthBarTypes[e.type]) && (e.hp < e.maxHp || (e.shieldMax > 0 && e.shield < e.shieldMax))) {
             return true;
           }
+        }
+      }
+      if (world.hazards?.length) {
+        for (let i = 0; i < world.hazards.length; i++) {
+          if (!world.hazards[i].done && world.hazards[i].shootable) return true;
         }
       }
       if (player?.alive && world.stats && player.hp / world.stats.maxHp < 0.6 && world.pickups?.length > 0) {
@@ -327,12 +332,12 @@ const healthBarTypes = {
       for (let enemy of world.enemies) {
         if (
           enemy.boss ||
-          (enemy.hp >= enemy.maxHp && !(enemy.shieldMax > 0 && enemy.shield < enemy.shieldMax)) ||
-          !(enemy.elite || healthBarTypes[enemy.type]) ||
+          (!enemy.caravan && enemy.hp >= enemy.maxHp && !(enemy.shieldMax > 0 && enemy.shield < enemy.shieldMax)) ||
+          !(enemy.elite || enemy.caravan || healthBarTypes[enemy.type]) ||
           !project(enemy.x, 1.2 + enemy.r * 1.4, enemy.y)
         )
           continue;
-        let width = 24 + enemy.r * 16,
+        let width = (enemy.caravan ? 32 : 24) + enemy.r * 16,
           hpFrac = clamp(enemy.hp / enemy.maxHp, 0, 1),
           x0 = pos.x - width / 2;
         // Smooth hit-drain catchup bar (kept in WeakMap so simulation entities remain pure)
@@ -346,13 +351,37 @@ const healthBarTypes = {
           ctx.fillStyle = "rgba(255,236,192,0.88)";
           fillPill(ctx, x0, pos.y, Math.max(4, width * prev), 4.5);
         }
-        ctx.fillStyle = enemy.elite ? "#ffd26e" : "#ff6b5e";
+        ctx.fillStyle = enemy.caravan ? "#ffd85a" : enemy.elite ? "#ffd26e" : "#ff6b5e";
         fillPill(ctx, x0, pos.y, Math.max(4, width * hpFrac), 4.5);
         if (enemy.shieldMax > 0 && enemy.shield > 0) {
           ctx.fillStyle = "rgba(14,10,22,0.84)";
           fillPill(ctx, x0 - 1.5, pos.y - 6.5, width + 3, 5);
           ctx.fillStyle = "#8cf4ff";
           fillPill(ctx, x0, pos.y - 5.5, Math.max(3, width * (enemy.shield / enemy.shieldMax)), 3);
+        }
+      }
+      // Subtle crisp corner brackets around shootable hazards (Ember-Pots & Crucible Bombs) so players spot them instantly
+      if (world.hazards?.length) {
+        for (const h of world.hazards) {
+          if (h.done || !h.shootable || !inView(h.x, 0.45, h.y)) continue;
+          const bSize = h.crucibleBomb ? 17 : 13;
+          const pulse = 0.72 + 0.28 * Math.sin(this.time * 10);
+          ctx.save();
+          ctx.translate(pos.x, pos.y);
+          ctx.globalAlpha = 0.85 * pulse;
+          ctx.strokeStyle = "#a8ffdf";
+          ctx.lineWidth = 2;
+          ctx.lineCap = "round";
+          for (let c = 0; c < 4; c++) {
+            const sx = c === 0 || c === 3 ? -1 : 1;
+            const sy = c < 2 ? -1 : 1;
+            ctx.beginPath();
+            ctx.moveTo(sx * bSize, sy * (bSize - 5));
+            ctx.lineTo(sx * bSize, sy * bSize);
+            ctx.lineTo(sx * (bSize - 5), sy * bSize);
+            ctx.stroke();
+          }
+          ctx.restore();
         }
       }
       ctx.textAlign = "center";
@@ -381,18 +410,33 @@ const healthBarTypes = {
           }
         }
         let alpha = clamp(num.life / 0.35, 0, 1),
-          pop = 1 + Math.max(0, 1 - (renderer.time - num.t0) / 0.14) * (num.crit ? 0.52 : 0.36),
+          pop = 1 + Math.max(0, 1 - (renderer.time - num.t0) / 0.16) * (num.superCrit ? 0.68 : num.crit ? 0.52 : 0.36),
           fontSize = Math.round(
-            Math.min(28, (num.crit ? 16.5 : num.burn ? 10 : 12) + 3.5 * Math.log10(1 + Math.max(0, num.v))) * pop,
+            Math.min(
+              num.superCrit ? 32 : 28,
+              (num.superCrit ? 19 : num.crit ? 16.5 : num.burn ? 10 : 12) + 3.5 * Math.log10(1 + Math.max(0, num.v)),
+            ) * pop,
           );
         this.setFont(`700 ${fontSize}px "Instrument Sans", system-ui, sans-serif`);
-        let text = String(Math.max(1, Math.round(num.v))) + (num.crit ? "!" : "");
+        let text = String(Math.max(1, Math.round(num.v))) + (num.superCrit ? "\u2605" : num.crit ? "!" : "");
         ctx.globalAlpha = alpha;
         ctx.lineJoin = "round";
-        ctx.lineWidth = num.crit ? 4.4 : 3.8;
-        ctx.strokeStyle = num.crit ? "rgba(46,20,8,0.92)" : "rgba(14,12,24,0.92)";
+        ctx.lineWidth = num.superCrit ? 5 : num.crit ? 4.4 : 3.8;
+        ctx.strokeStyle = num.superCrit
+          ? "rgba(120,44,6,0.95)"
+          : num.crit
+            ? "rgba(46,20,8,0.92)"
+            : "rgba(14,12,24,0.92)";
         ctx.strokeText(text, nx, ny);
-        ctx.fillStyle = num.crit ? "#ffe074" : num.burn ? "#ff9244" : num.shield ? "#94f4ff" : "#fff7e4";
+        ctx.fillStyle = num.superCrit
+          ? "#fff4b8"
+          : num.crit
+            ? "#ffe074"
+            : num.burn
+              ? "#ff9244"
+              : num.shield
+                ? "#94f4ff"
+                : "#fff7e4";
         ctx.fillText(text, nx, ny);
       }
       ctx.globalAlpha = 1;
@@ -414,7 +458,11 @@ const healthBarTypes = {
             enemy.type === "sentinel" ||
             enemy.type === "weaver");
         if (
-          (!enemy.boss && !fewEnemies && !windingUp && !(world.state === "fight" && world.stragglerT > 3)) ||
+          (!enemy.boss &&
+            !enemy.caravan &&
+            !fewEnemies &&
+            !windingUp &&
+            !(world.state === "fight" && world.stragglerT > 3)) ||
           inView(enemy.x, 0.6, enemy.y)
         )
           continue;
@@ -436,11 +484,13 @@ const healthBarTypes = {
           ay = cy + dy * edge,
           color = windingUp
             ? "#ff3a4e"
-            : enemy.boss
-              ? cssColor(bossDefs[enemy.type].color)
-              : enemy.elite
-                ? "#ffc84a"
-                : cssColor(enemyDefs[enemy.type].color);
+            : enemy.caravan
+              ? "#ffd85a"
+              : enemy.boss
+                ? cssColor(bossDefs[enemy.type].color)
+                : enemy.elite
+                  ? "#ffc84a"
+                  : cssColor(enemyDefs[enemy.type].color);
         ctx.save();
         ctx.translate(ax, ay);
         ctx.rotate(Math.atan2(dy, dx));
@@ -448,9 +498,9 @@ const healthBarTypes = {
         ctx.strokeStyle = "rgba(14,10,22,0.92)";
         ctx.lineWidth = 2.6;
         ctx.lineJoin = "round";
-        ctx.globalAlpha = windingUp ? (Math.floor(this.time * 10) % 2 ? 1 : 0.48) : 0.9;
+        ctx.globalAlpha = windingUp ? (Math.floor(this.time * 10) % 2 ? 1 : 0.48) : 0.92;
         ctx.beginPath();
-        let scale = enemy.boss ? 1.5 : 1;
+        let scale = enemy.boss ? 1.5 : enemy.caravan ? 1.25 : 1;
         ctx.moveTo(10 * scale, 0);
         ctx.lineTo(-6 * scale, -7 * scale);
         ctx.lineTo(-3 * scale, 0);

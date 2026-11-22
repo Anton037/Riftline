@@ -57,8 +57,8 @@ test("physical voices produce finite, faded material bodies and bound their cach
     assert.equal(Math.abs(data[0]), 0);
     assert.ok(Math.abs(data.at(-1)) < 0.002);
   }
-  for (let i = 0; i < 150; i++) bank.buffer({ ...physicalProfile("impact"), body: 80 + i }, i % 3);
-  assert.ok(bank.buffers.size <= 48);
+  for (let i = 0; i < 200; i++) bank.buffer({ ...physicalProfile("impact"), body: 80 + i }, i % 3);
+  assert.ok(bank.buffers.size > 48 && bank.buffers.size <= 128);
 });
 test("ambient weather, wildlife and machinery stay independent of weapon and impact transients", () => {
   for (const id of [
@@ -186,4 +186,37 @@ test("regression: physical audio voice lookup maps bOverdrive, bRing, shieldPop,
   const hover = physicalProfile("hover");
   assert.equal(hover.family, "ui", "hover must be a gentle wooden UI click, not a wind gust");
   assert.ok(hover.dur <= 0.05 && hover.gain <= 0.08, "hover click must stay subtle and brief");
+});
+
+test("overhauled SFX profiles separate impacts, warnings, shields, and weapons with material modal voices", () => {
+  const bank = new PhysicalVoices(ctx, { decode: false });
+  const impactSet = ["smallboom", "boom", "bigkill", "erupt", "bSlam", "bNova", "die"];
+  const impactFamilies = new Set(impactSet.map((id) => physicalProfile(id).family));
+  assert.ok(impactFamilies.size >= 6, `impacts should have distinct profiles, got ${impactFamilies.size}`);
+
+  const warnSet = ["windHeavy", "windSlash", "windLeap", "lock", "fuse", "beam"];
+  const warnFamilies = new Set(warnSet.map((id) => physicalProfile(id).family));
+  assert.ok(warnFamilies.size >= 5, `warnings should have distinct profiles, got ${warnFamilies.size}`);
+
+  const shieldSet = ["block", "guardUp", "guardBreak", "shield", "shieldUp"];
+  const shieldFamilies = new Set(shieldSet.map((id) => physicalProfile(id).family));
+  assert.ok(shieldFamilies.size >= 4, `shields should have distinct profiles, got ${shieldFamilies.size}`);
+
+  for (const id of [
+    ...impactSet,
+    ...warnSet,
+    ...shieldSet,
+    "pulse",
+    "scatter",
+    "tesla",
+    "rail",
+    "rocket",
+    "disc",
+    "flame",
+  ]) {
+    const p = physicalProfile(id);
+    const data = bank.buffer(p, 0).getChannelData(0);
+    assert.ok(data.every(Number.isFinite) && data.some((v) => Math.abs(v) > 0.005), `${id}: invalid buffer`);
+  }
+  assert.equal(physicalProfile("flame").weaponStage, "flame", "flame should use smooth cross-faded grain synthesis");
 });
