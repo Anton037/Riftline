@@ -3,14 +3,15 @@
 
 import { Color } from "../engine/math.js";
 import { cylinder, octahedron, icosahedron, torus, meshPart, mergeGeometries } from "../engine/geometry.js";
-import { worldMaterial, emissiveMaterial } from "./materials.js";
+import { worldMaterial, emissiveMaterial, hexColor } from "./materials.js";
 import { FINISH } from "./palette.js";
 import { clamp, TAU, angleDiff } from "../core/util.js";
 
-const WHITE = new Color(FINISH.ivory);
-const WARN = new Color(FINISH.vermilion);
+const WHITE = hexColor(FINISH.ivory);
+const WARN = hexColor(FINISH.vermilion);
 const tint = new Color();
-const hex = (v) => new Color(v);
+const hex = hexColor;
+const BEAM_SIDES = [-1, 1];
 
 const LOOK = {
   plate: { main: hex(FINISH.brass), alt: hex(0xfff0c4), dust: hex(0x8e9da8) },
@@ -147,6 +148,63 @@ const MODELS = {
     ],
     moverGlow: [stone(0.18, 0xffe8a4, { x: 0.18 }), gem(0.12, 0xfff6d2, { x: 0.32, sx: 0.45 })],
   }),
+  // Aurora Shelf: Aurora Curtain — frost crystal prism projector on snow-rimmed glacier pedestal
+  cryo: () => ({
+    body: [
+      ...stoneRing(7, 0.62, 0x3b6d94, 0x7ab4dc, 0.58),
+      cone(0.34, 0.48, 0.62, 0x4a82ac, 0.36, 7),
+      bezel(0.38, 0.038, 0xc8a468, 0.68, 14),
+    ],
+    glow: facets(4, (a) => gem(0.085, 0x9ce8ff, { x: Math.cos(a) * 0.42, z: Math.sin(a) * 0.42, y: 0.44, sy: 1.15 })),
+    mover: [
+      gem(0.28, 0x5aa4d4, { y: 0.0, sx: 1.25, sy: 1.15, sz: 0.85 }),
+      meshPart(torus(0.24, 0.032, 5, 14), 0xd4a862, { x: 0.24, ry: Math.PI / 2 }),
+      gem(0.16, 0x86ccf2, { x: 0.36, sx: 1.4, sy: 0.55, sz: 0.55 }),
+    ],
+    moverGlow: [gem(0.2, 0xb8f0ff, { x: 0.16, sy: 1.1 }), gem(0.12, 0xeefcff, { x: 0.42, sx: 0.7 })],
+  }),
+  // Glowmarsh: Pitcher Spout — carved bog-reed spout with bulbous botanical nozzle
+  acid: () => ({
+    body: [
+      ...stoneRing(7, 0.62, 0x224632, 0x346848, 0.54),
+      cone(0.32, 0.48, 0.54, 0x2f5e40, 0.3, 8),
+      bezel(0.36, 0.045, 0x52b470, 0.56, 14),
+    ],
+    glow: [bezel(0.34, 0.026, 0x92f4a8, 0.32, 14)],
+    mover: [
+      stone(0.28, 0x3b7c52, { x: -0.04, y: 0.02, sx: 1.15, sy: 0.92, sz: 0.95 }),
+      cone(0.2, 0.14, 0.4, 0x4ca268, 0.04, 8)
+        .rotateZ(-Math.PI / 2)
+        .translate(0.24, 0.02, 0),
+      bezel(0.2, 0.036, 0x74dc92, 0.02, 12)
+        .rotateZ(Math.PI / 2)
+        .translate(0.42, 0, 0),
+    ],
+    moverGlow: [stone(0.17, 0x9ef8b4, { x: 0.38, sx: 0.68 })],
+  }),
+  // Glass Flats: Heliostat Mirror — gilded brass sun-mirror dish on carved sandstone sundial plinth
+  sun: () => ({
+    body: [
+      disk(0.62, 0.16, 0x8a5e34, 0.08, 8),
+      cone(0.34, 0.5, 0.64, 0xb0804c, 0.44, 8),
+      bezel(0.42, 0.038, 0x2ca89a, 0.52, 16),
+      bezel(0.36, 0.042, 0xe2a854, 0.78, 16),
+    ],
+    glow: facets(4, (a) => gem(0.08, 0xffd878, { x: Math.cos(a) * 0.44, z: Math.sin(a) * 0.44, y: 0.38, sy: 0.85 })),
+    mover: [
+      meshPart(torus(0.34, 0.042, 6, 16), 0xe6ad56, { x: 0.08, ry: Math.PI / 2 }),
+      cone(0.32, 0.12, 0.18, 0xc88a3c, 0.0, 12)
+        .rotateZ(-Math.PI / 2)
+        .translate(0.04, 0, 0),
+      gem(0.14, 0x36c4b2, { x: 0.28, sx: 1.35, sy: 0.6, sz: 0.6 }),
+    ],
+    moverGlow: [
+      disk(0.25, 0.04, 0xffe294, 0.0, 12)
+        .rotateZ(Math.PI / 2)
+        .translate(0.12, 0, 0),
+      gem(0.13, 0xfff4cc, { x: 0.36, sx: 0.75 }),
+    ],
+  }),
   // Ashfall Caldera: squat forged-iron dragon-kiln chimney & brass bellows nozzle
   magma: () => ({
     body: [
@@ -245,19 +303,23 @@ export class TrapView {
     this.st = new Map();
     this.arr = null;
   }
+  build(name, max = 16) {
+    return this.get(name, max);
+  }
   get(name, max = 16) {
     let set = this.pl[name];
     if (set) return set;
-    const m = MODELS[name]();
+    const fn = MODELS[name] || MODELS.laser;
+    const m = fn();
     const mk = (parts, glow) => {
       const mat = glow
         ? emissiveMaterial({ vertexColors: true, emissiveIntensity: 1.14 })
         : worldMaterial({
             color: 0xffffff,
             vertexColors: true,
-            surface: ["sunspike", "glassmine"].includes(name)
+            surface: ["sunspike", "glassmine", "sun"].includes(name)
               ? "sandstone"
-              : name === "geyser" || name === "spore"
+              : name === "geyser" || name === "spore" || name === "acid"
                 ? "wood"
                 : ["pyro", "magma", "embermine"].includes(name)
                   ? "basalt"
@@ -489,7 +551,17 @@ export class TrapView {
     const charge = a1 !== null && bt < 1 ? bt : 0;
     const live = bt >= 1 ? 1 : 0;
     const hover =
-      trap.skin === "magma" ? 0.56 : trap.skin === "rift" ? 1.32 + Math.sin(time * 2.4 + trap.id) * 0.1 : 1.15;
+      trap.skin === "magma"
+        ? 0.56
+        : trap.skin === "acid"
+          ? 0.78
+          : trap.skin === "cryo"
+            ? 1.08 + Math.sin(time * 2.2 + trap.id) * 0.06
+            : trap.skin === "sun"
+              ? 1.12
+              : trap.skin === "rift"
+                ? 1.32 + Math.sin(time * 2.4 + trap.id) * 0.1
+                : 1.15;
     P.body.y(x, 0, z, 0, 1.35, 1.35, 1.35);
     P.glow.colC(
       P.glow.y(x, 0, z, 0, 1.35, 1.35, 1.35),
@@ -582,7 +654,7 @@ export class TrapView {
       const thin = Math.max(0.05, beam.w * 0.09);
       for (let i = 1; i < n; i++) {
         const along = (len * (i + 0.3 * Math.sin(i * 2.7 + time * 0.6))) / n;
-        for (const side of [-1, 1]) {
+        for (const side of BEAM_SIDES) {
           const out = side * (beam.w * 0.45);
           const tip = side * (beam.w * 0.45 + reach * (0.55 + 0.45 * Math.abs(Math.sin(i * 1.9 + side))));
           const back = -reach * 0.55;

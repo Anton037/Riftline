@@ -233,9 +233,25 @@ export class AttackView {
     return this._markPool;
   }
   mark(x, z, radius, look = M.burn) {
-    if (this.marks.length >= MAX.mark - 4) this.marks.shift();
     const life = MARK_LIFE[look] || 6;
-    this.marks.push({ x, z, r: radius, look, life, max: life, a: Math.random() * TAU, seed: Math.random() });
+    const maxCap = MAX.mark - 4;
+    if (this.marks.length < maxCap) {
+      this.marks.push({ x, z, r: radius, look, life, max: life, a: Math.random() * TAU, seed: Math.random() });
+    } else {
+      let oldest = 0;
+      for (let i = 1; i < this.marks.length; i++) {
+        if (this.marks[i].life < this.marks[oldest].life) oldest = i;
+      }
+      const m = this.marks[oldest];
+      m.x = x;
+      m.z = z;
+      m.r = radius;
+      m.look = look;
+      m.life = life;
+      m.max = life;
+      m.a = Math.random() * TAU;
+      m.seed = Math.random();
+    }
   }
   biomeId() {
     return (this.r.biome && this.r.biome.id) || "courtyard";
@@ -278,10 +294,16 @@ export class AttackView {
     this.zoneMat.uniforms.uWarn.value.copy(warn);
     for (const hazard of world.hazards) {
       if (hazard.done) continue;
-      const k = clamp(hazard.t / hazard.delay, 0, 1);
+      const k = clamp(hazard.t / (hazard.delay || 1), 0, 1);
       const x = hazard.x,
         z = hazard.y,
-        rr = hazard.r;
+        rr = hazard.r || 1.2;
+      if (hazard.kind === "tether") {
+        let seed = this.seeds.get(hazard);
+        if (seed == null) this.seeds.set(hazard, (seed = Math.random()));
+        this.zoneDetail(hazard, Z.rift, k, seed, dt, time, biome);
+        continue;
+      }
       const look = lookOf(hazard.kind, hazard.src, biome, hazard.chill);
       let seed = this.seeds.get(hazard);
       if (seed == null) this.seeds.set(hazard, (seed = Math.random()));
@@ -295,9 +317,36 @@ export class AttackView {
     const r = this.r;
     const x = hazard.x,
       z = hazard.y,
-      rr = hazard.r;
+      rr = hazard.r || 1.2;
     const q = this.quality;
     const chance = (rate) => Math.random() < dt * rate * q;
+
+    if (hazard.kind === "tether") {
+      const tx = hazard.tx ?? hazard.sx ?? x;
+      const tz = hazard.ty ?? hazard.sy ?? z;
+      const pulse = 0.75 + Math.sin(time * 14 + seed * TAU) * 0.25;
+      const w = 0.09 + 0.05 * k;
+      r.beams.colC(r.beams.seg(x, z, tx, tz, 0.72, w * 1.6, w * 0.7), RIFT, 0.55 + k * 0.35);
+      r.beams.colC(r.beams.seg(x, z, tx, tz, 0.74, w * 0.65, w * 0.45), WHITE, 0.75 * pulse);
+      r.ringPool.colC(r.ringPool.y(x, 0.08, z, time * 2.5, 0.65 + 0.15 * pulse), RIFT, 0.62);
+      r.ringPool.colC(r.ringPool.y(tx, 0.08, tz, -time * 2.5, 0.65 + 0.15 * pulse), RIFT_PINK, 0.62);
+      if (chance(10 + 14 * k)) {
+        const f = Math.random();
+        r.emit(
+          x + (tx - x) * f,
+          0.72,
+          z + (tz - z) * f,
+          0,
+          0.9,
+          0,
+          0.35,
+          0.14,
+          Math.random() < 0.4 ? WHITE : RIFT_PINK,
+          { spark: true, drag: 1.5 },
+        );
+      }
+      return;
+    }
 
     if (hazard.kind === "mine" || hazard.kind === "sapper") {
       const P = this.get(hazard.kind === "mine" ? "mine" : "charge");
@@ -339,7 +388,7 @@ export class AttackView {
           });
       }
     }
-    if (hazard.kind === "shorted") {
+    if (hazard.kind === "shorted" || hazard.kind === "brimlit") {
       // Courtyard Brim-Lit: warm spilled lantern-oil brass ring & rising amber flame motes
       r.ringPool.colC(r.ringPool.y(x, 0.08, z, time * 2.2, rr * (0.45 + k * 0.52)), FIRE_HOT, 0.55 + k * 0.4);
       r.discs.colC(r.discs.y(x, 0.06, z, seed * TAU, rr * (0.3 + k * 0.65)), FIRE, 0.14 + k * 0.16);
@@ -461,8 +510,15 @@ export class AttackView {
         delay: Math.random() * 0.06,
       });
     }
-    if (this.spikes.length > 12) this.spikes.shift();
-    this.spikes.push({ x, z, t: 0, list, shat: false });
+    if (this.spikes.length <= 12) {
+      this.spikes.push({ x, z, t: 0, list, shat: false });
+    } else {
+      let oldest = 0;
+      for (let i = 1; i < this.spikes.length; i++) {
+        if (this.spikes[i].t > this.spikes[oldest].t) oldest = i;
+      }
+      this.spikes[oldest] = { x, z, t: 0, list, shat: false };
+    }
   }
   drawSpikes(dt) {
     if (!this.spikes.length) return;
@@ -491,8 +547,22 @@ export class AttackView {
     this.spikes.length = keep;
   }
   pillar(x, z, w, h, color, life) {
-    if (this.pillars.length > 40) this.pillars.shift();
-    this.pillars.push({ x, z, w, h, col: color, t: 0, life });
+    if (this.pillars.length <= 40) {
+      this.pillars.push({ x, z, w, h, col: color, t: 0, life });
+    } else {
+      let oldest = 0;
+      for (let i = 1; i < this.pillars.length; i++) {
+        if (this.pillars[i].t / this.pillars[i].life > this.pillars[oldest].t / this.pillars[oldest].life) oldest = i;
+      }
+      const p = this.pillars[oldest];
+      p.x = x;
+      p.z = z;
+      p.w = w;
+      p.h = h;
+      p.col = color;
+      p.t = 0;
+      p.life = life;
+    }
   }
   drawPillars(dt) {
     let keep = 0;
@@ -518,8 +588,9 @@ export class AttackView {
       rr = ev.r;
     const biome = world?.arena ? world.arena.biome.id : this.biomeId();
     const dust = DUST[biome] || DUST.courtyard;
+    const dustCol = this._dustCol || (this._dustCol = new Color());
     const kind = ev.kind;
-    const look = kind === "bomber" ? Z.target : lookOf(kind, ev.src, biome, ev.chill);
+    const look = kind === "bomber" ? Z.target : lookOf(kind === "brimlit" ? "shorted" : kind, ev.src, biome, ev.chill);
     if (
       ![
         "stomp",
@@ -534,12 +605,13 @@ export class AttackView {
         "volatile",
         "bomber",
         "shorted",
+        "brimlit",
       ].includes(kind)
     ) {
       return false;
     }
     const shake = (amount) => r.addShake(amount * shakeK);
-    if (kind === "shorted") {
+    if (kind === "shorted" || kind === "brimlit") {
       r.burst(x, z, 0.3, 22, 6, WHITE, 0.3, 0.26, { up: 6, spark: true, drag: 1 });
       r.burst(x, z, 0.3, 12, 3.5, ARC, 0.45, 0.3, { up: 3, spark: true });
       r.ring(x, z, rr * 0.3, rr * 1.3, ARC, 0.28);
@@ -579,7 +651,15 @@ export class AttackView {
             { drag: 3, grow: 1.6 },
           );
         }
-        r.debrisBurst(x, z, 0.3, Math.round(clamp(rr * 3, 4, 14)), dust.clone().multiplyScalar(0.6), 0.16, 4 + rr);
+        r.debrisBurst(
+          x,
+          z,
+          0.3,
+          Math.round(clamp(rr * 3, 4, 14)),
+          dustCol.copy(dust).multiplyScalar(0.6),
+          0.16,
+          4 + rr,
+        );
         if (look === Z.lavaCrack) {
           r.burst(x, z, 0.3, Math.round(8 + rr * 4), 4 + rr, LAVA_HOT, 0.6, 0.2, {
             up: 6,
@@ -657,7 +737,7 @@ export class AttackView {
             0.55,
           );
         }
-        r.debrisBurst(x, z, 0.3, 5, dust.clone().multiplyScalar(0.5), 0.12, 5);
+        r.debrisBurst(x, z, 0.3, 5, dustCol.copy(dust).multiplyScalar(0.5), 0.12, 5);
         r.ring(x, z, rr * 0.3, rr, FIRE, 0.3);
         r.flash(x, z, rr * 1.6, 1.15, FIRE, 4.5);
         this.mark(x, z, rr * 0.75, M.burn);

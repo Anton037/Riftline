@@ -493,7 +493,63 @@ const OBSTACLE_GAP = 2.7,
     caldera: ["scatter", "mirror2", "rot2", "ring"],
     flats: ["scatter", "ring", "mirror2", "rot4"],
   };
-function classicLayout(biome) {
+function bossFeatures(biomeId) {
+  const features = { vents: [], ice: [], portals: [], acid: [], devils: [] };
+  if (biomeId === "courtyard") {
+    // 4 corner Bell-Censers for The Bellkeeper
+    const pts = [
+      [-12.2, -11.5],
+      [12.2, -11.5],
+      [-12.2, 11.5],
+      [12.2, 11.5],
+    ];
+    pts.forEach(([x, y], i) => {
+      features.vents.push({ x, y, r: 1.7, period: 7.2, phase: i * 1.8, st: "idle" });
+    });
+  } else if (biomeId === "shelf") {
+    // 4 outer Ice Sheets for The Frost Prism
+    for (const [x, y] of [
+      [-10.2, -10.2],
+      [10.2, -10.2],
+      [-10.2, 10.2],
+      [10.2, 10.2],
+    ]) {
+      features.ice.push({ x, y, r: 2.8 });
+    }
+  } else if (biomeId === "marsh") {
+    // 4 outer Bioluminescent Pools for The Brood-Empress
+    for (const [x, y] of [
+      [-12.2, -11.2],
+      [12.2, -11.2],
+      [-12.2, 11.2],
+      [12.2, 11.2],
+    ]) {
+      features.acid.push({ x, y, r: 2.2, life: null });
+    }
+  } else if (biomeId === "core") {
+    // 2 symmetric Portal Pairs for The Shattered Heart
+    features.portals.push({ ax: -11.5, ay: 0, bx: 11.5, by: 0, hue: 0 }, { ax: 0, ay: -11.5, bx: 0, by: 11.5, hue: 1 });
+  } else if (biomeId === "caldera") {
+    // 4 corner Interactive Fumaroles for The Ash Tyrant
+    const pts = [
+      [-12.0, -11.5],
+      [12.0, -11.5],
+      [-12.0, 11.5],
+      [12.0, 11.5],
+    ];
+    pts.forEach(([x, y], i) => {
+      features.vents.push({ x, y, r: 1.7, period: 6.4, phase: i * 1.6, st: "idle" });
+    });
+  } else if (biomeId === "flats") {
+    // 2 outer wandering Dust Devils for The Glasswyrm
+    features.devils.push(
+      { x: -11.8, y: -9.8, r: 1.7, a: 0.4, ph: 0, spd: 1.1 },
+      { x: 11.8, y: 9.8, r: 1.7, a: 3.54, ph: 2.1, spd: 1.1 },
+    );
+  }
+  return features;
+}
+function classicLayout(biome, boss = false) {
   return {
     key: biome.id + ":classic",
     W: biome.W,
@@ -501,6 +557,7 @@ function classicLayout(biome) {
     obstacles: biome.obstacles.map((ob) => ({ ...ob })),
     deco: 0,
     template: "classic",
+    features: boss ? bossFeatures(biome.id) : { vents: [], ice: [], portals: [], acid: [], devils: [] },
   };
 }
 function mapScore(obs, W, H, template) {
@@ -542,7 +599,7 @@ function mapScore(obs, W, H, template) {
 }
 // The obstacle map of a wave before the director adds its wave obstacles (see buildLayout).
 function mapLayout(biome, seed, wave, boss) {
-  if (boss || !obstacleShapes[biome.id]) return classicLayout(biome);
+  if (boss || !obstacleShapes[biome.id]) return classicLayout(biome, !!boss);
   let rng = makeRng(hashString(seed + ":map:" + wave)),
     best = null,
     bestScore = -1e9;
@@ -576,7 +633,7 @@ function buildLayout(biome, seed, wave, boss) {
 }
 function rlFeaturePoint(rng, obs, W, H, features, extraR = 0.75, size = [0.72, 1]) {
   const taken = [];
-  for (const kind of ["vents", "ice", "acid"])
+  for (const kind of ["vents", "ice", "acid", "devils"])
     for (const hz of features[kind] || []) taken.push({ x: hz.x, y: hz.y, r: (hz.r || 0.8) + extraR });
   for (const portal of features.portals || []) {
     taken.push({ x: portal.ax, y: portal.ay, r: 1 + extraR });
@@ -659,6 +716,7 @@ function rlAddWaveObstacles(layout, biome, seed, wave, boss) {
     "fortress",
   ];
   if (boss) {
+    layout.features = rlAddDynamicFeatures(layout, biome, seed, wave, boss, "boss");
     layout.director = {
       mode: "boss",
       intensity: Math.min(8, 2 + Math.floor(wave / 25)),
@@ -672,7 +730,7 @@ function rlAddWaveObstacles(layout, biome, seed, wave, boss) {
     obs = layout.obstacles.map((ob) => ({ ...ob })),
     baseCount = obs.length;
   const protectedPoints = [];
-  for (const kind of ["vents", "ice", "acid"]) {
+  for (const kind of ["vents", "ice", "acid", "devils"]) {
     for (const hz of layout.features?.[kind] || []) protectedPoints.push({ x: hz.x, y: hz.y, r: (hz.r || 0.8) + 0.9 });
   }
 

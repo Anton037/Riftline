@@ -152,10 +152,11 @@ test("Lantern Courtyard ambience uses resonators and leaves illumination to the 
   assert.ok(courtyard.far.every((cue) => !("light" in cue)));
 });
 
-test("all 15 biome trap sounds and 6 mine arming voices synthesize finite non-silent buffers", async () => {
+test("all 18 biome trap sounds and 6 mine arming voices synthesize finite non-silent buffers", async () => {
   const { RL_TRAP_SOUND } = await import("../src/audio/sound.js");
   const { TRAP_SKINS } = await import("../src/core/traps.js");
   const bank = new PhysicalVoices(ctx, { decode: false });
+  assert.equal(Object.keys(RL_TRAP_SOUND).length, 18, "all 18 biome traps must have sound entries");
   for (const [skin, cues] of Object.entries(RL_TRAP_SOUND)) {
     for (const cueId of [cues.warn, cues.fire].filter(Boolean)) {
       const p = physicalProfile(cueId, { delay: 0.4 });
@@ -173,4 +174,16 @@ test("all 15 biome trap sounds and 6 mine arming voices synthesize finite non-si
       assert.ok(data.every(Number.isFinite) && data.some((v) => Math.abs(v) > 0.005), `${skin}: silent tArm`);
     }
   }
+});
+
+test("regression: physical audio voice lookup maps bOverdrive, bRing, shieldPop, tsRiftMine and hover cleanly", () => {
+  const overdrive = physicalProfile("bOverdrive");
+  assert.equal(overdrive.warn, true, "bOverdrive must trigger boss warning profile");
+  const ring = physicalProfile("bRing");
+  assert.notEqual(ring.family, "ui", "bRing must map to a dedicated combat cue, not UI fallback");
+  assert.equal(physicalProfile("shieldPop").family, "armor", "shieldPop must map to armor, not organic pop");
+  assert.equal(physicalProfile("tsRiftMine").family, "tsRiftMine", "tsRiftMine must match its dedicated riftmine rule");
+  const hover = physicalProfile("hover");
+  assert.equal(hover.family, "ui", "hover must be a gentle wooden UI click, not a wind gust");
+  assert.ok(hover.dur <= 0.05 && hover.gain <= 0.08, "hover click must stay subtle and brief");
 });

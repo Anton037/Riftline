@@ -7,7 +7,8 @@ const MENU_THEME = {
   mode: [0, 2, 4, 6, 7, 9],
   line: [0, 2, 4, 5, 4, 2, 3, 1],
   pulse: [0, 3, 6, 10, 13],
-  bpm: [82, 128],
+  bpm: [84, 128],
+  bars: 8,
   instrument: "harp",
   companion: "celesta",
   octave: 12,
@@ -118,6 +119,7 @@ export function scoreScaleMidi(biome, degree = 0, octaveLift = 24) {
 }
 
 export function musicTrack(kind, biome) {
+  if (kind === "menu") return { bpm: MENU_THEME.bpm[0], bars: MENU_THEME.bars, gain: 1 };
   const boss = kind === "boss";
   return { bpm: themeFor(biome).bpm[boss ? 1 : 0], bars: boss ? 20 : 16, gain: boss ? 1.06 : 1 };
 }
@@ -132,7 +134,7 @@ export function playScore(engine, kind, biome, step, at) {
   const section = bar >> 2;
   const root = theme.roots[(boss ? bar + section : (bar >> 1) + (section & 1)) % 4];
   const note = (degree) => root + theme.mode[((degree % 6) + 6) % 6];
-  const seconds = 240 / (menu ? 82 : musicTrack(kind, biome).bpm);
+  const seconds = 240 / (menu ? 84 : musicTrack(kind, biome).bpm);
   const rawEnergy = boss ? 1 + engine.heat * 0.1 : engine.intensity;
   // Smooth arrangement evolution: gentler opening on bar 0 when calm, blooming as combat heats up
   const energy = !boss && !menu && bar === 0 ? rawEnergy * 0.72 : rawEnergy;
@@ -235,9 +237,10 @@ export function playScore(engine, kind, biome, step, at) {
         attack: 0.14,
         hold: 0.2,
         lp: 1550,
+        q: 1.4,
         pan: bar % 2 ? 0.28 : -0.28,
-        rev: 0.2,
-        dest: engine.choir || engine.pump,
+        rev: 0.28,
+        dest: engine.pump,
       });
     }
   } else if (id === "caldera") {

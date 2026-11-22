@@ -106,7 +106,7 @@ test("first-run desktop onboarding uses keyboard/mouse prompts and adapts on hyb
 
   await page.keyboard.press("Space");
   await page.waitForFunction(() => window.__riftTest.game.tut?.step === 3);
-  await page.waitForFunction(() => window.__riftTest.store.data.seen.tutorial === true);
+  await page.waitForFunction(() => window.__riftTest.store.data.seen.tutorial === true, null, { timeout: 10000 });
   assert.deepEqual(errors, []);
 });
 

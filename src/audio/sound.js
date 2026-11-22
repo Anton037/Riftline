@@ -2,9 +2,9 @@
 
 import { PhysicalVoices, preloadPhysicalAudio, setNaturalWave } from "./physical-voices.js";
 import { hookLog as logError } from "../core/run-hooks.js";
-import { BOSS_EFFECTS, WEAPON_EFFECTS, BEAM_EFFECTS, shotVoiceFor, attackSurface } from "../data/combat-effects.js";
+import { shotVoiceFor } from "../data/combat-effects.js";
 import { upgradesById } from "../data/upgrades.js";
-import { PLACE, PLACE_IDS, placeTick } from "./place.js";
+import { PLACE, placeTick } from "./place.js";
 import {
   musicImpact,
   musicResolve,
@@ -15,378 +15,47 @@ import {
   scoreOrigin,
   scoreScaleMidi,
 } from "./score.js";
-
-// Every supported weapon has an explicit sound identity.
-const RL_SFX_VOICES = Object.keys(WEAPON_EFFECTS);
-const rlShotSfx = (id) => WEAPON_EFFECTS[id]?.shot || "pulse";
-const RL_BIOME_SPARK = {
-  courtyard: "sparkCourtyard",
-  shelf: "sparkShelf",
-  marsh: "sparkMarsh",
-  core: "sparkCore",
-  caldera: "sparkCaldera",
-  flats: "sparkFlats",
-};
-const RL_PROP_VOICE = {
-  lantern: "propLantern",
-  rime: "propRime",
-  puffball: "propPuffball",
-  prism: "propPrism",
-  crucible: "propCrucible",
-  sunglass: "propSunglass",
-};
-/* 2.7.0: each of the 25 enemy types dies with a voice of its family. 5.0.0: eleven tactile families so
- clockwork kettle-kin (dClockwork) and arcane constructs (dConstruct) stand apart from armour, flesh,
- electric drones and ghosts. Bosses and champions keep "bigkill". */
-const RL_DEATH_FAMILY = {
-  swarmer: "dPop",
-  mite: "dPop",
-  splitter: "dSquelch",
-  hive: "dSquelch",
-  leaper: "dSquelch",
-  mender: "dSquelch",
-  brute: "dArmor",
-  striker: "dArmor",
-  bulwark: "dArmor",
-  driller: "dArmor",
-  mortar: "dArmor",
-  drone: "dZap",
-  sentinel: "dConstruct",
-  turret: "dZap",
-  phantom: "dGhost",
-  weaver: "dGhost",
-  grunt: "dClang",
-  gunner: "dClang",
-  sapper: "dRattle",
-  bomber: "dClockwork",
-  charger: "dClockwork",
-  carrier: "dSquelch",
-  minebot: "dClockwork",
-  sniper: "dClang",
-  beacon: "dConstruct",
-};
-/* wind-up voices of the "charge" event (enemy types and the bosses that charge) */
-const RL_CHARGE_VOICE = {
-  brute: "windHeavy",
-  charger: "windWhine",
-  striker: "windSlash",
-  driller: "windDrill",
-  leaper: "windLeap",
-  bellkeeper: "bWind",
-  prism: "bWind",
-  tyrant: "bWind",
-};
-/* the "edash" event: the lunge itself */
-const RL_DASH_VOICE = { charger: "ram", striker: "ram", driller: "ramDrill", phantom: "blink" };
-/* boss attack telegraphs (event "bossAtk"); null: another event of the same attack already sounds
- (charge, beamWarn, blinkWarn, lob, erupt, thud) */
-const RL_BOSS_ATK = {
-  charge: null,
-  ring: "bRing",
-  stomp: "bSlam",
-  summon: "bSummon",
-  spiral: "bRing",
-  burst: "bRing",
-  eggs: "bSummon",
-  frostbeam: null,
-  teleport: null,
-  frostnova: "bNova",
-  icelances: "bLance",
-  glacier: "bSlam",
-  iceshards: "bLance",
-  cross: "bRing",
-  rain: "bRain",
-  // 3.49.0: the Ash Tyrant's attacks (the cinder fan's eshots sound themselves; the charge and the
-  // magma bombs are covered by their own events)
-  barrage: null,
-  firestorm: "bSummon",
-  // 3.56.0: the Glasswyrm's attacks (the rise's and mirage's blinkWarn/blink and thud sound
-  // themselves, the lance's beamWarn does; the shard fans get the lance voice)
-  rise: null,
-  shards: "bLance",
-  sunlance: null,
-  mirage: null,
-  // 3.3.0: the Overdrive attacks (they also sound the Overdrive alarm, bOverdrive)
-  sealgrid: "bLance",
-  whiteout: "bNova",
-  plague: "bSummon",
-  collapse: "bRain",
-  noon: "bRain",
-};
-// 3.33.0: the warning voice of a beam by its skin (the rest keep "beam" / "beamSmall")
-const BEAM_VOICE = Object.fromEntries(Object.entries(BEAM_EFFECTS).map(([id, effect]) => [id, effect.warning]));
-const RL_OVERDRIVE = new Set(["sealgrid", "whiteout", "plague", "collapse", "firestorm", "noon"]);
-const BOSS_WARNING_VOICES = new Set(Object.values(RL_BOSS_ATK).filter(Boolean));
-/* 3.10.0: the voice of the blast of an attack zone, by its kind and, where the kind is shared, its maker (the same
-   choice as the look in render/attacks-view.js); null: the generic explosion ("boom"). 3.32.0: a blast that chills (a
-   Frost mortar's shell) cracks like ice whatever its kind */
-function attackVoice(kind, src, biome, chill) {
-  if (kind === "shorted" && !chill) return "aShort";
-  if (kind === "volatile" && !chill) return null;
-  return (
-    {
-      crack: "aQuake",
-      lavaCrack: "aLava",
-      molten: "aLava",
-      frost: "aIce",
-      acid: "aAcid",
-      rift: "aRift",
-      burn: "aFire",
-      glass: "aGlass",
-    }[attackSurface(kind, src, biome, chill)] || null
-  );
-}
-/* 2.9.0: how far the music dips for the big hits (gain factor 1 - x, about 100 ms; the music goes on) */
-const MUSIC_DUCK = {
-    nova: 0.15,
-    die: 0.15,
-    boom: 0.1,
-    surge: 0.1,
-    bigkill: 0.12,
-    hurt: 0.1,
-    bossDown: 0.15,
-    enrage: 0.12,
-    phase: 0.1,
-    boss: 0.1,
-    bossIntro: 0.12,
-    mutator: 0.12,
-    bOverdrive: 0.1,
-    evolve: 0.1,
-    aQuake: 0.1,
-    aRift: 0.1,
-    aLava: 0.08,
-    aIce: 0.08,
-    aGlass: 0.08,
-    tsPyro: 0.08,
-    tsSun: 0.08,
-    tsGlass: 0.08,
-    bcShatter: 0.06,
-    guardBreak: 0.08,
-    thud: 0.08,
-    singCollapse: 0.1,
-    bcImplode: 0.1,
-    tsRift: 0.08,
-    bSlam: 0.08,
-    rail: 0.06,
-    scatter: 0.05,
-    rocket: 0.05,
-    tribute: 0.08,
-  },
-  /* 3.2.0: the room of the big sounds (send level to the sound reverb); its size follows the biome (SFX_ROOM_BIOME).
-     The trap strikes stay dry: they have to be told apart from the blasts at once. */
-  SFX_ROOM = {
-    boom: 0.3,
-    surge: 0.3,
-    singCollapse: 0.35,
-    singPull: 0.25,
-    bcImplode: 0.3,
-    bcCage: 0.15,
-    bcShatter: 0.15,
-    nova: 0.3,
-    bigkill: 0.35,
-    die: 0.3,
-    bossIntro: 0.35,
-    bossDown: 0.4,
-    bSlam: 0.3,
-    enrage: 0.3,
-    phase: 0.25,
-    rocket: 0.15,
-    rail: 0.15,
-    thud: 0.25,
-    evolve: 0.3,
-    victory: 0.3,
-    mutator: 0.35,
-    bOverdrive: 0.3,
-    aQuake: 0.3,
-    aLava: 0.25,
-    aIce: 0.35,
-    aAcid: 0.15,
-    aRift: 0.35,
-    aGlass: 0.28,
-    aFire: 0.15,
-    aShort: 0.2,
-    propLantern: 0.22,
-    propRime: 0.3,
-    propPuffball: 0.2,
-    propPrism: 0.32,
-    propCrucible: 0.28,
-    propSunglass: 0.26,
-  },
-  /* how much room each biome gives the sounds: the Aurora Shelf and the Shattered Core are vast, the Glowmarsh damp;
-     3.49.0: the Ashfall Caldera is a crater bowl (rock all around) */
-  SFX_ROOM_BIOME = { courtyard: 0.28, shelf: 0.5, marsh: 0.2, core: 0.55, caldera: 0.32, flats: 0.3 },
-  /* the open "ah" of the choir: band-passes on its formants (frequency, Q, level) and a little of the voice */
-  CHOIR_VOWEL = [
-    [760, 5, 1],
-    [1180, 7, 0.6],
-    [2700, 9, 0.18],
-    [0, 0.7, 0.12],
-  ],
-  AMBIENCE_LEVEL = { festival: 0.032, aurora: 0.036, nectar: 0.034, harmonic: 0.032, forgewind: 0.038 },
-  ROOM_TONE_LEVEL = { courtyard: 0.024, shelf: 0.032, marsh: 0.024, core: 0.024, caldera: 0.026, flats: 0.024 },
-  /* 3.43.0: the event beds gather and pass instead of snapping on and off - a soundscape builds over about
-     three seconds and dies away over about four, while the room tone stays underneath. */
-  BED_ATTACK = { festival: 0.6, aurora: 1.1, nectar: 0.8, harmonic: 1.1, forgewind: 0.9 },
-  BED_RELEASE = { festival: 0.6, aurora: 1.2, nectar: 0.7, harmonic: 1.0, forgewind: 0.9 },
-  // 3.9.0: the default of the Ambience slider; at it the atmospheres of the music play at the level they had before
-  AMB_REF = 0.8,
-  MUSIC_SCALE = 0.3,
-  MAX_VOICES = 24,
-  // 2.8.2: the music has its own budget; shots and other sounds can no longer take notes away from it
-  // 3.2.0: 36 (was 20): the boss tracks double-track their guitars (two amps) and play blast beats; 3.5.0: 44, they
-  // also carry the motif and the pad of the calm theme
-  MAX_MUSIC_VOICES = 44,
-  MUSIC_RESERVE = 8,
-  // 3.18.1: how long the notes of the old track take to fade out when the track changes (SoundEngine.quietOld)
-  QUIET_FADE = 0.25,
-  /* sounds that are never dropped in favour of others when the voice limit is reached */
-  KEY_SOUNDS = new Set([
-    "mutator",
-    "surge",
-    "bOverdrive",
-    "hurt",
-    "die",
-    "victory",
-    "boss",
-    "bossIntro",
-    "bossDown",
-    "enrage",
-    "phase",
-    "nova",
-    "guardBreak",
-    "cleared",
-    "bossCleared",
-    "evolve",
-    "bigkill",
-    "heart",
-    "pick",
-  ]);
-/* 3.0.0: the sound of each trap skin: charge (floor), hum (beam), fuse (mine) when it warns, and the strike */
-const RL_TRAP_SOUND = {
-  plate: { warn: "tcPlate", fire: "tsPlate" },
-  icespike: { warn: "tcIce", fire: "tsIce" },
-  geyser: { warn: "tcGeyser", fire: "tsGeyser" },
-  riftburst: { warn: "tcRift", fire: "tsRift" },
-  laser: { warn: "tbLaser" },
-  rift: { warn: "tbRift" },
-  mine: { warn: "tmMine", fire: "tsMine" },
-  frost: { warn: "tmFrost", fire: "tsFrost" },
-  spore: { warn: "tmSpore", fire: "tsSpore" },
-  riftmine: { warn: "tmRift", fire: "tsRiftMine" },
-  magma: { warn: "tbFlame" },
-  embermine: { warn: "tmEmber", fire: "tsEmber" },
-  glassmine: { warn: "tmGlass", fire: "tsGlass" },
-  // 3.47.0: the fumarole: pressure hisses through basalt before molten rock erupts
-  pyro: { warn: "tcPyro", fire: "tsPyro" },
-  // 3.53.0: the Flats' sunspike: glass creaks as the pressure builds, then the sheet bursts
-  sunspike: { warn: "tcSun", fire: "tsSun" },
-};
-// Threat cues keep their existing timbres and a voice when routine combat is busy.
-const THREAT_WARNING_VOICES = new Set([
-  "lock",
-  "fuse",
-  ...Object.values(RL_CHARGE_VOICE),
-  "servo",
-  "beam",
-  "beamSmall",
-  ...Object.values(BEAM_VOICE),
-  ...Object.values(RL_TRAP_SOUND).map((voice) => voice.warn),
-]);
-/* a small seeded random generator (0..1) for the offline test renders */
-function makeSeeded(seed) {
-  let state = seed >>> 0 || 1;
-  return () => {
-    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
-    return state / 4294967296;
-  };
-}
-/* 3.2.0: the impulse of the music reverb: stereo noise that decays exponentially and gets darker as it decays */
-const impulseCache = Object.create(null);
-function roomImpulse(ctx, seconds) {
-  // the same impulse serves every context of a sample rate (the tests build hundreds of engines)
-  let key = ctx.sampleRate + ":" + seconds;
-  if (impulseCache[key]) return impulseCache[key];
-  // 3.18.1: its own seeded noise (it was made from Math.random at the first use, so every run had another room and the
-  // numbers of the deep test moved a little from run to run); the same kind of noise, the same for everyone
-  let len = Math.round(ctx.sampleRate * seconds),
-    random = makeSeeded(0x2b00 + Math.round(seconds * 100)),
-    buf = (impulseCache[key] = ctx.createBuffer(2, len, ctx.sampleRate));
-  for (let ch = 0; ch < 2; ch++) {
-    let data = buf.getChannelData(ch),
-      lp = 0;
-    for (let i = 0; i < len; i++) {
-      let t = i / len,
-        a = 0.55 + 0.42 * t;
-      lp = lp * a + (random() * 2 - 1) * (1 - a);
-      data[i] = lp * Math.pow(1 - t, 2.4) * (i < 90 ? i / 90 : 1) * 2.2;
-    }
-  }
-  return buf;
-}
-/* 3.7.0: six seconds of pink (-3 dB per octave, Paul Kellet's filter) or brown (-6 dB per octave) noise, made once
-   per sample rate. The music and its atmospheres use them instead of the white noise of the sounds: they are soft
-   rather than hissy, and six seconds never sound like a loop (the one second of white noise did, as a faint pulse).
-   The end flows into the start (a crossfade over 50 ms); the level is that of the white noise (rms about 0.58), so a
-   low filter lets far more of brown and pink noise through than of white (the levels below were measured for that). */
-const colorCache = Object.create(null);
-function colorNoise(ctx, color) {
-  const key = color + ":" + ctx.sampleRate;
-  if (colorCache[key]) return colorCache[key];
-  // 3.18.1: seeded for the same reason as the room (roomImpulse)
-  const len = Math.round(ctx.sampleRate * 6),
-    fadeN = Math.round(ctx.sampleRate * 0.05),
-    raw = new Float32Array(len + fadeN),
-    random = makeSeeded(color === "brown" ? 0xb2057 : 0x91c4);
-  let b0 = 0,
-    b1 = 0,
-    b2 = 0,
-    b3 = 0,
-    b4 = 0,
-    b5 = 0,
-    b6 = 0,
-    last = 0,
-    sum = 0;
-  for (let i = 0; i < raw.length; i++) {
-    const w = random() * 2 - 1;
-    if (color === "brown") {
-      // leaky integration: the leak keeps it free of drift (no DC)
-      last = (last + 0.02 * w) / 1.02;
-      raw[i] = last;
-    } else {
-      b0 = 0.99886 * b0 + w * 0.0555179;
-      b1 = 0.99332 * b1 + w * 0.0750759;
-      b2 = 0.969 * b2 + w * 0.153852;
-      b3 = 0.8665 * b3 + w * 0.3104856;
-      b4 = 0.55 * b4 + w * 0.5329522;
-      b5 = -0.7616 * b5 - w * 0.016898;
-      raw[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362;
-      b6 = w * 0.115926;
-    }
-  }
-  const buf = (colorCache[key] = ctx.createBuffer(1, len, ctx.sampleRate)),
-    data = buf.getChannelData(0);
-  for (let i = 0; i < len; i++) {
-    // an equal-power crossfade (two unrelated stretches of noise: a linear one would dip by 3 dB at every pass)
-    const t = i < fadeN ? i / fadeN : 1;
-    data[i] = raw[i] * Math.sqrt(t) + (i < fadeN ? raw[len + i] * Math.sqrt(1 - t) : 0);
-    sum += data[i] * data[i];
-  }
-  const gain = 0.58 / Math.sqrt(sum / len || 1);
-  for (let i = 0; i < len; i++) data[i] *= gain;
-  return buf;
-}
-/* soft clipper curve: linear up to 0.7, then a smooth knee towards 0.98 (input is clamped to +-1, so
- the output never exceeds 0.93) */
-function softClipCurve() {
-  let n = 2049,
-    curve = new Float32Array(n);
-  for (let i = 0; i < n; i++) {
-    let x = (i / (n - 1)) * 2 - 1,
-      a = Math.abs(x);
-    curve[i] = Math.sign(x) * (a <= 0.7 ? a : 0.7 + 0.28 * Math.tanh((a - 0.7) / 0.28));
-  }
-  return curve;
-}
+import {
+  AMBIENCE_LEVEL,
+  AMB_PREVIEW,
+  AMB_REF,
+  BEAM_VOICE,
+  BED_ATTACK,
+  BED_RELEASE,
+  BOSS_WARNING_VOICES,
+  EVENT_ACCENTS,
+  EVENT_BEDS,
+  KEY_SOUNDS,
+  MAX_MUSIC_VOICES,
+  MAX_VOICES,
+  MUSIC_DUCK,
+  MUSIC_RESERVE,
+  MUSIC_SCALE,
+  QUIET_FADE,
+  RL_BIOME_SPARK,
+  RL_BOSS_ATK,
+  RL_CHARGE_VOICE,
+  RL_DASH_VOICE,
+  RL_DEATH_FAMILY,
+  RL_FLOOD,
+  RL_OVERDRIVE,
+  RL_PROP_VOICE,
+  RL_SFX_VOICES,
+  RL_TRAP_SOUND,
+  ROOM_TONE_LEVEL,
+  ROOM_TONE_RECIPES,
+  SFX_ROOM,
+  SFX_ROOM_BIOME,
+  THREAT_WARNING_VOICES,
+  attackVoice,
+  colorNoise,
+  makeSeeded,
+  rlShotSfx,
+  rlSoundCatalog,
+  roomImpulse,
+  softClipCurve,
+  trackInfo,
+} from "./sound-data.js";
 
 const SoundEngine = class {
   constructor() {
@@ -414,7 +83,7 @@ const SoundEngine = class {
     this.intensity = 0;
     this.want = 0;
     this.cycle = 0;
-    // 2.7.0: voice registry (limit), boss music mix, engine hum and event ambience
+    // 2.7.0: voice registry (limit), boss music mix, lantern-craft hum and event ambience
     this.voices = [];
     this.musicVoiceList = [];
     this.curPri = 1;
@@ -445,7 +114,7 @@ const SoundEngine = class {
     this.previewT = {};
     this.musicScheduled = 0;
     this.musicSkipped = 0;
-    // 3.1.0: the music tracks (see MUSIC_TRACKS): what plays now, the boss heat (0 calm, 1 after a phase change,
+    // 3.1.0: the music tracks: what plays now, the boss heat (0 calm, 1 after a phase change,
     // 2 enraged), the stage buses and the counters of the voice budget
     this.playKind = "off";
     this.playBiome = "courtyard";
@@ -460,15 +129,17 @@ const SoundEngine = class {
     this.makeup = null;
     this.musLevel = null;
     this.pump = null;
-    this.ping = null;
-    this.choir = null;
     this.verbIn = null;
     this.mbed = null;
     this.held = null;
     this.resumeWanted = false;
-    // 3.2.0: where the sounds are: the pan of the event being played (from its x relative to the listener) and
-    // its room send (SFX_ROOM)
+    this.lowWard = false;
+    this.muffleState = { paused: false, choosing: false, lowWard: false };
+    this._muffleWant = 18000;
+    // 3.2.0: where the sounds are: the pan and distance attenuation of the event being played (from its x/y relative
+    // to the listener) and its room send (SFX_ROOM)
     this.curPan = 0;
+    this.curAtten = 1;
     this.curRev = 0;
     this.sfxVerbIn = null;
     this.sfxVerbOut = null;
@@ -515,10 +186,10 @@ const SoundEngine = class {
     unlocker.start(0);
     this.startScheduler();
   }
-  /* The master chain: sfx and music -> compressor -> limiter -> soft clipper -> output. The soft
-     clipper keeps the signal below 0.93 whatever the mix does. */
+  /* The master chain: sfx and music -> compressor -> muffle -> limiter -> soft clipper -> output.
+     The soft clipper keeps the signal below 0.93 whatever the mix does. */
   /* opts.room: false leaves out the two reverbs (test engines that only count notes: every convolver holds the
-       transform of its impulse, megabytes each) */
+     transform of its impulse, megabytes each) */
   buildGraph(ctx, opts = {}) {
     this.ctx = ctx;
     this.physical = new PhysicalVoices(ctx, { decode: !this.budgetOnly });
@@ -535,19 +206,17 @@ const SoundEngine = class {
     this.limiter.release.value = 0.08;
     this.clip = ctx.createWaveShaper();
     this.clip.curve = softClipCurve();
-    this.comp.connect(this.limiter);
     this.master = ctx.createGain();
     this.master.gain.value = 0.82;
     this.limiter.connect(this.master);
     this.master.connect(this.clip);
     this.clip.connect(ctx.destination);
-    // 3.42.0: the muffle: a lowpass between the buses and the limiter. A Whiteout closes it so the whole
-    // world (shots, music, wind) sounds like behind a wall of snow; every other state keeps it open.
+    // Warm master lowpass between the buses and the limiter: gently warms the mix when paused (~1600 Hz),
+    // on the upgrade screen (~2400 Hz), or at critical low Ward (<25% HP, ~2800 Hz), and opens to 18000 Hz otherwise.
     this.muffle = ctx.createBiquadFilter();
     this.muffle.type = "lowpass";
-    this.muffle.frequency.value = 18000;
+    this.muffle.frequency.value = this._wantMuffle();
     this.muffle.Q.value = 0.3;
-    this.comp.disconnect();
     this.comp.connect(this.muffle);
     this.muffle.connect(this.limiter);
     this.sfx = ctx.createGain();
@@ -578,7 +247,7 @@ const SoundEngine = class {
     this.musLevel.connect(this.duckGain);
     this.duckGain.connect(this.comp);
     this.mixFor("fight");
-    // the pump: pads, bass, strings, brass and the choir pass it; accented kicks dip it (a sidechain feel)
+    // the pump: pads, bass, strings, brass and swell voices pass it; accented kicks dip it (a sidechain feel)
     this.pump = ctx.createGain();
     this.pump.connect(this.mus);
     // 3.9.0: the atmospheres of the music pass these on their way into the music (calm) or the pump (boss)
@@ -624,34 +293,6 @@ const SoundEngine = class {
     this.delay.connect(this.fb);
     this.fb.connect(this.delay);
     this.delay.connect(this.mus);
-    // 3.19.0: the ping-pong echo of the ambient bloom (BLOOM): two delays that feed each other, one heard on the left
-    // and one on the right, so that every note of the bloom wanders across the room; it ends in the music bus
-    if (ctx.createStereoPanner) {
-      this.ping = ctx.createGain();
-      const dl = ctx.createDelay(1),
-        dr = ctx.createDelay(1),
-        fl = ctx.createGain(),
-        fr = ctx.createGain(),
-        pl = ctx.createStereoPanner(),
-        pr = ctx.createStereoPanner();
-      dl.delayTime.value = 0.43;
-      dr.delayTime.value = 0.43;
-      fl.gain.value = fr.gain.value = 0.42;
-      pl.pan.value = -0.9;
-      pr.pan.value = 0.9;
-      this.ping.connect(this.mus);
-      this.ping.connect(dl);
-      dl.connect(pl);
-      pl.connect(this.mus);
-      dl.connect(fl);
-      fl.connect(dr);
-      dr.connect(pr);
-      pr.connect(this.mus);
-      dr.connect(fr);
-      fr.connect(dl);
-      // 3.28.1: the feedback of the echo, silenced for a moment when the music changes (quietOld)
-      this.pingFb = [fl, fr];
-    }
     let len = ctx.sampleRate;
     this.noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
     let data = this.noiseBuf.getChannelData(0);
@@ -659,29 +300,55 @@ const SoundEngine = class {
     // the music and its atmospheres take pink or brown noise (opts.color, see colorNoise)
     this.pinkBuf = colorNoise(ctx, "pink");
     this.brownBuf = colorNoise(ctx, "brown");
-    // the choir of the boss tracks: saw voices through the three formants of an open "ah" and a little of the
-    // voice itself (CHOIR_VOWEL); it joins the pump like the pads
-    this.choir = ctx.createGain();
-    let choirOut = ctx.createGain();
-    choirOut.gain.value = 1;
-    for (let [f, q, g] of CHOIR_VOWEL) {
-      let band = ctx.createBiquadFilter(),
-        amp = ctx.createGain();
-      band.type = f ? "bandpass" : "lowpass";
-      band.frequency.value = f || 900;
-      band.Q.value = q;
-      amp.gain.value = g;
-      this.choir.connect(band);
-      band.connect(amp);
-      amp.connect(choirOut);
+  }
+  _wantMuffle() {
+    if (this.muffleState?.paused || (this.mode === "menu" && this.held)) return 1600;
+    if (this.muffleState?.choosing) return 2400;
+    if (this.lowWard || this.muffleState?.lowWard) return 2800;
+    return 18000;
+  }
+  _syncMuffle() {
+    const want = this._wantMuffle();
+    if (this._muffleWant === want && (!this.muffle || this.muffle.frequency.value === want)) return;
+    this._muffleWant = want;
+    if (this.ctx && this.muffle) {
+      const freq = this.muffle.frequency;
+      if (!(typeof AudioParam < "u" && freq instanceof AudioParam)) {
+        freq.value = want;
+      }
+      if (freq.setTargetAtTime && this.ctx.currentTime != null) {
+        freq.setTargetAtTime(want, this.ctx.currentTime, 0.25);
+      } else {
+        freq.value = want;
+      }
     }
-    choirOut.connect(this.pump);
-    if (this.verbIn) {
-      let send = ctx.createGain();
-      send.gain.value = 0.6;
-      choirOut.connect(send);
-      send.connect(this.verbIn);
+  }
+  setMuffleState(opts = {}) {
+    if (!this.muffleState) this.muffleState = { paused: false, choosing: false, lowWard: false };
+    if (typeof opts === "string") {
+      this.muffleState.paused = opts === "paused" || opts === "pause";
+      this.muffleState.choosing = opts === "choosing" || opts === "choose" || opts === "upgrade";
+      this.lowWard = this.muffleState.lowWard = opts === "lowWard" || opts === "low";
+    } else if (opts && typeof opts === "object") {
+      if ("paused" in opts || "pause" in opts) this.muffleState.paused = !!(opts.paused ?? opts.pause);
+      if ("choosing" in opts || "choose" in opts) this.muffleState.choosing = !!(opts.choosing ?? opts.choose);
+      if ("state" in opts) {
+        this.muffleState.choosing = opts.state === "choose" || opts.state === "choosing";
+        if (opts.state === "paused" || opts.state === "pause") this.muffleState.paused = true;
+        else if (opts.state === "fight" || opts.state === "cleared") this.muffleState.paused = false;
+      }
+      if ("lowWard" in opts || "lowHp" in opts) {
+        this.lowWard = this.muffleState.lowWard = !!(opts.lowWard ?? opts.lowHp);
+      } else if (opts.hp != null && opts.maxHp > 0) {
+        this.lowWard = this.muffleState.lowWard = opts.hp > 0 && opts.hp / opts.maxHp < 0.25;
+      }
+    } else if (!opts) {
+      this.muffleState.paused = false;
+      this.muffleState.choosing = false;
+      this.lowWard = this.muffleState.lowWard = false;
     }
+    this._syncMuffle();
+    return this._muffleWant;
   }
   /* the noise buffer of a colour ("pink", "brown"; anything else: the white noise of the sounds) */
   noiseOf(color) {
@@ -762,11 +429,7 @@ const SoundEngine = class {
      never drops anything and is skipped instead, loops (beds) are never dropped. */
   claim(pri, start, end, opt) {
     let now = this.nowT();
-    // 2.8.2: music (priority 0) is counted apart from the sounds. It used to share the list, and every
-    // shot or hit that found it full took the oldest music note: the music stuttered and dropped out
-    // in heavy fights. Music never takes a voice from anyone and is skipped when its own list is full.
-    // 3.1.0: the budget counts the voices that are alive at the start of the new one; a voice marked
-    // optional (texture sounds) leaves MUSIC_RESERVE places to the kick, the bass and the other essentials
+    // 2.8.2: music (priority 0) is counted apart from the sounds.
     if (pri === 0) {
       let music = this.musicVoiceList;
       if (music.length >= 12) {
@@ -874,12 +537,14 @@ const SoundEngine = class {
       if (send) send.disconnect();
     } catch {}
   }
-  /* opts: to (end pitch), detune, attack, hold (flat level after the attack), lp/q (low-pass; lpTo ends the
+  /* opts: to (end pitch), detune, attack, hold (flat level after the attack), lp/bp/q (low-pass or band-pass; lpTo ends the
      sweep), env (Float32Array, 0..1: the whole level curve replaces the exponential envelope: tremolo), dest/at/pri,
      opt (an optional music voice) */
   tone(freq, dur, wave, vol, opts = {}) {
     let ctx = this.ctx,
       start = ctx.currentTime + (opts.at || 0),
+      atten = opts.dest || this.curBus ? 1 : (this.curAtten ?? 1),
+      level = vol * atten,
       voice = this.claim(
         opts.pri != null ? opts.pri : opts.dest ? 0 : this.curPri,
         start,
@@ -887,7 +552,7 @@ const SoundEngine = class {
         opts.opt,
       );
     if (!voice) return;
-    this.logMusic(voice, "t", freq, vol, opts);
+    this.logMusic(voice, "t", freq, level, opts);
     if (this.budgetOnly) return;
     let osc = ctx.createOscillator(),
       amp = ctx.createGain();
@@ -901,15 +566,15 @@ const SoundEngine = class {
     if (opts.detune) {
       osc.detune.value = opts.detune;
     }
-    this.envelope(amp, start, dur, vol, opts);
+    this.envelope(amp, start, dur, level, opts);
     let out = osc;
-    if (opts.lp) {
+    if (opts.lp || opts.bp) {
       let filter = ctx.createBiquadFilter();
-      filter.type = "lowpass";
-      filter.frequency.value = opts.lp;
-      filter.Q.value = opts.q || 0.7;
+      filter.type = opts.bp ? "bandpass" : "lowpass";
+      filter.frequency.value = opts.bp || opts.lp;
+      filter.Q.value = opts.q || (opts.bp ? 2.2 : 0.7);
       if (opts.lpTo) {
-        filter.frequency.setValueAtTime(opts.lp, start);
+        filter.frequency.setValueAtTime(opts.bp || opts.lp, start);
         filter.frequency.exponentialRampToValueAtTime(opts.lpTo, start + dur);
       }
       out.connect(filter);
@@ -933,15 +598,14 @@ const SoundEngine = class {
     }
     amp.gain.setValueAtTime(1e-4, start);
     amp.gain.exponentialRampToValueAtTime(vol, start + attack);
-    // 2.9.2: opts.hold keeps the level flat for that long after the attack (sustained sounds such as the
-    // flame roar; the plain exponential decay drops 50 dB in a third of a second and pumps when repeated)
-    // (never past the end: a hold that reaches beyond the note would come after its fade)
     if (opts.hold) amp.gain.setValueAtTime(vol, start + attack + Math.min(opts.hold, Math.max(0, dur * 0.95 - attack)));
     amp.gain.exponentialRampToValueAtTime(1e-4, start + dur);
   }
   noise(dur, vol, opts = {}) {
     let ctx = this.ctx,
       start = ctx.currentTime + (opts.at || 0),
+      atten = opts.dest || this.curBus ? 1 : (this.curAtten ?? 1),
+      level = vol * atten,
       voice = this.claim(
         opts.pri != null ? opts.pri : opts.dest ? 0 : this.curPri,
         start,
@@ -949,15 +613,13 @@ const SoundEngine = class {
         opts.opt,
       );
     if (!voice) return;
-    this.logMusic(voice, "n", opts.f || 2e3, vol, opts);
+    this.logMusic(voice, "n", opts.f || 2e3, level, opts);
     if (this.budgetOnly) {
       Math.random(); // Keep the noise-source offset draw in the reference schedule.
       return;
     }
     let src = ctx.createBufferSource();
     src.buffer = this.noiseOf(opts.color);
-    // 2.9.1: the 1 s buffer is looped: a burst longer than what is left of it (it starts up to 0.5 s in)
-    // used to be cut off; white noise has no audible seam (3.7.0: nor have the six seconds of pink and brown)
     src.loop = true;
     src.playbackRate.value = opts.rate || 1;
     let filter = ctx.createBiquadFilter();
@@ -971,7 +633,7 @@ const SoundEngine = class {
     voice.node = src;
     voice.filter = filter;
     voice.amp = amp;
-    this.envelope(amp, start, dur, vol, { ...opts, attack: opts.attack || 0.003 });
+    this.envelope(amp, start, dur, level, { ...opts, attack: opts.attack || 0.003 });
     src.connect(filter);
     filter.connect(amp);
     this.route(amp, opts, voice);
@@ -980,11 +642,8 @@ const SoundEngine = class {
     src.stop(start + dur + 0.02);
   }
   /* 3.2.0: where a voice goes: its bus (opts.dest, the sounds by default), panned with opts.pan (-1..1) and sent to
-       the music reverb with opts.rev (send level) */
+     the music reverb with opts.rev (send level) */
   route(amp, opts, voice = null) {
-    // a sound (no bus of its own) takes the pan and the room of the event that is being played
-    // 3.9.0: the sounds of the place go to the ambience bus (opts.dest, or curBus while the accents of a biome event
-    // play) and ring out in the room of the sounds, not in that of the music
     let dest = opts.dest || this.curBus || this.sfx,
       pan = opts.pan != null ? opts.pan : opts.dest ? 0 : this.curPan,
       rev = opts.rev != null ? opts.rev : opts.dest ? 0 : this.curRev,
@@ -1019,7 +678,7 @@ const SoundEngine = class {
     this.makeup.gain.setValueAtTime(boss ? 1.3 : 1.1, now);
   }
   /* test hook: with musicLog set (an array) every music voice is recorded: kind, start, pitch, level, length,
-       bus (m music, d delay, p pump, c choir) */
+     bus (m music, d delay, p pump) */
   logMusic(voice, kind, pitch, vol, opts) {
     if (!this.musicLog || voice.pri !== 0) return;
     let dest = opts.dest;
@@ -1029,16 +688,7 @@ const SoundEngine = class {
       pitch,
       vol,
       dur: voice.end - voice.start,
-      bus:
-        dest === this.delay
-          ? "d"
-          : dest === this.pump
-            ? "p"
-            : dest === this.choir
-              ? "c"
-              : dest === this.ping
-                ? "b"
-                : "m",
+      bus: dest === this.delay ? "d" : dest === this.pump ? "p" : "m",
     });
   }
   gate(key, gap) {
@@ -1050,11 +700,12 @@ const SoundEngine = class {
   play(id, arg, bossWarning = false) {
     if (!this.live() || this.sfxVol <= 0) return;
     const warning = bossWarning || BOSS_WARNING_VOICES.has(id) || THREAT_WARNING_VOICES.has(id);
+    const atten = this.curAtten ?? 1;
     this.curPri = warning || KEY_SOUNDS.has(id) ? 2 : 1;
     this.curRev = SFX_ROOM[id] || 0;
     try {
       this._play(id, arg);
-      const depth = warning ? 0.15 : MUSIC_DUCK[id];
+      const depth = (warning ? 0.15 : MUSIC_DUCK[id] || 0) * atten;
       if (depth) this.duck(depth);
     } catch (err) {
       this.fail(err);
@@ -1064,14 +715,9 @@ const SoundEngine = class {
     }
   }
   /* 3.48.0: the volume sliders of the Settings let the ear check what they set: every bus answers with
-       one real sound of the game on that bus, at the level the slider just put in. Effects fire the shot
-       of the weapon in hand, music plays the arrival chord of the biome, the ambience sounds one far
-       voice of the place. A short throttle per bus keeps a drag from machine-gunning the sample, and the
-       usual gates apply (no live context or a muted bus: nothing sounds, nothing throws). */
+     one real sound of the game on that bus, at the level the slider just put in. */
   previewBus(bus, weapon) {
     if (!this.live()) return;
-    // the gate comes first: a muted bus answers nothing and its throttle stays clean, so turning
-    // the volume back up is heard at once
     if (bus === "sfx" && this.sfxVol <= 0) return;
     if (bus === "music" && this.musVol <= 0) return;
     if (bus === "ambience" && this.ambVol <= 0) return;
@@ -1093,8 +739,6 @@ const SoundEngine = class {
     let gain = this.duckGain;
     if (!gain) return;
     let now = this.ctx.currentTime;
-    // 3.43.1: inside the gate a deeper press still goes through (a nova right after a boom used
-    // to be swallowed whole); an equal or lighter one changes nothing, like before
     if (now - this.duckT < 0.1 && depth <= this.duckDepth) return;
     this.duckT = now;
     this.duckDepth = depth;
@@ -1103,8 +747,6 @@ const SoundEngine = class {
       gain.gain.setTargetAtTime(1 - Math.min(0.15, depth), now, 0.012);
       gain.gain.setTargetAtTime(1, now + 0.08, 0.07);
     } catch {}
-    // 3.43.0: the room is pressed down a little deeper than the music, so a blast feels like it takes
-    // the air of the place with it
     if (this.ambDuck) {
       let room = this.ambDuck.gain;
       room.cancelScheduledValues(now);
@@ -1281,9 +923,22 @@ const SoundEngine = class {
   }
   consume(events, listener) {
     if (!this.live()) return;
+    const lx = listener?.x ?? listener?.player?.x;
+    const ly = listener?.y ?? listener?.player?.y;
+    const hp = listener?.hp ?? listener?.player?.hp;
+    const maxHp = listener?.maxHp ?? listener?.stats?.maxHp;
+    if (hp > 0 && maxHp > 0) {
+      this.lowWard = hp / maxHp < 0.25;
+      if (this.muffleState) this.muffleState.lowWard = this.lowWard;
+      this._syncMuffle?.();
+    }
     let kills = 0;
     for (let ev of events) {
-      this.curPan = listener && ev.x != null ? Math.max(-0.8, Math.min(0.8, (ev.x - listener.x) / 20)) : 0;
+      this.curPan = listener && ev.x != null && lx != null ? Math.max(-0.8, Math.min(0.8, (ev.x - lx) / 20)) : 0;
+      this.curAtten =
+        listener && ev.x != null && ev.y != null && lx != null && ly != null
+          ? Math.max(0.28, Math.min(1, 1.15 - Math.hypot(ev.x - lx, ev.y - ly) / 28))
+          : 1;
       switch (ev.k) {
         case "shot":
           this.play(rlShotSfx(ev.w));
@@ -1303,11 +958,7 @@ const SoundEngine = class {
           }
           break;
         case "boom":
-          // 3.0.0: the traps have blasts of their own (trapFire), 3.12.0: so has the Singularity (singCollapse);
-          // 3.6.0: so has the
-          // Combo Surge ("surge")
           if (ev.kind === "trap" || ev.kind === "surge" || ev.kind === "nova") break;
-          // 3.10.0: the attacks of enemies and bosses sound like what they are
           if (attackVoice(ev.kind, ev.src, this.biome, ev.chill)) {
             this.play(attackVoice(ev.kind, ev.src, this.biome, ev.chill), ev.r);
             break;
@@ -1343,7 +994,6 @@ const SoundEngine = class {
         case "dash":
           this.play("dash");
           break;
-        // 3.17.0: the walker: a foot comes down on the ground of the biome (or on ice or acid), the landing after a dash
         case "step":
           this.play("step", { ground: ev.ground, foot: ev.foot, v: ev.v });
           break;
@@ -1364,7 +1014,7 @@ const SoundEngine = class {
           break;
         case "eshot":
           this.play(shotVoiceFor(ev));
-          // 3.33.0: a Frost enemy's shot rings with a glassy chime on top (its shot slows the drone it hits)
+          // 3.33.0: a Frost enemy's shot rings with a glassy chime on top (its shot slows the artificer it hits)
           if (ev.frost) this.play("eshotFrost");
           break;
         case "beamWarn":
@@ -1383,15 +1033,31 @@ const SoundEngine = class {
           this.play("spawn");
           break;
         case "wave":
+          if (this.muffleState) {
+            this.muffleState.choosing = false;
+            this._syncMuffle?.();
+          }
           this.play(ev.boss ? "boss" : "wave");
           break;
         case "cleared":
           this.play(ev.boss ? "bossCleared" : "cleared", ev.flawless);
           break;
         case "die":
+          this.lowWard = false;
+          if (this.muffleState) {
+            this.muffleState.lowWard = false;
+            this.muffleState.choosing = false;
+            this._syncMuffle?.();
+          }
           this.play("die");
           break;
         case "victory":
+          this.lowWard = false;
+          if (this.muffleState) {
+            this.muffleState.lowWard = false;
+            this.muffleState.choosing = false;
+            this._syncMuffle?.();
+          }
           this.play("victory");
           break;
         case "thud":
@@ -1401,9 +1067,12 @@ const SoundEngine = class {
           this.play("nova");
           break;
         case "pick":
+          if (this.muffleState) {
+            this.muffleState.choosing = false;
+            this._syncMuffle?.();
+          }
           this.play("pick", ev.evo ? 5 : (upgradesById[ev.id] && upgradesById[ev.id].rarity) || 1);
           break;
-        // 3.15.0: the boss cards
         case "sealgrid":
           this.play("bcCage");
           break;
@@ -1426,6 +1095,10 @@ const SoundEngine = class {
           this.play("reroll");
           break;
         case "offer":
+          if (this.muffleState) {
+            this.muffleState.choosing = true;
+            this._syncMuffle?.();
+          }
           this.play("offer");
           break;
         case "maxed":
@@ -1444,7 +1117,6 @@ const SoundEngine = class {
           this.play("gadgetNo");
           break;
         case "ping":
-          // the old ping (shield phase) stays silent; a hit the burst cap swallows tinks
           if (ev.resist) this.play("resist");
           break;
         case "trapWarn": {
@@ -1485,7 +1157,6 @@ const SoundEngine = class {
           this.play(this.biome === "courtyard" ? "inlayRelease" : "erupt");
           break;
         case "devilNear":
-          // 3.53.0: a dust devil of the Flats bears down on the player (the consume pan carried its spot)
           this.play("devilNear");
           break;
         case "warp":
@@ -1547,7 +1218,6 @@ const SoundEngine = class {
         case "biomeProp":
           this.play(ev.state === "arm" ? "propArm" : RL_PROP_VOICE[ev.kind] || "propLantern", ev);
           break;
-        // bosses
         case "boss":
           this.play("bossIntro", ev.id);
           break;
@@ -1572,6 +1242,7 @@ const SoundEngine = class {
       }
     }
     this.curPan = 0;
+    this.curAtten = 1;
   }
   /* 3.1.0: mode "fight" is the calm theme of the biome, "boss" its boss track. The boss track starts on the
      spot (main.js calls this when the boss appears, at the camera pan), not with the wave. */
@@ -1580,17 +1251,25 @@ const SoundEngine = class {
     if (mode === "boss" && !resume) this.bossOver = false;
     this.resumeWanted = !!resume;
     this.mode = mode;
-    if (this.ctx && this.muffle && mode !== "fight" && mode !== "boss") {
-      this._muffleWant = 18000;
-      this.muffle.frequency.setTargetAtTime(18000, this.ctx.currentTime, 0.3);
+    if (mode === "fight" || mode === "boss") {
+      if (this.muffleState) {
+        this.muffleState.paused = false;
+        if (!resume) {
+          this.muffleState.choosing = false;
+          this.lowWard = this.muffleState.lowWard = false;
+        }
+      }
+    } else if (mode === "off") {
+      this.lowWard = false;
+      if (this.muffleState) this.muffleState = { paused: false, choosing: false, lowWard: false };
     }
     if (biome) {
       this.biome = biome;
-      // 3.2.0: the room of the sounds is the room of the biome
       if (this.sfxVerbOut && SFX_ROOM_BIOME[biome])
         this.sfxVerbOut.gain.setTargetAtTime(SFX_ROOM_BIOME[biome], this.ctx.currentTime, 0.3);
     }
     this.syncTrack();
+    this._syncMuffle();
     this.resumeWanted = false;
   }
   /* The boss is dead: the boss track resolves (a last hit) and the calm theme fades back in. */
@@ -1613,28 +1292,20 @@ const SoundEngine = class {
     return scoreBiomes.includes(this.biome) ? this.biome : "courtyard";
   }
   /* Called when the wanted track changes: restarts the step counter on the spot, cuts the notes that were
-     already scheduled for the old track and plays the transition: an impact when the boss track starts, a last
-     hit when it resolves (the calm theme then fades back in over about 3 s). */
+     already scheduled for the old track and plays the transition. */
   syncTrack() {
-    // 3.43.1: the guard comes first - a setMusic before init() used to commit the track state and
-    // skip the audio half, and every later sync saw "no change" and never started the track
     let ctx = this.ctx;
     if (!ctx || !this.fade) return;
     let kind = this.wantKind(),
       biome = this.wantBiome();
     if (kind === this.playKind && biome === this.playBiome) return;
-    // 3.46.0: after a failed track start, back off 2 s before retrying (the 30 ms tick would
-    // otherwise rebuild the bed — and swap the room — over and over)
     if (this.trackFailT && ctx.currentTime - this.trackFailT < 2) return;
     let from = this.playKind,
       track = kind === "fight" || kind === "boss" ? musicTrack(kind, biome) : null;
-    // 3.2.0: the pause menu keeps the place of a fight or boss track; resuming the run goes on from there
     if ((from === "fight" || from === "boss") && kind === "menu")
       this.held = { kind: from, biome: this.playBiome, step: this.step, cycle: this.cycle, heat: this.heat };
     let held = this.held,
       resumed = !!held && this.resumeWanted && held.kind === kind && held.biome === biome;
-    // 3.46.0: the old state is kept — if the change fails midway, it is put back so the next
-    // tick (after the backoff) retries the whole change instead of a committed-but-silent track
     let prev = {
       kind: this.playKind,
       biome: this.playBiome,
@@ -1665,7 +1336,6 @@ const SoundEngine = class {
         this.fade.gain.setValueAtTime(0.0001, now);
         this.fade.gain.linearRampToValueAtTime(gain, now + 0.6);
       } else if (from === "boss" && kind === "fight") {
-        // resolve: the boss track ends on a last hit, then silence, then the calm theme fades in
         this.fade.gain.setValueAtTime(1.1, now);
         this.fade.gain.linearRampToValueAtTime(0.0001, now + 0.9);
         this.fade.gain.linearRampToValueAtTime(gain, now + 4.1);
@@ -1677,7 +1347,6 @@ const SoundEngine = class {
       }
       this.trackFailT = 0;
     } catch (err) {
-      // 3.46.0: roll the track state back and back off before retrying
       this.playKind = prev.kind;
       this.playBiome = prev.biome;
       this.step = prev.step;
@@ -1710,11 +1379,8 @@ const SoundEngine = class {
       }
     }
   }
-  /* 3.18.1: the old track does not ring on under the new one. A track change used to cut only the notes that were still
-     to come: the pads and bells already sounding (some for several seconds), the echoes of the delay and the tail of the
-     room played on, so the calm theme was heard under the first bars of a boss and the boss under the calm theme after it.
-     Now the sounding notes fade out over QUIET_FADE, the echo line is emptied and the room is swapped for a fresh one
-     (the old one fades out and goes). */
+  /* 3.18.1: the old track does not ring on under the new one. The sounding notes fade out over QUIET_FADE,
+     the echo line is emptied and the room is swapped for a fresh one. */
   quietOld(now) {
     let end = now + QUIET_FADE,
       list = this.musicVoiceList;
@@ -1734,19 +1400,10 @@ const SoundEngine = class {
       } catch {}
     }
     try {
-      // the echo line: nothing is fed back while it empties (0.28 s a round), then it works again
       this.fb.gain.cancelScheduledValues(now);
       this.fb.gain.setValueAtTime(0, now);
       this.fb.gain.setValueAtTime(0.32, now + 0.7);
-      // 3.28.1: the ping-pong echo of the bloom empties too (it rang about two seconds into the next track)
-      for (const g of this.pingFb || []) {
-        g.gain.cancelScheduledValues(now);
-        g.gain.setValueAtTime(0, now);
-        g.gain.setValueAtTime(0.42, now + 1);
-      }
       if (this.verbIn && this.verbPool) {
-        // 3.46.0: swap between the two pre-built rooms instead of building a fresh convolver
-        // (megabytes of impulse transform) on every track change; the outgoing one fades as before
         let old = this.verb,
           oldOut = this.verbOut,
           next = this.verbPool.find((v) => v.out !== oldOut) || this.verbPool[0];
@@ -1764,21 +1421,16 @@ const SoundEngine = class {
       this.fail(err);
     }
   }
-  /* Called every frame of a running world: `speed` (0..1, null: no engine hum) drives the drone
-     hum, `ambience` is the id of the biome event that is on (or null). Everything here stops by
-     itself when this is not called for 0.8 s (pause, menus) or the music mode is not a fight. */
-  setState(speed, ambience) {
+  /* Called every frame of a running world: `speed` (0..1, null: no lantern-craft hum) drives the lantern-craft
+     hum, `ambience` is the id of the biome event that is on (or null), and optional `state` drives muffle warmth.
+     Everything here stops by itself when this is not called for 0.8 s (pause, menus) or the music mode is not a fight. */
+  setState(speed, ambience, state) {
+    if (state !== undefined) this.setMuffleState(state);
     if (!this.ctx) return;
     this.liveT = this.ctx.currentTime;
     this.speed = speed;
     this.amb = AMBIENCE_LEVEL[ambience] ? ambience : null;
-    if (this.muffle) {
-      const want = 18000;
-      if (this._muffleWant !== want) {
-        this._muffleWant = want;
-        this.muffle.frequency.setTargetAtTime(want, this.ctx.currentTime, 0.35);
-      }
-    }
+    this._syncMuffle();
     let hum = this.beds.hum;
     if (hum && speed != null && Math.abs(speed - (this._humSpeed ?? -1)) > 0.018) {
       this._humSpeed = speed;
@@ -1790,7 +1442,6 @@ const SoundEngine = class {
   }
   /* Beds are the quiet loops: the lantern-craft hum and the biome event ambience. */
   startBed(name) {
-    // 3.43.1: idempotent - a bed that is already up never builds a second copy on top
     if (this.beds[name]) return;
     let ctx = this.ctx,
       now = ctx.currentTime,
@@ -1824,9 +1475,6 @@ const SoundEngine = class {
         from.connect(node);
         return node;
       };
-    // 3.43.1: registered before the build - if the build throws midway, the catch below stops the
-    // loops that already started (they used to be orphaned forever, and the scheduler retried the
-    // build every tick, stacking a new orphan set each time)
     try {
       if (name === "hum") {
         this._humSpeed = -1;
@@ -1840,14 +1488,7 @@ const SoundEngine = class {
         trim.connect(gain);
         parts.lp.connect(gain);
       } else {
-        const beds = {
-          aurora: [1120, 2.8, 0.14, 330, 0.62],
-          nectar: [460, 2.4, 0.28, 174, 0.58],
-          festival: [360, 2.0, 0.12, 196, 0.68],
-          forgewind: [640, 1.7, 0.18, 98, 0.56],
-          harmonic: [880, 3.8, 0.22, 220, 0.69],
-        };
-        const [center, q, pace, pitch, rate] = beds[name];
+        const [center, q, pace, pitch, rate] = EVENT_BEDS[name];
         const air = filter("bandpass", center, q, loop(rate, "pink"));
         const depth = ctx.createGain(),
           wet = ctx.createGain(),
@@ -1865,9 +1506,6 @@ const SoundEngine = class {
         wire.connect(gain);
       }
     } catch (err) {
-      // back out cleanly: stop what started, leave the registry (a dead bed, the
-      // scheduler will not rebuild it every tick — 3.46.0: it gets one more try after
-      // 10 s), and report like the rest of the engine
       this.stopBed(name, 0, 0.02);
       this.deadBeds[name] = now;
       this.fail(err);
@@ -1882,7 +1520,6 @@ const SoundEngine = class {
     if (!bed) return;
     let ctx = this.ctx,
       now = ctx.currentTime + at,
-      // 3.43.0: the bed passes instead of cutting (the storm dies away over about four seconds)
       fade = rel != null ? rel : BED_RELEASE[name] || 0.08,
       end = now + Math.max(0.4, fade * 3);
     try {
@@ -1908,14 +1545,11 @@ const SoundEngine = class {
     if (end > this.maxEnd) this.maxEnd = end;
     delete this.beds[name];
   }
-  /* 3.2.0: the atmosphere of a music track: a loop that plays under the notes for as long as the track plays (a
-       singing wind on the Aurora Shelf, murk in the Glowmarsh, soft rain and lantern hum
-       in Lantern Courtyard, beating drones in the Shattered Core; see MUSIC_BEDS). It goes through the music chain (volume,
-       fade, glue) and is not a voice of the budget. */
+  /* 3.2.0: the atmosphere of a music track: a loop that plays under the notes for as long as the track plays.
+     It goes through the music chain (volume, fade, glue) and is not a voice of the budget. */
   startMusicBed(kind, biome, fadeIn = 1.5) {
     const ctx = this.ctx;
     if (!ctx || (kind !== "fight" && kind !== "boss")) return;
-    // 3.43.1: same hardening as the beds - an atmosphere that is still up goes before a new one
     if (this.mbed) this.stopMusicBed();
     let now = ctx.currentTime,
       out = ctx.createGain(),
@@ -1959,9 +1593,6 @@ const SoundEngine = class {
     out.gain.setValueAtTime(1e-4, now);
     out.gain.linearRampToValueAtTime(kind === "boss" ? 0.29 : 0.22, now + fadeIn);
     out.connect(kind === "boss" ? this.atmosPump : this.atmos);
-    // 3.46.0: registered before the build — if the build throws midway, the catch below stops
-    // the loops that already started through stopMusicBed (they used to be orphaned forever,
-    // out of reach of stopMusicBed, with the track state already committed)
     this.mbed = { out, nodes };
     try {
       scoreBed({ osc, loop, filt, lfo, level, root, barRate, boss: kind === "boss" }, biome);
@@ -1991,16 +1622,11 @@ const SoundEngine = class {
         );
     } catch {}
   }
-  /* 3.43.0: the room tone - the quiet, steady bed of a biome. It plays wherever the game is (home,
-       upgrade, pause, fight): the world is never dead silence. It sits on the ambience bus under the
-       place and the music and takes no voice of the budget (like the atmospheres of the music). */
+  /* 3.43.0: the room tone - the quiet, steady bed of a biome. It sits on the ambience bus under the
+     place and the music and takes no voice of the budget. */
   startTone(name) {
     let ctx = this.ctx;
     if (!ctx || this.toneBed) return;
-    // 3.46.0: same hardening as the beds (3.43.1) — registered before the build: if the build
-    // throws midway, the catch below stops the loops that already started (they used to be
-    // orphaned forever while syncTone retried the build every 30 ms tick, stacking a new
-    // orphan set each time). A tone that failed gets one more try after 10 s.
     let dead = this.deadTone[name];
     if (dead != null && ctx.currentTime - dead < 10) return;
     let now = ctx.currentTime,
@@ -2009,7 +1635,6 @@ const SoundEngine = class {
       level = ROOM_TONE_LEVEL[name] || 0.028;
     this.toneBed = { name, gain, nodes, boss: false };
     try {
-      // the room arrives slowly (a new biome breathes in, it does not switch on)
       gain.gain.setValueAtTime(1e-4, now);
       gain.gain.setTargetAtTime(level, now, 1.2);
       gain.connect(this.ambBus);
@@ -2041,7 +1666,6 @@ const SoundEngine = class {
           node.connect(gain);
           return node;
         },
-        // a slow wander of a filter or a level: the room never stands still, but it never moves fast
         drift = (param, freq, depth) => {
           let lfo = osc("sine", freq),
             depthGain = ctx.createGain();
@@ -2049,15 +1673,7 @@ const SoundEngine = class {
           lfo.connect(depthGain);
           depthGain.connect(param);
         };
-      const recipes = {
-        courtyard: [238, 2.1, 0.08, 65, 1280],
-        shelf: [940, 1.7, 0.053, 113, 2810],
-        marsh: [387, 1.3, 0.119, 83, 1460],
-        core: [510, 3.7, 0.072, 94, 1860],
-        flats: [729, 1.5, 0.103, 109, 2390],
-        caldera: [189, 1.2, 0.067, 71, 1110],
-      };
-      const [air, q, pace, low, high] = recipes[name] || recipes.courtyard;
+      const [air, q, pace, low, high] = ROOM_TONE_RECIPES[name] || ROOM_TONE_RECIPES.courtyard;
       const wash = filter("bandpass", air, q, loop(0.68, "pink"));
       drift(wash.frequency, pace, air * 0.34);
       const washGain = amp(wash, 0.43);
@@ -2066,8 +1682,6 @@ const SoundEngine = class {
       drift(ring.gain, pace * 1.67, 0.069);
       amp(filter("bandpass", high, 5, loop(0.79, "brown")), 0.06);
     } catch (err) {
-      // back out cleanly: stop what started (stopTone also detaches the nodes and the gain),
-      // mark the tone dead for 10 s, and report like the rest of the engine
       this.stopTone(name, 0, 0.05);
       this.deadTone[name] = ctx.currentTime;
       this.fail(err);
@@ -2084,9 +1698,6 @@ const SoundEngine = class {
       tone.gain.gain.cancelScheduledValues(now);
       tone.gain.gain.setTargetAtTime(0, now, fade * 0.5);
       for (let node of tone.nodes) node.stop(end);
-      // 3.46.0: the nodes are detached instead of relying on GC — after the fade (an immediate
-      // detach used to cut it), and never in the offline renders (the render happens after the
-      // scheduling pass: a detached node's window would never sound)
       if (!this.offline)
         setTimeout(
           () => {
@@ -2099,14 +1710,13 @@ const SoundEngine = class {
         );
     } catch {}
   }
-  /* Runs with the scheduler: keeps the room tone of the current biome alive (menu, upgrade, pause and
-       fight alike), crossfades it on a biome change and dips it a little while a boss carries the track. */
+  /* Runs with the scheduler: keeps the room tone of the current biome alive, crossfades it on a biome change
+     and dips it a little while a boss carries the track. */
   syncTone() {
     let ctx = this.ctx;
     if (!ctx) return;
     let want = this.mode !== "off" && this.ambVol > 0 ? this.wantBiome() : null;
     if (this.toneBed && (!want || this.toneBed.name !== want)) this.stopTone();
-    // 3.46.0: a tone whose build threw gets one more try after 10 s (was: dead for the session)
     if (want && !this.toneBed) {
       let dead = this.deadTone[want];
       if (dead == null || ctx.currentTime - dead >= 10) this.startTone(want);
@@ -2138,7 +1748,6 @@ const SoundEngine = class {
     for (let name of Object.keys(this.beds)) {
       if (name !== "hum" && name !== amb) this.stopBed(name);
     }
-    // 3.46.0: a bed whose build threw gets one more try after 10 s (was: dead for the session)
     let dead = amb ? this.deadBeds[amb] : null;
     if (amb && !this.beds[amb] && (dead == null || now - dead >= 10)) this.startBed(amb);
     if (amb && now >= this.accentT) this.accent(amb, now);
@@ -2152,7 +1761,6 @@ const SoundEngine = class {
     }
   }
   accent(name, now) {
-    // 3.31.1: the sounds of a biome event give way to the fight like the sounds of the place (they took voices from it)
     this.curPri = 0.5;
     this.curBus = this.ambBus;
     try {
@@ -2163,15 +1771,8 @@ const SoundEngine = class {
     }
   }
   accentOf(name, now) {
-    const accents = {
-      aurora: [880, 1320, 1.15, "celesta", 0.024],
-      nectar: [349, 523, 0.48, "kalimba", 0.022],
-      festival: [294, 440, 0.78, "harp", 0.03],
-      harmonic: [330, 494, 0.92, "celesta", 0.024],
-      forgewind: [196, 294, 0.72, "brass", 0.028],
-    };
     this.accentT = now + 4.3 + Math.random() * 5.1;
-    const recipe = accents[name];
+    const recipe = EVENT_ACCENTS[name];
     if (!recipe) return;
     const [start, end, dur, wave, vol] = recipe;
     const drift = 0.91 + Math.random() * 0.18;
@@ -2194,9 +1795,6 @@ const SoundEngine = class {
           this.schedule();
           this.schedFails = 0;
         } catch (err) {
-          // 3.46.0: one throw used to clear the interval for the whole session — music, beds,
-          // the hum, the room tone and the voice pruning all died silently. Report, release
-          // the timer and re-arm with a growing backoff; the note loop is guarded per step.
           this.fail(err);
           clearInterval(this.timer);
           this.timer = null;
@@ -2232,13 +1830,11 @@ const SoundEngine = class {
           this.note(this.step, this.nextT);
         }
       } catch (err) {
-        // 3.46.0: one bad note must not kill the whole tick — the step still advances
         this.fail(err);
       }
       this.nextT += 60 / info.bpm / 4;
       this.step = (this.step + 1) % info.steps;
       if (this.jump && this.step % 16 === 0) {
-        // phase change or enrage: back to the drop (its head brings the hit, see sectionHit)
         this.jump = false;
         this.step = 0;
       }
@@ -2258,9 +1854,7 @@ const SoundEngine = class {
     return trackInfo(kind, biome);
   }
   /* Test hook: schedules `loops` loops of a track (nothing is rendered) and returns the counters of the voice
-       budget (musicPeak: most voices alive at once; musicSkipped and musicShed: notes the budget refused) and the
-       log of every voice, so that two runs (for example with a flood of sounds) can be compared note by note.
-       spec: music (fight|boss), biome, loops, intensity, heat, flood (sounds per step) */
+     budget and the log of every voice. */
   static musicBudget(spec) {
     let Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext,
       ctx = new Offline(1, 44100, 44100),
@@ -2269,9 +1863,6 @@ const SoundEngine = class {
       len = 60 / info.bpm / 4;
     engine.budgetOnly = spec.renderGraph !== true;
     engine.attach(ctx, { room: false });
-    // This hook schedules counters and logs, never samples. Real native sources would stay
-    // attached to unrendered OfflineAudioContexts and retain gigabytes across budget cases.
-    // renderGraph is a bounded parity-test reference; actual offline renders always build nodes.
     engine.budgetOnly = spec.renderGraph !== true;
     engine.sfxVol = 1;
     engine.mode = spec.music;
@@ -2305,19 +1896,13 @@ const SoundEngine = class {
       log: engine.musicLog,
     };
   }
-  /* Test hook: render one sound (or a bed, or a stretch of music) offline: mono, 44.1 kHz. The sound
-     starts 0.25 s into the render (like in the game, where the compressors are already running). */
+  /* Test hook: render one sound (or a bed, or a stretch of music) offline: mono, 44.1 kHz. */
   static async renderOffline(spec, seconds = 2) {
     let Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext,
-      // 3.19.0 (test): spec.stereo renders two channels (samples is the left one, samplesR the right one); spec.bloom
-      // false leaves out the ambient bloom
       ctx = new Offline(spec.stereo ? 2 : 1, Math.ceil(44100 * (seconds + 0.35)), 44100),
       engine = new SoundEngine(),
       base = 0;
     if (spec.bloom === false) engine.bloom = false;
-    // with spec.seed the noise of the engine and the sound's own random choices are seeded (see below); spec.room
-    // false leaves out the reverbs (the convolver of Chrome renders its tail on another thread, not quite the same
-    // every time)
     const seeded = (fn) => {
       if (spec.seed == null) return fn();
       const random = Math.random;
@@ -2331,8 +1916,6 @@ const SoundEngine = class {
     seeded(() => engine.attach(ctx, { room: spec.room !== false }));
     await engine.physical.ready;
     engine.sfxVol = 1;
-    // balance probe (scripts/rl-mix-probe.mjs): spec.vol sets the three bus volumes the way the game
-    // would have them (the forced sfxVol = 1 above stays for every other caller)
     if (spec.vol) engine.setVolumes(spec.vol.sfx ?? 1, spec.vol.mus ?? engine.musVol, spec.vol.amb ?? engine.ambVol);
     if (spec.burst)
       for (let i = 1; i < spec.burst.n; i++)
@@ -2351,12 +1934,9 @@ const SoundEngine = class {
         engine.startBed(spec.bed);
         engine.stopBed(spec.bed, spec.stopAt || 1.2, spec.stopRel);
       } else if (spec.tone) {
-        // 3.43.0: a short take of a room tone, with a quick test fade (the real one breathes slower)
         engine.startTone(spec.tone);
         engine.stopTone(spec.tone, spec.stopAt || 1.0, spec.fade || 0.25);
       } else if (spec.music) {
-        // 3.1.0: `seconds` of a calm theme or boss track from bar `fromBar`, at intensity `intensity` (calm) and
-        // heat `heat` (boss); musicLog (spec.log) records every music voice, `impact` plays the start of a boss track
         engine.mode = spec.music;
         engine.biome = spec.biome;
         engine.playKind = spec.music;
@@ -2369,12 +1949,9 @@ const SoundEngine = class {
           first = (spec.fromBar || 0) * 16;
         engine.fade.gain.value = musicTrack(spec.music, spec.biome).gain;
         engine.mixFor(spec.music);
-        // 3.18.1: with spec.seed the random choices of the music (its notes, its atmosphere) are seeded as well, so that
-        // the numbers of the deep test do not change from run to run
         seeded(() => {
           if (!spec.noBed) engine.startMusicBed(spec.music, spec.biome, 0.05);
           if (spec.impact) musicImpact(engine, spec.biome, 0);
-          // 3.18.1 (test): the track ends at spec.musicEnd s and spec.quietAt s is the moment of a track change
           for (
             let n = 0, t = 0;
             t < Math.min(seconds - 0.25, spec.musicEnd != null ? spec.musicEnd : 1e9);
@@ -2383,7 +1960,6 @@ const SoundEngine = class {
             engine.simT = base + t;
             engine.cycle = Math.floor((first + n) / info.steps);
             engine.note((first + n) % info.steps, base + t);
-            // 2.9.0: a flood of sounds in every step; the music notes must all be scheduled anyway
             if (spec.flood)
               for (let k = 0; k < 30; k++) {
                 engine.last = Object.create(null);
@@ -2394,15 +1970,10 @@ const SoundEngine = class {
         });
         engine.simT = null;
       } else if (spec.burst) {
-        // 2.9.2: continuous fire of one sound: the first shot now, the others at times registered
-        // before rendering starts (see below), so the rate gate and the voice limit behave as in the game
         engine.play(spec.burst.id, spec.burst.arg);
       } else if (spec.noise) {
-        // 2.9.1: a raw noise burst (tests that long bursts are not cut off)
         engine.noise(spec.noise.dur, spec.noise.vol, spec.noise.opts || {});
       } else {
-        // seeded: a comparison of sounds (tests/deep-test.mjs) gives the same result every time (the sounds vary
-        // their pitch and noise at random); the whole sound is scheduled right here
         seeded(() => engine.play(spec.id, spec.arg));
       }
       ctx.resume();
@@ -2449,227 +2020,5 @@ const SoundEngine = class {
     };
   }
 };
-const AMB_PREVIEW = {
-  courtyard: "galleryChime",
-  shelf: "icicles",
-  marsh: "drip",
-  core: "shimmer",
-  caldera: "rockFall",
-  flats: "glassPing",
-};
-function trackInfo(kind, biome) {
-  if (kind === "fight" || kind === "boss") {
-    const track = musicTrack(kind, biome);
-    return { bpm: track.bpm, steps: track.bars * 16 };
-  }
-  return { bpm: 84, steps: 96 };
-}
-
-/* 2.9.0: what the music flood test throws at the engine (sound id, argument): every weapon, deaths, blasts */
-const RL_FLOOD = [
-  ...RL_SFX_VOICES.map((id) => [id]),
-  ["boom"],
-  ["hurt"],
-  ["nova"],
-  ["hit"],
-  ["crit"],
-  ["kill", 1.8],
-  ["dCrunch", 1.6],
-  ["dClang", 1.6],
-  ["dShatter", 1.6],
-  ["bigkill"],
-  ["bSlam", "bellkeeper"],
-  ["eshotBoss"],
-];
-function rlSoundCatalog() {
-  const list = [],
-    add = (name, spec) => list.push({ name, spec }),
-    ids = (names, arg) => names.forEach((id) => add(id + (arg !== undefined ? ":" + arg : ""), { id, arg }));
-  ids(RL_SFX_VOICES);
-  for (const type of ["grunt", "swarmer", "core", "prism", "phantom"])
-    for (const id of ["hit", "crit"]) add(`${id}:${type}`, { id, arg: { type } });
-  add("hit:shield", { id: "hit", arg: { type: "grunt", shield: true } });
-  ids([
-    "block",
-    "guardBreak",
-    "shieldPop",
-    "lob",
-    "blinkWarn",
-    "blink",
-    "heart",
-    "evolve",
-    "hit",
-    "crit",
-    "bigkill",
-    "boom",
-    "smallboom",
-    "hurt",
-    "shield",
-    "shieldUp",
-    "dash",
-    "nova",
-    "novaReady",
-    "shard",
-    "heal",
-    "eshot",
-    "snipe",
-    "eshotDrone",
-    "eshotTurret",
-    "eshotBoss",
-    "eshotKeeper",
-    "eshotQueen",
-    "eshotCore",
-    "eshotPrism",
-    "eshotTyrant",
-    "eshotWyrm",
-    "eshotGunner",
-    "bwLaser",
-    "bwRift",
-    "aGlass",
-    "leap",
-    "eshotWeaver",
-    "eshotCarrier",
-    "eshotFrost",
-    "tcPyro",
-    "tsPyro",
-    "tribute",
-    "bwCryo",
-    "bwAcid",
-    "bwFlame",
-    "bwFlare",
-    "warn",
-    "fuse",
-    "spawn",
-    "wave",
-    "boss",
-    "click",
-    "erupt",
-    "devilNear",
-    "warp",
-    "mend",
-    "chill",
-    "stun",
-    "champion",
-    "rumble",
-    "ready",
-    "buy",
-    "deny",
-    "die",
-    "victory",
-    "thud",
-    "beam",
-    "hover",
-    "reroll",
-    "offer",
-    "pick",
-    "cleared",
-    "bossCleared",
-  ]);
-  ids(["kill"], 1.8);
-  // 3.9.0: the sounds of the place
-  ids(["inlayRelease"]);
-  for (const placeId of PLACE_IDS) add("place:" + placeId, { id: "place", arg: { id: placeId } });
-  ids(["stun"], "riftburst");
-  ids(["combo"], 6);
-  ids(["surge"], 1);
-  ids(["cleared"], true);
-  for (const id of new Set(Object.values(RL_DEATH_FAMILY))) ids([id], 1.6);
-  ids([
-    "windHeavy",
-    "windWhine",
-    "windSlash",
-    "windDrill",
-    "windLeap",
-    "lock",
-    "servo",
-    "plant",
-    "guardUp",
-    "ram",
-    "ramDrill",
-    "beamSmall",
-    "freeze",
-    "chain",
-    "wing",
-    "bounce",
-    "supply",
-    "bounty",
-    "comboEnd",
-    "enrage",
-    "phase",
-    "bossDown",
-  ]);
-  ids(["hatch"], 0);
-  ids(["hatch"], 1);
-  // 3.0.0: the gadget (3.12.0: the Singularity), resisted hits and traps
-  ids(["singThrow", "singPull", "singCollapse", "gadgetReady", "gadgetNo", "resist"]);
-  // 3.3.0: the Endless mutator
-  ids(["mutator"], "volatile");
-  // 3.53.0: the sunspike joins the trap families (warn and fire of its own)
-  ids(["tcPlate", "tcIce", "tcGeyser", "tcRift", "tcSun"], 1);
-  for (const id of ["tbLaser", "tbFlame", "tbRift"]) add(id, { id, arg: { delay: 0.7, dur: 1.2 } });
-  ids(["tmMine", "tmFrost", "tmSpore", "tmRift"], 0.45);
-  for (const skin of ["mine", "frost", "spore", "riftmine"]) ids(["tArm"], skin);
-  ids(["tsPlate", "tsIce", "tsGeyser", "tsRift", "tsMine", "tsFrost", "tsSpore", "tsRiftMine", "tsSun"]);
-  // 3.10.0: the blasts of the attacks of enemies and bosses
-  ids(["aQuake", "aLava", "aIce", "aAcid", "aRift"], 2);
-  ids(["aFire"], 1);
-  // 3.34.0: a Shorted enemy's spot arcs, and its warning
-  ids(["aShort"], 1.6);
-  ids(["shortFizz"]);
-  for (const boss of Object.keys(BOSS_EFFECTS)) {
-    ids(["bossIntro"], boss);
-    for (const id of [
-      "bWind",
-      "bRing",
-      "bSlam",
-      "bSummon",
-      "bNova",
-      "bLance",
-      "bRain",
-      "bOverdrive",
-      "enrage",
-      "bossDown",
-    ])
-      ids([id], boss);
-  }
-  for (const source of [...Object.keys(BOSS_EFFECTS), "striker", "phantom", "leaper", "weaver", "hive"])
-    for (const id of ["blink", "blinkWarn", "thud", "lob", "hatch"])
-      add(`${id}:${source}`, { id, arg: { src: source } });
-  for (const [skin, voices] of Object.entries(RL_TRAP_SOUND))
-    for (const [phase, id] of Object.entries(voices))
-      add(`${id}:${skin}`, { id, arg: phase === "warn" ? { delay: 0.8 } : 1 });
-  for (const skin of ["embermine", "glassmine"]) add(`tArm:${skin}`, { id: "tArm", arg: skin });
-  for (const source of ["beacon", "mender"]) add(`mend:${source}`, { id: "mend", arg: source });
-  for (const rarity of [1, 2, 3, 4, 5, 6]) ids(["pick"], rarity);
-  // 3.17.0: the walker: a footstep on every ground, the landing after a dash
-  for (const ground of ["flagstone", "frost", "ice", "mud", "glass", "acid", "crust", "sandglass"])
-    add("step:" + ground, { id: "step", arg: { ground } });
-  add("land:crust", { id: "land", arg: { ground: "crust" } });
-  ids([
-    "sparkCourtyard",
-    "sparkShelf",
-    "sparkMarsh",
-    "sparkCore",
-    "sparkCaldera",
-    "sparkFlats",
-    "propArm",
-    "propLantern",
-    "propRime",
-    "propPuffball",
-    "propPrism",
-    "propCrucible",
-    "propSunglass",
-  ]);
-  // 3.15.0: the boss cards
-  ids(["bcCage", "bcLock", "bcShatter", "bcHatch", "bcBurst", "bcImplode"]);
-  for (const id of ["gilded", "starfall", "festival", "aurora", "nectar", "harmonic", "forgewind", "mirage"])
-    ids(["event"], id);
-  for (const bed of ["hum", ...Object.keys(AMBIENCE_LEVEL)]) add("bed:" + bed, { bed, stopAt: 1.1, stopRel: 0.1 });
-  // 3.43.0: the room tones render too (a short take of each, the real attack is slower than the test fade)
-  for (const biome of Object.keys(ROOM_TONE_LEVEL)) add("tone:" + biome, { tone: biome, stopAt: 1.0, fade: 0.25 });
-  for (const biome of scoreBiomes)
-    for (const music of ["fight", "boss"]) add(`music:${biome}:${music}`, { music, biome });
-  return list;
-}
 
 export { RL_SFX_VOICES, rlShotSfx, RL_TRAP_SOUND, attackVoice, SoundEngine };

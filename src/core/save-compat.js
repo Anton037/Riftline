@@ -20,6 +20,7 @@ export const LEGACY_MODULES = {
   riftBattery: { costs: [260, 540, 980], to: "nova" },
   reactorCore: { costs: [1600, 3400, 6200], to: "nova" },
   routeScanner: { costs: [1800, 3800, 6800], to: "fieldSupply" },
+  hazardSeal: { costs: [1200, 2500, 4500], to: "armorCore" },
 };
 
 const LEGACY_UPGRADES = {
@@ -38,18 +39,23 @@ const LEGACY_UPGRADES = {
   flux: { to: "overcharge", k: 0.2 },
   afterburner: { to: "speed", k: 0.62 },
   coolant: { to: "speed", k: 1.25 },
-  phasecoat: { to: "hazmat", k: 0.32 },
-  chainlink: { to: "resonance", k: 1 },
+  phasecoat: { to: "shield", k: 0.5 },
+  hazmat: { to: "shield", k: 1 },
+  chainlink: { to: "arc", k: 1 },
+  resonance: { to: "arc", k: 1 },
   payloadMatrix: { to: "payload", k: 1 },
-  scavenger: { to: "supply", k: 1 },
-  scavengerNet: { to: "salvager", k: 1 },
+  scavenger: { to: "overcharge", k: 1 },
+  scavengerNet: { to: "overcharge", k: 1 },
+  supply: { to: "overcharge", k: 1 },
+  salvager: { to: "overcharge", k: 1 },
+  skates: { to: "speed", k: 1 },
+  laststand: { to: "hp", k: 1 },
   capacitor: { to: "overcharge", k: 1 },
-  bounty: { to: "supply", k: 1 },
+  bounty: { to: "overcharge", k: 1 },
   velocity: { to: "crit", k: 0.7 },
-  magnet: { to: "supply", k: 1 },
+  magnet: { to: "overcharge", k: 1 },
   vector: { to: "speed", k: 0.83 },
   glasscore: { to: "dmg", k: 0.67 },
-  momentum: { to: "rate", k: 0.67 },
 };
 
 export const legacyWeapon = (id) => (Object.hasOwn(LEGACY_WEAPONS, id) ? LEGACY_WEAPONS[id] : null);

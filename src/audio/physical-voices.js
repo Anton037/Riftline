@@ -476,19 +476,21 @@ export function physicalProfile(id, arg, place = false) {
   if (place) {
     family = P[id]?.model === "ceramic" ? id : (PLACE_FAMILIES.find(([names]) => names.test(id))?.[1] ?? "room");
   } else if (!P[id]) {
-    if (/^(tc|tm|tb|bw)|warn|wind|\block\b|servo|fuse|bWind|tArm|^beam(?:Small)?$/i.test(id)) family = "warning";
-    else if (/boom|nova$|slam|thud|erupt|quake|collapse|bigkill|die/i.test(id)) family = "boom";
-    else if (/^dSquelch|dCrunch|dPop|hatch|brood/i.test(id)) family = "organic";
-    else if (/^dArmor|dClang|block|guard|shield|plant|ram|resist/i.test(id)) family = "armor";
-    else if (/dShatter|frost|freeze|cryo|^tsIce|^tsFrost|aIce/i.test(id)) family = "glass";
+    if (/^(tc|tm|tb|bw)|warn|wind|\block\b|servo|fuse|bWind|bOverdrive|tArm|^beam(?:Small)?$/i.test(id))
+      family = "warning";
+    else if (/boom|nova$|slam|thud|erupt|quake|collapse|bigkill|die|bRain/i.test(id)) family = "boom";
+    else if (/^(?:dSquelch|dCrunch|dPop|hatch|brood|bSummon)/i.test(id)) family = "organic";
+    else if (/^dArmor|dClang|block|guard|shield|plant|ram|resist|bRing/i.test(id)) family = "armor";
+    else if (/dShatter|frost|freeze|cryo|^tsIce|^tsFrost|aIce|bLance|bounce/i.test(id)) family = "glass";
     else if (/^d(?=[A-Z])/.test(id) || /kill/i.test(id)) family = "debris";
     else if (/eshot|snipe|wing|lob|chain/i.test(id)) family = /Queen|Weaver|Frost|Prism/.test(id) ? "tesla" : "pulse";
     else if (/step|land/.test(id)) family = "step";
-    else if (/dash|blink|warp|singPull|hover|devil/i.test(id)) family = "wind";
-    else if (/ready|buy|pick|clear|victory|heal|evolve|shard|tribute|bounty|reward|surge/i.test(id)) family = "reward";
+    else if (/dash|blink|warp|singPull|devil/i.test(id)) family = "wind";
+    else if (/ready|buy|pick|clear|victory|heal|evolve|shard|tribute|bounty|reward|surge|champion|mutator/i.test(id))
+      family = "reward";
     else if (/beam|rift|stun|chill|short|zap/i.test(id)) family = "tesla";
     else if (/^ts|^a[A-Z]|^bc|boss|phase|enrage|rumble/i.test(id)) family = "boom";
-    else if (/click|deny|offer|reroll|supply|combo|wave|spawn|mend|gadget/i.test(id)) family = "ui";
+    else if (/click|hover|deny|offer|reroll|supply|combo|wave|spawn|mend|gadget/i.test(id)) family = "ui";
   }
   const p = { ...P[family], family };
   if (id === "heart")
@@ -498,6 +500,29 @@ export function physicalProfile(id, arg, place = false) {
   if (id === "dGhost") Object.assign(p, P.wind, { family: "wind", body: 96, dur: 0.5, gain: 0.18 });
   if (id === "dZap") Object.assign(p, P.tesla, { family: "tesla", dur: 0.27, gain: 0.23 });
   if (id === "eshotFrost") Object.assign(p, P.glass, { family: "glass", dur: 0.23, gain: 0.22 });
+  if (id === "bOverdrive")
+    Object.assign(p, P.warning, {
+      family: "warning",
+      sample: "plate",
+      body: 440,
+      dur: 0.78,
+      air: 0.14,
+      grain: 0.06,
+      gain: 0.28,
+      warn: true,
+    });
+  if (id === "bRing")
+    Object.assign(p, P.armor, { family: "armor", sample: "plate", body: 320, dur: 0.48, air: 0.1, gain: 0.27 });
+  if (id === "bSummon")
+    Object.assign(p, P.organic, { family: "organic", sample: "flesh", body: 135, dur: 0.52, air: 0.18, gain: 0.26 });
+  if (id === "bLance")
+    Object.assign(p, P.glass, { family: "glass", sample: "glass", body: 640, dur: 0.44, air: 0.14, gain: 0.26 });
+  if (id === "bRain")
+    Object.assign(p, P.boom, { family: "boom", sample: "heavy", body: 72, dur: 0.58, air: 0.28, gain: 0.32 });
+  if (id === "champion")
+    Object.assign(p, P.reward, { family: "reward", sample: "plate", body: 360, dur: 0.48, air: 0.07, gain: 0.25 });
+  if (id === "mutator")
+    Object.assign(p, P.reward, { family: "reward", sample: "obsidian", body: 420, dur: 0.56, air: 0.12, gain: 0.26 });
   const source = typeof arg === "string" ? arg : arg?.src,
     identity = BOSS_EFFECTS[source];
   if (!place && identity && /^(b[A-Z]|boss|enrage|bigkill|blink|thud|lob|hatch)/.test(id)) {
@@ -520,6 +545,9 @@ export function physicalProfile(id, arg, place = false) {
   if (!place && id === "lob" && arg?.frost)
     Object.assign(p, P.glass, { family: "frostLob", dur: 0.23, body: 510, gain: 0.22 });
   if (!place && id === "tbFlame") Object.assign(p, P.bwFlame, { family: "magmaWarning" });
+  if (!place && id === "tbCryo") Object.assign(p, P.bwCryo, { family: "cryoWarning" });
+  if (!place && id === "tbAcid") Object.assign(p, P.bwAcid, { family: "acidWarning" });
+  if (!place && id === "tbSun") Object.assign(p, P.bwFlare, { family: "sunWarning" });
   if (!place && id === "tsPlate")
     Object.assign(p, { ...P.reward, family: id, sample: "plate", body: 310, dur: 0.42, gain: 0.28 });
   if (!place && (id === "tsGeyser" || id === "tsSpore"))
@@ -528,7 +556,7 @@ export function physicalProfile(id, arg, place = false) {
     Object.assign(p, { ...P.boom, family: id, sample: "wood", body: 68, lowpass: 1200, dur: 0.44, gain: 0.32 });
   if (!place && (id === "tsSun" || id === "tsGlass"))
     Object.assign(p, { ...P.glass, family: id, sample: "glass", body: 540, dur: 0.32, gain: 0.26 });
-  if (!place && (id === "tsRift" || id === "tsRiftmine"))
+  if (!place && (id === "tsRift" || id === "tsRiftMine" || id === "tsRiftmine"))
     Object.assign(p, { ...P.wind, family: id, sample: "soft", body: 195, dur: 0.44, gain: 0.28 });
   if (!place && id === "mend")
     Object.assign(
@@ -590,6 +618,9 @@ export function physicalProfile(id, arg, place = false) {
 
   // A few inharmonic material modes identify cues without melodic arcade pitch sweeps.
   p.body *= P[id] ? 1 : 0.84 + (hash(id) % 39) / 100;
+  if (!place && id === "hover")
+    Object.assign(p, P.ui, { family: "ui", dur: 0.035, gain: 0.06, sample: "wood", body: 420 });
+  if (!place && id === "bounce") Object.assign(p, P.glass, { family: "glass", dur: 0.11, body: 620, gain: 0.16 });
   if (p.warn) {
     const delay = typeof arg === "number" ? arg : arg?.delay;
     if (Number.isFinite(delay)) p.dur = Math.max(0.12, Math.min(1.5, delay));
@@ -777,12 +808,14 @@ export class PhysicalVoices {
     const voice = engine.claim(ambience ? 0.5 : engine.curPri, start, end);
     if (!voice || engine.budgetOnly) return;
     const src = this.ctx.createBufferSource(),
-      amp = this.ctx.createGain();
+      amp = this.ctx.createGain(),
+      atten = ambience ? 1 : (engine.curAtten ?? 1),
+      level = p.gain * gain * atten;
     src.buffer = this.buffer(p, this.serial++ % 3);
     voice.node = src;
     voice.amp = amp;
-    amp.gain.setValueAtTime(p.gain * gain, start);
-    amp.gain.setValueAtTime(p.gain * gain, start + Math.max(0.001, p.dur - 0.02));
+    amp.gain.setValueAtTime(level, start);
+    amp.gain.setValueAtTime(level, start + Math.max(0.001, p.dur - 0.02));
     amp.gain.linearRampToValueAtTime(0, start + p.dur);
     src.connect(amp);
     engine.route(
@@ -809,7 +842,16 @@ export class PhysicalVoices {
     if (["scatter", "rail"].includes(id))
       this.source(engine, "chamber", { ...P.ui, sample: "metal", gain: 0.11 }, { at: id === "scatter" ? 0.13 : 0.18 });
     if (/^tb/.test(id) && arg?.dur) {
-      const base = id === "tbFlame" ? P.bwFlame : id === "tbLaser" ? P.wind : P.tesla;
+      const base =
+        id === "tbFlame"
+          ? P.bwFlame
+          : id === "tbCryo" || id === "tbSun"
+            ? P.glass
+            : id === "tbAcid"
+              ? P.organic
+              : id === "tbLaser"
+                ? P.wind
+                : P.tesla;
       this.source(engine, id + "-active", { ...base, dur: Math.min(1.2, arg.dur) }, { at: p.dur, gain: 0.7 });
     }
   }

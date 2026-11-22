@@ -1,17 +1,41 @@
-// Biome-native realm hazards (from wave 6): floor strikes, sweeping beacons/bellows, and shootable vessels.
-// Every biome gives each family its own distinct tactical twist (chime knockback & daze, wide rime halo,
-// corrosive bog blooms, inward astral pull, lingering caldera burn pools, dust-devil calming glass bursts,
-// shorter/wider dragon-kiln bellows, and pendulum astrolabe ribbons).
+// Biome-native realm mechanisms (from wave 2): floor strikes, sweeping beacons/bellows, and shootable vessels.
+// Every biome has a full 3-family kit (floor, beam, mine) with distinct tactical behavior.
 
 import { makeRng, hashString, TAU, clamp } from "./util.js";
 import { BIOME_TRAP_EFFECTS as BIOME_TRAPS } from "../data/combat-effects.js";
 
 // skins: family, base damage (times wave enemy damage multiplier), radius, warning, pause, biome-native twist
 const TRAP_SKINS = {
-  // Sweeping beacons & bellows
+  // Sweeping beacons, curtains, spouts & bellows (all 6 realms)
   laser: { fam: "beam", dmg: 16, w: 0.9, len: 26, warn: 1.1, dur: 2.1, rot: 0.52, cd: 3.6, special: "shock" },
+  cryo: {
+    fam: "beam",
+    dmg: 16,
+    w: 1.15,
+    len: 21,
+    warn: 1.05,
+    dur: 2.3,
+    rot: 0.48,
+    swing: 1.1,
+    cd: 3.4,
+    special: "chill",
+  },
+  acid: { fam: "beam", dmg: 16, w: 1.05, len: 18, warn: 1.0, dur: 2.2, rot: 0.68, cd: 3.3, special: "acid" },
   rift: { fam: "beam", dmg: 18, w: 1.0, len: 22, warn: 1.15, dur: 2.6, rot: -0.58, swing: 1.35, cd: 3.7 },
   magma: { fam: "beam", dmg: 18, w: 1.35, len: 15.5, warn: 0.95, dur: 1.85, rot: 0.78, cd: 2.9, special: "burn" },
+  sun: {
+    fam: "beam",
+    dmg: 18,
+    w: 0.85,
+    len: 25,
+    warn: 1.05,
+    dur: 2.2,
+    rot: 0.62,
+    swing: 1.25,
+    cd: 3.5,
+    special: "glass",
+  },
+
   // Floor hazards
   plate: { fam: "floor", dmg: 22, r: 2.25, warn: 1.0, cd: 4.2, special: "shock", knock: 4.8, frac: 0.11 },
   icespike: { fam: "floor", dmg: 24, r: 2.2, warn: 1.0, cd: 4.2, special: "chill", chillHalo: 1.35, frac: 0.1 },
@@ -19,12 +43,55 @@ const TRAP_SKINS = {
   riftburst: { fam: "floor", dmg: 24, r: 2.4, warn: 1.05, cd: 4.2, special: "shock", pull: 5.2, frac: 0.11 },
   pyro: { fam: "floor", dmg: 21, r: 2.1, warn: 1.0, cd: 4.0, special: "burn", frac: 0.12 },
   sunspike: { fam: "floor", dmg: 22, r: 2.25, warn: 1.0, cd: 4.1, special: "glass", knock: 6.5, frac: 0.12 },
+
   // Shootable proximity vessels
-  mine: { fam: "mine", dmg: 28, r: 2.7, trig: 1.5, arm: 1.5, fuse: 0.45, special: "shock", knock: 5.0, frac: 0.18 },
-  frost: { fam: "mine", dmg: 22, r: 3.2, trig: 1.5, arm: 1.5, fuse: 0.45, special: "chill", frac: 0.12 },
-  spore: { fam: "mine", dmg: 18, r: 3.0, trig: 1.5, arm: 1.5, fuse: 0.45, special: "acid", frac: 0.1 },
+  mine: {
+    fam: "mine",
+    dmg: 28,
+    r: 2.7,
+    trig: 1.5,
+    arm: 1.5,
+    fuse: 0.45,
+    special: "shock",
+    knock: 5.4,
+    daze: 2.2,
+    frac: 0.18,
+  },
+  frost: {
+    fam: "mine",
+    dmg: 22,
+    r: 3.2,
+    trig: 1.5,
+    arm: 1.5,
+    fuse: 0.45,
+    special: "chill",
+    chillHalo: 1.45,
+    icePatch: true,
+    frac: 0.13,
+  },
+  spore: {
+    fam: "mine",
+    dmg: 18,
+    r: 3.0,
+    trig: 1.5,
+    arm: 1.5,
+    fuse: 0.45,
+    special: "acid",
+    poolScale: 1.05,
+    frac: 0.11,
+  },
   riftmine: { fam: "mine", dmg: 26, r: 2.9, trig: 1.5, arm: 1.5, fuse: 0.56, pull: 8.5, frac: 0.16 },
-  embermine: { fam: "mine", dmg: 28, r: 2.7, trig: 1.5, arm: 1.5, fuse: 0.45, special: "burn", frac: 0.17 },
+  embermine: {
+    fam: "mine",
+    dmg: 28,
+    r: 2.7,
+    trig: 1.5,
+    arm: 1.5,
+    fuse: 0.45,
+    special: "burn",
+    poolLife: 3.5,
+    frac: 0.17,
+  },
   glassmine: {
     fam: "mine",
     dmg: 26,
@@ -33,30 +100,29 @@ const TRAP_SKINS = {
     arm: 1.5,
     fuse: 0.45,
     special: "glass",
-    knock: 7.0,
+    knock: 7.5,
+    splinters: 4,
     frac: 0.17,
   },
 };
-// first wave of each family, and the number of traps per family on a wave
-const TRAP_FROM = { floor: 6, beam: 9, mine: 12 };
+
+// First wave of each family, unlocked in World 1 so Lantern Courtyard mechanisms appear in standard waves
+const TRAP_FROM = { floor: 2, mine: 4, beam: 7 };
+
 function trapCount(fam, wave) {
   if (wave < TRAP_FROM[fam]) return 0;
   const late = wave - TRAP_FROM[fam];
   let count =
-    fam === "floor" ? 1 + Math.floor(late / 6) : fam === "beam" ? 1 + Math.floor(late / 14) : 2 + Math.floor(late / 5);
-  // Endless (past the twentieth wave): half as many more, and the wave still adds on top
+    fam === "floor" ? 1 + Math.floor(late / 6) : fam === "beam" ? 1 + Math.floor(late / 12) : 2 + Math.floor(late / 5);
   if (wave > 20) count = Math.ceil(count * 1.5) + Math.floor(Math.max(0, wave - 40) / 20);
   return Math.min(count, fam === "floor" ? 9 : fam === "beam" ? 4 : 12);
 }
-// endless pace: pauses 20% shorter, warnings 15% shorter (never below 0.7 s); 3.3.0: the Realm Tempest mutator takes
-// another 12% off the pauses per level
+
 const pace = (wave, storm = 0) => (wave > 20 ? { cd: 0.8 * (1 - 0.12 * storm), warn: 0.85 } : { cd: 1, warn: 1 });
 
 function rlPlanTraps(world, wave, boss) {
   const traps = [];
-  // 3.3.0: boss waves get floor traps from wave 15 on (half as many), so the later boss fights are fought on a
-  // dangerous floor too
-  if ((boss && wave < 15) || wave < 6) return traps;
+  if ((boss && wave < 15) || wave < TRAP_FROM.floor) return traps;
   const biome = world.arena.biome.id,
     skins = BIOME_TRAPS[biome];
   if (!skins) return traps;
@@ -69,7 +135,6 @@ function rlPlanTraps(world, wave, boss) {
       const x = rng.range(-arena.W + 3, arena.W - 3),
         y = rng.range(-arena.H + 3, arena.H - 3);
       if (arena.blocked(x, y, pad + 0.6) || arena.featureBlocked(x, y, pad * 0.3)) continue;
-      // not on the start area, and apart from each other
       if (Math.hypot(x, y - 2) < 6.5) continue;
       if (taken.some((spot) => Math.hypot(x - spot.x, y - spot.y) < 4.5)) continue;
       taken.push({ x, y });
@@ -95,7 +160,6 @@ function rlPlanTraps(world, wave, boss) {
         y: spot.y,
         r: skin.r || skin.w,
         st: fam === "mine" ? "unarmed" : "idle",
-        // the first strike comes late and staggered, so a wave never starts with a hit
         t: 0,
         wait: 3 + rng.next() * 3 + i * 0.9,
         hunt: fam === "floor" && wave >= 40 && i % 2 === 1,
@@ -108,11 +172,8 @@ function rlPlanTraps(world, wave, boss) {
   return traps;
 }
 
-// a family that is in play at this wave (Realm Tempest adds to those only)
 const base0 = (fam, wave) => wave >= TRAP_FROM[fam];
 
-// damage of a trap on the player: its base times the wave's enemy damage multiplier
-// 3.40.0: past wave 20 the trap grows by 1 % of its base a wave as well
 const trapDamage = (world, skin) =>
   skin.dmg *
   world.dmgMul *
@@ -126,10 +187,22 @@ function trapEffectsOnPlayer(world, skin, trap) {
     if (time >= player.slowT) player.slowKind = skin.special;
     player.slowT = Math.max(player.slowT, time);
     world.emit(skin.special === "chill" ? "chill" : "stun", { x: player.x, y: player.y, skin: trap.skin });
+  } else if (skin.special === "acid") {
+    if (0.9 >= player.slowT) player.slowKind = "acid";
+    player.slowT = Math.max(player.slowT, 0.9);
+    player.corrodeT = Math.max(player.corrodeT || 0, 2.0);
+    world.emit("corrode", { x: player.x, y: player.y, skin: trap.skin });
+  } else if (skin.special === "burn") {
+    player.singeT = Math.max(player.singeT || 0, 1.5);
+    world.emit("singe", { x: player.x, y: player.y, skin: trap.skin });
+  } else if (skin.special === "glass") {
+    if (0.65 >= player.slowT) player.slowKind = "daze";
+    player.slowT = Math.max(player.slowT, 0.65);
+    player.dazeT = Math.max(player.dazeT || 0, 1.0);
+    world.emit("glare", { x: player.x, y: player.y, skin: trap.skin });
   }
 }
 
-// Gently draws nearby foes (and lightly tugs the player on floor snares) inward during Star-Vault warnings/fuses.
 function trapPull(world, trap, strength, pullR, tugPlayer, dt) {
   const player = world.player;
   world.hash.query(trap.x, trap.y, pullR, (enemy) => {
@@ -156,7 +229,6 @@ function trapPull(world, trap, strength, pullR, tugPlayer, dt) {
   }
 }
 
-// an area strike: the player, and every enemy as a share of its hull (shotDetonated skips friendly fire & boosts enemy damage)
 function trapStrike(world, trap, skin, radius, enemyMul = 1, shotDetonated = false) {
   const player = world.player;
   world._src = "trap";
@@ -182,11 +254,13 @@ function trapStrike(world, trap, skin, radius, enemyMul = 1, shotDetonated = fal
         false,
         "trap",
       );
-      if (skin.special === "chill") enemy.slowT = Math.max(enemy.slowT, 2.4);
-      else if (skin.special === "shock") enemy.slowT = Math.max(enemy.slowT, 1.4);
-      else if (skin.special === "acid") enemy.corrode = true;
-      else if (skin.special === "burn" && !enemy.dead && !enemy.shielded) {
-        enemy.burnT = Math.max(enemy.burnT || 0, 2.8);
+      if (skin.special === "chill") enemy.slowT = Math.max(enemy.slowT, trap.fam === "mine" ? 3.2 : 2.4);
+      else if (skin.special === "shock") enemy.slowT = Math.max(enemy.slowT, skin.daze || 1.4);
+      else if (skin.special === "acid") {
+        enemy.corrodeT = Math.max(enemy.corrodeT || 0, trap.fam === "mine" ? 4.5 : 3.5);
+        enemy.corrode = true;
+      } else if (skin.special === "burn" && !enemy.dead && !enemy.shielded) {
+        enemy.burnT = Math.max(enemy.burnT || 0, trap.fam === "mine" ? 3.5 : 2.8);
         enemy.burnDps = Math.max(enemy.burnDps || 0, enemy.maxHp * 0.06);
         enemy.burnSrc = "trap";
       }
@@ -194,30 +268,64 @@ function trapStrike(world, trap, skin, radius, enemyMul = 1, shotDetonated = fal
       enemy.slowT = Math.max(enemy.slowT, 2.0);
     }
   });
-  // Glowmarsh bog spout / puff-cap leaves a corrosive bog pool
+  // Glowmarsh bog spout / spore vessel leaves a corrosive bog pool
   if (
     skin.special === "acid" &&
     !world.markers.some((marker) => Math.hypot(marker.x - trap.x, marker.y - trap.y) < radius * 0.85 + 0.8)
-  )
-    world.arena.acid.push({ x: trap.x, y: trap.y, r: radius * 0.85, life: 7 });
-  // Caldera slag fissure / ember keg leaves a brief smoldering ember pool
-  if (skin.special === "burn" && world.burnPools && world.burnPools.length < 10) {
-    world.burnPools.push({ x: trap.x, y: trap.y, r: radius * 0.82, life: 2.5, dps: 16 * (world.stats.dmgMul || 1) });
+  ) {
+    const scale = skin.poolScale || 0.85;
+    world.arena.acid.push({ x: trap.x, y: trap.y, r: radius * scale, life: trap.fam === "mine" ? 8.5 : 7 });
   }
-  // Glass Flats sun-rose / amphora calms nearby dust devils on burst
+  // Aurora Shelf frost vessel leaves a temporary ice patch
+  if (skin.icePatch && world.arena.ice && world.arena.ice.length < 8) {
+    world.arena.ice.push({ x: trap.x, y: trap.y, r: radius * 0.72, life: 5.5 });
+  }
+  // Caldera slag fissure / ember vessel leaves a hostile smoldering ember pool that singes both enemies and the player
+  if (skin.special === "burn" && world.burnPools && world.burnPools.length < 10) {
+    world.burnPools.push({
+      x: trap.x,
+      y: trap.y,
+      r: radius * (trap.fam === "mine" ? 0.92 : 0.82),
+      life: skin.poolLife || 2.5,
+      dps: 16 * (world.stats.dmgMul || 1),
+      hostile: true,
+      playerDps: 14,
+    });
+  }
+  // Glass Flats sun-rose / glass amphora calms nearby dust devils on burst
   if (skin.special === "glass" && world.arena.devils && world.arena.devils.length) {
     for (const devil of world.arena.devils) {
       const d = Math.hypot(devil.x - trap.x, devil.y - trap.y);
       if (d <= radius + devil.r + 1.8) devil.calmT = Math.max(devil.calmT || 0, 4.0);
     }
   }
+  // Shot-detonated Glass Flats vessel launches 4 radial sunglass splinters
+  if (shotDetonated && skin.splinters && world.lances) {
+    const dmg = 28 * (world.stats.dmgMul || 1);
+    for (let i = 0; i < skin.splinters; i++) {
+      const a = (i / skin.splinters) * TAU + 0.4;
+      world.lances.push({
+        id: world.nextId++,
+        x: trap.x,
+        y: trap.y,
+        vx: Math.cos(a) * 15,
+        vy: Math.sin(a) * 15,
+        a,
+        life: 0.7,
+        dmg,
+        from: -1,
+        hits: 0,
+        struck: new Set(),
+      });
+    }
+  }
   world.emit("boom", { x: trap.x, y: trap.y, r: radius, kind: "trap" });
   world.emit("trapFire", { id: trap.id, fam: trap.fam, skin: trap.skin, x: trap.x, y: trap.y, r: radius });
 }
 
-// Tactical barrel-sniping: player shots can detonate armed proximity vessels for 1.5x pack damage with zero self-harm.
+// Tactical vessel-sniping: player shots detonate armed proximity vessels (and enemy ember-pots / crucible bombs)
 function rlShootTrap(world, bullet, prevX, prevY) {
-  if (!world.traps.length || world.state !== "fight") return false;
+  if (world.state !== "fight") return false;
   const segDx = bullet.x - prevX,
     segDy = bullet.y - prevY,
     segLen2 = segDx * segDx + segDy * segDy;
@@ -237,6 +345,21 @@ function rlShootTrap(world, bullet, prevX, prevY) {
       return true;
     }
   }
+  // Shootable enemy hazards: Cinder-Sower Ember-Pots & Ash Tyrant Crucible Bombs
+  if (world.hazards && world.hazards.length) {
+    for (const h of world.hazards) {
+      if (!h.shootable || h.t >= h.delay) continue;
+      const along = segLen2 > 1e-8 ? clamp(((h.x - prevX) * segDx + (h.y - prevY) * segDy) / segLen2, 0, 1) : 0;
+      const cx = prevX + segDx * along - h.x,
+        cy = prevY + segDy * along - h.y,
+        hitR = (h.hitR || 0.7) + bullet.r;
+      if (cx * cx + cy * cy <= hitR * hitR) {
+        h.t = h.delay;
+        h.shotByPlayer = true;
+        return true;
+      }
+    }
+  }
   return false;
 }
 
@@ -249,7 +372,6 @@ function rlUpdateTraps(world, dt) {
     trap.t += dt;
     if (trap.fam === "floor") {
       if (trap.st === "idle" && trap.t >= trap.wait) {
-        // a hunting strike aims at where the player is going
         if (trap.hunt && player.alive) {
           trap.x = clamp(player.x + player.vx * 0.5, -world.arena.W + 2, world.arena.W - 2);
           trap.y = clamp(player.y + player.vy * 0.5, -world.arena.H + 2, world.arena.H - 2);
@@ -296,7 +418,6 @@ function rlUpdateTraps(world, dt) {
           fromTrap: true,
           special: skin.special || null,
         });
-        // Endless: a second beam crosses the first
         if (world.wave > 20)
           world.beam({
             skin: trap.skin,
@@ -337,7 +458,6 @@ function rlUpdateTraps(world, dt) {
         trap.t = 0;
         world.emit("trapArm", { id: trap.id, fam: "mine", skin: trap.skin, x: trap.x, y: trap.y, r: skin.r });
       } else if (trap.st === "armed") {
-        // the player or any enemy walking in sets it off
         let set = player.alive && Math.hypot(player.x - trap.x, player.y - trap.y) < skin.trig;
         if (!set)
           world.hash.query(trap.x, trap.y, skin.trig, (enemy) => {
@@ -363,7 +483,6 @@ function rlUpdateTraps(world, dt) {
           trapStrike(world, trap, skin, skin.r);
           trap.st = "gone";
           trap.t = 0;
-          // re-armed somewhere else after a pause (shorter in Endless)
           trap.respawn = (world.wave > 20 ? 9 : 14) + trap.id * 0.7;
         }
       } else if (trap.st === "gone" && trap.t >= trap.respawn) {
@@ -378,7 +497,7 @@ function rlUpdateTraps(world, dt) {
     }
   }
 }
-// a new place for a mine: random, off obstacles and the start area, away from the player
+
 function rlPlaceAgain(world, trap) {
   const arena = world.arena,
     rng = makeRng(hashString(world.seed + ":mine:" + world.wave + ":" + trap.id + ":" + Math.floor(world.time)));
@@ -392,4 +511,4 @@ function rlPlaceAgain(world, trap) {
   return null;
 }
 
-export { TRAP_SKINS, rlPlanTraps, rlUpdateTraps, rlShootTrap };
+export { TRAP_SKINS, TRAP_FROM, rlPlanTraps, rlUpdateTraps, rlShootTrap };

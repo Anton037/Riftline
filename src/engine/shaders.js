@@ -139,16 +139,24 @@ void evalPartAnim(inout vec3 pos, inout vec3 norm, vec4 meta, float packedAnim, 
     norm.y = ny * c - nz * s;
     norm.z = ny * s + nz * c;
   } else if (kind == 2) {
-    // Mode 2: Alternating leg stride / skitter around hip (x=pAux, y=py)
+    // Mode 2: Alternating leg stride / radial skitter around hip (x=pAux, y=py)
     float cyc = animPhase + ph;
     float ang = sin(cyc) * 0.44 * moveK;
     float c = cos(ang), s = sin(ang);
-    float dx = pos.x - pAux, dy = pos.y - py;
-    pos.x = pAux + dx * c - dy * s;
-    pos.y = py + dx * s + dy * c + max(0.0, cos(cyc)) * 0.048 * moveK;
-    float nx = norm.x, ny = norm.y;
-    norm.x = nx * c - ny * s;
-    norm.y = nx * s + ny * c;
+    vec2 dir = (abs(pos.z) > 0.24 && abs(pAux) > 0.12)
+      ? normalize(vec2(pos.x, pos.z) + vec2(1e-4, 0.0))
+      : vec2(1.0, 0.0);
+    float h = (pos.x - pAux) * dir.x + pos.z * dir.y * 0.38;
+    float dy = pos.y - py;
+    float hNew = h * c - dy * s;
+    float dyNew = h * s + dy * c;
+    pos.xz += dir * (hNew - h);
+    pos.y = py + dyNew + max(0.0, cos(cyc)) * 0.048 * moveK;
+    float nh = norm.x * dir.x + norm.z * dir.y;
+    float nhNew = nh * c - norm.y * s;
+    float nyNew = nh * s + norm.y * c;
+    norm.xz += dir * (nhNew - nh);
+    norm.y = nyNew;
   } else if (kind == 3) {
     // Mode 3: Continuous Y-axis halo / ring / crystal spin around (x=pAux, z=0)
     float spd = (ph == 0.0 ? 2.4 : ph) * (1.0 + actionState * 0.85);
@@ -163,7 +171,7 @@ void evalPartAnim(inout vec3 pos, inout vec3 norm, vec4 meta, float packedAnim, 
   } else if (kind == 4) {
     // Mode 4: Barrel recoil (ph >= 0) or organic brood-sac / kettle pulse (ph < 0)
     if (ph >= 0.0) {
-      float kick = actionState * 0.15 + max(0.0, sin(time * 9.0 + animPhase)) * actionState * 0.04;
+      float kick = actionState * 0.16;
       pos.x -= kick;
       float swell = 1.0 + actionState * 0.08;
       pos.y = py + (pos.y - py) * swell;
@@ -185,6 +193,17 @@ void evalPartAnim(inout vec3 pos, inout vec3 norm, vec4 meta, float packedAnim, 
     float ny = norm.y, nz = norm.z;
     norm.y = ny * c - nz * s;
     norm.z = ny * s + nz * c;
+  } else if (kind == 6) {
+    // Mode 6: Continuous Z-axle wheel rotation around wheel axle (x=pAux, y=py)
+    float spd = (ph == 0.0 ? 9.5 : ph) * (0.2 + moveK * 1.15 + actionState * 0.85);
+    float ang = -(animPhase * 1.45 + time * spd);
+    float c = cos(ang), s = sin(ang);
+    float dx = pos.x - pAux, dy = pos.y - py;
+    pos.x = pAux + dx * c - dy * s;
+    pos.y = py + dx * s + dy * c;
+    float nx = norm.x, ny = norm.y;
+    norm.x = nx * c - ny * s;
+    norm.y = nx * s + ny * c;
   }
 }
 
@@ -793,8 +812,8 @@ float fbm(vec2 p) {
 }
 ${
   needCrack
-    ? `float crackNet(vec2 p, float warp) {
-  vec2 q = p + vec2(fbm(p * 0.8 + vec2(1.3, -2.1)), fbm(p * 0.8 + vec2(-3.7, 2.9))) * warp;
+    ? `float crackNet(vec2 p, vec2 warpVec) {
+  vec2 q = p + warpVec;
   vec2 i = floor(q), f = fract(q);
   float d1 = 8.0, d2 = 8.0;
   for (int x = -1; x <= 1; x++) {
@@ -866,7 +885,7 @@ void main() {
     needCrack
       ? `float cScale = (style == 2) ? mix(0.28, 0.34, inside) : (style == 3) ? 0.30 : (style == 4) ? 0.25 : (style == 6) ? 0.26 : 0.36;
   float cWarp = (style == 3) ? 0.72 : (style == 4) ? 0.38 : (style == 2) ? mix(0.48, 0.42, inside) : (style == 6) ? 0.42 : 0.35;
-  float sharedCrack = crackNet(p * cScale, cWarp);`
+  float sharedCrack = (outDist < 9.5) ? crackNet(p * cScale, vec2(n1, n2) * cWarp) : 1.0;`
       : ""
   }
 
@@ -1674,10 +1693,10 @@ void main() {
   vec4 c = texture(uSrc, vUv);
   float n = texture(uSrc, vUv + vec2(0.0, tx.y)).g;
   float s = texture(uSrc, vUv - vec2(0.0, tx.y)).g;
-  float e = texture(uSrc, vUv + vec2(tx.x, 0.0)).g;
-  float w = texture(uSrc, vUv - vec2(tx.x, 0.0)).g;
-  float rip = (c.g * 0.72 + (n + s + e + w) * 0.07) * uDecay.y;
-  float imp = (c.b * 0.84 + (texture(uSrc, vUv + vec2(tx.x, 0.0)).b + texture(uSrc, vUv - vec2(tx.x, 0.0)).b) * 0.08) * uDecay.z;
+  vec2 ewE = texture(uSrc, vUv + vec2(tx.x, 0.0)).gb;
+  vec2 ewW = texture(uSrc, vUv - vec2(tx.x, 0.0)).gb;
+  float rip = (c.g * 0.72 + (n + s + ewE.x + ewW.x) * 0.07) * uDecay.y;
+  float imp = (c.b * 0.84 + (ewE.y + ewW.y) * 0.08) * uDecay.z;
   vec4 outW = vec4(c.r * uDecay.x, rip, imp, c.a * uDecay.w);
   outW = max(outW - vec4(0.0015, 0.0025, 0.003, 0.002), vec4(0.0));
   fragColor = outW;

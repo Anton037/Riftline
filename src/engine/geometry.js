@@ -127,7 +127,7 @@ export class Geometry {
         const k = m[i];
         if (k > 0.5) {
           m[i + 1] += dy;
-          m[i + 2] += k < 1.5 || k > 4.5 ? dz : dx;
+          m[i + 2] += k < 1.5 || (k > 4.5 && k < 5.5) ? dz : dx;
         }
       }
     }
@@ -161,7 +161,7 @@ export class Geometry {
         const k = m[i];
         if (k > 0.5) {
           m[i + 1] *= sy;
-          m[i + 2] *= k < 1.5 || k > 4.5 ? sz : sx;
+          m[i + 2] *= k < 1.5 || (k > 4.5 && k < 5.5) ? sz : sx;
         }
       }
     }

@@ -109,11 +109,11 @@ export const SENTINEL_BEAMS = {
 };
 export const BIOME_TRAP_EFFECTS = {
   courtyard: { floor: "plate", beam: "laser", mine: "mine" },
-  shelf: { floor: "icespike", mine: "frost" },
-  marsh: { floor: "geyser", mine: "spore" },
+  shelf: { floor: "icespike", beam: "cryo", mine: "frost" },
+  marsh: { floor: "geyser", beam: "acid", mine: "spore" },
   core: { floor: "riftburst", beam: "rift", mine: "riftmine" },
   caldera: { floor: "pyro", beam: "magma", mine: "embermine" },
-  flats: { floor: "sunspike", mine: "glassmine" },
+  flats: { floor: "sunspike", beam: "sun", mine: "glassmine" },
 };
 export const WEAPON_EFFECTS = {
   pulse: { projectile: "pulse-bolt", muzzle: "pulse", shot: "pulse" },
@@ -135,7 +135,7 @@ export function attackSurface(kind, source, biome, chill) {
     if (source === "wyrm") return "glass";
     return "crack";
   }
-  if (kind === "drill" || kind === "shorted") return "crack";
+  if (kind === "drill" || kind === "shorted" || kind === "brimlit") return "crack";
   if (kind === "fire" || kind === "volatile") return "burn";
   if (kind === "rain") {
     const who = source || { marsh: "queen", core: "core", caldera: "tyrant", flats: "wyrm" }[biome];

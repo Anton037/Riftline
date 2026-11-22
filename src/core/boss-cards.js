@@ -1,55 +1,52 @@
 import { upgradeList } from "../data/upgrades.js";
-import { makeRng, hashString, TAU } from "./util.js";
+import { TAU } from "./util.js";
 
 const BOSS_CARD = Object.fromEntries(upgradeList.filter((upgrade) => upgrade.boss).map((up) => [up.boss, up.id]));
-const BOSS_CARD_CHANCE = 0.3,
-  BOSS_CARD_STEP = 0.15;
+const BOSS_CARD_CHANCE = 1.0;
 
-const LOCK_EVERY = 8,
-  LOCK_R = 3.2,
+const LOCK_EVERY = 7,
+  LOCK_R = 3.4,
   LOCK_WARN = 0.45,
   LOCK_TIME = 3,
-  LOCK_DPS = 26,
+  LOCK_DPS = 50,
   LOCK_RANGE = 13,
   SPLINTERS = 5,
-  SPLINTER_DMG = 16,
+  SPLINTER_DMG = 22,
   SPLINTER_SPEED = 16,
-  SPLINTER_LIFE = 0.42,
+  SPLINTER_LIFE = 0.46,
   SPLINTER_MAX = 60,
-  BROOD_EVERY = 10,
-  BROOD_MAX = 4,
+  BROOD_EVERY = 6,
+  BROOD_MAX = 5,
   BROOD_LIFE = 14,
-  BROOD_SPEED = 11,
-  BROOD_R = 1.7,
-  BROOD_DMG = 45,
-  BROOD_POISON = 9,
+  BROOD_SPEED = 11.5,
+  BROOD_R = 2.2,
+  BROOD_DMG = 75,
+  BROOD_POISON = 12,
   COLLAPSE_TIME = 0.35,
-  COLLAPSE_PULL = 1.4,
-  COLLAPSE_DMG = 1.4,
-  // 3.49.0: the Tyrant's Tithe: kills count towards the caldera's payout
-  TRIBUTE_EVERY = 20,
-  // 3.56.0: the Glasswyrm Fang: kills count towards the wyrm's hunger - the last kill bursts into a
-  // fan of hot glass lances that pierce through
-  FANG_EVERY = 14,
+  COLLAPSE_PULL = 2.6,
+  COLLAPSE_DMG = 1.5,
+  TRIBUTE_EVERY = 14,
+  TRIBUTE_R = 2.8,
+  TRIBUTE_DMG = 80,
+  FANG_EVERY = 10,
   FANG_N = 6,
-  FANG_DMG = 26,
-  FANG_SPEED = 15,
+  FANG_DMG = 34,
+  FANG_SPEED = 16,
   FANG_LIFE = 0.9,
   FANG_MAX = 42;
 
-// the boss card of a boss choice (null: none this time). Its own random stream (seed, wave) keeps every other roll of
-// the run where it was.
+// Guaranteed Guardian Relic offering on Boss Waves (W5, W10, W15, and Endless boss waves).
+// On Wave 15, if the defeated Guardian's relic is already owned or Star-Vault lore milestone is unlocked,
+// Astral Pull ('collapse') can also be offered so it is not Endless-only.
 function bossCardOffer(world) {
-  const boss = world.bossFor(world.wave),
-    id = boss && BOSS_CARD[boss];
-  if (!id || world.up[id]) return null;
-  const roll = makeRng(hashString(world.seed + ":boss-card:" + world.wave)).next();
-  if (roll < world.bossLuck) {
-    world.bossLuck = BOSS_CARD_CHANCE;
-    return id;
+  const boss = world.bossFor(world.wave);
+  let id = boss && BOSS_CARD[boss];
+  if (world.wave === 15 && (!id || world.up[id] || world.starVaultUnlocked) && !world.up.collapse) {
+    if (!id || world.up[id]) id = "collapse";
   }
-  world.bossLuck = Math.min(1, world.bossLuck + BOSS_CARD_STEP);
-  return null;
+  if (!id || world.up[id]) return null;
+  world.bossLuck = BOSS_CARD_CHANCE;
+  return id;
 }
 
 function resetBossCards(world) {
@@ -60,7 +57,7 @@ function resetBossCards(world) {
   world.lances = [];
 }
 
-// the densest group of enemies near the drone (bosses count, ghosts and spawning enemies do not)
+// The densest group of enemies near the artificer (bosses count, ghosts and spawning enemies do not)
 function lockTarget(world) {
   const player = world.player,
     list = world.enemies.filter(
@@ -80,7 +77,11 @@ function lockTarget(world) {
       best = enemy;
     }
   }
-  return best && bestN >= 2 ? { x: best.x, y: best.y } : null;
+  return best && bestN >= 2
+    ? { x: best.x, y: best.y }
+    : list.length === 1 && list[0].boss
+      ? { x: list[0].x, y: list[0].y }
+      : null;
 }
 
 function updateSealgrid(world, dt) {
@@ -99,13 +100,20 @@ function updateSealgrid(world, dt) {
   for (const cage of world.cages) {
     cage.t += dt;
     if (cage.t < LOCK_WARN) continue;
-    if (!cage.live) {
-      // the beams light: everything inside is caught (enemies that walk in later are not)
-      cage.live = true;
-      world.hash.query(cage.x, cage.y, cage.r, (enemy) => {
-        if (!enemy.dead && !enemy.ghost && Math.hypot(enemy.x - cage.x, enemy.y - cage.y) < cage.r)
-          cage.held.push(enemy);
-      });
+    const firstFrame = !cage.live;
+    cage.live = true;
+    // Snare enemies on activation AND enemies walking into the cage mid-duration
+    world.hash.query(cage.x, cage.y, cage.r, (enemy) => {
+      if (
+        !enemy.dead &&
+        !enemy.ghost &&
+        Math.hypot(enemy.x - cage.x, enemy.y - cage.y) < cage.r &&
+        !cage.held.includes(enemy)
+      ) {
+        cage.held.push(enemy);
+      }
+    });
+    if (firstFrame) {
       world.emit("lockOn", { x: cage.x, y: cage.y, r: cage.r, n: cage.held.length });
     }
     for (const enemy of cage.held) {
@@ -114,15 +122,19 @@ function updateSealgrid(world, dt) {
         dy = enemy.y - cage.y,
         dist = Math.hypot(dx, dy) || 0.001,
         edge = cage.r - enemy.r * 0.6;
-      // a boss is burned but not held
-      if (!enemy.boss && dist > edge) {
+      if (enemy.boss) {
+        // Guardians are slowed by 30% while inside the cage
+        if (dist < cage.r + enemy.r) {
+          enemy.cageSlowT = Math.max(enemy.cageSlowT || 0, 0.25);
+          enemy.slowT = Math.max(enemy.slowT || 0, 0.25);
+        }
+      } else if (dist > edge) {
         enemy.x = cage.x + (dx / dist) * edge;
         enemy.y = cage.y + (dy / dist) * edge;
         enemy.vx = 0;
         enemy.vy = 0;
         world.arena.resolve(enemy, enemy.r);
       }
-      // the damage comes in two hits a second (one number each, not a stream of small ones)
       enemy.lockAcc = (enemy.lockAcc || 0) + dmg * dt;
       if (enemy.lockAcc >= dmg * 0.5) {
         world.hurtEnemy(enemy, enemy.lockAcc, 0, 0, 0, false, "sealgrid");
@@ -136,6 +148,7 @@ function updateSealgrid(world, dt) {
 
 function updateBurnPools(world, dt) {
   if (!world.burnPools.length) return;
+  const player = world.player;
   for (const pool of world.burnPools) {
     pool.life -= dt;
     const dps = pool.dps;
@@ -148,30 +161,42 @@ function updateBurnPools(world, dt) {
       )
         return;
       const was = enemy.burnT > 0 ? enemy.burnDps : 0;
-      enemy.burnT = Math.max(enemy.burnT, 1);
+      enemy.burnT = Math.max(enemy.burnT, 1.2);
       enemy.burnDps = Math.max(was, dps);
-      // Credit Searing Collapse to burning damage.
-      enemy.burnSrc = "burn";
+      enemy.burnSrc = pool.src || "burn";
+      if (pool.vuln) {
+        enemy.chimeVulnT = Math.max(enemy.chimeVulnT || 0, 1.0);
+      }
     });
+    // Hostile trap burnPools also singe the player
+    if (
+      pool.hostile &&
+      player &&
+      player.alive &&
+      player.dashT <= 0 &&
+      Math.hypot(player.x - pool.x, player.y - pool.y) <= pool.r + player.r * 0.4
+    ) {
+      world.hurtPlayer((pool.playerDps || 14) * dt, null, null, "lava", true);
+      player.singeT = Math.max(player.singeT || 0, 0.45);
+    }
   }
-  // 3.46.0: compacted in place (a filter per step while the pools burn)
   let w = 0;
   for (let i = 0; i < world.burnPools.length; i++)
     if (world.burnPools[i].life > 0) world.burnPools[w++] = world.burnPools[i];
   world.burnPools.length = w;
 }
 
-function shatter(world, enemy) {
-  // (Endless restarts the clock at 0: a last shatter that lies in the "future" must not block it for the whole run)
+function shatter(world, enemy, allowHitTarget = false) {
   const last = world.shatterAt;
   if (
     world.splinters.length > SPLINTER_MAX - SPLINTERS ||
-    (last != null && world.time >= last && world.time - last < 0.08)
+    (last != null && world.time >= last && world.time - last < 0.06)
   )
     return;
   world.shatterAt = world.time;
   const turn = world.rng.next() * TAU,
-    dmg = SPLINTER_DMG * world.stats.dmgMul;
+    dmg = SPLINTER_DMG * world.stats.dmgMul,
+    fromId = allowHitTarget ? -1 : enemy.id;
   for (let i = 0; i < SPLINTERS; i++) {
     const a = turn + (i / SPLINTERS) * TAU;
     world.splinters.push({
@@ -183,7 +208,9 @@ function shatter(world, enemy) {
       a,
       life: SPLINTER_LIFE,
       dmg,
-      from: enemy.id,
+      from: fromId,
+      hits: 0,
+      struck: new Set(fromId >= 0 ? [fromId] : []),
     });
   }
   world.emit("shatter", { x: enemy.x, y: enemy.y, r: enemy.r });
@@ -202,35 +229,38 @@ function updateSplinters(world, dt) {
     world.hash.query(s.x, s.y, 1, (enemy) => {
       if (s.life <= 0 || enemy.dead || enemy.ghost || enemy.id === s.from) return;
       if (Math.hypot(enemy.x - s.x, enemy.y - s.y) > enemy.r + 0.15) return;
+      if (s.struck && s.struck.has(enemy.id)) return;
+      s.struck = s.struck || new Set(s.from != null && s.from >= 0 ? [s.from] : []);
+      s.struck.add(enemy.id);
+      s.hits = (s.hits || 0) + 1;
       world.hurtEnemy(enemy, s.dmg, s.vx, s.vy, 0.6, false, "shard");
-      if (!enemy.dead && !enemy.shielded) enemy.slowT = Math.max(enemy.slowT, 1.5);
+      if (!enemy.dead && !enemy.shielded) enemy.slowT = Math.max(enemy.slowT || 0, 1.8);
       world.emit("splinterHit", { x: s.x, y: s.y });
-      s.life = 0;
+      // Splinters pierce 2 foes before expiring
+      if (s.hits >= 2) s.life = 0;
     });
   }
-  // 3.46.0: compacted in place (a filter per step while splinters fly)
   let w = 0;
   for (let i = 0; i < world.splinters.length; i++)
     if (world.splinters[i].life > 0) world.splinters[w++] = world.splinters[i];
   world.splinters.length = w;
 }
 
-// 3.56.0: the Glasswyrm Fang: the kill bursts into a fan of hot glass lances, aimed at the nearest
-// enemy of the killed one (a ring when the field is empty) - each lance pierces through one body
-function fangBurst(world, enemy) {
+function fangBurst(world, enemy, allowHitTarget = false) {
   if (world.lances.length > FANG_MAX - FANG_N) return;
   let aim = null,
     best = 1e9;
   world.hash.query(enemy.x, enemy.y, 9, (other) => {
-    if (other.dead || other.ghost || other.id === enemy.id) return;
+    if (other.dead || other.ghost || (!allowHitTarget && other.id === enemy.id)) return;
     const d = Math.hypot(other.x - enemy.x, other.y - enemy.y);
-    if (d < best) {
+    if (d < best && d > 0.01) {
       best = d;
       aim = Math.atan2(other.y - enemy.y, other.x - enemy.x);
     }
   });
   const base = aim != null ? aim : world.rng.next() * TAU,
-    dmg = FANG_DMG * world.stats.dmgMul;
+    dmg = FANG_DMG * world.stats.dmgMul,
+    fromId = allowHitTarget ? -1 : enemy.id;
   for (let i = 0; i < FANG_N; i++) {
     const a = base + (i - (FANG_N - 1) / 2) * 0.22;
     world.lances.push({
@@ -242,8 +272,9 @@ function fangBurst(world, enemy) {
       a,
       life: FANG_LIFE,
       dmg,
-      from: enemy.id,
+      from: fromId,
       hits: 0,
+      struck: new Set(fromId >= 0 ? [fromId] : []),
     });
   }
   world.emit("shatter", { x: enemy.x, y: enemy.y, r: enemy.r, glass: true });
@@ -263,15 +294,13 @@ function updateLances(world, dt) {
       if (s.life <= 0 || enemy.dead || enemy.ghost || enemy.id === s.from) return;
       if (Math.hypot(enemy.x - s.x, enemy.y - s.y) > enemy.r + 0.15) return;
       if (s.struck && s.struck.has(enemy.id)) return;
+      s.struck = s.struck || new Set(s.from != null && s.from >= 0 ? [s.from] : []);
+      s.struck.add(enemy.id);
+      s.hits = (s.hits || 0) + 1;
       world.hurtEnemy(enemy, s.dmg, s.vx, s.vy, 0.6, false, "fang");
-      if (!enemy.dead) {
-        s.struck = s.struck || new Set([s.from]);
-        s.struck.add(enemy.id);
-        s.hits++;
-        // a lance pierces one body, then shatters
-        if (s.hits > 1) s.life = 0;
-      } else s.life = 0;
       world.emit("splinterHit", { x: s.x, y: s.y, glass: true });
+      // Each lance pierces 2 foes whether or not a struck foe dies
+      if (s.hits >= 2) s.life = 0;
     });
   }
   let w = 0;
@@ -299,9 +328,14 @@ function burstLarva(world, larva) {
     )
       return;
     const was = enemy.burnT > 0 ? enemy.burnDps : 0;
-    enemy.burnT = Math.max(enemy.burnT, 3);
+    enemy.burnT = Math.max(enemy.burnT, 3.5);
     enemy.burnDps = Math.max(was, BROOD_POISON * stats.dmgMul);
     enemy.burnSrc = "brood";
+    // Apply 3.5s Vitriol Glaze (+25% damage taken)
+    enemy.glazeT = Math.max(enemy.glazeT || 0, 3.5);
+    enemy.glazeMul = Math.max(enemy.glazeMul || 0, 0.25);
+    enemy.corrodeT = Math.max(enemy.corrodeT || 0, 3.5);
+    enemy.corrode = true;
   });
 }
 
@@ -315,8 +349,8 @@ function updateBrood(world, dt) {
     larva.t += dt;
     larva.life -= dt;
     if (larva.target && (larva.target.dead || larva.target.ghost)) larva.target = null;
-    if (!larva.target && fight && larva.t > 0.6) {
-      let best = 10;
+    if (!larva.target && fight && larva.t > 0.45) {
+      let best = 12;
       for (const enemy of world.enemies) {
         if (enemy.dead || enemy.ghost || enemy.spawnT > 0) continue;
         const dist = Math.hypot(enemy.x - larva.x, enemy.y - larva.y);
@@ -332,7 +366,7 @@ function updateBrood(world, dt) {
       ty = larva.target.y;
       speed = BROOD_SPEED;
     } else {
-      // waiting: a slow circle around the drone
+      // Waiting: a slow orbit around the artificer
       const a = world.time * 1.4 + (i / BROOD_MAX) * TAU;
       tx = player.x + Math.cos(a) * 1.8;
       ty = player.y + Math.sin(a) * 1.8;
@@ -349,8 +383,6 @@ function updateBrood(world, dt) {
     if (larva.target && dist < larva.target.r + 0.3) burstLarva(world, larva);
     else if (larva.life <= 0 && fight) burstLarva(world, larva);
   }
-  // a larva that runs out between waves fades without a blast
-  // 3.46.0: compacted in place (a filter per step while larvae fly)
   let w = 0;
   for (let i = 0; i < brood.length; i++) if (brood[i].life > 0) brood[w++] = brood[i];
   brood.length = w;
@@ -370,13 +402,11 @@ function updateImplode(world, dt) {
       dy = player.y - enemy.y,
       dist = Math.hypot(dx, dy) || 0.001;
     if (dist > pullR || dist < 1.2) return;
-    // heavier enemies come slower (the same mass as the Singularity's pull)
     const mass = (1 / (0.6 + enemy.r * enemy.r * 1.6)) * (enemy.elite ? 0.6 : 1),
-      pull = (enemy.boss ? 3 : 16 * Math.min(1.4, mass * 1.2)) * dt,
+      pull = (enemy.boss ? 4.5 : 18 * Math.min(1.5, mass * 1.25)) * dt,
       step = Math.min(pull, dist - 1.2);
     enemy.x += (dx / dist) * step;
     enemy.y += (dy / dist) * step;
-    // a wall between the enemy and the drone keeps it out (it is pulled in a straight line)
     world.arena.resolve(enemy, enemy.r);
   });
   if (imp.t >= COLLAPSE_TIME || !player.alive || world.state !== "fight") {
@@ -385,7 +415,6 @@ function updateImplode(world, dt) {
   }
 }
 
-// the blast of the Nova (World.nova calls it directly without Event Collapse)
 function novaBlast(world, radius, mul = 1, collapse = false) {
   const player = world.player;
   world.explode(player.x, player.y, radius, 70 * mul * world.stats.dmgMul, { enemies: true, knock: 12, kind: "nova" });
@@ -398,11 +427,9 @@ function novaBlast(world, radius, mul = 1, collapse = false) {
   world.emit("nova", { x: player.x, y: player.y, r: radius, collapse });
 }
 
-// Event Collapse: the Nova starts with the pull (true: World.nova must not blast now)
 function bossCardNova(world, radius) {
   if (!world.stats.collapse) return false;
   const player = world.player;
-  // the shots around are gone at once, as with every Nova; the drone is safe through the pull
   for (const bullet of world.eb)
     if (Math.hypot(bullet.x - player.x, bullet.y - player.y) < radius * 1.7) {
       bullet.life = 0;
@@ -412,6 +439,20 @@ function bossCardNova(world, radius) {
   world.implode = { t: 0, r: radius, x: player.x, y: player.y };
   world.emit("implode", { x: player.x, y: player.y, r: radius * COLLAPSE_PULL, t: COLLAPSE_TIME });
   return true;
+}
+
+function dropMoltenIngot(world, at) {
+  const stats = world.stats;
+  world.explode(at.x, at.y, TRIBUTE_R, TRIBUTE_DMG * stats.dmgMul, {
+    enemies: true,
+    knock: 3.5,
+    kind: "tribute",
+    src: "tribute",
+  });
+  world.player.tributeT = Math.max(world.player.tributeT || 0, 4.0);
+  world.dropShards(at.x, at.y, 18);
+  world.pickups.push(world.mkPickup("heal", at.x, at.y, 12));
+  world.emit("tribute", { x: at.x, y: at.y, r: TRIBUTE_R });
 }
 
 function bossCardKill(world, enemy) {
@@ -424,23 +465,39 @@ function bossCardKill(world, enemy) {
       hatch(world, enemy);
     }
   }
-  // 3.49.0: the tithe pays out on the spot: a burst of shards and a bandage
   if (stats.tribute) {
     world.tributeN = (world.tributeN || 0) + 1;
     if (world.tributeN >= TRIBUTE_EVERY) {
       world.tributeN = 0;
-      world.dropShards(enemy.x, enemy.y, 40);
-      world.pickups.push(world.mkPickup("heal", enemy.x, enemy.y, 15));
-      world.emit("tribute", { x: enemy.x, y: enemy.y });
+      dropMoltenIngot(world, enemy);
     }
   }
-  // 3.56.0: the wyrm's hunger: the kill bursts into a fan of hot glass lances
   if (stats.fang) {
     world.fangN = (world.fangN || 0) + 1;
     if (world.fangN >= FANG_EVERY) {
       world.fangN = 0;
       fangBurst(world, enemy);
     }
+  }
+}
+
+// Guardian hit cadence triggers so kill-counter relics are impactful in 1v1 Guardian boss fights
+function bossCardBossHit(world, boss) {
+  const stats = world.stats;
+  if (!boss || !boss.boss || boss.dead) return;
+  boss._relicHits = (boss._relicHits || 0) + 1;
+  const h = boss._relicHits;
+  if (stats.shardField && h % 15 === 0) {
+    shatter(world, boss);
+  }
+  if (stats.brood && h % 18 === 0) {
+    hatch(world, boss);
+  }
+  if (stats.tribute && h % 20 === 0) {
+    dropMoltenIngot(world, boss);
+  }
+  if (stats.fang && h % 16 === 0) {
+    fangBurst(world, boss, true);
   }
 }
 
@@ -451,9 +508,9 @@ function updateBossCards(world, dt) {
   else if (world.cages.length) world.cages = [];
   updateBurnPools(world, dt);
   updateSplinters(world, dt);
+  updateLances(world, dt);
   updateBrood(world, dt);
   updateImplode(world, dt);
-  updateLances(world, dt);
 }
 
 export {
@@ -463,9 +520,10 @@ export {
   LOCK_TIME,
   COLLAPSE_TIME,
   bossCardOffer,
-  bossCardKill,
-  bossCardNova,
-  novaBlast,
   resetBossCards,
+  novaBlast,
+  bossCardNova,
+  bossCardKill,
+  bossCardBossHit,
   updateBossCards,
 };

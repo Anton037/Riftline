@@ -1,25 +1,46 @@
-// 3.3.0: Endless mutators. From wave 21 on, every tenth wave (21, 31, 41 …) the rift gains a mutator that stays for
-// the rest of the run; the order is shuffled per run (seed). Once all six are in play, every further tenth wave
-// raises one of them a level (up to level 3). Each mutator works through things the player already knows (the elite
-// affixes, traps, enemy shots), so it is seen and heard: a volatile enemy glows and bursts with a telegraph, a
-// shielded one carries the shield bubble.
+// Storybook Endless Omens (Mutators). From wave 21 on, every tenth wave (21, 31, 41 …) awakens an omen for the rest of
+// the run; the order is shuffled deterministically per seed.
 
 import { makeRng, hashString } from "./util.js";
 
 const MUTATORS = {
-    volatile: { name: "Ember-Burst", desc: "Foes may erupt in a telegraphed cinder ring on defeat", color: "#ff6a3a" },
-    shielded: { name: "Ward-Bound", desc: "Foes may carry a shimmering glass ward", color: "#7fd8ff" },
-    hasted: { name: "Wind-Spurred", desc: "Foes stride faster across the sanctuary", color: "#ffd84a" },
-    armored: { name: "Iron-Clad", desc: "Foes wear heavier forged plating", color: "#c9c2b8" },
-    barrage: { name: "Volley-Struck", desc: "Hostile bolts fly swifter and strike harder", color: "#ff5ab4" },
-    trapstorm: { name: "Realm Tempest", desc: "More biome hazards, cycling faster", color: "#b4ff3d" },
+    volatile: {
+      name: "Cinder-Wick",
+      desc: "Foes may erupt in a telegraphed cinder ring on defeat",
+      color: "#e88a4a",
+    },
+    shielded: {
+      name: "Porcelain Ward",
+      desc: "Foes may carry a shimmering glazed glass ward",
+      color: "#8cd4e8",
+    },
+    hasted: {
+      name: "Gale-Bellows",
+      desc: "Tailwind gusts spur foes swifter across the sanctuary",
+      color: "#e6c46a",
+    },
+    armored: {
+      name: "Tolling Dusk",
+      desc: "Elites and heavy foes ring a telegraphed bronze shock-chime at 50% Ward",
+      color: "#d9a75a",
+    },
+    barrage: {
+      name: "Mirage Winds",
+      desc: "A wandering dust devil joins any realm and curves passing shots",
+      color: "#e5b878",
+    },
+    trapstorm: {
+      name: "Clockwork Tempest",
+      desc: "Additional realm mechanisms awaken and cycle swifter",
+      color: "#98c9a3",
+    },
   },
   MUTATOR_IDS = Object.keys(MUTATORS),
   MUTATOR_FROM = 21,
   MUTATOR_EVERY = 10,
   MUTATOR_MAX_LEVEL = 3;
 
-/* the mutators in play at `wave` ({ id: level }) and the one gained or raised at exactly this wave (or null) */
+/* The omens in play at `wave` ({ id: level }) and the one gained or raised at this wave (or null) */
 function rlMutatorsFor(seed, wave) {
   const mods = {};
   if (wave < MUTATOR_FROM) return { mods, gained: null };

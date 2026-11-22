@@ -12,7 +12,6 @@ import { milestones, workshopModules, threatLevels } from "../data/progression.j
 import { upgradeList, rarityNames, upgradesById } from "../data/upgrades.js";
 import { computeStats, weaponRange, buildStatRows } from "../core/stats.js";
 import { RL_INPUT, setTouchInput } from "./input.js";
-import { hapticMode, rumble } from "./haptics.js";
 import { WHATS_NEW } from "../data/whatsnew.js";
 import { MUTATORS } from "../core/mutators.js";
 import { markHomeViewDirty } from "../render/renderer.js";
@@ -144,7 +143,7 @@ const getById = (id) => document.getElementById(id),
       else delete app.dataset.biome;
     }
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute("content", BIOME_THEME_COLOR[id] || "#14100d");
+    if (meta) meta.setAttribute("content", BIOME_THEME_COLOR[id] || "#130f0c");
   },
   menuScreens = ["home", "workshop", "records", "news", "settings"],
   formatTenths = (value) => (Math.round(value * 10 + 1e-6) / 10).toString(),
@@ -419,20 +418,17 @@ const getById = (id) => document.getElementById(id),
         };
       bindToggle("setAuto", "autoFire");
       bindToggle("setAssist", "assist");
-      bindToggle("setVibration", "vibration");
-      // 3.45.4: feel what the setting does, wherever this device can buzz at all
-      this.click(getById("setVibTest"), () => {
-        this.toast(rumble("slam", true) ? "Buzz sent" : "Nothing here to buzz with");
-      });
       bindToggle("setNumbers", "numbers");
       for (let [id, key] of [
         ["setSfx", "sfx"],
         ["setMusic", "music"],
         ["setAmb", "ambience"],
       ]) {
-        let input = getById(id);
+        let input = getById(id),
+          out = getById(id + "V");
         input.addEventListener("input", () => {
           settings()[key] = +input.value;
+          if (out) out.textContent = Math.round(+input.value * 100) + "%";
           this.g.settingsChanged(true);
           // 3.48.0: hear the bus you are turning, at the level you just set (a shot of the weapon in
           // hand for effects, the arrival braam of the place for music, one far voice for the ambience)
@@ -442,6 +438,14 @@ const getById = (id) => document.getElementById(id),
           this.g.settingsChanged();
         });
       }
+      this.click(getById("updateReadyBtn"), () => {
+        const apply = this.g.pendingUpdate;
+        if (apply) {
+          this.g.pendingUpdate = null;
+          this.g.store.save("update");
+          apply();
+        }
+      });
       for (let btn of getById("setFrameRate").querySelectorAll("button"))
         this.click(btn, () => {
           settings().frameRate = +btn.dataset.v;
@@ -485,10 +489,11 @@ const getById = (id) => document.getElementById(id),
       this._show(screen);
     }
     _show(screen) {
-      // 2.3.6: the renderer re-measures the free space of the home screen for the drone preview
+      // 2.3.6: the renderer re-measures the free space of the home screen for the artificer preview
       markHomeViewDirty();
       for (let id of menuScreens) getById(id).hidden = id !== screen;
       this.screen = screen;
+      window.__riftUpdateDeviceProfile?.();
       if (menuScreens.includes(screen) && !this.rlFromPause) {
         setBiomeTheme("");
       }
@@ -527,6 +532,8 @@ const getById = (id) => document.getElementById(id),
       let save = this.save;
       getById("bank").textContent = formatCount(save.shards);
       for (let el of document.querySelectorAll(".bankMirror")) el.textContent = formatCount(save.shards);
+      const upBtn = getById("updateReadyBtn");
+      if (upBtn) upBtn.hidden = !this.g.pendingUpdate;
       if (this.viewWeapon == null || !weaponOrder[this.viewWeapon]) {
         this.viewWeapon = 0;
       }
@@ -693,7 +700,7 @@ const getById = (id) => document.getElementById(id),
       for (let el of document.querySelectorAll(".bankMirror")) el.textContent = formatCount(save.shards);
       let list = getById("wsList");
       const catOf = (id) =>
-        id === "hull" || id === "revive" || id === "armorCore" || id === "hazardSeal" || id === "emergencyShield"
+        id === "hull" || id === "revive" || id === "armorCore" || id === "emergencyShield"
           ? "cat-ward"
           : id === "power" || id === "nova" || id === "arsenalLab" || id === "hazardAttune"
             ? "cat-fire"
@@ -709,7 +716,7 @@ const getById = (id) => document.getElementById(id),
             btn =
               level >= maxLevel
                 ? '<button class="btn max-btn" disabled>MAX</button>'
-                : `<button class="btn" data-buy="${mod.id}" ${save.shards < cost ? "disabled" : ""}><span class="shard-ico"></span>${cost}</button>`;
+                : `<button class="btn buy" data-buy="${mod.id}" ${save.shards < cost ? "disabled" : ""}><span class="shard-ico"></span>${cost}</button>`;
           return `<div class="row panel ${catOf(mod.id)}"><div class="rico">${iconSvg(mod.icon)}</div><div><b>${escapeHtml(mod.name)}</b><small>${escapeHtml(mod.desc)}</small><div class="pips">${pips}</div></div>${btn}</div>`;
         })
         .join("");
@@ -804,18 +811,15 @@ const getById = (id) => document.getElementById(id),
       let settings = this.save.settings;
       getById("setAuto").checked = settings.autoFire;
       getById("setAssist").checked = settings.assist;
-      getById("setVibration").checked = settings.vibration !== false;
-      // 3.45.4: the note says what this device actually can do
-      getById("vibNote").textContent =
-        hapticMode() === "native"
-          ? "Buzzes on this phone: hits, dashes, the end of a run."
-          : hapticMode() === "tick"
-            ? "iPhone: short ticks, on the iOS versions that still allow them."
-            : "Vibration is unavailable on this device.";
       getById("setNumbers").checked = settings.numbers;
       getById("setSfx").value = settings.sfx;
       getById("setMusic").value = settings.music;
       getById("setAmb").value = settings.ambience;
+      if (getById("setSfxV")) getById("setSfxV").textContent = Math.round(settings.sfx * 100) + "%";
+      if (getById("setMusicV")) getById("setMusicV").textContent = Math.round(settings.music * 100) + "%";
+      if (getById("setAmbV")) getById("setAmbV").textContent = Math.round(settings.ambience * 100) + "%";
+      const upBtn = getById("updateReadyBtn");
+      if (upBtn) upBtn.hidden = !this.g.pendingUpdate;
       for (let btn of getById("setFrameRate").querySelectorAll("button")) {
         const active = +btn.dataset.v === settings.frameRate;
         btn.classList.toggle("on", active);
@@ -982,6 +986,7 @@ const getById = (id) => document.getElementById(id),
       if (!on) {
         getById("bossBar").hidden = true;
       }
+      window.__riftUpdateDeviceProfile?.();
       this.hudCache = {};
       // 2.5.0 D: the end of a run hides the title cards like the banner
       this.clearTitleCard();
@@ -1189,8 +1194,10 @@ const getById = (id) => document.getElementById(id),
         chips.push(["devil", "WHIRLWIND", "#ffe9c4", -1]);
       }
       if (player.slowT > 0) {
-        // 3.7.1: a chime inlay / lantern dazes (0.8 s), ice chills (1.6 s)
-        if (player.slowKind === "shock") chips.push(["shock", "DAZED", "#ffe98a", player.slowT / 0.8]);
+        if (player.slowKind === "shock") chips.push(["shock", "DAZED", "#ffe98a", player.slowT / 0.9]);
+        else if (player.slowKind === "acid") chips.push(["acidSlow", "MIRED", "#86f8ba", player.slowT / 1.4]);
+        else if (player.slowKind === "burn") chips.push(["burnSlow", "SINGED", "#ff9d5c", player.slowT / 1.2]);
+        else if (player.slowKind === "glass") chips.push(["glassSlow", "DAZZLED", "#ffe59e", player.slowT / 1.3]);
         else chips.push(["chill", "CHILLED", "#aee8ff", player.slowT / 1.6]);
       }
       let key = chips.map((chip) => chip[0] + chip[1]).join("|"),
@@ -1212,9 +1219,6 @@ const getById = (id) => document.getElementById(id),
       for (let [id, , , left] of chips) {
         if (left < 0) continue;
         let step = Math.round(clamp(left, 0, 1) * 20);
-        // 3.45.3: `cache` was hud()'s local alias - buffs() reached for a global that does not exist, and the
-        // first timed chip (a dash with Slipstream, a stun, a barrier) threw "Can't find variable: cache"
-        // for three consecutive frames and killed the loop. The store is this.hudCache, as buffKey above.
         if (!rebuilt && this.hudCache["buff" + id] === step) continue;
         this.hudCache["buff" + id] = step;
         let bar = this.buffBars.get(id);
@@ -1226,18 +1230,19 @@ const getById = (id) => document.getElementById(id),
           bar.style.transform = `scaleX(${step / 20})`;
         }
       }
-      // 2.5.0 A: chips for the timed upgrades (Heat Sink, Slipstream) and active Cryo Skates.
-      // They are added next to the chips above, which may rebuild the row at any frame.
       const on = world.state === "fight" && player.alive,
         want = [];
       if (on && stats.heatSink && player.heatT > 0) {
-        want.push(["heat", "BELLOWS", "#ff8a3d", player.heatT / 3]);
+        want.push(["heat", "BELLOWS", "#ff8a3d", player.heatT / 4.5]);
       }
       if (on && stats.slip && player.slipT > 0) {
-        want.push(["slip", "TAILWIND", "#a7d1bf", player.slipT / 1.37]);
+        want.push(["slip", "TAILWIND", "#a7d1bf", player.slipT / 1.0]);
       }
-      if (on && stats.skates && player.skating) {
-        want.push(["skate", "SKATES", "#bff4ff", -1]);
+      if (on && player.tributeT > 0) {
+        want.push(["ingot", "INGOT", "#ffb86c", player.tributeT / 4.0]);
+      }
+      if (on && player.leylineT > 0) {
+        want.push(["leyline", "LEYLINE", "#d6b8ff", -1]);
       }
       if (on && player.tractionT > 0) {
         want.push(["rime", "RIME GRIP", "#9cf4ff", player.tractionT / 3.8]);
@@ -1601,7 +1606,7 @@ const getById = (id) => document.getElementById(id),
           .join("") +
         "</div>";
     }
-    /* 3.21.0: the recap of a lost run: who hit the drone last, with what and how long before the end, and where most of the
+    /* 3.21.0: the recap of a lost run: who hit the artificer last, with what and how long before the end, and where most of the
        damage of the run came from */
     renderRecap(result) {
       const box = getById("overRecap"),

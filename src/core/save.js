@@ -15,15 +15,15 @@ import { HUD_CONTROL_IDS, HUD_LIMITS } from "../data/hud.js";
 /* Save loading must never brick the game (2.2.2 crashed on every start once a
  save existed). Retry without the unfinished run; null when nothing could be used (3.32.0: the caller backs the
  raw save up and decides what to do: start a fresh profile, or keep this tab's progress). */
-function rlLoadSave(raw) {
+function rlLoadSave(raw, recordNote = true) {
   if (!raw || Array.isArray(raw) || raw.game !== "riftline" || raw.v !== 1) return null;
   try {
-    return cleanSave(raw);
+    return cleanSave(raw, recordNote);
   } catch (err) {
     logError("load", err);
   }
   try {
-    const data = cleanSave({ ...raw, run: null });
+    const data = cleanSave({ ...raw, run: null }, recordNote);
     logError("load", "unfinished run discarded: it could not be restored");
     return data;
   } catch (err) {
@@ -93,7 +93,7 @@ function rlSanitizeHistory(history) {
       time: Math.round(ni2(entry.time, 0, 1e7)),
       kills: Math.floor(ni2(entry.kills, 0, 1e9)),
       shards: Math.floor(ni2(entry.shards, 0, 1e9)),
-      killer: typeof entry.killer === "string" && /^[a-z]{1,18}$/.test(entry.killer) ? entry.killer : "",
+      killer: typeof entry.killer === "string" && /^[A-Za-z0-9_-]{1,24}$/.test(entry.killer) ? entry.killer : "",
       build: Array.isArray(entry.build) ? entry.build.filter((id) => own(upgradesById, id)).slice(0, 6) : [],
     });
   }
@@ -129,7 +129,7 @@ function set_RL_RETIRE_NOTE(note) {
 /* Runs on the raw save before it is sanitised (cleanSave), so it covers loading and importing. Returns
  the input untouched when there is nothing to convert; never mutates it (rlLoadSave may still
  back up the raw object). Running it again on its own output changes nothing. */
-function rlMigrateRetired(raw) {
+function rlMigrateRetired(raw, recordNote = true, notesOut = null) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
   const obj = (value) => (value && typeof value === "object" && !Array.isArray(value) ? value : null),
     own = obj(raw.weapons),
@@ -154,7 +154,9 @@ function rlMigrateRetired(raw) {
   if (sel) out.weapon = sel.to;
   if (runW) out.run = { ...run, weapon: runW.to };
   if (refund > 0) out.shards = (Number.isFinite(raw.shards) ? Math.max(0, raw.shards) : 0) + refund;
-  RL_RETIRE_NOTE = { refund, count: owned.length };
+  const note = { refund, count: owned.length };
+  if (recordNote) RL_RETIRE_NOTE = note;
+  if (notesOut) notesOut.retireNote = note;
   return out;
 }
 const SAVE_KEY = "riftline.save.v1",
@@ -165,13 +167,8 @@ const SAVE_KEY = "riftline.save.v1",
     ambience: 0.8,
     autoFire: true,
     assist: true,
-    // Phone feedback for hits, dashes and the end of a run.
-    vibration: true,
     numbers: true,
     frameRate: 60,
-    // 3.8.0: the left-handed (swap) and reduce-flashes (calm) settings are gone; a save that has them drops them on load
-    // 3.57.0: the zoom, warning-contrast, screen-shake toggle and the timer/FPS readouts are gone too - a save
-    // that carries them drops them on load like the old ones above
     // the button layout (ui/hud-layout.js): opacity of the buttons, stick size, a fixed move stick, and the places
     // and sizes of the buttons per orientation (null: the default layout)
     hudAlpha: 1,
@@ -319,15 +316,15 @@ function cleanRun(raw) {
   run.runStats.critHits = Math.floor(cleanNumber(rawStats.critHits, 0, 0, 1e9));
   const src = asObject(raw.dmgSrc);
   for (const key in src)
-    if (/^[A-Za-z0-9_-]{1,18}$/.test(key)) run.dmgSrc[key] = Math.floor(cleanNumber(src[key], 0, 0, 1e12));
+    if (/^[A-Za-z0-9_-]{1,24}$/.test(key)) run.dmgSrc[key] = Math.floor(cleanNumber(src[key], 0, 0, 1e12));
   // 3.46.0: the recap ("?" is the source of a hit that came with none)
   const taken = asObject(raw.takenBy);
   for (const key in taken)
-    if (/^[A-Za-z0-9_?-]{1,18}$/.test(key)) run.takenBy[key] = cleanNumber(taken[key], 0, 0, 1e12);
+    if (/^[A-Za-z0-9_?-]{1,24}$/.test(key)) run.takenBy[key] = cleanNumber(taken[key], 0, 0, 1e12);
   if (Array.isArray(raw.hitLog))
     for (const h of raw.hitLog) {
       if (run.hitLog.length >= 12) break;
-      if (!h || typeof h !== "object" || typeof h.src !== "string" || !/^[A-Za-z0-9_?]{1,18}$/.test(h.src)) continue;
+      if (!h || typeof h !== "object" || typeof h.src !== "string" || !/^[A-Za-z0-9_?-]{1,24}$/.test(h.src)) continue;
       run.hitLog.push({
         t: cleanNumber(h.t, 0, 0, 1e8),
         wave: Math.floor(cleanNumber(h.wave, 1, 1, 1e4)),
@@ -341,7 +338,7 @@ function cleanRun(raw) {
     // 3.15.0: a boss card belongs only in a boss offer
     const offer = [
       ...new Set(raw.offer.filter((id) => own(upgradesById, id) && (!upgradesById[id].boss || raw.offerBoss))),
-    ].slice(0, 4);
+    ].slice(0, 5);
     if (offer.length) {
       run.offer = offer;
       run.offerBoss = !!raw.offerBoss;
@@ -351,10 +348,10 @@ function cleanRun(raw) {
   }
   return run;
 }
-function cleanSave(input) {
+function cleanSave(input, recordNote = true, notesOut = null) {
   input = saveContentIds(input);
   // 2.5.0 B: refund merged workshop modules, then 2.4.0: convert retired weapons (both on the raw save)
-  input = rlMigrateRetired(rlMigrateModules(input));
+  input = rlMigrateRetired(rlMigrateModules(input, recordNote, notesOut), recordNote, notesOut);
   let fresh = newSave(),
     raw = asObject(input),
     save = fresh;
@@ -402,7 +399,7 @@ function cleanSave(input) {
   for (let key of ["bosses", "clearsBy", "bestBy"]) {
     let rawMap = asObject(rawStats[key]);
     for (let id in rawMap) {
-      if (/^[a-z]{2,12}$/.test(id)) {
+      if (/^[A-Za-z0-9_-]{2,24}$/.test(id)) {
         stats[key][id] = cleanNumber(rawMap[id], 0, 0, 1e9);
       }
     }
@@ -411,7 +408,7 @@ function cleanSave(input) {
   {
     const rawMedals = asObject(rawStats.medals);
     for (const id in rawMedals) {
-      if (!/^[a-z]{2,12}$/.test(id)) continue;
+      if (!/^[A-Za-z0-9_-]{2,24}$/.test(id)) continue;
       const m = asObject(rawMedals[id]),
         medal = Math.floor(cleanNumber(m.medal, 0, 0, 3));
       if (medal >= 1)
@@ -622,16 +619,26 @@ const safeStorage = {
       } catch {
         return { ok: false };
       }
-      return !data || data.game !== "riftline" || data.v !== 1
-        ? { ok: false }
-        : { ok: true, data: cleanSave(data), kept: keptOf(data) };
+      if (!data || data.game !== "riftline" || data.v !== 1) return { ok: false };
+      const notes = { retireNote: null, moduleNote: null };
+      return {
+        ok: true,
+        data: cleanSave(data, false, notes),
+        kept: keptOf(data),
+        retireNote: notes.retireNote,
+        moduleNote: notes.moduleNote,
+      };
     }
     restore(parsed, reason = "import") {
       if (!parsed?.ok) return false;
       const previous = { data: this.data, kept: this.kept };
       this.data = parsed.data;
       this.kept = parsed.kept || null;
-      if (this.save(reason)) return true;
+      if (this.save(reason)) {
+        if (parsed.retireNote) RL_RETIRE_NOTE = parsed.retireNote;
+        if (parsed.moduleNote) RL_MODULE_NOTE = parsed.moduleNote;
+        return true;
+      }
       this.data = previous.data;
       this.kept = previous.kept;
       return false;
@@ -711,16 +718,11 @@ export { RL_RETIRE_NOTE, SaveStore, SAVE_KEY, rlRecordRun, set_RL_RETIRE_NOTE, c
 /* ==========================================================================
    2.5.0 B: merged workshop modules are refunded
    ========================================================================== */
-/* Rift Battery, Reactor Core (→ Nova Cell) and Route Scanner (→ Field Supply) are gone. Every level
- a save bought of them is paid back at its full price; the levels of the kept modules stay as they
- are. Like rlMigrateRetired it runs on the raw save before cleanSave, never mutates its input,
- returns it untouched when there is nothing to convert and changes nothing when run twice. A saved
- run needs no change: it does not store workshop levels (World reads them from the save). */
 let RL_MODULE_NOTE = null;
 function set_RL_MODULE_NOTE(note) {
   return (RL_MODULE_NOTE = note);
 }
-function rlMigrateModules(raw) {
+function rlMigrateModules(raw, recordNote = true, notesOut = null) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
   const ws = raw.workshop && typeof raw.workshop === "object" && !Array.isArray(raw.workshop) ? raw.workshop : null;
   if (!ws) return raw;
@@ -746,7 +748,9 @@ function rlMigrateModules(raw) {
   const out = { ...raw, workshop };
   if (refund > 0) {
     out.shards = (Number.isFinite(raw.shards) ? Math.max(0, raw.shards) : 0) + refund;
-    RL_MODULE_NOTE = { refund, count, into };
+    const note = { refund, count, into };
+    if (recordNote) RL_MODULE_NOTE = note;
+    if (notesOut) notesOut.moduleNote = note;
   }
   return out;
 }

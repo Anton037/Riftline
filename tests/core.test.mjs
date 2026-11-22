@@ -485,3 +485,158 @@ test("Masterwork evolutions validate prerequisites and Powder-Tinker lobs kegs o
   assert.ok(Number.isFinite(sapperH.sx) && Number.isFinite(sapperH.sy), "sapper hazard must record lob origin");
   assert.ok(Math.hypot(sapperH.x - sapper.x, sapperH.y - sapper.y) > 3, "sapper lobs onto the player's flank");
 });
+
+test("regression: Bellkeeper sealgrid corridor beams span the arena and damage the player", async () => {
+  const { updateBoss } = await import("../src/core/ai.js");
+  const w = new World({ seed: 701, weapon: "pulse", threat: 0, ws: {} });
+  w.route = ["courtyard"];
+  w.startWave(5);
+  w.arena.obs = [];
+  w.enemies.length = 0;
+  w.beams.length = 0;
+  const boss = w.spawnBoss("bellkeeper");
+  boss.spawnT = 0;
+  boss.st = "sealgrid";
+  boss.n = 0;
+  boss.t = 0;
+  w.player.x = 0;
+  w.player.y = 0;
+  w.player.iT = 0;
+  w.player.dashT = 0;
+  w.player.shield = false;
+  updateBoss(w, boss, 0.1);
+  assert.ok(w.beams.length >= 4, "Bellkeeper sealgrid must spawn corridor beams");
+  // Advance past warn into live beam phase
+  const firstWarn = w.beams[0].warn;
+  w.updateBeams(firstWarn + 0.05);
+  for (const beam of w.beams) {
+    assert.ok(beam.cur > 5, `corridor beam must span the arena (got cur=${beam.cur})`);
+  }
+  // Place player directly on a live corridor beam and confirm real damage
+  const liveBeam = w.beams.find((b) => b.live && b.cur > 5);
+  assert.ok(liveBeam, "at least one corridor beam must be live");
+  w.player.x = liveBeam.x + Math.cos(liveBeam.a) * (liveBeam.cur * 0.5);
+  w.player.y = liveBeam.y + Math.sin(liveBeam.a) * (liveBeam.cur * 0.5);
+  w.player.iT = 0;
+  const hpBefore = w.player.hp;
+  w.updateBeams(1 / 60);
+  assert.ok(w.player.hp < hpBefore, "live sealgrid corridor beam must damage the player");
+});
+
+test("regression: Glasswyrm diveT sets ghost=true and mirage/rise resolve inside arena bounds", async () => {
+  const { updateBoss } = await import("../src/core/ai.js");
+  const w = new World({ seed: 702, weapon: "pulse", threat: 0, ws: {} });
+  w.route = ["flats"];
+  w.startWave(5);
+  w.enemies.length = 0;
+  const boss = w.spawnBoss("wyrm");
+  boss.spawnT = 0;
+  boss.diveT = 0.5;
+  updateBoss(w, boss, 0.05);
+  assert.equal(boss.ghost, true, "submerged Glasswyrm (diveT > 0) must be untargetable (ghost=true)");
+  boss.diveT = 0.02;
+  updateBoss(w, boss, 0.05);
+  assert.equal(boss.ghost, false, "surfacing Glasswyrm must restore ghost=false");
+  // Trigger mirage phase and verify position stays strictly inside arena and unobstructed
+  boss.st = "mirage";
+  boss.n = 0;
+  boss.t = 0;
+  w.player.x = w.arena.W - 2.0;
+  w.player.y = w.arena.H - 2.0;
+  for (let i = 0; i < 40; i++) updateBoss(w, boss, 0.05);
+  assert.equal(w.arena.outside(boss.x, boss.y, boss.r * 0.5), false, "Glasswyrm mirage must stay inside arena bounds");
+});
+
+test("regression: Glowmarsh puffball and trap corrodeT persist across updateFeatures ticks", async () => {
+  const { rlUpdateTraps } = await import("../src/core/traps.js");
+  const w = new World({ seed: 703, weapon: "pulse", threat: 0, ws: {} });
+  w.arena.obs = [];
+  w.arena.acid = [];
+  w.enemies.length = 0;
+  const foe = w.spawnEnemy("brute", 1.0, 0, { noVariant: true });
+  foe.spawnT = 0;
+  w.hash.build(w.enemies);
+  const prop = { kind: "puffball", x: 0, y: 0, r: 0.9, cd: 0, fuse: 0 };
+  w.arena.props = [prop];
+  w.triggerBiomeProp(prop);
+  assert.equal(foe.corrode, true, "puffball must corrode nearby foe");
+  assert.ok(foe.corrodeT >= 3.5, "puffball must set timed corrodeT");
+  // Step updateFeatures + statusTick for 1 second with NO acid pools present — corrode must persist!
+  for (let i = 0; i < 60; i++) {
+    w.statusTick(foe, 1 / 60);
+    w.updateFeatures(1 / 60);
+  }
+  assert.equal(foe.corrode, true, "puffball corrodeT must not be wiped by updateFeatures when no pools exist");
+  // Also verify trap corrodeT persists across updateFeatures
+  const foe2 = w.spawnEnemy("brute", 5.0, 0, { noVariant: true });
+  foe2.spawnT = 0;
+  w.hash.build(w.enemies);
+  w.traps = [
+    { id: 2, fam: "floor", skin: "geyser", x: 4.8, y: 0, st: "warn", t: 0.01, delay: 0.02, a: 0, dir: 1, wait: 0 },
+  ];
+  rlUpdateTraps(w, 0.05);
+  w.arena.acid.length = 0;
+  w.statusTick(foe2, 1 / 60);
+  w.updateFeatures(1 / 60);
+  assert.equal(foe2.corrode, true, "geyser trap corrodeT must persist across updateFeatures");
+});
+
+test("regression: shardfield splinters and fang lances pierce across kills", async () => {
+  const { updateBossCards } = await import("../src/core/boss-cards.js");
+  // 1. Frost Prism splinter pierces through a fatal hit into the second enemy behind it
+  const w1 = new World({ seed: 704, weapon: "pulse", threat: 0, ws: {} });
+  w1.arena.obs = [];
+  w1.enemies.length = 0;
+  const a1 = w1.spawnEnemy("grunt", 1.0, 0, { noVariant: true });
+  const a2 = w1.spawnEnemy("grunt", 2.0, 0, { noVariant: true });
+  a1.spawnT = a2.spawnT = 0;
+  a1.hp = 5; // dies immediately to the splinter
+  a2.hp = a2.maxHp = 500;
+  w1.hash.build(w1.enemies);
+  w1.splinters = [{ x: 0.4, y: 0, vx: 20, vy: 0, dmg: 30, life: 1, glass: false, pierce: 2, hits: [] }];
+  for (let i = 0; i < 12; i++) {
+    w1.hash.build(w1.enemies);
+    updateBossCards(w1, 1 / 60);
+  }
+  assert.equal(a1.dead, true, "first foe dies to shardfield splinter");
+  assert.ok(a2.hp < 500, "shardfield splinter must pierce across the kill and hit the second foe");
+
+  // 2. Glasswyrm fang lance pierces through a fatal hit into the second enemy behind it
+  const w2 = new World({ seed: 705, weapon: "pulse", threat: 0, ws: {} });
+  w2.arena.obs = [];
+  w2.enemies.length = 0;
+  const b1 = w2.spawnEnemy("grunt", 1.0, 0, { noVariant: true });
+  const b2 = w2.spawnEnemy("grunt", 2.1, 0, { noVariant: true });
+  b1.spawnT = b2.spawnT = 0;
+  b1.hp = 5;
+  b2.hp = b2.maxHp = 500;
+  w2.hash.build(w2.enemies);
+  w2.splinters = [{ x: 0.4, y: 0, vx: 24, vy: 0, dmg: 40, life: 1, glass: true, pierce: 4, hits: [] }];
+  for (let i = 0; i < 12; i++) {
+    w2.hash.build(w2.enemies);
+    updateBossCards(w2, 1 / 60);
+  }
+  assert.equal(b1.dead, true, "first foe dies to fang lance");
+  assert.ok(b2.hp < 500, "fang lance must pierce across the kill and hit the second foe");
+});
+
+test("regression: Boss Waves offer guaranteed Relic as bonus slot and all 18 biome traps unlock in World 1", async () => {
+  const { TRAP_SKINS, TRAP_FROM } = await import("../src/core/traps.js");
+  assert.equal(Object.keys(TRAP_SKINS).length, 18, "all 6 biomes must have floor, mine, and beam traps (18 total)");
+  assert.deepEqual(TRAP_FROM, { floor: 2, mine: 4, beam: 7 });
+
+  const w = new World({ seed: 706, weapon: "pulse", threat: 0, ws: {} });
+  w.route = ["courtyard"];
+  w.startWave(5);
+  w.offerBoss = true;
+  w.beginChoice();
+  assert.equal(w.offer.length, 4, "Boss Wave must grant 3 regular upgrades + 1 guaranteed bonus Relic slot");
+  assert.ok(w.offerExclusive && w.offer[0] === w.offerExclusive, "Relic occupies dedicated slot 0");
+  // With Workshop Insight, Boss Wave grants 4 regular + 1 Relic = 5 cards
+  const wInsight = new World({ seed: 706, weapon: "pulse", threat: 0, ws: { insight: 1 } });
+  wInsight.route = ["courtyard"];
+  wInsight.startWave(5);
+  wInsight.offerBoss = true;
+  wInsight.beginChoice();
+  assert.equal(wInsight.offer.length, 5, "Boss Wave with Insight must grant 4 regular + 1 bonus Relic = 5 cards");
+});

@@ -63,7 +63,7 @@ const weaponDefs = {
     cost: 450,
     color: 0xc0a6db,
     blurb: "Heavy prismatic needles that punch clean through whole ranks.",
-    dmg: 58,
+    dmg: 72,
     rate: 1.1,
     speed: 95,
     life: 0.3,

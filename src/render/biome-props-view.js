@@ -249,7 +249,7 @@ export class BiomePropsView {
         yaw,
         0,
         0,
-        phase,
+        packedPhase,
         gCol.r * pulse,
         gCol.g * pulse,
         gCol.b * pulse,

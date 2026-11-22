@@ -20,7 +20,8 @@ const CONTROL_INFO = {
   HUD_CONTROLS = HUD_CONTROL_IDS.map((id) => ({ id, ...CONTROL_INFO[id] })),
   /* the space a control keeps to the others (px) and to the readouts of the HUD; the readouts grow in a run (a row of
      buff chips under the hull bar, the combo and the wave progress under the wave), so their room reaches lower */
-  GAP = 6,
+  GAP = 2,
+  TOUCH_HALO = 6, // +12px (.act-btn::before) diameter touch halo around action buttons
   KEEP_GAP = 3,
   KEEP_CLEAR = [
     ["#hud .hp-block", 22],
@@ -32,18 +33,23 @@ const CONTROL_INFO = {
   DEFAULT_STICK = { portrait: { x: 0.2, y: 0.74 }, landscape: { x: 0.16, y: 0.66 } };
 
 const round4 = (v) => Math.round(v * 1e4) / 1e4;
-/* the orientation as the device profile of index.html sees it (the visual viewport) */
+/* single unified viewport rect synced between window.innerWidth/innerHeight and #app.getBoundingClientRect() */
+function hudViewport() {
+  const app = getById("app"),
+    rect = app && app.getBoundingClientRect(),
+    W = Math.max(1, Math.round((rect && rect.width) || window.innerWidth || 1)),
+    H = Math.max(1, Math.round((rect && rect.height) || window.innerHeight || 1));
+  return { W, H };
+}
+/* the orientation as the unified viewport sees it */
 function hudOrientation() {
-  const vv = window.visualViewport,
-    w = vv?.width || window.innerWidth,
-    h = vv?.height || window.innerHeight;
-  return w >= h ? "landscape" : "portrait";
+  const { W, H } = hudViewport();
+  return W >= H ? "landscape" : "portrait";
 }
 /* the safe area in px */
 function hudBox() {
   const inset = safeAreaInsets(),
-    W = window.innerWidth,
-    H = window.innerHeight;
+    { W, H } = hudViewport();
   return { l: inset.l, t: inset.t, w: Math.max(1, W - inset.l - inset.r), h: Math.max(1, H - inset.t - inset.b), W, H };
 }
 /* layouts that did not fit this screen in a run (see fitHudLayout): the default layout stands in for them */
@@ -87,15 +93,17 @@ function fixedStickCenter(settings, radius, layout = layoutOf(settings)) {
   };
 }
 
-/* the circle a control covers on screen */
+/* the circle a control covers on screen, including the +12px (.act-btn::before) touch halo for overlap checks */
 function circleOf(el) {
-  const rect = el.getBoundingClientRect();
-  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, r: Math.max(rect.width, rect.height) / 2 };
+  const rect = el.getBoundingClientRect(),
+    visR = Math.max(rect.width, rect.height) / 2,
+    halo = el.classList.contains("act-btn") ? TOUCH_HALO : 0;
+  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, r: visR + halo, visR };
 }
 function hitsRect(circle, rect, gap) {
   const nx = clamp(circle.x, rect.left - gap, rect.right + gap),
     ny = clamp(circle.y, rect.top - gap, rect.bottom + gap);
-  return Math.hypot(circle.x - nx, circle.y - ny) < circle.r;
+  return Math.hypot(circle.x - nx, circle.y - ny) < (circle.visR ?? circle.r);
 }
 /* The controls that sit where they may not, as a set of ids ("stick" for the fixed move stick). A control must stay in
    the safe area, off the readouts of the HUD and off the other controls; the fixed stick lies wholly on the move side
@@ -110,18 +118,19 @@ function layoutProblems(stick) {
       keep.push({ left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom + below });
   }
   const circles = HUD_CONTROLS.map((control) => ({ id: control.id, ...circleOf(getById(control.el)) }));
-  if (stick) circles.push({ id: "stick", ...stick });
+  if (stick) circles.push({ id: "stick", ...stick, visR: stick.r });
   const bad = new Set();
   for (const c of circles) {
+    const vr = c.visR ?? c.r;
     if (
-      c.x - c.r < box.l - 1 ||
-      c.x + c.r > box.l + box.w + 1 ||
-      c.y - c.r < box.t - 1 ||
-      c.y + c.r > box.t + box.h + 1 ||
+      c.x - vr < box.l - 1 ||
+      c.x + vr > box.l + box.w + 1 ||
+      c.y - vr < box.t - 1 ||
+      c.y + vr > box.t + box.h + 1 ||
       keep.some((rect) => hitsRect(c, rect, KEEP_GAP))
     )
       bad.add(c.id);
-    if (c.id === "stick" && c.x + c.r > box.W / 2) bad.add(c.id);
+    if (c.id === "stick" && c.x + vr > box.W / 2) bad.add(c.id);
   }
   for (let i = 0; i < circles.length; i++)
     for (let j = i + 1; j < circles.length; j++) {
@@ -140,11 +149,13 @@ function layoutProblems(stick) {
    or overlaps itself, the default layout stands in for it until the settings change. Returns true when it stepped in. */
 function fitHudLayout(settings, radius) {
   const orient = hudOrientation(),
+    { W, H } = hudViewport(),
+    area = W * H,
     hud = getById("hud");
   // 3.46.0: a layout dropped on a smaller window (a rotated phone with the browser bar up) gets
   // its mark back when the window has grown by a fifth over the one it was marked at
   const marked = unfitArea[orient];
-  if (marked && innerWidth * innerHeight >= marked * 1.2) {
+  if (marked && area >= marked * 1.2) {
     for (const key of [...unfit]) if (key.startsWith(orient + "|")) unfit.delete(key);
     delete unfitArea[orient];
   }
@@ -158,7 +169,7 @@ function fitHudLayout(settings, radius) {
   const stick = settings.stickFixed ? { ...fixedStickCenter(settings, radius, layout), r: radius } : null;
   if (!layoutProblems(stick).size) return false;
   unfit.add(fitKey(settings, orient));
-  unfitArea[orient] = innerWidth * innerHeight;
+  unfitArea[orient] = area;
   applyHudLayout(settings);
   return true;
 }
@@ -190,6 +201,25 @@ class HudEditor {
     zone.addEventListener("pointerup", (ev) => this.up(ev, false));
     zone.addEventListener("pointercancel", (ev) => this.up(ev, true));
     zone.addEventListener("contextmenu", (ev) => ev.preventDefault());
+    window.addEventListener("keydown", (ev) => {
+      if (!this.isOpen || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+      const tag = ev.target && ev.target.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      const step = 0.02;
+      if (ev.key === "ArrowLeft") {
+        ev.preventDefault();
+        this.nudge(-step, 0);
+      } else if (ev.key === "ArrowRight") {
+        ev.preventDefault();
+        this.nudge(step, 0);
+      } else if (ev.key === "ArrowUp") {
+        ev.preventDefault();
+        this.nudge(0, -step);
+      } else if (ev.key === "ArrowDown") {
+        ev.preventDefault();
+        this.nudge(0, step);
+      }
+    });
     // the panel follows its title bar
     const grab = getById("heGrab"),
       panel = getById("hePanel");
@@ -276,6 +306,7 @@ class HudEditor {
     hud.classList.add("editing");
     getById("hudEdit").hidden = false;
     getById("hePanel").classList.remove("faded");
+    window.__riftUpdateDeviceProfile?.();
     this.fold(false);
     this.render();
   }
@@ -303,6 +334,7 @@ class HudEditor {
     getById("bossBar").hidden = this.prev.bossHidden;
     getById("hudEdit").hidden = true;
     getById("settings").hidden = false;
+    window.__riftUpdateDeviceProfile?.();
     applyHudLayout(settings);
     if (save) this.onSave();
     this.ui.renderSettings();
@@ -348,7 +380,7 @@ class HudEditor {
   stickCircle() {
     const radius = this.stickRadius(),
       center = fixedStickCenter(this.view(), radius, this.draft.layouts[hudOrientation()]);
-    return { ...center, r: radius };
+    return { ...center, r: radius, visR: radius };
   }
   /* the controls that sit where they may not (see layoutProblems) */
   problems() {
@@ -365,7 +397,7 @@ class HudEditor {
       bestD = Infinity;
     const consider = (id, circle, margin) => {
       const d = Math.hypot(x - circle.x, y - circle.y);
-      if (d <= circle.r + margin && d < bestD) {
+      if (d <= (circle.visR ?? circle.r) + margin && d < bestD) {
         best = { id, circle };
         bestD = d;
       }
@@ -377,6 +409,32 @@ class HudEditor {
   /* the spot of a control in a layout */
   spotOf(layout, id) {
     return id === "stick" ? stickOf(layout) : layout[id];
+  }
+  /* arrow-key nudging (±2% of safe-area width/height) for the selected control */
+  nudge(dx, dy) {
+    if (!this.isOpen) return;
+    const orient = hudOrientation(),
+      hadLayout = !!this.draft.layouts[orient],
+      layout = this.ensure(),
+      id = this.sel === "stick" && !this.draft.stickFixed ? "dash" : this.sel,
+      spot = this.spotOf(layout, id),
+      old = { x: spot.x, y: spot.y },
+      box = hudBox(),
+      r = id === "stick" ? this.stickRadius() : circleOf(getById(CONTROL_INFO[id].el)).visR,
+      minX = r / box.w,
+      maxX = id === "stick" ? Math.min(1 - minX, (box.W / 2 - box.l - r) / box.w) : 1 - minX,
+      minY = r / box.h,
+      maxY = 1 - minY;
+    spot.x = round4(clamp(spot.x + dx, minX, Math.max(minX, maxX)));
+    spot.y = round4(clamp(spot.y + dy, minY, Math.max(minY, maxY)));
+    if (this.refused(id)) {
+      if (!hadLayout) this.draft.layouts[orient] = null;
+      else Object.assign(spot, old);
+      this.note = "Not there: it would cover another button or the ward and wave display.";
+    } else {
+      this.note = "";
+    }
+    this.render();
   }
   down(ev) {
     ev.preventDefault();
@@ -394,7 +452,7 @@ class HudEditor {
       pointer: ev.pointerId,
       dx: hit.circle.x - ev.clientX,
       dy: hit.circle.y - ev.clientY,
-      r: hit.circle.r,
+      r: hit.circle.visR ?? hit.circle.r,
       from: spot ? { x: spot.x, y: spot.y } : null,
       moved: false,
     };
@@ -481,8 +539,9 @@ class HudEditor {
       return;
     }
     const rect = panel.getBoundingClientRect(),
-      x = clamp(this.panelAt.x, 0, Math.max(0, window.innerWidth - rect.width)),
-      y = clamp(this.panelAt.y, 0, Math.max(0, window.innerHeight - rect.height));
+      { W, H } = hudViewport(),
+      x = clamp(this.panelAt.x, 0, Math.max(0, W - rect.width)),
+      y = clamp(this.panelAt.y, 0, Math.max(0, H - rect.height));
     panel.style.left = x + "px";
     panel.style.top = y + "px";
     panel.style.translate = "none";
@@ -498,7 +557,7 @@ class HudEditor {
     HUD_CONTROLS.forEach((control, i) => {
       const c = circleOf(getById(control.el)),
         ring = this.rings[i],
-        size = (c.r * 2 + 14).toFixed(1) + "px";
+        size = ((c.visR ?? c.r) * 2 + 14).toFixed(1) + "px";
       ring.className = "he-ring" + (control.id === this.sel ? " sel" : "") + (bad.has(control.id) ? " bad" : "");
       ring.style.left = c.x.toFixed(1) + "px";
       ring.style.top = c.y.toFixed(1) + "px";
@@ -525,7 +584,10 @@ class HudEditor {
       onStick = this.sel === "stick",
       size = onStick ? this.draft.stickSize : layout ? layout[this.sel].s : 1,
       [lo, hi] = onStick ? HUD_LIMITS.stick : HUD_LIMITS.size,
-      sizeInput = getById("heSize");
+      sizeInput = getById("heSize"),
+      sizeRow = sizeInput && sizeInput.closest(".he-row");
+    if (sizeRow) sizeRow.hidden = onStick;
+    sizeInput.hidden = onStick;
     getById("heWhat").textContent = picked ? picked.name : "STICK";
     sizeInput.min = String(lo);
     sizeInput.max = String(hi);

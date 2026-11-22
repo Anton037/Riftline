@@ -292,6 +292,10 @@ export class InstancePool {
   constructor(geometry, material, max, opts = {}) {
     this.max = max;
     this.mesh = new InstancedNode(geometry, material, max);
+    this.mesh.updateLocalMatrix();
+    this.mesh._worldIdentity = true;
+    this.mesh.matrixAutoUpdate = false;
+    this.mesh._matrixDirty = false;
     this.mesh.hasColor = opts.color !== false;
     this.mesh.hasFlash = !!opts.flash;
     this.m = this.mesh.instanceMatrix;
@@ -466,6 +470,10 @@ export class CompactInstancePool {
   constructor(geometry, material, max) {
     this.max = max;
     this.mesh = new CompactInstancedNode(geometry, material, max);
+    this.mesh.updateLocalMatrix();
+    this.mesh._worldIdentity = true;
+    this.mesh.matrixAutoUpdate = false;
+    this.mesh._matrixDirty = false;
     this.d = this.mesh.instanceData;
     this.n = 0;
   }
@@ -511,6 +519,7 @@ export class GpuParticleRing {
     this.onClear = onClear;
     this.cursor = 0;
     this.everUsed = 0;
+    this._maxExpireAt = 0;
     // 16 floats (64 bytes) per slot: aSpawnPosTime(4), aVelLife(4), aColorSize(4), aPhysFlags(4)
     this.data = new Float32Array(capacity * 16);
     this.d0Start = -1;
@@ -530,6 +539,10 @@ export class GpuParticleRing {
       fog: false,
     });
     this.mesh = new MeshNode(quadGeo, mat);
+    this.mesh.updateLocalMatrix();
+    this.mesh._worldIdentity = true;
+    this.mesh.matrixAutoUpdate = false;
+    this.mesh._matrixDirty = false;
     this.mesh.isInstancedMesh = true;
     this.mesh.isGpuRingMesh = true;
     this.mesh.frustumCulled = false;
@@ -548,9 +561,15 @@ export class GpuParticleRing {
     const now = this.getTime();
     this._curTick = Math.max(0, Math.floor(now * 20));
     if (k === 0) {
+      this.cursor = 0;
+      this.everUsed = 0;
+      this._maxExpireAt = 0;
+      this.mesh.count = 0;
+      this.mesh.visible = false;
       if (this.onClear) this.onClear(now + 1e-4);
     } else {
       this._bins[(this._curTick + 60) & 255] = k;
+      this._maxExpireAt = Math.max(this._maxExpireAt, now + 3.0);
     }
   }
   advanceTime(time) {
@@ -569,8 +588,16 @@ export class GpuParticleRing {
       if (this._active < 0) this._active = 0;
       this._curTick = targetTick;
     }
-    this.mesh.count = this.everUsed;
-    this.mesh.visible = this.everUsed > 0;
+    if (this._active <= 0 && time >= this._maxExpireAt) {
+      this._active = 0;
+      this.cursor = 0;
+      this.everUsed = 0;
+      this.mesh.count = 0;
+      this.mesh.visible = false;
+    } else {
+      this.mesh.count = this.everUsed;
+      this.mesh.visible = this.everUsed > 0;
+    }
   }
   _markDirty(slot) {
     if (this.d0Start < 0) {
@@ -596,6 +623,8 @@ export class GpuParticleRing {
     const slot = this.cursor;
     this.cursor = (slot + 1) % this.capacity;
     if (this.everUsed < this.capacity) this.everUsed++;
+    const expireAt = spawnTime + dur;
+    if (expireAt > this._maxExpireAt) this._maxExpireAt = expireAt;
     const d = this.data;
     const o = slot * 16;
     d[o] = x;
@@ -643,6 +672,7 @@ export class GpuDebrisRing {
     this.capacity = capacity;
     this.cursor = 0;
     this.everUsed = 0;
+    this._maxExpireAt = 0;
     this.data = new Float32Array(capacity * 16);
     this.d0Start = -1;
     this.d0End = -1;
@@ -651,6 +681,10 @@ export class GpuDebrisRing {
 
     material.shader = "gpuDebris";
     this.mesh = new MeshNode(debrisGeo, material);
+    this.mesh.updateLocalMatrix();
+    this.mesh._worldIdentity = true;
+    this.mesh.matrixAutoUpdate = false;
+    this.mesh._matrixDirty = false;
     this.mesh.isInstancedMesh = true;
     this.mesh.isGpuRingMesh = true;
     this.mesh.isGpuDebrisMesh = true;
@@ -684,6 +718,8 @@ export class GpuDebrisRing {
     const slot = this.cursor;
     this.cursor = (slot + 1) % this.capacity;
     if (this.everUsed < this.capacity) this.everUsed++;
+    const expireAt = spawnTime + dur;
+    if (expireAt > this._maxExpireAt) this._maxExpireAt = expireAt;
     const d = this.data;
     const o = slot * 16;
     d[o] = x;
@@ -709,6 +745,7 @@ export class GpuDebrisRing {
   clear() {
     this.cursor = 0;
     this.everUsed = 0;
+    this._maxExpireAt = 0;
     this.d0Start = -1;
     this.d0End = -1;
     this.d1Start = -1;
@@ -716,7 +753,15 @@ export class GpuDebrisRing {
     this.mesh.count = 0;
     this.mesh.visible = false;
   }
-  sync() {
+  sync(nowTime) {
+    if (nowTime !== undefined && this.everUsed > 0 && nowTime >= this._maxExpireAt) {
+      this.cursor = 0;
+      this.everUsed = 0;
+      this._maxExpireAt = 0;
+      this.mesh.count = 0;
+      this.mesh.visible = false;
+      return;
+    }
     this.mesh.count = this.everUsed;
     this.mesh.visible = this.everUsed > 0;
   }

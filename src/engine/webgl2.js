@@ -63,42 +63,40 @@ function _sortTrans(a, b) {
 
 function _extractFrustumPlanes(mat, out) {
   const m = mat.elements;
-  // Left, Right, Bottom, Top, Near, Far (Gribb-Hartmann column-major)
-  const raw = [
-    m[3] + m[0],
-    m[7] + m[4],
-    m[11] + m[8],
-    m[15] + m[12],
-    m[3] - m[0],
-    m[7] - m[4],
-    m[11] - m[8],
-    m[15] - m[12],
-    m[3] + m[1],
-    m[7] + m[5],
-    m[11] + m[9],
-    m[15] + m[13],
-    m[3] - m[1],
-    m[7] - m[5],
-    m[11] - m[9],
-    m[15] - m[13],
-    m[3] + m[2],
-    m[7] + m[6],
-    m[11] + m[10],
-    m[15] + m[14],
-    m[3] - m[2],
-    m[7] - m[6],
-    m[11] - m[10],
-    m[15] - m[14],
-  ];
+  // Left, Right, Bottom, Top, Near, Far (Gribb-Hartmann column-major, zero array allocations)
+  out[0] = m[3] + m[0];
+  out[1] = m[7] + m[4];
+  out[2] = m[11] + m[8];
+  out[3] = m[15] + m[12];
+  out[4] = m[3] - m[0];
+  out[5] = m[7] - m[4];
+  out[6] = m[11] - m[8];
+  out[7] = m[15] - m[12];
+  out[8] = m[3] + m[1];
+  out[9] = m[7] + m[5];
+  out[10] = m[11] + m[9];
+  out[11] = m[15] + m[13];
+  out[12] = m[3] - m[1];
+  out[13] = m[7] - m[5];
+  out[14] = m[11] - m[9];
+  out[15] = m[15] - m[13];
+  out[16] = m[3] + m[2];
+  out[17] = m[7] + m[6];
+  out[18] = m[11] + m[10];
+  out[19] = m[15] + m[14];
+  out[20] = m[3] - m[2];
+  out[21] = m[7] - m[6];
+  out[22] = m[11] - m[10];
+  out[23] = m[15] - m[14];
   for (let i = 0; i < 24; i += 4) {
-    const nx = raw[i];
-    const ny = raw[i + 1];
-    const nz = raw[i + 2];
+    const nx = out[i];
+    const ny = out[i + 1];
+    const nz = out[i + 2];
     const inv = 1 / (Math.hypot(nx, ny, nz) || 1);
     out[i] = nx * inv;
     out[i + 1] = ny * inv;
     out[i + 2] = nz * inv;
-    out[i + 3] = raw[i + 3] * inv;
+    out[i + 3] *= inv;
   }
 }
 
@@ -187,6 +185,16 @@ function createProgram(gl, vsSrc, fsSrc, label, cache = null) {
   return { program: prog, uniforms, label, id: 0, cache: Object.create(null), modelIdent: false };
 }
 
+function _defaultShadowSize(requested) {
+  if (requested) return requested;
+  const isCoarse =
+    typeof window !== "undefined" &&
+    (window.matchMedia?.("(pointer: coarse)")?.matches ||
+      (window.matchMedia?.("(any-pointer: coarse)")?.matches && !window.matchMedia?.("(pointer: fine)")?.matches) ||
+      window.innerWidth < 820);
+  return isCoarse ? 1024 : 2048;
+}
+
 export class WebGL2Engine {
   constructor(canvas, opts = {}) {
     this.canvas = canvas;
@@ -199,7 +207,9 @@ export class WebGL2Engine {
     this.rtWidth = 1;
     this.rtHeight = 1;
     this.adaptiveScale = opts.adaptiveScale !== false;
+    this.targetFrameMs = opts.targetFrameMs || 16.67;
     this._emaMs = 12;
+    this._emaWorkMs = 2;
     this._lastFrameTs = 0;
     this._overBudgetStreak = 0;
     this._underBudgetStreak = 0;
@@ -207,7 +217,7 @@ export class WebGL2Engine {
 
     this.clearColor = new Color(0x0b111c);
     this.clearAlpha = 1;
-    this.shadowMap = { enabled: true, size: opts.shadowSize || 2048 };
+    this.shadowMap = { enabled: true, size: _defaultShadowSize(opts.shadowSize) };
     this.info = {
       render: {
         frame: 0,
@@ -610,18 +620,32 @@ export class WebGL2Engine {
     this.bloomB = this._createColorTarget(Math.max(2, bw >> 1), Math.max(2, bh >> 1), false);
   }
 
-  _updateAdaptiveScale() {
+  setTargetFps(fps) {
+    this.targetFrameMs = fps && fps > 0 ? 1000 / fps : 16.67;
+    this._overBudgetStreak = 0;
+  }
+
+  _updateAdaptiveScale(lastWorkMs = 0) {
     if (!this.adaptiveScale) return;
     const now = typeof performance !== "undefined" ? performance.now() : 0;
     if (!now) return;
+    if (lastWorkMs > 0 && lastWorkMs < 100) {
+      this._emaWorkMs += (lastWorkMs - this._emaWorkMs) * 0.15;
+    }
     if (this._lastFrameTs > 0) {
       const dtMs = now - this._lastFrameTs;
       if (dtMs > 2 && dtMs < 120) {
         this._emaMs += (dtMs - this._emaMs) * 0.12;
-        if (this._emaMs > 21.5 && dtMs > 20) {
+        const targetMs = this.targetFrameMs || 16.67;
+        // Detect external 30 FPS cap (~33.3ms interval) when actual CPU/GPU submission work is well under budget
+        const isCapped30 = dtMs >= 29 && dtMs <= 37.5 && this._emaWorkMs < 11.5;
+        const effTargetMs = isCapped30 ? Math.max(targetMs, 33.34) : targetMs;
+        const overThresh = effTargetMs * 1.28;
+        const underThresh = effTargetMs * 0.68;
+        if (this._emaMs > overThresh && dtMs > effTargetMs * 1.2 && !isCapped30) {
           this._overBudgetStreak++;
           this._underBudgetStreak = 0;
-        } else if (this._emaMs < 10.5 && dtMs < 11.5) {
+        } else if ((this._emaMs < underThresh && dtMs < effTargetMs * 0.75) || (isCapped30 && this._emaWorkMs < 7.5)) {
           this._underBudgetStreak++;
           this._overBudgetStreak = 0;
         } else {
@@ -1128,9 +1152,19 @@ export class WebGL2Engine {
     }
   }
 
-  _uniformLinear3(loc, col) {
+  _uniformLinear3(loc, col, prog = this._curProg, key = "") {
     if (!loc || !col) return;
     _cacheLinearColor(col);
+    if (prog && key) {
+      const c = prog.cache;
+      const kr = key + "_r",
+        kg = key + "_g",
+        kb = key + "_b";
+      if (c[kr] === col._lr && c[kg] === col._lg && c[kb] === col._lb) return;
+      c[kr] = col._lr;
+      c[kg] = col._lg;
+      c[kb] = col._lb;
+    }
     this.gl.uniform3f(loc, col._lr, col._lg, col._lb);
   }
 
@@ -1371,8 +1405,8 @@ export class WebGL2Engine {
         prog.cache.st1 = spec[1];
         gl.uniform2f(u.uSurfaceTile, spec[0], spec[1]);
       }
-      this._uniformLinear3(u.uBaseColor, mat.color);
-      this._uniformLinear3(u.uEmissive, mat.emissive);
+      this._uniformLinear3(u.uBaseColor, mat.color, prog, "uBaseColor");
+      this._uniformLinear3(u.uEmissive, mat.emissive, prog, "uEmissive");
       this._u1f(prog, "uEmissiveIntensity", mat.emissiveIntensity);
       this._u1f(prog, "uOpacity", mat.opacity);
       this._u1f(prog, "uRimStrength", mat.rimStrength ?? spec[2]);
@@ -1385,7 +1419,7 @@ export class WebGL2Engine {
       this._u1f(prog, "uReedWind", mat.reedWind ? 1 : 0);
       this._u1f(prog, "uWakeReact", mat.wakeReact || 0);
     } else if (mat.shader === "emissive") {
-      this._uniformLinear3(u.uBaseColor, mat.color);
+      this._uniformLinear3(u.uBaseColor, mat.color, prog, "uBaseColor");
       this._u1f(prog, "uEmissiveIntensity", mat.emissiveIntensity);
       this._u1f(prog, "uOpacity", mat.opacity);
       this._u1f(prog, "uFogEnabled", mat.fog ? 1 : 0);
@@ -1394,21 +1428,29 @@ export class WebGL2Engine {
       this._u1f(prog, "uUseVertexColors", mat.vertexColors ? 1 : 0);
     } else if (mat.shader === "floor") {
       const mu = mat.uniforms;
-      if (u.uHalf && mu.uHalf) gl.uniform2f(u.uHalf, mu.uHalf.value.x, mu.uHalf.value.y);
-      if (mu.uGlaze) this._uniformLinear3(u.uFloorBase, mu.uGlaze.value);
-      if (mu.uGrid) this._uniformLinear3(u.uFloorTrim, mu.uGrid.value);
-      if (mu.uAccent) this._uniformLinear3(u.uFloorAccent, mu.uAccent.value);
+      if (u.uHalf && mu.uHalf) {
+        const hx = mu.uHalf.value.x,
+          hy = mu.uHalf.value.y;
+        if (prog.cache.hx !== hx || prog.cache.hy !== hy) {
+          prog.cache.hx = hx;
+          prog.cache.hy = hy;
+          gl.uniform2f(u.uHalf, hx, hy);
+        }
+      }
+      if (mu.uGlaze) this._uniformLinear3(u.uFloorBase, mu.uGlaze.value, prog, "uFloorBase");
+      if (mu.uGrid) this._uniformLinear3(u.uFloorTrim, mu.uGrid.value, prog, "uFloorTrim");
+      if (mu.uAccent) this._uniformLinear3(u.uFloorAccent, mu.uAccent.value, prog, "uFloorAccent");
       if (mu.uPulse) this._u1f(prog, "uPulse", mu.uPulse.value);
       if (mu.uStyle) this._u1f(prog, "uStyle", mu.uStyle.value);
       if (mu.uDark) this._u1f(prog, "uFloorDark", mu.uDark.value);
     } else if (mat.shader === "aegis") {
       const mu = mat.uniforms;
-      if (mu.uColor) this._uniformLinear3(u.uColor, mu.uColor.value);
+      if (mu.uColor) this._uniformLinear3(u.uColor, mu.uColor.value, prog, "uColor");
       if (mu.uHit) this._u1f(prog, "uHit", mu.uHit.value);
       if (mu.uFade) this._u1f(prog, "uFade", mu.uFade.value);
     } else if (mat.shader === "zoneTelegraph") {
       const mu = mat.uniforms;
-      if (mu.uWarn) this._uniformLinear3(u.uWarn, mu.uWarn.value);
+      if (mu.uWarn) this._uniformLinear3(u.uWarn, mu.uWarn.value, prog, "uWarn");
     }
 
     if (inst) {
@@ -1495,7 +1537,8 @@ export class WebGL2Engine {
   render(scene, camera) {
     const gl = this.gl;
     if (gl.isContextLost()) return;
-    this._updateAdaptiveScale();
+    const renderStart = typeof performance !== "undefined" ? performance.now() : 0;
+    this._updateAdaptiveScale(this._lastWorkMs || 0);
 
     const stats = this.info.render;
     stats.frame++;
@@ -1567,6 +1610,8 @@ export class WebGL2Engine {
           this._bindVao(base.vao);
           if (base.ibo) gl.drawElements(gl.TRIANGLES, base.count, base.indexType, 0);
           else gl.drawArrays(gl.TRIANGLES, 0, base.count);
+          stats.calls++;
+          stats.triangles += base.count / 3;
         }
       }
       if (this._shadowsCompact.length) {
@@ -1578,6 +1623,8 @@ export class WebGL2Engine {
           this._bindVao(inst.vao);
           if (base.ibo) gl.drawElementsInstanced(gl.TRIANGLES, base.count, base.indexType, 0, node.count);
           else gl.drawArraysInstanced(gl.TRIANGLES, 0, base.count, node.count);
+          stats.calls++;
+          stats.triangles += (base.count / 3) * node.count;
         }
       }
       if (this._shadowsInst.length) {
@@ -1590,6 +1637,8 @@ export class WebGL2Engine {
           this._bindVao(inst.vao);
           if (base.ibo) gl.drawElementsInstanced(gl.TRIANGLES, base.count, base.indexType, 0, node.count);
           else gl.drawArraysInstanced(gl.TRIANGLES, 0, base.count, node.count);
+          stats.calls++;
+          stats.triangles += (base.count / 3) * node.count;
         }
       }
       if (this._shadowsDebris.length) {
@@ -1601,6 +1650,8 @@ export class WebGL2Engine {
           this._bindVao(inst.vao);
           if (base.ibo) gl.drawElementsInstanced(gl.TRIANGLES, base.count, base.indexType, 0, node.count);
           else gl.drawArraysInstanced(gl.TRIANGLES, 0, base.count, node.count);
+          stats.calls++;
+          stats.triangles += (base.count / 3) * node.count;
         }
       }
       gl.disable(gl.POLYGON_OFFSET_FILL);
@@ -1712,5 +1763,8 @@ export class WebGL2Engine {
     }
 
     this._bindVao(null);
+    if (renderStart > 0) {
+      this._lastWorkMs = performance.now() - renderStart;
+    }
   }
 }

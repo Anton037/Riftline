@@ -253,20 +253,20 @@ function placeTick(e, world, dt) {
     )
       play(isCourtyard ? "hum" : "lavaBlub", { ...a, g: a.g * (isCourtyard ? 0.4 : 0.55) });
   }
-  // ice: cracks and creaks under the moving drone, a sheet tinkles now and then
+  // ice: cracks and creaks under the moving artificer, a sheet tinkles now and then
   if (arena.ice.length) {
     const speed = Math.hypot(player.vx, player.vy);
     if (player.onIce && player.alive && speed > 2.5 && due("skate", 0.5, 1.2))
       play(Math.random() < 0.55 ? "iceCrack" : "iceCreak", { g: 0.45, pan: 0 });
     for (const patch of arena.ice) if (due(patch, 5, 12)) play("iceTink", at(patch.x, patch.y, 0.5));
   }
-  // acid: bubbles in the pools near the drone, a sizzle while it stands in one
+  // acid: bubbles in the pools near the artificer, a sizzle while it stands in one
   if (arena.acid.length) {
     for (const pool of arena.acid) if (!pool.mine && due(pool, 2.8, 6.0)) play("acidBubble", at(pool.x, pool.y, 0.45));
     if (player.inAcid && fight && due("sizzle", 0.55, 0.8)) play("acidSizzle", { g: 0.65, pan: 0 });
   }
   // 3.53.0: the dust devils of the Flats: each hisses where it wanders (they move, so their sound
-  // follows them), and inside one the wind roars past the drone
+  // follows them), and inside one the wind roars past the artificer
   if (arena.devils && arena.devils.length) {
     for (const devil of arena.devils) if (due(devil, 2.6, 5.5)) play("devilHiss", at(devil.x, devil.y, 0.45));
     if (player.inDevil && fight && due("devilWind", 0.6, 0.9)) play("devilHiss", { g: 0.7, pan: 0 });

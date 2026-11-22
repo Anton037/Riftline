@@ -45,15 +45,21 @@ const Input = class {
     this.isPlaying = null;
     this.usedMove = false;
     this.usedAim = false;
+    this.showReticle = false;
+    this.manualAim = false;
+    this._rawId = -1;
+    this._rawX = NaN;
+    this._rawY = NaN;
     setTouchInput(RL_INPUT.touch);
     this.bind();
   }
   bind() {
     let layer = this.layer;
     layer.addEventListener("pointerdown", (ev) => this.down(ev));
-    layer.addEventListener("onpointerrawupdate" in window ? "pointerrawupdate" : "pointermove", (ev) =>
-      this.moveEv(ev),
-    );
+    if ("onpointerrawupdate" in window) {
+      layer.addEventListener("pointerrawupdate", (ev) => this.moveEv(ev));
+    }
+    layer.addEventListener("pointermove", (ev) => this.moveEv(ev));
     layer.addEventListener("pointerup", (ev) => this.up(ev));
     layer.addEventListener("pointercancel", (ev) => this.cancel(ev));
     layer.addEventListener("lostpointercapture", (ev) => this.cancel(ev));
@@ -73,10 +79,14 @@ const Input = class {
       if (Number.isFinite(ev.clientY)) {
         this.mouse.y = ev.clientY;
       }
+      if (ev.isTrusted && !RL_INPUT.touch) {
+        this.showReticle = true;
+      }
     });
     window.addEventListener("mouseup", (ev) => {
       if (ev.button === 0 || (ev.buttons & 1) === 0) {
         this.mouse.down = false;
+        this.manualAim = this.aim.active;
       }
     });
   }
@@ -93,11 +103,14 @@ const Input = class {
     if (ev.pointerType === "mouse") {
       if (ev.button === 0) {
         this.mouse.down = true;
+        this.manualAim = true;
+        this.showReticle = true;
       }
       if (Number.isFinite(ev.clientX)) this.mouse.x = ev.clientX;
       if (Number.isFinite(ev.clientY)) this.mouse.y = ev.clientY;
       return;
     }
+    this.showReticle = false;
     let isMove = this.zoneIsMove(ev.clientX),
       stick = isMove ? this.move : this.aim;
     if (stick.active && stick.id !== ev.pointerId) {
@@ -124,24 +137,36 @@ const Input = class {
     } catch {}
   }
   moveEv(ev) {
-    RL_RT.pointermove++;
-    if (ev.pointerType === "mouse") {
-      if (Number.isFinite(ev.clientX)) {
-        this.mouse.x = ev.clientX;
-      }
-      if (Number.isFinite(ev.clientY)) {
-        this.mouse.y = ev.clientY;
-      }
-      if (ev.isTrusted) setTouchInput(false);
-      return;
-    }
     let coalesced = ev.getCoalescedEvents ? ev.getCoalescedEvents() : null,
       last = coalesced && coalesced.length ? coalesced[coalesced.length - 1] : ev,
       x = Number.isFinite(last.clientX) ? last.clientX : ev.clientX,
-      y = Number.isFinite(last.clientY) ? last.clientY : ev.clientY;
+      y = Number.isFinite(last.clientY) ? last.clientY : ev.clientY,
+      pid = last.pointerId ?? ev.pointerId ?? -1;
+    if (ev.type === "pointermove" && this._rawId === pid && this._rawX === x && this._rawY === y) {
+      return;
+    }
+    if (ev.type === "pointerrawupdate") {
+      this._rawId = pid;
+      this._rawX = x;
+      this._rawY = y;
+    }
+    RL_RT.pointermove++;
+    if (ev.pointerType === "mouse") {
+      if (Number.isFinite(x)) {
+        this.mouse.x = x;
+      }
+      if (Number.isFinite(y)) {
+        this.mouse.y = y;
+      }
+      if (ev.isTrusted) {
+        setTouchInput(false);
+        this.showReticle = true;
+      }
+      return;
+    }
     if (!Number.isFinite(x) || !Number.isFinite(y)) return;
     for (let stick of [this.move, this.aim]) {
-      if (!stick.active || stick.id !== last.pointerId) continue;
+      if (!stick.active || stick.id !== pid) continue;
       stick.lastEv = performance.now();
       stick.x = x;
       stick.y = y;
@@ -155,6 +180,7 @@ const Input = class {
     if (ev.pointerType === "mouse") {
       if (ev.button === 0 || (ev.buttons & 1) === 0) {
         this.mouse.down = false;
+        this.manualAim = this.aim.active;
       }
       return;
     }
@@ -163,11 +189,13 @@ const Input = class {
         stick.active = false;
       }
     }
+    this.manualAim = this.aim.active || this.mouse.down;
   }
   cancel(ev) {
     RL_RT.pointercancel++;
     if (ev.pointerType === "mouse") {
       this.mouse.down = false;
+      this.manualAim = this.aim.active;
       return;
     }
     for (let stick of [this.move, this.aim]) {
@@ -175,6 +203,7 @@ const Input = class {
         stick.active = false;
       }
     }
+    this.manualAim = this.aim.active || this.mouse.down;
   }
   key(ev, down) {
     if (down && (ev.ctrlKey || ev.metaKey || ev.altKey)) return;
@@ -222,6 +251,25 @@ const Input = class {
           this.onPause();
         }
         return;
+      }
+      const hudEditOpen = typeof document !== "undefined" && document.getElementById("hudEdit")?.hidden === false;
+      if (hudEditOpen) return;
+      if (down && !dialogOpen) {
+        const homeEl = typeof document !== "undefined" && document.getElementById("home");
+        if (homeEl && !homeEl.hidden && (name === "arrowleft" || name === "arrowright")) {
+          const dir = name === "arrowleft" ? -1 : 1;
+          if (ev.shiftKey) game.ui?.stepThreat(dir);
+          else game.ui?.stepWeapon(dir);
+          ev.preventDefault();
+          return;
+        }
+        const pageScroll =
+          typeof document !== "undefined" && document.querySelector(".screen.page:not([hidden]) > .scroll");
+        if (pageScroll && (name === "arrowup" || name === "arrowdown")) {
+          pageScroll.scrollBy({ top: name === "arrowdown" ? 72 : -72, behavior: "auto" });
+          ev.preventDefault();
+          return;
+        }
       }
       const playing = this.enabled && (!this.isPlaying || this.isPlaying());
       if (name === " " && playing) {
@@ -271,6 +319,7 @@ const Input = class {
       this.keys.clear();
     }
     this.mouse.down = false;
+    this.manualAim = false;
     this.pending.dash = false;
     this.pending.nova = false;
     this.pending.gadget = false;
@@ -349,6 +398,8 @@ const Input = class {
       }
       fire = true;
     }
+    this.manualAim = !!(aim || this.mouse.down || this.aim.active);
+    this.showReticle = !RL_INPUT.touch && (this.mouse.down || settings.autoFire === false || this.showReticle);
     let out = {
       mx,
       my,
@@ -370,7 +421,7 @@ const Input = class {
 };
 function chooseKey(code, key) {
   if (!game.chooseShown || game.overShown || !getById("dialog").hidden || getById("choose").hidden) return false;
-  const match = /^(?:Digit|Numpad)([1-4])$/.exec(code) || /^([1-4])$/.exec(key);
+  const match = /^(?:Digit|Numpad)([1-5])$/.exec(code) || /^([1-5])$/.exec(key);
   if (match) {
     const card = getById("cards").querySelectorAll("[data-pick]")[+match[1] - 1];
     if (card && !getById("cards").classList.contains("locked")) {

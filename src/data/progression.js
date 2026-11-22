@@ -61,7 +61,7 @@ const workshopModules = [
     name: "Sunburst Phial",
     icon: "star",
     desc: "Every wave begins with at least 25% Hearthburst charge per level",
-    costs: [120, 260, 2400, 5200],
+    costs: [120, 280, 650, 1300],
   },
   {
     id: "insight",
@@ -75,8 +75,57 @@ const workshopModules = [
     id: "banish",
     name: "Seal of Warding",
     icon: "skull",
-    desc: "Seal away a craft card for the rest of the run (once per level)",
-    costs: [700, 1400],
+    desc: "Seal away 2 craft cards per level for the rest of the run",
+    costs: [500, 1100],
+  },
+  {
+    id: "armorCore",
+    name: "Filigree Mail",
+    icon: "shield",
+    desc: "-4% damage from foes and -8% realm hazard damage per level",
+    costs: [220, 420, 760, 1180],
+  },
+  {
+    id: "droneBay",
+    name: "Sprite Perch",
+    icon: "drone",
+    desc: "Lv 1: Begin every run with an Apprentice Sprite (55% damage). Lv 2: +25% sprite fire rate and +1 max Lantern Sprite",
+    costs: [950, 1800],
+  },
+  {
+    id: "arsenalLab",
+    name: "Clockwork Bench",
+    icon: "burst",
+    desc: "+6% fire rate per level",
+    costs: [450, 950, 1700],
+  },
+  {
+    id: "fieldSupply",
+    name: "Wayfarer Chests",
+    icon: "map",
+    desc: "+1 wayfarer chest per wave and +50% chest shards per level (outside guardian waves)",
+    costs: [400, 850, 1500],
+  },
+  {
+    id: "starterKit",
+    name: "Wayfarer Pack",
+    icon: "wrench",
+    desc: "Begin every run with 1 random Common craft per level",
+    costs: [700, 1600, 3200],
+  },
+  {
+    id: "hazardAttune",
+    name: "Leyline Attunement",
+    icon: "flame",
+    desc: "Near an active hazard or live realm feature (2.2 m): +10% damage and +0.5 Ward/s mending per level",
+    costs: [350, 750, 1400],
+  },
+  {
+    id: "emergencyShield",
+    name: "Sanctuary Bell",
+    icon: "shield",
+    desc: "Once per wave below 30% Ward: 1 s warding bell and 8% mending per level",
+    costs: [900, 2200],
   },
 ];
 const milestones = [
@@ -284,24 +333,6 @@ const milestones = [
     reward: 1200,
     test: (save) => Object.values(save.stats.bosses).reduce((sum, count) => sum + count, 0) >= 25,
   },
-];
-workshopModules.push(
-  {
-    id: "armorCore",
-    name: "Filigree Mail",
-    icon: "shield",
-    desc: "-4% damage from foes per level",
-    costs: [220, 420, 760, 1180],
-  },
-  {
-    id: "droneBay",
-    name: "Sprite Perch",
-    icon: "drone",
-    desc: "+1 Lantern Sprite slot per level (requires Lantern Sprite)",
-    costs: [950, 1800],
-  },
-);
-milestones.push(
   {
     id: "wave100",
     name: "Eternal Lantern",
@@ -330,31 +361,6 @@ milestones.push(
     reward: 600,
     test: (save) => Object.values(save.stats.clearsBy).filter((count) => count > 0).length >= 4,
   },
-);
-workshopModules.push(
-  {
-    id: "arsenalLab",
-    name: "Clockwork Bench",
-    icon: "burst",
-    desc: "+6% fire rate per level",
-    costs: [1800, 3600, 6500],
-  },
-  {
-    id: "fieldSupply",
-    name: "Wayfarer Chests",
-    icon: "map",
-    desc: "+1 wayfarer chest per wave and +50% chest shards per level (outside guardian waves)",
-    costs: [1800, 3800, 6800],
-  },
-  {
-    id: "hazardSeal",
-    name: "Weathering Glaze",
-    icon: "shield",
-    desc: "-15% realm hazard damage per level",
-    costs: [1200, 2500, 4500],
-  },
-);
-milestones.push(
   {
     id: "shards100k",
     name: "Star-Vault Keeper",
@@ -369,30 +375,6 @@ milestones.push(
     reward: 1200,
     test: (save) => save.stats.evolved >= 10,
   },
-);
-
-workshopModules.push(
-  {
-    id: "starterKit",
-    name: "Wayfarer Pack",
-    icon: "wrench",
-    desc: "Begin every run with 1 random Common craft per level",
-    costs: [700, 1600, 3200],
-  },
-  {
-    id: "hazardAttune",
-    name: "Leyline Attunement",
-    icon: "flame",
-    desc: "Near a realm hazard (2 m): +10% damage and +0.5 Ward/s mending per level",
-    costs: [1100, 2400, 4600],
-  },
-  {
-    id: "emergencyShield",
-    name: "Sanctuary Bell",
-    icon: "shield",
-    desc: "Once per wave below 30% Ward: 1 s warding bell and 8% mending per level",
-    costs: [900, 2200],
-  },
-);
+];
 
 export { threatMods, milestones, workshopModules, threatLevels };

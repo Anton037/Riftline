@@ -57,6 +57,7 @@ const healthBarTypes = {
     charge: "BELFRY RUSH",
     ring: "BRASS TOLL",
     stomp: "CARILLON SLAM",
+    carillon: "CARILLON TOLL",
     summon: "MUSHROOM RING",
     spiral: "FIREFLY WHIRL",
     burst: "NECTAR SALVO",
@@ -66,7 +67,10 @@ const healthBarTypes = {
     shards: "GLASS FAN",
     lances: "GLACIER LANCES",
     cross: "ASTRAL LOOM",
+    portalbeam: "ORRERY CONVERGENCE",
     rain: "CRUCIBLE RAIN",
+    trench: "ANVIL TRENCH",
+    crucible: "CRUCIBLE SLAM",
     // Enraged Crescendo signatures
     sealgrid: "CRESCENDO · CARILLON CHIME",
     whiteout: "CRESCENDO · AURORA GALE",
@@ -88,12 +92,27 @@ const healthBarTypes = {
     noon: "CRESCENDO · ZENITH DIAL",
   },
   bossCalloutByBoss = {
-    tyrant: { charge: "ANVIL CLEAVE", ring: "CALDERA QUAKE", summon: "FORGE-KIN", rain: "CRUCIBLE RAIN" },
+    bellkeeper: {
+      charge: "BELFRY RUSH",
+      ring: "BRASS TOLL",
+      stomp: "CARILLON SLAM",
+      carillon: "CARILLON TOLL",
+      sealgrid: "CRESCENDO · CARILLON CHIME",
+    },
+    tyrant: {
+      charge: "ANVIL CLEAVE",
+      ring: "CALDERA QUAKE",
+      summon: "FORGE-KIN",
+      rain: "CRUCIBLE RAIN",
+      trench: "ANVIL TRENCH",
+      crucible: "CRUCIBLE SLAM",
+    },
     core: {
       spiral: "ORRERY WALTZ",
       summon: "ASTRAL CHOIR",
       ring: "CONSTELLATION",
       cross: "ASTRAL LOOM",
+      portalbeam: "ORRERY CONVERGENCE",
       burst: "COMET FAN",
       rain: "METEOR CHIME",
     },
@@ -109,21 +128,37 @@ const healthBarTypes = {
       // Crisp vector HUD overlay without burning 4x pixel fillrate on HiDPI screens in Firefox.
       this.dprCap = 1.5;
       this._isClean = false;
+      this._lastFont = "";
       this.hurts = [];
       this.callouts = [];
       this.hpTrails = new WeakMap();
       this.time = 0;
     }
+    setFont(fontStr) {
+      if (this._lastFont !== fontStr) {
+        this._lastFont = fontStr;
+        this.g.font = fontStr;
+      }
+    }
     addHurt(world, x, y) {
       if (x == null || !world) return;
       let angle = Math.atan2(y - world.player.y, x - world.player.x);
-      if (this.hurts.length > 5) {
-        this.hurts.shift();
+      if (this.hurts.length < 6) {
+        this.hurts.push({ a: angle, life: 0.8 });
+      } else {
+        let oldest = 0;
+        for (let i = 1; i < this.hurts.length; i++) {
+          if (this.hurts[i].life < this.hurts[oldest].life) oldest = i;
+        }
+        this.hurts[oldest].a = angle;
+        this.hurts[oldest].life = 0.8;
       }
-      this.hurts.push({ a: angle, life: 0.8 });
     }
     callout(attack, id) {
-      let label = bossCalloutByBoss[id]?.[attack] || bossAttackNames[attack];
+      let label =
+        bossCalloutByBoss[id]?.[attack] ||
+        bossAttackNames[attack] ||
+        (attack ? String(attack).replace(/[_-]+/g, " ").toUpperCase() : "");
       if (label) {
         this.callouts = [{ t: label, life: 1.4 }];
       }
@@ -138,6 +173,7 @@ const healthBarTypes = {
         this.dpr = dpr;
         this.c.width = Math.round(w * dpr);
         this.c.height = Math.round(h * dpr);
+        this._lastFont = "";
         this._isClean = true;
       }
     }
@@ -152,8 +188,60 @@ const healthBarTypes = {
       this._isClean = true;
       if (!this.c.hidden) this.c.hidden = true;
     }
+    _hasActiveContent(renderer, world, input, opts) {
+      const player = world.player;
+      const target = player?.target;
+      if (target && !target.dead && player.firing && !player.manual && player.alive) return true;
+      if (
+        input &&
+        !input.isTouch &&
+        !RL_INPUT.touch &&
+        input.mouse &&
+        Number.isFinite(input.mouse.x) &&
+        Number.isFinite(input.mouse.y) &&
+        (input.mouse.down || input.manualAim || input.showReticle || player?.manual)
+      ) {
+        return true;
+      }
+      if (this.hurts.length > 0) return true;
+      if (this.callouts.length > 0 && world.boss) return true;
+      if (opts.hints) return true;
+      if (
+        input &&
+        ((input.fixedMove && !input.move?.active && RL_INPUT.touch) || input.move?.active || input.aim?.active)
+      ) {
+        return true;
+      }
+      if (renderer.nums) {
+        for (let i = 0; i < renderer.nums.length; i++) {
+          if (renderer.nums[i].life > 0) return true;
+        }
+      }
+      if (world.enemies && world.enemies.length > 0) {
+        if (world.enemies.length <= 6 || (world.state === "fight" && world.stragglerT > 3)) return true;
+        for (let i = 0; i < world.enemies.length; i++) {
+          const e = world.enemies[i];
+          if (e.boss || e.st === 1) return true;
+          if ((e.elite || healthBarTypes[e.type]) && (e.hp < e.maxHp || (e.shieldMax > 0 && e.shield < e.shieldMax))) {
+            return true;
+          }
+        }
+      }
+      if (player?.alive && world.stats && player.hp / world.stats.maxHp < 0.6 && world.pickups?.length > 0) {
+        for (let i = 0; i < world.pickups.length; i++) {
+          if (world.pickups[i].kind === "heal") return true;
+        }
+      }
+      return false;
+    }
     draw(renderer, world, input, opts = {}) {
       if (!world) {
+        this.clear();
+        return;
+      }
+      let dt = opts.dt || 0.016;
+      this.time += dt;
+      if (!this._hasActiveContent(renderer, world, input, opts)) {
         this.clear();
         return;
       }
@@ -164,8 +252,7 @@ const healthBarTypes = {
       this._isClean = false;
       let ctx = this.g,
         pos = this.tmp,
-        safe = opts.safe || { t: 0, b: 0, l: 0, r: 0 },
-        dt = opts.dt || 0.016;
+        safe = opts.safe || { t: 0, b: 0, l: 0, r: 0 };
       // project a world point into pos; true when it is in front of the camera
       const project = (x, y, z) => {
         renderer.project(x, y, z, pos);
@@ -174,9 +261,9 @@ const healthBarTypes = {
       // …and inside the screen with an 8 px margin
       const inView = (x, y, z) =>
         project(x, y, z) && pos.x > 8 && pos.x < this.w - 8 && pos.y > 8 && pos.y < this.h - 8;
-      this.time += dt;
       let player = world.player,
-        target = player.target;
+        target = player.target,
+        reticleCol = BIOME_RETICLE[world.arena?.biome?.id] || "rgba(130,244,218,0.92)";
       if (
         target &&
         !target.dead &&
@@ -187,8 +274,7 @@ const healthBarTypes = {
       ) {
         renderer.project(target.x + target.r, 0.6, target.y, this.tmp2);
         let size = Math.max(13, Math.abs(this.tmp2.x - pos.x) * 1.48 + 6),
-          spin = this.time * 1.85,
-          reticleCol = BIOME_RETICLE[world.arena?.biome?.id] || "rgba(130,244,218,0.92)";
+          spin = this.time * 1.85;
         ctx.save();
         ctx.translate(pos.x, pos.y);
         ctx.rotate(spin);
@@ -203,6 +289,38 @@ const healthBarTypes = {
             ctx.arc(0, 0, size, a0, a1);
             ctx.stroke();
           }
+        }
+        ctx.restore();
+      }
+      // Subtle custom mouse reticle during manual/cursor aim
+      if (
+        input &&
+        !input.isTouch &&
+        !RL_INPUT.touch &&
+        input.mouse &&
+        Number.isFinite(input.mouse.x) &&
+        Number.isFinite(input.mouse.y) &&
+        (input.mouse.down || input.manualAim || input.showReticle || player?.manual)
+      ) {
+        const mx = input.mouse.x;
+        const my = input.mouse.y;
+        const rSize = input.mouse.down ? 10 : 12;
+        ctx.save();
+        ctx.translate(mx, my);
+        ctx.lineCap = "round";
+        for (let pass = 0; pass < 2; pass++) {
+          ctx.strokeStyle = pass === 0 ? "rgba(12,14,24,0.65)" : reticleCol;
+          ctx.lineWidth = pass === 0 ? 3.8 : 1.9;
+          ctx.beginPath();
+          ctx.arc(0, 0, rSize, 0, Math.PI * 2);
+          for (let i = 0; i < 4; i++) {
+            const a = (i * Math.PI) / 2;
+            const c = Math.cos(a),
+              s = Math.sin(a);
+            ctx.moveTo(c * (rSize - 4), s * (rSize - 4));
+            ctx.lineTo(c * (rSize + 4), s * (rSize + 4));
+          }
+          ctx.stroke();
         }
         ctx.restore();
       }
@@ -264,9 +382,10 @@ const healthBarTypes = {
         }
         let alpha = clamp(num.life / 0.35, 0, 1),
           pop = 1 + Math.max(0, 1 - (renderer.time - num.t0) / 0.14) * (num.crit ? 0.52 : 0.36),
-          fontSize =
-            Math.min(28, (num.crit ? 16.5 : num.burn ? 10 : 12) + 3.5 * Math.log10(1 + Math.max(0, num.v))) * pop;
-        ctx.font = `700 ${fontSize}px "Instrument Sans", system-ui, sans-serif`;
+          fontSize = Math.round(
+            Math.min(28, (num.crit ? 16.5 : num.burn ? 10 : 12) + 3.5 * Math.log10(1 + Math.max(0, num.v))) * pop,
+          );
+        this.setFont(`700 ${fontSize}px "Instrument Sans", system-ui, sans-serif`);
         let text = String(Math.max(1, Math.round(num.v))) + (num.crit ? "!" : "");
         ctx.globalAlpha = alpha;
         ctx.lineJoin = "round";
@@ -278,7 +397,9 @@ const healthBarTypes = {
       }
       ctx.globalAlpha = 1;
       let fewEnemies = world.enemies.length <= 6,
-        margin = 26;
+        margin = 26,
+        botHud = Math.min(110, this.h * 0.22),
+        topHud = Math.min(60, this.h * 0.12);
       for (let enemy of world.enemies) {
         let windingUp =
           enemy.st === 1 &&
@@ -307,7 +428,9 @@ const healthBarTypes = {
         dy /= len;
         let tx = Math.abs(dx) > 0.001 ? ((dx > 0 ? this.w - margin - safe.r : margin + safe.l) - cx) / dx : 1 / 0,
           ty =
-            Math.abs(dy) > 0.001 ? ((dy > 0 ? this.h - margin - safe.b - 120 : margin + safe.t + 60) - cy) / dy : 1 / 0,
+            Math.abs(dy) > 0.001
+              ? ((dy > 0 ? this.h - margin - safe.b - botHud : margin + safe.t + topHud) - cy) / dy
+              : 1 / 0,
           edge = Math.min(tx, ty),
           ax = cx + dx * edge,
           ay = cy + dy * edge,
@@ -352,7 +475,7 @@ const healthBarTypes = {
           let tx = Math.abs(dx) > 0.001 ? ((dx > 0 ? this.w - margin - safe.r : margin + safe.l) - cx) / dx : 1 / 0,
             ty =
               Math.abs(dy) > 0.001
-                ? ((dy > 0 ? this.h - margin - safe.b - 120 : margin + safe.t + 60) - cy) / dy
+                ? ((dy > 0 ? this.h - margin - safe.b - botHud : margin + safe.t + topHud) - cy) / dy
                 : 1 / 0,
             edge = Math.min(tx, ty);
           ctx.save();
@@ -381,9 +504,12 @@ const healthBarTypes = {
       if (this.hurts.length) {
         renderer.project(player.x, 0.6, player.y, pos);
         let radius = Math.min(this.w, this.h) * 0.16 + 30;
-        for (let hurt of this.hurts) {
+        let keepHurts = 0;
+        for (let i = 0; i < this.hurts.length; i++) {
+          let hurt = this.hurts[i];
           hurt.life -= dt;
-          if (!(hurt.life <= 0)) {
+          if (hurt.life > 0) {
+            this.hurts[keepHurts++] = hurt;
             ctx.globalAlpha = Math.min(1, hurt.life / 0.5) * 0.85;
             ctx.strokeStyle = "#ff3050";
             ctx.lineWidth = 7;
@@ -398,9 +524,9 @@ const healthBarTypes = {
             ctx.stroke();
           }
         }
+        this.hurts.length = keepHurts;
         ctx.globalAlpha = 1;
         ctx.lineCap = "butt";
-        this.hurts = this.hurts.filter((hurt) => hurt.life > 0);
       }
       if (this.callouts.length && world.boss) {
         let callout = this.callouts[0];
@@ -409,7 +535,7 @@ const healthBarTypes = {
         if (callout.life > 0 && pos.vis) {
           let alpha = Math.min(1, callout.life / 0.3);
           ctx.globalAlpha = alpha;
-          ctx.font = '700 16px "Instrument Sans", system-ui, sans-serif';
+          this.setFont('700 16px "Instrument Sans", system-ui, sans-serif');
           ctx.textAlign = "center";
           ctx.lineWidth = 4;
           ctx.strokeStyle = "rgba(6,8,16,0.9)";
@@ -445,10 +571,11 @@ const healthBarTypes = {
         ctx.arc(center.x, center.y, radius * 0.42, 0, Math.PI * 2);
         ctx.fill();
       }
-      for (let stick of [input.move, input.aim]) {
-        if (!stick.active) continue;
+      for (let sIdx = 0; sIdx < 2; sIdx++) {
+        let stick = sIdx === 0 ? input.move : input.aim;
+        if (!stick || !stick.active) continue;
         let radius = input.R,
-          isAim = stick === input.aim;
+          isAim = sIdx === 1;
         ctx.globalAlpha = 0.9;
         ctx.lineWidth = 2;
         ctx.strokeStyle = isAim ? "rgba(248,168,127,0.55)" : "rgba(176,218,193,0.5)";
@@ -477,7 +604,7 @@ const healthBarTypes = {
       }
       ctx.globalAlpha = 1;
       if (opts.hints) {
-        ctx.font = '600 14px "Instrument Sans", system-ui, sans-serif';
+        this.setFont('600 14px "Instrument Sans", system-ui, sans-serif');
         ctx.textAlign = "center";
         ctx.fillStyle = "rgba(200,230,255,0.75)";
         let y = this.h - (opts.safe ? opts.safe.b : 0) - 58;

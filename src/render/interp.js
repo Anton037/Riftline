@@ -1,7 +1,7 @@
 /* 3.31.0: smooth motion at any refresh rate. The simulation steps at a fixed 60 Hz (rlStep); a frame of the screen
    falls between two steps. Drawing the last step as it is makes motion judder: on a 90 Hz screen frames get 1, 1 and 0
    steps in turn, on 120 Hz every other frame repeats, and at 60 Hz the jitter of the frame clock gives 0 or 2 steps now
-   and then. Here the moving things (the drone, enemies and bosses, shots, pickups) are drawn between the step before and
+   and then. Here the moving things (the artificer, enemies and bosses, shots, pickups) are drawn between the step before and
    the last step, by the part of a step the clock has run on (game.acc / rlStep).
    capture(world) runs before every world step; apply(world, alpha) moves the positions for drawing and restore() puts
    the exact values back before anything else reads them, so the simulation never sees a drawn position. Nothing is

@@ -20,6 +20,7 @@ import {
 } from "../engine/geometry.js";
 import { Material, MeshNode, Node, mergeStaticNodes } from "../engine/scene.js";
 import { createGroundOcclusion } from "./ground-occlusion.js";
+import { createSkyBackdrop } from "./arena-backdrop.js";
 import { hexColor, worldMaterial, emissiveMaterial, setWorldShadows } from "./materials.js";
 import { GLAZES, FINISH } from "./palette.js";
 import { TAU, hashString, makeRng } from "../core/util.js";
@@ -959,9 +960,13 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
       for (let vx = -W * 1.1; vx <= W * 1.1; vx += 6.2) {
         place(props, beveledBox(1.1, 6.8, 1.2, 0.1), roofSlate, vx, 3.4, vz);
       }
-      // Cozy lit evening tram car crossing the viaduct
-      place(props, beveledBox(4.8, 1.35, 1.18, 0.14), roofCopper, 5.2, 7.82, vz);
-      addLampGeo(box(4.2, 0.52, 1.24).translate(5.2, 7.92, vz));
+      // Cozy lit evening tram car gliding smoothly across the distant northern viaduct
+      const tramNode = new Node();
+      tramNode.position.set(0, 7.82, vz);
+      place(tramNode, beveledBox(4.8, 1.35, 1.18, 0.14), roofCopper, 0, 0, 0);
+      place(tramNode, box(4.2, 0.52, 1.24), lampLens, 0, 0.1, 0);
+      props.add(tramNode);
+      view.rlAnim.push({ o: tramNode, k: "tram", bx: 0, span: W * 0.88, s: 0.22, ph: 0.7 });
     }
 
     // Stepped stone canal quay embankments around all 4 sides (maxY <= 0.65)
@@ -1007,7 +1012,7 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
       }
     }
 
-    // Moored wooden canal skiffs/gondolas floating in the canal moat (maxY <= 0.68)
+    // Gently bobbing wooden canal skiffs/gondolas floating in the canal moat (maxY <= 0.68)
     const boatSpots = [
       [-W * 0.58, -(H + 4.2), 0.08],
       [W * 0.56, -(H + 4.6), -0.12],
@@ -1016,10 +1021,16 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
       [-(W + 4.3), -H * 0.52, Math.PI * 0.52],
       [W + 4.4, H * 0.5, Math.PI * 0.48],
     ];
-    for (const [bx, bz, bry] of boatSpots) {
-      place(props, beveledBox(2.4, 0.28, 0.86, 0.12), woodMat, bx, 0.16, bz, bry);
-      place(props, beveledBox(1.1, 0.24, 0.66, 0.06), roofSlate, bx, 0.38, bz, bry);
-      addLampGeo(octahedron(0.14).translate(bx + Math.cos(bry) * 0.95, 0.38, bz - Math.sin(bry) * 0.95));
+    for (let bi = 0; bi < boatSpots.length; bi++) {
+      const [bx, bz, bry] = boatSpots[bi];
+      const boat = new Node();
+      boat.position.set(bx, 0, bz);
+      boat.rotation.y = bry;
+      place(boat, beveledBox(2.4, 0.28, 0.86, 0.12), woodMat, 0, 0.16, 0);
+      place(boat, beveledBox(1.1, 0.24, 0.66, 0.06), roofSlate, 0, 0.38, 0);
+      place(boat, octahedron(0.14), lampLens, 0.95, 0.38, 0);
+      props.add(boat);
+      view.rlAnim.push({ o: boat, k: "bob", s: 1.45 + bi * 0.18, b: 0, a: 0.055, ph: bi * 1.15, tilt: 0.045 });
     }
 
     // Quayside wrought-iron streetlamps ringing both inner & outer canal banks
@@ -1179,6 +1190,7 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
     }
 
     // 4 Corner Landmarks: Warm Crackling Timber-and-Stone Expedition Corner Braziers
+    let shelfFlameIdx = 0;
     for (const sz of [-1, 1]) {
       for (const sx of [-1, 1]) {
         const cx = sx * (W + 1.85);
@@ -1198,8 +1210,19 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
         }
         place(props, cylinder(0.92, 0.56, 0.64, 8), brazierMat, cx, 2.38, cz);
         place(props, torus(0.94, 0.07, 5, 14), brazierMat, cx, 2.68, cz, 0, 1, 1, 1, Math.PI / 2);
-        place(props, octahedron(0.58), hearthGlow, cx, 3.06, cz, 0, 0.95, 1.45, 0.95);
-        place(props, octahedron(0.34), hearthGlow, cx + 0.24, 2.86, cz - 0.18, 0.5, 0.8, 1.2, 0.8);
+        const flameNode = new Node();
+        flameNode.position.set(cx, 2.84, cz);
+        place(flameNode, octahedron(0.58), hearthGlow, 0, 0.22, 0, 0, 0.95, 1.45, 0.95);
+        place(flameNode, octahedron(0.34), hearthGlow, 0.24, 0.02, -0.18, 0.5, 0.8, 1.2, 0.8);
+        props.add(flameNode);
+        view.rlAnim.push({
+          o: flameNode,
+          k: "flicker",
+          s: 6.2 + shelfFlameIdx * 0.65,
+          a: 0.14,
+          ph: shelfFlameIdx * 1.35,
+        });
+        shelfFlameIdx++;
       }
     }
 
@@ -1832,7 +1855,8 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
       }
     }
 
-    // 4 Corner Landmarks: Roaring Corner Furnace-Chimney Braziers
+    // 4 Corner Landmarks: Roaring Corner Furnace-Chimney Braziers with flickering flame plumes
+    let calFlameIdx = 0;
     for (const sz of [-1, 1]) {
       for (const sx of [-1, 1]) {
         const cx = sx * (W + 1.9);
@@ -1842,23 +1866,38 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
         place(props, torus(1.12, 0.09, 5, 12), copperMat, cx, 2.15, cz, 0, 1, 1, 1, Math.PI / 2);
         place(props, torus(1.06, 0.09, 5, 12), copperMat, cx, 3.16, cz, 0, 1, 1, 1, Math.PI / 2);
         place(props, box(1.45, 0.42, 1.45), lavaGlow, cx, 1.58, cz);
-        place(props, octahedron(0.62), goldFlame, cx, 3.55, cz, 0, 0.95, 1.45, 0.95);
+        const flameNode = new Node();
+        flameNode.position.set(cx, 3.28, cz);
+        place(flameNode, octahedron(0.62), goldFlame, 0, 0.27, 0, 0, 0.95, 1.45, 0.95);
+        props.add(flameNode);
+        view.rlAnim.push({
+          o: flameNode,
+          k: "flicker",
+          s: 7.2 + calFlameIdx * 0.75,
+          a: 0.18,
+          ph: calFlameIdx * 1.45,
+        });
+        calFlameIdx++;
       }
     }
 
-    // Giant Dwarven Forge-Hammer & Hanging Bronze Chain Silhouettes on the Northern Horizon
+    // Giant Swinging Dwarven Forge-Hammer & Hanging Bronze Chain Silhouettes on the Northern Horizon
     const zForge = -(H + 16.2);
     if (safeExterior(0, zForge, 4.2, W, H, 0.6)) {
       place(props, beveledBox(1.6, 10.5, 1.6, 0.14), ironMat, -4.2, 5.25, zForge);
       place(props, beveledBox(1.6, 10.5, 1.6, 0.14), ironMat, 4.2, 5.25, zForge);
       place(props, beveledBox(10.6, 1.25, 1.9, 0.14), basaltDark, 0, 10.4, zForge);
-      // Hanging bronze chain links + monumental suspended dwarven forge hammer
+      // Swinging pendulum pivot at crossbeam: hanging bronze chain links + monumental dwarven forge hammer
+      const hammerPivot = new Node();
+      hammerPivot.position.set(0, 10.0, zForge);
       for (let cy = 6.2; cy <= 9.6; cy += 0.85) {
-        place(props, torus(0.36, 0.08, 5, 10), copperMat, 0, cy, zForge, (cy * 2) % Math.PI);
+        place(hammerPivot, torus(0.36, 0.08, 5, 10), copperMat, 0, cy - 10.0, 0, (cy * 2) % Math.PI);
       }
-      place(props, beveledBox(3.8, 1.85, 2.1, 0.16), ironMat, 0, 4.9, zForge);
-      place(props, box(3.9, 0.22, 2.2), copperMat, 0, 4.9, zForge);
-      place(props, box(3.4, 0.26, 1.8), lavaGlow, 0, 4.02, zForge);
+      place(hammerPivot, beveledBox(3.8, 1.85, 2.1, 0.16), ironMat, 0, -5.1, 0);
+      place(hammerPivot, box(3.9, 0.22, 2.2), copperMat, 0, -5.1, 0);
+      place(hammerPivot, box(3.4, 0.26, 1.8), lavaGlow, 0, -5.98, 0);
+      props.add(hammerPivot);
+      view.rlAnim.push({ o: hammerPivot, k: "swing", s: 1.15, a: 0.24, ph: 0 });
     }
 
     // 4 Cardinal Dwarven Dark-Iron & Basalt Magma Bridges spanning the molten moat
@@ -1885,7 +1924,8 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
       }
     }
 
-    // Helper: Elevated Dwarven Stone Lava-Aqueduct pouring glowing molten magma into a crucible basin!
+    // Helper: Elevated Dwarven Stone Lava-Aqueduct pouring animated glowing molten magma into a crucible basin!
+    let pourIdx = 0;
     const buildAqueduct = (ax, az, rotY, height = 5.6) => {
       if (!safeExterior(ax, az, 4.6, W, H, 0.6)) return;
       const alongX = Math.abs(Math.cos(rotY)) > 0.5;
@@ -1900,16 +1940,22 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
       // Top channel & glowing molten lava trough
       place(props, beveledBox(spanW, 0.85, spanD, 0.12), basaltMat, ax, height + 0.2, az);
       place(props, box(alongX ? 7.0 : 0.95, 0.22, alongX ? 0.95 : 7.0), lavaGlow, ax, height + 0.58, az);
-      // Spout lip + vertical pouring molten magma stream + glowing crucible basin below!
+      // Spout lip + animated vertical pouring molten magma stream + glowing crucible basin below!
       const dirX = Math.sin(rotY);
       const dirZ = Math.cos(rotY);
       const sx = ax + dirX * 1.15;
       const sz = az + dirZ * 1.15;
       if (safeExterior(sx, sz, 1.8, W, H, 0.45)) {
         place(props, beveledBox(1.1, 0.42, 1.1, 0.08), copperMat, sx, height + 0.18, sz);
-        place(props, cylinder(0.24, 0.34, height + 0.1, 7), lavaGlow, sx, height * 0.5, sz);
         place(props, cylinder(1.45, 1.15, 0.72, 8).toFlatShaded(), basaltDark, sx, 0.36, sz);
-        place(props, cylinder(1.18, 1.18, 0.18, 8), goldFlame, sx, 0.7, sz);
+        const pourNode = new Node();
+        pourNode.position.set(sx, 0, sz);
+        place(pourNode, cylinder(0.24, 0.34, height + 0.1, 7), lavaGlow, 0, height * 0.5, 0);
+        place(pourNode, cylinder(1.18, 1.18, 0.18, 8), goldFlame, 0, 0.7, 0);
+        place(pourNode, octahedron(0.32), goldFlame, 0, 0.92, 0);
+        props.add(pourNode);
+        view.rlAnim.push({ o: pourNode, k: "pour", s: 4.4 + pourIdx * 0.6, a: 0.14, ph: pourIdx * 1.2 });
+        pourIdx++;
       }
     };
 
@@ -2083,23 +2129,26 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
       }
     }
 
-    // Helper: Oasis Palm Tree with curved segmented trunk & lush fan-frond crown
+    // Helper: Oasis Palm Tree with curved segmented trunk & wind-swaying fan-frond crown
+    let palmIdx = 0;
     const buildPalm = (px, pz, scale = 1, lean = 0.18, rot = 0) => {
-      if (!safeExterior(px, pz, 2.2 * scale, W, H, 0.5)) return;
+      if (!safeExterior(px, pz, 2.5 * scale, W, H, 0.55)) return;
       const h = 3.8 * scale;
       place(props, cylinder(0.16 * scale, 0.28 * scale, h, 6), palmTrunk, px, h * 0.48, pz, rot, 1, 1, 1, lean);
       const topX = px + Math.sin(rot) * Math.sin(lean) * h * 0.5;
       const topZ = pz + Math.cos(rot) * Math.sin(lean) * h * 0.5;
       const topY = h * 0.94;
+      const crown = new Node();
+      crown.position.set(topX, topY, topZ);
       for (let f = 0; f < 6; f++) {
         const fa = (f / 6) * TAU + rot;
         place(
-          props,
+          crown,
           cone(0.42 * scale, 1.85 * scale, 4).toFlatShaded(),
           palmFrond,
-          topX + Math.cos(fa) * 0.72 * scale,
-          topY - 0.12 * scale,
-          topZ + Math.sin(fa) * 0.72 * scale,
+          Math.cos(fa) * 0.72 * scale,
+          -0.12 * scale,
+          Math.sin(fa) * 0.72 * scale,
           fa,
           0.65,
           1,
@@ -2107,6 +2156,9 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
           1.22,
         );
       }
+      props.add(crown);
+      view.rlAnim.push({ o: crown, k: "sway", s: 1.65 + (palmIdx % 4) * 0.22, a: 0.085, ph: palmIdx * 1.15 });
+      palmIdx++;
     };
 
     // Helper: Ruined Classical Sandstone Colonnade & Vitrified Glass Oasis Shrine
@@ -2479,10 +2531,13 @@ export class ArenaView {
     const floorGeo = plane(160, 160, 1, 1).rotateX(-Math.PI / 2);
     const floor = new MeshNode(floorGeo, this.floorMat);
     floor.receiveShadow = true;
-    floor.renderOrder = -1;
+    floor.renderOrder = 2;
     floor.frustumCulled = false;
     this.group.add(floor);
     floor.freezeStatic();
+
+    // Lightweight distant sky & horizon gradient ring strictly outside the playable arena
+    this.group.add(createSkyBackdrop(biome.id, layout.W, layout.H));
 
     const props = new Node();
     this.group.add(props);
@@ -2556,15 +2611,37 @@ export class ArenaView {
     this.uniforms.uPulse.value = pulse;
     const time = this.uniforms.uTime.value;
     if (this.biomeId === "courtyard" && this.lampLens) {
-      const dark = this.uniforms.uDark.value;
-      const ember = (1.06 + 0.16 * Math.cos(time * 0.9)) * (1 - dark * 0.52);
+      const dark = this.uniforms.uDark.value || 0;
+      const ember = (1.08 + 0.14 * Math.cos(time * 0.9)) * (1 + dark * 0.28);
       this.lampLens.emissiveIntensity = ember;
     }
     for (const anim of this.rlAnim) {
       const obj = anim.o;
       if (anim.k === "spin" || anim.k === "spinbob") obj.rotation.y += dt * anim.s;
       if (anim.k === "bob" || anim.k === "spinbob") {
-        obj.position.y = anim.b + Math.sin(time * (anim.s || 1) + anim.ph) * (anim.a || 0.14);
+        const wave = Math.sin(time * (anim.s || 1) + anim.ph);
+        obj.position.y = anim.b + wave * (anim.a || 0.14);
+        if (anim.tilt) obj.rotation.x = Math.cos(time * (anim.s || 1) * 0.8 + anim.ph) * anim.tilt;
+      } else if (anim.k === "tram") {
+        obj.position.x = (anim.bx || 0) + Math.sin(time * (anim.s || 0.22) + (anim.ph || 0)) * (anim.span || 12);
+      } else if (anim.k === "swing") {
+        obj.rotation.z = Math.sin(time * (anim.s || 1.15) + (anim.ph || 0)) * (anim.a || 0.24);
+      } else if (anim.k === "flicker") {
+        const f =
+          Math.sin(time * (anim.s || 6.5) + (anim.ph || 0)) * 0.6 +
+          Math.sin(time * ((anim.s || 6.5) * 1.73) + (anim.ph || 0)) * 0.4;
+        const a = anim.a || 0.14;
+        obj.scale.set(1 + f * a * 0.5, 1 + f * a, 1 - f * a * 0.45);
+        obj.rotation.y = f * 0.24;
+      } else if (anim.k === "pour") {
+        const p = Math.sin(time * (anim.s || 4.5) + (anim.ph || 0));
+        const a = anim.a || 0.14;
+        obj.scale.set(1 + p * a, 1, 1 - p * a * 0.65);
+      } else if (anim.k === "sway") {
+        const s = anim.s || 1.7;
+        const a = anim.a || 0.085;
+        obj.rotation.z = Math.sin(time * s + (anim.ph || 0)) * a;
+        obj.rotation.x = Math.cos(time * s * 0.78 + (anim.ph || 0)) * a * 0.7;
       }
     }
   }

@@ -3,7 +3,6 @@
 // service worker, wake lock, save export/import). Every other module is reached from here through
 // imports.
 
-import { rumble } from "./ui/haptics.js";
 import { bossMedal, bossPar, MEDAL_NAMES } from "./core/medals.js";
 import {
   RL_MON,
@@ -297,7 +296,15 @@ const overlay = new Overlay(elementById("ov")),
     chooseShown: false,
     overShown: false,
     slowMo: 0,
-    pendingUpdate: null,
+    _pendingUpdate: null,
+    get pendingUpdate() {
+      return this._pendingUpdate;
+    },
+    set pendingUpdate(fn) {
+      this._pendingUpdate = fn || null;
+      const btn = getById("updateReadyBtn");
+      if (btn) btn.hidden = !this._pendingUpdate;
+    },
     cloud: null,
     startRun(options) {
       const { resume } = options;
@@ -349,6 +356,7 @@ const overlay = new Overlay(elementById("ov")),
         ui.hidePause();
         ui.hideCrash();
         ui.showHud(true);
+        window.__riftUpdateDeviceProfile?.();
         placeHud();
         input.reset();
         input.enabled = true;
@@ -366,6 +374,7 @@ const overlay = new Overlay(elementById("ov")),
           renderer.resetCamera();
         }
         sound.setMusic("fight", this.world.biomeFor(this.world.wave).id);
+        syncSoundMuffle();
         setWakeLock(true);
       }
       // 2.2.3: run monitor (only the live run's world is observed; self-test and snapshot-check
@@ -385,6 +394,7 @@ const overlay = new Overlay(elementById("ov")),
         this.chooseShown = false;
         ui.hideChoose();
         input.reset();
+        syncSoundMuffle();
       }
     },
     /* 3.25.0: Banish Protocol: the card is replaced and the upgrade never comes again in this run */
@@ -420,6 +430,7 @@ const overlay = new Overlay(elementById("ov")),
         input.reset();
         ui.showPause(world);
         sound.setMusic("menu");
+        syncSoundMuffle();
         store.save("pause");
         setWakeLock(false);
       }
@@ -436,6 +447,7 @@ const overlay = new Overlay(elementById("ov")),
         if (this.world) {
           sound.setMusic(this.world.boss ? "boss" : "fight", this.world.biomeFor(this.world.wave).id, true);
         }
+        syncSoundMuffle();
       }
     },
     restart() {
@@ -465,6 +477,7 @@ const overlay = new Overlay(elementById("ov")),
         ui.showHud(true);
         placeHud();
         this.chooseShown = false;
+        syncSoundMuffle();
         // 2.8.1: the victory screen released the wake lock; Endless needs it again
         setWakeLock(true);
         // 2.2.3: the endless part is monitored as a new run (3.43.1: inside the guard - a stray call
@@ -488,9 +501,11 @@ const overlay = new Overlay(elementById("ov")),
       ui.hideChoose();
       ui.hidePause();
       ui.showHud(false);
+      window.__riftUpdateDeviceProfile?.();
       ui.homeInit = false;
       ui.show("home");
       sound.setMusic("menu");
+      syncSoundMuffle();
       setWakeLock(false);
       rlApplyUpdateWhenIdle("home");
     },
@@ -631,6 +646,7 @@ const overlay = new Overlay(elementById("ov")),
           fastest: fastest,
         });
         sound.setMusic("menu");
+        syncSoundMuffle();
         setWakeLock(false);
       }
       // 2.2.3: run audit and run history (a silent end is recorded too)
@@ -795,13 +811,14 @@ function applySettings() {
     // is a fixed, gentler amount (endless mode used to stack it into something unpleasant).
     renderer.numbers = settings.numbers !== false;
     renderer.motion = reducedMotion() ? 0 : 1;
+    renderer.renderer?.setTargetFps?.(settings.frameRate || 60);
   }
 }
 let loopFrameId = 0,
   frameErrorCount = 0;
-/* 3.11.0: Riftline plays in landscape on phones and tablets. index.html sets needs-rotate on <body> while such a
-   device is held upright (the rotate screen). Where the browser allows it (an installed app, Android in full screen)
-   the screen is also locked to landscape when a run starts; elsewhere the lock is refused and nothing happens. */
+/* 3.11.0: Riftline plays in landscape on phones during a run. index.html sets needs-rotate on <body> while a phone
+   is held upright in an active run (the rotate screen). Where the browser allows it (an installed app, Android in full
+   screen) the screen is also locked to landscape when a run starts; elsewhere the lock is refused and nothing happens. */
 function needsRotate() {
   return document.body.classList.contains("needs-rotate");
 }
@@ -826,7 +843,7 @@ function loopTick(now) {
   {
     game.last = now;
     dt = Math.min(0.1, Math.max(0, dt));
-    // 3.11.0: a phone or tablet held upright shows the rotate screen; a run waits paused behind it (pause() does
+    // 3.11.0: a phone held upright during a run shows the rotate screen; a run waits paused behind it (pause() does
     // nothing outside the fight or when already paused)
     if (needsRotate()) game.pause();
     try {
@@ -858,12 +875,17 @@ function runFrame(dt) {
     if (!game.paused && document.visibilityState !== "hidden") {
       let slow = game.slowMo > 0 ? 0.35 : 1;
       game.slowMo = Math.max(0, game.slowMo - dt);
+      const noMotion = !!(settings.reducedMotion || reducedMotion());
+      if (world.hitstopT > 0) {
+        if (noMotion) world.hitstopT = 0;
+        else world.hitstopT = Math.max(0, world.hitstopT - dt);
+      }
       if (game.intro) {
         updateBossIntro(dt, world);
       } else {
         if (game.freeze > 0) {
           game.freeze -= dt;
-        } else {
+        } else if (!(world.hitstopT > 0)) {
           game.acc += dt * slow; // 3.37.0: the never-assigned fast-forward hook game.speed is gone
         }
       }
@@ -876,12 +898,13 @@ function runFrame(dt) {
         interpReset();
         game.interpWorld = world;
       }
-      for (; game.acc >= rlStep && steps < maxSteps;) {
+      for (; !(world.hitstopT > 0) && game.acc >= rlStep && steps < maxSteps;) {
         // 3.31.0: where everything was before the step, so a frame can be drawn between two steps (render/interp.js)
         interpCapture(world);
         world.step(rlStep, input.sample(world, settings));
         game.acc -= rlStep;
         steps++;
+        if (world.hitstopT > 0 && noMotion) world.hitstopT = 0;
       }
       if (steps >= maxSteps) {
         game.acc = 0;
@@ -939,6 +962,7 @@ function runFrame(dt) {
       game._settledOverlayFrames = 0;
       input.reset();
       ui.showChoose(world);
+      syncSoundMuffle();
       // 3.30.0: the next wave's layout is built while the player reads the cards (no hitch when one is picked)
       const prefetch = () => game.world === world && world.prefetchLayout();
       if (window.requestIdleCallback) requestIdleCallback(prefetch, { timeout: 1500 });
@@ -978,6 +1002,17 @@ function announceMutator(ev) {
   );
   sound.play("mutator", ev.id);
 }
+function syncSoundMuffle() {
+  const world = game.world,
+    inGame = game.mode === "game" && !!world && !game.overShown,
+    choosing = inGame && (game.chooseShown || world.state === "choose" || !!world.choosing),
+    lowWard = inGame && world.player.alive && world.player.hp / Math.max(1, world.stats.maxHp) < 0.25;
+  sound.setMuffleState?.({
+    paused: !!(inGame && game.paused),
+    choosing: !!choosing,
+    lowWard: !!lowWard,
+  });
+}
 /* 2.7.0: what the sound engine needs every frame of a running world: the artificer speed for movement
  foley (null: idle, e.g. between waves and while the boss card shows) and the biome event that is on
  for its ambience. The engine switches both off by itself when this stops (pause, menus). */
@@ -988,6 +1023,7 @@ function rlAudioState(world) {
     fight ? Math.min(1, Math.hypot(player.vx, player.vy) / Math.max(1, world.stats.speed)) : null,
     fight ? world.event : null,
   );
+  syncSoundMuffle();
 }
 function handleWorldEvents(world) {
   rlAudioState(world);
@@ -1133,7 +1169,6 @@ function handleWorldEvents(world) {
         break;
       case "hurt":
         if (!ev.chip) {
-          rumble("hurt", store.data.settings.vibration !== false);
           ui.hurtFlash();
           overlay.addHurt(world, ev.sx, ev.sy);
           hitStop(0.06);
@@ -1191,7 +1226,6 @@ function handleWorldEvents(world) {
         }
         break;
       case "dash":
-        rumble("dash", store.data.settings.vibration !== false);
         if (game.tut) {
           game.tut.dashed = true;
         }
@@ -1215,7 +1249,6 @@ function handleWorldEvents(world) {
         ui.banner("PHOENIX EMBER", "Ward rekindled", "good", 1600);
         break;
       case "die":
-        rumble("die", store.data.settings.vibration !== false);
         sound.setMusic("off");
         break;
       case "victory":
@@ -1433,7 +1466,11 @@ document.addEventListener(
   "touchmove",
   (ev) => {
     let target = ev.target;
-    if (!(target && target.closest && target.closest(".scroll, .cards, .center-col, textarea, input, .log"))) {
+    if (!(
+      target &&
+      target.closest &&
+      target.closest(".scroll, .cards, .center-col, .dialog, #dlgBody, textarea, input, .log")
+    )) {
       ev.preventDefault();
     }
   },

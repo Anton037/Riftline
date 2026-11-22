@@ -266,22 +266,25 @@ test(
     await press('[data-go="settings"]');
     await visible(page, "settings");
     const settingsCheck = await page.evaluate(() => {
-      const vibTest = document.getElementById("setVibTest").getBoundingClientRect();
-      const vibToggle = document.getElementById("setVibration").getBoundingClientRect();
+      const sfxSlider = document.getElementById("setSfx");
+      sfxSlider.value = "0.55";
+      sfxSlider.dispatchEvent(new Event("input", { bubbles: true }));
       return {
-        vibNote: document.getElementById("vibNote").textContent,
-        sameRow: Math.abs(vibTest.y + vibTest.height / 2 - (vibToggle.y + vibToggle.height / 2)) < 12,
-        sideBySide: vibTest.right <= vibToggle.left + 2,
+        hasVibration: !!document.getElementById("setVibration") || !!document.getElementById("setVibTest"),
+        sfxOut: document.getElementById("setSfxV")?.textContent,
+        musicOut: document.getElementById("setMusicV")?.textContent,
+        ambOut: document.getElementById("setAmbV")?.textContent,
+        updateBtnHidden: document.getElementById("updateReadyBtn")?.hidden,
         audit: window.__riftLayoutAudit(),
       };
     });
-    assert.match(settingsCheck.vibNote, /Vibration is unavailable on this device/i);
-    assert.equal(settingsCheck.sameRow, true);
-    assert.equal(settingsCheck.sideBySide, true);
+    assert.equal(settingsCheck.hasVibration, false, "Vibration setting and test button must be completely removed");
+    assert.equal(settingsCheck.sfxOut, "55%", "SFX slider must display live percentage readout");
+    assert.match(settingsCheck.musicOut || "", /^\d+%$/, "Music slider must display percentage readout");
+    assert.match(settingsCheck.ambOut || "", /^\d+%$/, "Ambience slider must display percentage readout");
+    assert.equal(settingsCheck.updateBtnHidden, true, "Update ready button must be hidden until a new SW waits");
     assert.equal(settingsCheck.audit.ok, true, JSON.stringify(settingsCheck.audit.findings));
 
-    await press("#setVibTest");
-    await page.waitForFunction(() => /Nothing here/i.test(document.getElementById("toasts").textContent));
     await press("#hudEditBtn");
     await visible(page, "hudEdit");
     await page.keyboard.press("KeyP");
@@ -512,6 +515,70 @@ test(
     await page.waitForFunction(() => window.__riftTest.game.world?.wave === 1);
 
     assert.equal(await page.evaluate(() => window.__gamepadReads), 0);
+    assert.deepEqual(errors, []);
+  },
+);
+
+test(
+  "multi-viewport responsive layout, portrait menu browsing and WCAG AA contrast audit",
+  { timeout: 60000 },
+  async (t) => {
+    const { page, errors } = await openGame(t, "desktop");
+    const contrast = await page.evaluate(() => {
+      const parseRgb = (str) => {
+        const m = str.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+        return m ? [+m[1], +m[2], +m[3]] : [0, 0, 0];
+      };
+      const lum = ([r, g, b]) => {
+        const f = (c) => {
+          const s = c / 255;
+          return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+        };
+        return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+      };
+      const ratio = (a, b) => {
+        const l1 = Math.max(lum(a), lum(b)),
+          l2 = Math.min(lum(a), lum(b));
+        return (l1 + 0.05) / (l2 + 0.05);
+      };
+      const probe = document.createElement("div");
+      probe.style.color = "var(--mute)";
+      probe.style.backgroundColor = "var(--panel)";
+      document.body.appendChild(probe);
+      const cs = getComputedStyle(probe);
+      const muteRgb = parseRgb(cs.color);
+      const panelRgb = parseRgb(cs.backgroundColor);
+      probe.remove();
+      return { muteRgb, panelRgb, ratio: ratio(muteRgb, panelRgb) };
+    });
+    assert.ok(
+      contrast.ratio >= 4.5,
+      `--mute (${contrast.muteRgb}) on --panel (${contrast.panelRgb}) must meet WCAG AA >= 4.5:1 (got ${contrast.ratio.toFixed(2)})`,
+    );
+
+    const viewports = [
+      [1280, 720],
+      [1280, 600],
+      [1024, 768],
+      [844, 390],
+      [667, 375],
+      [568, 320],
+      [390, 844],
+    ];
+    for (const [width, height] of viewports) {
+      await page.setViewportSize({ width, height });
+      await page.waitForTimeout(80);
+      const res = await page.evaluate(() => ({
+        needsRotate: document.body.classList.contains("needs-rotate"),
+        audit: window.__riftLayoutAudit(),
+      }));
+      assert.equal(res.needsRotate, false, `Home menu must stay usable without rotate lock at ${width}x${height}`);
+      assert.equal(
+        res.audit.ok,
+        true,
+        `Layout audit failed at ${width}x${height}: ${JSON.stringify(res.audit.findings)}`,
+      );
+    }
     assert.deepEqual(errors, []);
   },
 );

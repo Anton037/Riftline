@@ -1,7 +1,11 @@
 // Handcrafted Lantern-Artificer run crafts, masterwork evolutions, and guardian relics.
 
 const rarityNames = ["", "Common", "Rare", "Epic", "Legendary", "Masterwork", "Guardian Relic"];
+const rarityWeights = [0, 42, 32, 20, 6],
+  bossRarityWeights = [0, 0, 42, 44, 14];
+
 const upgradeList = [
+  // Common (Rarity 1)
   { id: "dmg", name: "Sun-Tempered Rounds", rarity: 1, max: 12, icon: "burst", desc: () => "+18% damage" },
   { id: "rate", name: "Clockwork Escapement", rarity: 1, max: 10, icon: "rate", desc: () => "+15% fire rate" },
   { id: "hp", name: "Heartwood Ward", rarity: 1, max: 10, icon: "shield", desc: () => "+25 max Ward and mend 25" },
@@ -30,7 +34,8 @@ const upgradeList = [
     desc: () => "Mend 45% of max Ward",
     repeat: true,
   },
-  { id: "multishot", name: "Twin-Spout Chamber", rarity: 3, max: 4, icon: "fan", desc: () => "+1 bolt per shot" },
+
+  // Rare (Rarity 2)
   {
     id: "pierce",
     name: "Star-Iron Core",
@@ -38,14 +43,6 @@ const upgradeList = [
     max: 3,
     icon: "pierce",
     desc: () => "Shots pierce +1 foe",
-  },
-  {
-    id: "ricochet",
-    name: "Carom Glass",
-    rarity: 3,
-    max: 3,
-    icon: "bounce",
-    desc: () => "Shots carom to +1 nearby foe",
   },
   {
     id: "orbit",
@@ -61,7 +58,7 @@ const upgradeList = [
     rarity: 2,
     max: 3,
     icon: "shield",
-    desc: (level) => "Block a hit every " + [12, 8, 5][Math.min(level, 2)] + " s",
+    desc: (level) => "Block a hit every " + [12, 8, 5][Math.min(level, 2)] + " s (min 3.5 s cooldown)",
   },
   {
     id: "regen",
@@ -88,70 +85,6 @@ const upgradeList = [
     desc: (level) => `Dashing through foes deals ${level ? 90 : 60} damage`,
   },
   {
-    id: "payload",
-    name: "Sunburst Shell",
-    rarity: 3,
-    max: 5,
-    icon: "burst",
-    desc: (level) => `Hits blossom in a ${30 + 10 * level}% splash around the target`,
-  },
-  {
-    id: "arc",
-    name: "Leyline Conduit",
-    rarity: 3,
-    max: 3,
-    icon: "bolt",
-    desc: (level) => `${20 + 10 * level}% chance for hits to arc to 2 foes`,
-  },
-  {
-    id: "seeker",
-    name: "Starlight Fletching",
-    rarity: 3,
-    max: 2,
-    icon: "crosshair",
-    desc: () => "Shots curve gently toward foes",
-  },
-  {
-    id: "thermite",
-    name: "Cinder-Pitch",
-    rarity: 3,
-    max: 3,
-    icon: "flame",
-    desc: (level) => `Hits kindle for ${30 + 15 * level}% of their damage per second`,
-  },
-  {
-    id: "siphon",
-    name: "Vitality Chalice",
-    rarity: 3,
-    max: 4,
-    icon: "heart",
-    desc: (level) => `Defeating foes has a ${14 + 6 * level}% chance to mend ${4 + 2 * level} Ward`,
-  },
-  {
-    id: "rearguard",
-    name: "Lantern Backlight",
-    rarity: 3,
-    max: 2,
-    icon: "fan",
-    desc: (level) => (level === 0 ? "Also fire astern" : "Also fire to both flanks") + " at 60% damage",
-  },
-  {
-    id: "overcharge",
-    name: "Hearth-Stoker",
-    rarity: 3,
-    max: 4,
-    icon: "star",
-    desc: (level) => `Hearthburst charges 30% faster, +${level < 2 ? 25 : 10}% radius, each defeat adds 1% charge`,
-  },
-  {
-    id: "wingman",
-    name: "Lantern Sprite",
-    rarity: 4,
-    max: 2,
-    icon: "drone",
-    desc: () => "A clockwork lantern sprite orbits and fires beside you",
-  },
-  {
     id: "gcells",
     name: "Lodestone Bobbins",
     rarity: 2,
@@ -168,12 +101,217 @@ const upgradeList = [
     desc: () => "Lodestone Chime: +30% burst damage, +15% draw and shatter radius",
   },
   {
+    id: "overload",
+    name: "Kiln Surge",
+    rarity: 2,
+    max: 3,
+    icon: "burst",
+    desc: (level, count = level + 1) =>
+      `Every 120 base weapon damage dealt vents a 5.5 m directional kiln-flare cone (${55 + 25 * count} damage + knockback)`,
+  },
+  {
+    id: "heatsink",
+    name: "Bellows Vent",
+    rarity: 2,
+    max: 2,
+    icon: "flame",
+    desc: (level, count = level + 1) =>
+      `Ringing a censer, triggering a relic, dashing near an active hazard, or taking a hazard hit grants +${count === 1 ? 25 : 45}% fire rate for 4.5 s and +${count === 1 ? 12 : 18}% Hearthburst`,
+  },
+  {
+    id: "reactive",
+    name: "Mirror Ward",
+    rarity: 2,
+    max: 2,
+    icon: "shield",
+    desc: (level) =>
+      `Ward Bell blocks, taking Ward damage, or dash-grazing a shot (1.4 m) rings a ${level ? 4.2 : 3.5} m chime wave (${level ? 85 : 55} damage) that shatters shots`,
+  },
+  {
+    id: "pointblank",
+    name: "Brazier Stance",
+    rarity: 2,
+    max: 3,
+    icon: "shield",
+    desc: (level, count = level + 1) =>
+      `Deal +${16 * count}% damage to foes within 5.5 m and take -${12 * count}% contact/melee damage`,
+  },
+
+  // Epic (Rarity 3)
+  { id: "multishot", name: "Twin-Spout Chamber", rarity: 3, max: 4, icon: "fan", desc: () => "+1 bolt per shot" },
+  {
+    id: "ricochet",
+    name: "Carom Glass",
+    rarity: 3,
+    max: 3,
+    icon: "bounce",
+    desc: () => "Shots carom to +1 nearby foe",
+  },
+  {
+    id: "payload",
+    name: "Sunburst Shell",
+    rarity: 3,
+    max: 5,
+    icon: "burst",
+    desc: (level) => `Hits blossom in a ${30 + 10 * level}% splash around the target`,
+  },
+  {
+    id: "arc",
+    name: "Leyline Conduit",
+    rarity: 3,
+    max: 3,
+    icon: "bolt",
+    desc: (level, count = level + 1) =>
+      `${15 + 10 * count}% chance for hits to arc across ${1 + count} foes (+1 chain on Storm-Coil Rod)`,
+  },
+  {
+    id: "seeker",
+    name: "Starlight Fletching",
+    rarity: 3,
+    max: 2,
+    icon: "crosshair",
+    desc: () => "Shots curve gently toward foes",
+  },
+  {
+    id: "thermite",
+    name: "Cinder-Pitch",
+    rarity: 3,
+    max: 3,
+    icon: "flame",
+    desc: (level, count = level + 1) =>
+      `Hits kindle for ${22 * count}% damage/s over 3 s (stacks up to 5 times on rapid hits)`,
+  },
+  {
+    id: "siphon",
+    name: "Vitality Chalice",
+    rarity: 3,
+    max: 4,
+    icon: "heart",
+    desc: (level, count = level + 1) =>
+      `Defeating foes has a ${12 + 6 * count}% chance to mend ${5 + count} Ward (every 25th Guardian hit drops a mending mote)`,
+  },
+  {
+    id: "rearguard",
+    name: "Lantern Backlight",
+    rarity: 3,
+    max: 2,
+    icon: "fan",
+    desc: (level) =>
+      (level === 0 ? "Also fire astern" : "Also fire a 3-way fan astern and to both flanks") +
+      " at 75% damage (scales with bolt count)",
+  },
+  {
+    id: "overcharge",
+    name: "Hearth-Stoker",
+    rarity: 3,
+    max: 4,
+    icon: "star",
+    desc: (level) => `Hearthburst charges 30% faster, +${level < 2 ? 25 : 10}% radius, each defeat adds 1% charge`,
+  },
+  {
     id: "gfire",
     name: "Hearthfire Chime",
     rarity: 3,
     max: 1,
     icon: "flame",
-    desc: () => "Lodestone Chime's peal kindles foes and leaves glowing embers for 3 s",
+    desc: () =>
+      "Lodestone Chime tugs Guardians (35%), makes pulled foes take +25% damage for 3.5 s, and leaves a 4 s ember field",
+  },
+  {
+    id: "hunter",
+    name: "Guardian's Quarry",
+    rarity: 3,
+    max: 3,
+    icon: "target",
+    desc: (level, count = level + 1) =>
+      `+${5 + 15 * count}% damage against elites, champions, guardians, and foes below 35% Ward (2\u00d7 to shields and guards)`,
+  },
+  {
+    id: "echo",
+    name: "Echoing Bell",
+    rarity: 3,
+    max: 2,
+    icon: "rate",
+    desc: (level) =>
+      level === 0
+        ? "Every 4th shot chimes a second full echo volley 0.10 s later at 80% damage"
+        : "Every 3rd shot chimes a full echo volley 0.10 s later at 95% damage",
+  },
+  {
+    id: "acidcoat",
+    name: "Spore-Dew Glaze",
+    rarity: 3,
+    max: 2,
+    icon: "brood",
+    desc: (level, count = level + 1) =>
+      `${count === 1 ? 35 : 60}% of hits (100% on splash) apply 3.5 s Vitriol Glaze (+${count === 1 ? 20 : 35}% damage taken, +${count === 1 ? 12 : 20}% on Guardians) and trail spore-dew`,
+  },
+  {
+    id: "slipstream",
+    name: "Tailwind Step",
+    rarity: 3,
+    max: 2,
+    icon: "dash",
+    desc: (level, count = level + 1) =>
+      `For 1.0 s after completing a dash, weapon shots trail golden wind and deal +${count === 1 ? 20 : 35}% damage`,
+  },
+  {
+    id: "surge",
+    name: "Bell-Chime Cadence",
+    rarity: 3,
+    max: 2,
+    icon: "star",
+    desc: (level) =>
+      `Combos last ${level ? 1 : 0.5} s longer. Every ${level ? 12 : 15} combo defeats (or 18th Guardian hit) rings a ${level ? 4.2 : 3.6} m wave at the target (${level ? 95 : 65} damage)`,
+  },
+  {
+    id: "overcrit",
+    name: "Prismatic Refraction",
+    rarity: 3,
+    max: 2,
+    icon: "crosshair",
+    desc: (level, count = level + 1) =>
+      `Critical hits have a ${30 * count}% chance (+excess crit above 60%) to Super-Crit for 3.0\u00d7 damage and arc a prismatic beam`,
+  },
+  {
+    id: "momentum",
+    name: "Kinetic Glass",
+    rarity: 3,
+    max: 2,
+    icon: "pierce",
+    desc: (level, count = level + 1) =>
+      `Each pierce or carom increases that projectile's damage by +${count === 1 ? 22 : 38}% and size by +15%`,
+  },
+  {
+    id: "stoke",
+    name: "Cinder-Bellows",
+    rarity: 3,
+    max: 2,
+    icon: "flame",
+    desc: (level, count = level + 1) =>
+      `Hitting a burning foe deals +${count === 1 ? 18 : 32}% bonus damage and immediately detonates 0.35 s of its active burn`,
+  },
+  {
+    id: "gsyphon",
+    name: "Resonance Well",
+    rarity: 3,
+    max: 2,
+    icon: "target",
+    desc: (level, count = level + 1) =>
+      `Foes inside Lodestone Chime take +${count === 1 ? 25 : 45}% damage; each foe defeated inside refunds 15% Chime cooldown`,
+  },
+
+  // Legendary (Rarity 4)
+  {
+    id: "wingman",
+    name: "Lantern Sprite",
+    rarity: 4,
+    max: 2,
+    icon: "drone",
+    desc: (level) =>
+      level === 0
+        ? "2 clockwork lantern sprites orbit and fire beside you"
+        : "+1 Lantern Sprite and +35% sprite fire rate (0.35 s)",
   },
   {
     id: "bloodrush",
@@ -197,16 +335,10 @@ const upgradeList = [
     rarity: 4,
     max: 1,
     icon: "clock",
-    desc: () => "Dashing slows foes and their shots for 1.5 s",
+    desc: () => "Dashing slows foes and their shots by 45% for 1.1 s (4.0 s cooldown)",
   },
-  {
-    id: "laststand",
-    name: "Ironwood Bracing",
-    rarity: 2,
-    max: 2,
-    icon: "shield",
-    desc: (level) => `-${22 * (level + 1)}% incoming damage below 35% Ward`,
-  },
+
+  // Masterwork Evolutions (Rarity 5)
   {
     id: "halo",
     name: "Gilded Halo",
@@ -223,7 +355,7 @@ const upgradeList = [
     max: 1,
     icon: "burst",
     evo: { payload: 2, seeker: 1 },
-    desc: () => "Every Sunburst Shell blast launches 2 homing firefly sparks.",
+    desc: () => "Primary Sunburst hits launch 2 homing firefly sparks that detonate in a 1.5 m blast (38% damage).",
   },
   {
     id: "storm",
@@ -241,7 +373,8 @@ const upgradeList = [
     max: 1,
     icon: "flame",
     evo: { thermite: 2, dmg: 3 },
-    desc: () => "Kindled foes burst in a warm hearth-blast on defeat and ignite neighbors.",
+    desc: () =>
+      "Burning foes take +20% damage, and on defeat erupt in a 2.8 m hearth-blast (30 + 25% max Ward) that spreads their full burn stack.",
   },
   {
     id: "phantom",
@@ -250,7 +383,8 @@ const upgradeList = [
     max: 1,
     icon: "wing",
     evo: { shockdash: 1, speed: 2 },
-    desc: () => "Dash cooldown -50% (never below 0.8 s). Your dash trails searing starlight.",
+    desc: () =>
+      "+1 Dash Charge (2 charges max), -35% dash cooldown, and your dash leaves a 1.8 s starlight wake (65 DPS, 35% slow).",
   },
   {
     id: "gunship",
@@ -259,7 +393,17 @@ const upgradeList = [
     max: 1,
     icon: "drone",
     evo: { wingman: 1, multishot: 2 },
-    desc: () => "A second Lantern Sprite joins you. Sprites fire 3-bolt fans.",
+    desc: () => "+1 Lantern Sprite joins you, and all sprites fire 3-bolt fans.",
+  },
+  {
+    id: "blackstar",
+    name: "Event Horizon",
+    rarity: 5,
+    max: 1,
+    icon: "collapse",
+    evo: { gcells: 2, gblast: 2 },
+    desc: () =>
+      "Lodestone Chime pulls 40% wider and fires 8 primary weapon bolts outward on collapse. Hearthburst drops a free Lodestone Chime.",
   },
   {
     id: "overdrive",
@@ -269,7 +413,7 @@ const upgradeList = [
     icon: "rate",
     weapon: "pulse",
     evo: { rate: 3, multishot: 1 },
-    desc: () => "Every 6th shot is a sun-bolt: double damage, larger, pierces 2 foes.",
+    desc: () => "Every 4th shot is a radiant sun-bolt: 2.4\u00d7 damage, +2 pierce, and a 1.8 m solar splash on hit.",
   },
   {
     id: "shredder",
@@ -289,7 +433,8 @@ const upgradeList = [
     icon: "bolt",
     weapon: "tesla",
     evo: { rate: 2, crit: 2 },
-    desc: () => "Bolts leap across 4 foes instead of 2 and keep more power per jump.",
+    desc: () =>
+      "Bolts leap across 4 foes (82% retention); unused leaps arc back into the primary target at 45% damage each.",
   },
   {
     id: "lance",
@@ -299,7 +444,8 @@ const upgradeList = [
     icon: "pierce",
     weapon: "rail",
     evo: { pierce: 1, crit: 1 },
-    desc: () => "Star-glass needles pass through monoliths and pierce every foe in line.",
+    desc: () =>
+      "Star-glass needles pass through monoliths, pierce all foes, gain +22% damage per foe or monolith pierced, and deal +30% crit damage to Guardians.",
   },
   {
     id: "hellfire",
@@ -331,128 +477,8 @@ const upgradeList = [
     evo: { thermite: 1, dmg: 2 },
     desc: () => "Kiln-flames reach 30% further and burn twice as fiercely.",
   },
-];
-const rarityWeights = [0, 42, 32, 20, 6],
-  bossRarityWeights = [0, 0, 42, 44, 14];
-upgradeList.push(
-  {
-    id: "hunter",
-    name: "Guardian's Quarry",
-    rarity: 3,
-    max: 3,
-    icon: "target",
-    desc: () => "+15% damage against elites and guardians",
-  },
-  {
-    id: "supply",
-    name: "Artificer's Tithe",
-    rarity: 2,
-    max: 6,
-    icon: "shard",
-    desc: (level) => `Every 12 defeats drop ${2 * (level + 1)} bonus shards; elites drop +${level + 1}`,
-  },
-);
-upgradeList.push(
-  {
-    id: "overload",
-    name: "Kiln Surge",
-    rarity: 2,
-    max: 3,
-    icon: "burst",
-    desc: (level, count = level + 1) =>
-      `Every 4th shot vents a warm brass flare (${45 + 15 * count} damage, scales with your damage)`,
-  },
-  {
-    id: "resonance",
-    name: "Harmonic Coil",
-    rarity: 3,
-    max: 5,
-    icon: "bolt",
-    desc: (level, count = level + 1) => `+6% arc chance${count % 2 ? " and +1 arc jump" : ""}`,
-  },
-  {
-    id: "hazmat",
-    name: "Hearthcloak",
-    rarity: 2,
-    max: 4,
-    icon: "shield",
-    desc: (level, count = level + 1) => `-${Math.min(88, 25 * count)}% realm hazard damage`,
-  },
-  {
-    id: "echo",
-    name: "Echoing Bell",
-    rarity: 3,
-    max: 2,
-    icon: "rate",
-    desc: (level, count = level + 1) => `${10 * count}% chance for a shot to chime twice`,
-  },
-);
-upgradeList.push({
-  id: "salvager",
-  name: "Wayfarer Satchel",
-  rarity: 2,
-  max: 5,
-  icon: "shard",
-  desc: () => "+1 wayfarer chest per wave, and chests hold richer shard troves",
-});
 
-upgradeList.push(
-  {
-    id: "skates",
-    name: "Glacier Skates",
-    rarity: 2,
-    max: 2,
-    icon: "snow",
-    desc: (level, count = level + 1) =>
-      `+${9 * count}% speed. On ice or on the Aurora Shelf: +${15 * count}% more, and dash recharges ${35 * count}% faster`,
-  },
-  {
-    id: "acidcoat",
-    name: "Spore-Dew Glaze",
-    rarity: 3,
-    max: 2,
-    icon: "brood",
-    desc: (level, count = level + 1) =>
-      `${22 * count}% of hits leave glowing dew for 3 s (foes in it take +25% damage). Wider in the Glowmarsh`,
-  },
-  {
-    id: "heatsink",
-    name: "Bellows Vent",
-    rarity: 2,
-    max: 2,
-    icon: "flame",
-    desc: (level, count = level + 1) =>
-      `Near vents, bog pools, ice, portals, whirlwinds or traps: +${25 * count}% fire rate for 3 s and Hearthburst charge`,
-  },
-  {
-    id: "slipstream",
-    name: "Tailwind Step",
-    rarity: 3,
-    max: 2,
-    icon: "dash",
-    desc: (level, count = level + 1) => `After a dash, your shots deal +${25 * count}% damage for 1.2 s`,
-  },
-  {
-    id: "surge",
-    name: "Bell-Chime Cadence",
-    rarity: 3,
-    max: 2,
-    icon: "star",
-    desc: (level) =>
-      `Combos last ${level ? 1 : 0.5} s longer. Every ${level ? 12 : 15} combo defeats: a resonant ring (${level ? 90 : 60} damage)`,
-  },
-  {
-    id: "reactive",
-    name: "Mirror Ward",
-    rarity: 2,
-    max: 2,
-    icon: "shield",
-    desc: (level) =>
-      `Taking a hit rings out a resonant chime wave (${45 + 25 * level} damage) that shatters nearby shots`,
-  },
-);
-
-upgradeList.push(
+  // Guardian Relics (Rarity 6)
   {
     id: "sealgrid",
     name: "Lantern Cage",
@@ -460,7 +486,8 @@ upgradeList.push(
     max: 1,
     boss: "bellkeeper",
     icon: "sealgrid",
-    desc: () => "Every 8 s a brass lantern cage drops onto the thickest pack: foes are penned for 3 s and seared",
+    desc: () =>
+      "Every 7 s a 3.4 m brass cage drops onto the thickest pack (50 DPS for 3 s), snaring foes that walk into it and slowing Guardians by 30%",
   },
   {
     id: "shardfield",
@@ -469,7 +496,8 @@ upgradeList.push(
     max: 1,
     boss: "prism",
     icon: "snow",
-    desc: () => "Defeated foes burst into 5 sapphire splinters that pierce and chill neighbors",
+    desc: () =>
+      "Defeated foes (and every 15th Guardian hit) burst into 5 sapphire splinters (22 damage, pierces 2 foes, 1.8 s chill)",
   },
   {
     id: "brood",
@@ -478,7 +506,8 @@ upgradeList.push(
     max: 1,
     boss: "queen",
     icon: "brood",
-    desc: () => "Every 10 defeats hatches a friendly spore-sprite (up to 4) that seeks a foe and blossoms",
+    desc: () =>
+      "Every 6 defeats (or 18th Guardian hit) hatches a seeker spore-sprite (up to 5) that blossoms for 75 damage and applies 3.5 s Vitriol Glaze",
   },
   {
     id: "collapse",
@@ -487,7 +516,7 @@ upgradeList.push(
     max: 1,
     boss: "core",
     icon: "collapse",
-    desc: () => "Your Hearthburst first draws foes inward, then rings out 40% stronger",
+    desc: () => "Your Hearthburst pulls foes screen-wide, then rings out 50% stronger",
   },
   {
     id: "tribute",
@@ -496,7 +525,8 @@ upgradeList.push(
     max: 1,
     boss: "tyrant",
     icon: "tribute",
-    desc: () => "Every 20 defeats the forge pays out a shower of star-shards and a mending draught",
+    desc: () =>
+      "Every 14 defeats (or 20th Guardian hit) drops a Molten Anvil Ingot: 80 blast damage, +35% fire rate & damage for 4 s, 18 shards, and 12 Ward",
   },
   {
     id: "fang",
@@ -505,9 +535,11 @@ upgradeList.push(
     max: 1,
     boss: "wyrm",
     icon: "shard",
-    desc: () => "Every 14 defeats unleashes a fan of molten sunglass lances that pierce ranks",
+    desc: () =>
+      "Every 10 defeats (or 16th Guardian hit) unleashes 6 piercing sunglass lances (34 damage, pierces 2 foes)",
   },
-);
+];
+
 const upgradesById = Object.fromEntries(upgradeList.map((upgrade) => [upgrade.id, upgrade]));
 
 export { rarityWeights, bossRarityWeights, upgradeList, rarityNames, upgradesById };

@@ -287,7 +287,10 @@ export class HazardView {
   ventState(world, vent) {
     const state = world.state === "fight" ? world.arena.ventState(vent, world.waveT) : "idle";
     const cycle = (world.waveT + vent.phase) % vent.period;
-    return { state, k: state === "warn" ? clamp((cycle - (vent.period - 2.7)) / 1.2, 0, 1) : 0 };
+    const out = this._ventState || (this._ventState = { state: "idle", k: 0 });
+    out.state = state;
+    out.k = state === "warn" ? clamp((cycle - (vent.period - 2.7)) / 1.2, 0, 1) : 0;
+    return out;
   }
   ring(x, z, radius, col, alpha) {
     const idx = this.r.ringPool.y(x, 0.08, z, 0, radius);
@@ -300,7 +303,9 @@ export class HazardView {
     const lava = this.surf("molten");
     const fire = this.surf("pyro", 32);
     for (const vent of world.arena.vents) {
-      const { state, k } = this.ventState(world, vent);
+      const vs = this.ventState(world, vent);
+      const state = vs.state,
+        k = vs.k;
       const x = vent.x,
         z = vent.y,
         rr = vent.r;
@@ -367,7 +372,9 @@ export class HazardView {
     const cover = this.get("cover");
     const pillar = this.get("inlayProng", MAX.prong);
     for (const vent of world.arena.vents) {
-      const { state, k } = this.ventState(world, vent);
+      const vs = this.ventState(world, vent);
+      const state = vs.state,
+        k = vs.k;
       const { x, y: z, r: radius } = vent;
       const rot = seedOf(x, z) * TAU;
       const sc = Math.min(radius * 0.96, 1.05);
@@ -452,17 +459,16 @@ export class HazardView {
     const shard = this.get("shard", 160).body;
     if (this.iceOf !== world.arena) {
       this.iceOf = world.arena;
-      this.shards = new Map();
+      this.shards = new WeakMap();
     }
     for (const patch of world.arena.ice) {
       const x = patch.x,
         z = patch.y,
         rr = patch.r;
       const seed = seedOf(x, z);
-      const key = `${x}:${z}:${rr}`;
       this.put(sheet, x, 0.03, z, seed * TAU, rr * 1.1, 1, seed);
-      let list = this.shards.get(key);
-      if (!list) this.shards.set(key, (list = shardsOf(rr, seed)));
+      let list = this.shards.get(patch);
+      if (!list) this.shards.set(patch, (list = shardsOf(rr, seed)));
       for (const s of list) {
         shard.colC(shard.yr(x + s.dx, -0.02, z + s.dz, s.a, s.w, s.h, s.w, -s.lean, 0), ICE_SHARD, s.tone * 0.8);
       }
@@ -518,10 +524,10 @@ export class HazardView {
     const swirl = this.surf("portal");
     const stone = this.get("stone", MAX.stone);
     for (const portal of world.arena.portals) {
-      for (const [px, pz, color, blue] of [
-        [portal.ax, portal.ay, PORTAL_A, 0],
-        [portal.bx, portal.by, PORTAL_B, 1],
-      ]) {
+      for (let blue = 0; blue < 2; blue++) {
+        const px = blue ? portal.bx : portal.ax;
+        const pz = blue ? portal.by : portal.ay;
+        const color = blue ? PORTAL_B : PORTAL_A;
         const seed = seedOf(px, pz);
         this.put(swirl, px, 0.05, pz, 0, 1.08, 1, seed, blue);
         for (let i = 0; i < 5; i++) {
@@ -556,10 +562,12 @@ export class HazardView {
       if (!next) continue;
       const k = clamp((portal.moveIn || 0) / 1.6, 0, 1);
       const blink = 0.5 + (Math.floor(time * 10) % 2) * 0.35;
-      for (const [x, y, ox, oy, col] of [
-        [next.ax, next.ay, portal.ax, portal.ay, PORTAL_A],
-        [next.bx, next.by, portal.bx, portal.by, PORTAL_B],
-      ]) {
+      for (let blue = 0; blue < 2; blue++) {
+        const x = blue ? next.bx : next.ax;
+        const y = blue ? next.by : next.ay;
+        const ox = blue ? portal.bx : portal.ax;
+        const oy = blue ? portal.by : portal.ay;
+        const col = blue ? PORTAL_B : PORTAL_A;
         r.ringPool.colC(r.ringPool.y(x, 0.06, y, time * 3, 1.05 + k * 1.3), col, blink);
         r.ringPool.colC(r.ringPool.y(x, 0.05, y, -time * 2, 0.6), col, 0.55);
         r.discs.colC(r.discs.y(x, 0.03, y, 0, 1.05), col, 0.14 + (1 - k) * 0.22);

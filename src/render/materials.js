@@ -103,7 +103,6 @@ export function aegisMaterial() {
     doubleSide: true,
     fog: false,
     uniforms: {
-      uTime: { value: 0 },
       uHit: { value: 0 },
       uFade: { value: 0 },
       uColor: { value: new Color(0x62f2e8) },
