@@ -32,6 +32,7 @@ function fillPill(ctx, x, y, w, h) {
 
 const healthBarTypes = {
     brute: 1,
+    bomber: 1,
     hive: 1,
     splitter: 1,
     sniper: 1,
@@ -160,7 +161,7 @@ const healthBarTypes = {
         bossAttackNames[attack] ||
         (attack ? String(attack).replace(/[_-]+/g, " ").toUpperCase() : "");
       if (label) {
-        this.callouts = [{ t: label, life: 1.4 }];
+        this.callouts = [{ t: label, id: id || "", life: 1.5 }];
       }
     }
     resize() {
@@ -189,6 +190,7 @@ const healthBarTypes = {
       if (!this.c.hidden) this.c.hidden = true;
     }
     _hasActiveContent(renderer, world, input, opts) {
+      if (renderer.biomeFadeT > 0) return true;
       const player = world.player;
       const target = player?.target;
       if (target && !target.dead && player.firing && !player.manual && player.alive) return true;
@@ -297,7 +299,7 @@ const healthBarTypes = {
         }
         ctx.restore();
       }
-      // Subtle custom mouse reticle during manual/cursor aim
+      // Custom mouse reticle with crisp recoil-bloom feedback during manual/cursor aim
       if (
         input &&
         !input.isTouch &&
@@ -309,12 +311,13 @@ const healthBarTypes = {
       ) {
         const mx = input.mouse.x;
         const my = input.mouse.y;
-        const rSize = input.mouse.down ? 10 : 12;
+        const bloom = Math.min(6, (renderer.player?.recoil || 0) * 62);
+        const rSize = (input.mouse.down ? 10 : 12) + bloom;
         ctx.save();
         ctx.translate(mx, my);
         ctx.lineCap = "round";
         for (let pass = 0; pass < 2; pass++) {
-          ctx.strokeStyle = pass === 0 ? "rgba(12,14,24,0.65)" : reticleCol;
+          ctx.strokeStyle = pass === 0 ? "rgba(12,14,24,0.68)" : reticleCol;
           ctx.lineWidth = pass === 0 ? 3.8 : 1.9;
           ctx.beginPath();
           ctx.arc(0, 0, rSize, 0, Math.PI * 2);
@@ -323,10 +326,14 @@ const healthBarTypes = {
             const c = Math.cos(a),
               s = Math.sin(a);
             ctx.moveTo(c * (rSize - 4), s * (rSize - 4));
-            ctx.lineTo(c * (rSize + 4), s * (rSize + 4));
+            ctx.lineTo(c * (rSize + 4.5), s * (rSize + 4.5));
           }
           ctx.stroke();
         }
+        ctx.fillStyle = reticleCol;
+        ctx.beginPath();
+        ctx.arc(0, 0, 1.8, 0, Math.PI * 2);
+        ctx.fill();
         ctx.restore();
       }
       for (let enemy of world.enemies) {
@@ -351,13 +358,34 @@ const healthBarTypes = {
           ctx.fillStyle = "rgba(255,236,192,0.88)";
           fillPill(ctx, x0, pos.y, Math.max(4, width * prev), 4.5);
         }
-        ctx.fillStyle = enemy.caravan ? "#ffd85a" : enemy.elite ? "#ffd26e" : "#ff6b5e";
+        ctx.fillStyle = enemy.caravan ? "#ffd85a" : enemy.elite ? "#ffd26e" : "#e86458";
         fillPill(ctx, x0, pos.y, Math.max(4, width * hpFrac), 4.5);
         if (enemy.shieldMax > 0 && enemy.shield > 0) {
           ctx.fillStyle = "rgba(14,10,22,0.84)";
           fillPill(ctx, x0 - 1.5, pos.y - 6.5, width + 3, 5);
           ctx.fillStyle = "#8cf4ff";
           fillPill(ctx, x0, pos.y - 5.5, Math.max(3, width * (enemy.shield / enemy.shieldMax)), 3);
+        }
+        // Compact status pips below HP bar (burn, chill, corrode/glaze, stun)
+        const pips = [];
+        if (enemy.burnT > 0) pips.push("#ff8a3d");
+        if (enemy.slowT > 0) pips.push("#8ee8ff");
+        if (enemy.inAcid || enemy.glazeT > 0 || enemy.chimeVulnT > 0) pips.push("#8ef2a8");
+        if (enemy.stunT > 0) pips.push("#ffe470");
+        if (pips.length) {
+          const span = (pips.length - 1) * 7;
+          for (let pi = 0; pi < pips.length; pi++) {
+            const px = pos.x - span * 0.5 + pi * 7;
+            const py = pos.y + 9.5;
+            ctx.fillStyle = "rgba(14,10,22,0.88)";
+            ctx.beginPath();
+            ctx.arc(px, py, 3.2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = pips[pi];
+            ctx.beginPath();
+            ctx.arc(px, py, 2.1, 0, Math.PI * 2);
+            ctx.fill();
+          }
         }
       }
       // Subtle crisp corner brackets around shootable hazards (Ember-Pots & Crucible Bombs) so players spot them instantly
@@ -470,6 +498,11 @@ const healthBarTypes = {
           cy = this.h / 2,
           dx = pos.x - cx,
           dy = pos.y - cy;
+        // Behind-camera projection guard: flip direction vector when point is behind near plane
+        if (!pos.vis) {
+          dx = -dx;
+          dy = -dy;
+        }
         if ((pos.nx === 0 && pos.ny === 0) || !Number.isFinite(dx) || !Number.isFinite(dy)) continue;
         let len = Math.hypot(dx, dy) || 1;
         dx /= len;
@@ -483,7 +516,7 @@ const healthBarTypes = {
           ax = cx + dx * edge,
           ay = cy + dy * edge,
           color = windingUp
-            ? "#ff3a4e"
+            ? "#e85448"
             : enemy.caravan
               ? "#ffd85a"
               : enemy.boss
@@ -495,7 +528,7 @@ const healthBarTypes = {
         ctx.translate(ax, ay);
         ctx.rotate(Math.atan2(dy, dx));
         ctx.fillStyle = color;
-        ctx.strokeStyle = "rgba(14,10,22,0.92)";
+        ctx.strokeStyle = "rgba(18,12,10,0.92)";
         ctx.lineWidth = 2.6;
         ctx.lineJoin = "round";
         ctx.globalAlpha = windingUp ? (Math.floor(this.time * 10) % 2 ? 1 : 0.48) : 0.92;
@@ -518,6 +551,10 @@ const healthBarTypes = {
             cy = this.h / 2,
             dx = pos.x - cx,
             dy = pos.y - cy;
+          if (!pos.vis) {
+            dx = -dx;
+            dy = -dy;
+          }
           if (!Number.isFinite(dx) || !Number.isFinite(dy)) continue;
           let len = Math.hypot(dx, dy) || 1;
           dx /= len;
@@ -530,15 +567,15 @@ const healthBarTypes = {
             edge = Math.min(tx, ty);
           ctx.save();
           ctx.translate(cx + dx * edge, cy + dy * edge);
-          ctx.globalAlpha = 0.65 + Math.sin(this.time * 6) * 0.28;
-          ctx.fillStyle = "rgba(14,10,22,0.88)";
+          ctx.globalAlpha = 0.68 + Math.sin(this.time * 6) * 0.26;
+          ctx.fillStyle = "rgba(18,14,12,0.9)";
           ctx.fillRect(-8.5, -4, 17, 8);
           ctx.fillRect(-4, -8.5, 8, 17);
-          ctx.fillStyle = "#6dff8a";
+          ctx.fillStyle = "#7ce69e";
           ctx.fillRect(-7, -2.5, 14, 5);
           ctx.fillRect(-2.5, -7, 5, 14);
           ctx.rotate(Math.atan2(dy, dx));
-          ctx.strokeStyle = "rgba(14,10,22,0.9)";
+          ctx.strokeStyle = "rgba(18,14,12,0.9)";
           ctx.lineWidth = 2.4;
           ctx.beginPath();
           ctx.moveTo(16, 0);
@@ -561,16 +598,16 @@ const healthBarTypes = {
           if (hurt.life > 0) {
             this.hurts[keepHurts++] = hurt;
             ctx.globalAlpha = Math.min(1, hurt.life / 0.5) * 0.85;
-            ctx.strokeStyle = "#ff3050";
-            ctx.lineWidth = 7;
+            ctx.strokeStyle = "#e04a3e";
+            ctx.lineWidth = 6.5;
             ctx.lineCap = "round";
             ctx.beginPath();
             ctx.arc(pos.x, pos.y, radius, hurt.a - 0.42, hurt.a + 0.42);
             ctx.stroke();
             ctx.lineWidth = 2;
-            ctx.strokeStyle = "#ffd0d8";
+            ctx.strokeStyle = "#ffe0c8";
             ctx.beginPath();
-            ctx.arc(pos.x, pos.y, radius - 7, hurt.a - 0.25, hurt.a + 0.25);
+            ctx.arc(pos.x, pos.y, radius - 6.5, hurt.a - 0.25, hurt.a + 0.25);
             ctx.stroke();
           }
         }
@@ -582,17 +619,28 @@ const healthBarTypes = {
         let callout = this.callouts[0];
         callout.life -= dt;
         renderer.project(world.boss.x, 4.2 + world.boss.r, world.boss.y, pos);
-        if (callout.life > 0 && pos.vis) {
-          let alpha = Math.min(1, callout.life / 0.3);
+        if (callout.life > 0) {
+          const alpha = Math.min(1, callout.life / 0.3);
+          const bossCol = bossDefs[world.boss.type]?.color ? cssColor(bossDefs[world.boss.type].color) : "#dfba6a";
+          this.setFont('700 14px "Instrument Sans", system-ui, sans-serif');
+          const tw = ctx.measureText(callout.t).width;
+          const pw = tw + 24,
+            ph = 28;
+          // Clamp callout pill inside visible viewport even when boss is near/off edge
+          const bx = pos.vis ? clamp(pos.x, safe.l + pw * 0.5 + 12, this.w - safe.r - pw * 0.5 - 12) : this.w * 0.5;
+          const by = pos.vis ? clamp(pos.y, safe.t + topHud + 34, this.h - safe.b - botHud - 24) : safe.t + topHud + 54;
+          ctx.save();
           ctx.globalAlpha = alpha;
-          this.setFont('700 16px "Instrument Sans", system-ui, sans-serif');
+          ctx.fillStyle = "rgba(20, 14, 10, 0.88)";
+          fillPill(ctx, bx - pw * 0.5, by - ph * 0.5, pw, ph);
+          ctx.strokeStyle = bossCol;
+          ctx.lineWidth = 1.6;
+          ctx.stroke();
           ctx.textAlign = "center";
-          ctx.lineWidth = 4;
-          ctx.strokeStyle = "rgba(6,8,16,0.9)";
-          ctx.strokeText(callout.t, pos.x, pos.y);
-          ctx.fillStyle = "#ff9ab8";
-          ctx.fillText(callout.t, pos.x, pos.y);
-          ctx.globalAlpha = 1;
+          ctx.textBaseline = "middle";
+          ctx.fillStyle = "#fff4df";
+          ctx.fillText(callout.t, bx, by + 0.5);
+          ctx.restore();
         }
         if (callout.life <= 0) {
           this.callouts.length = 0;
@@ -600,6 +648,12 @@ const healthBarTypes = {
       }
       if (input) {
         this.drawSticks(input, opts);
+      }
+      // Smooth 0.45 s warm storybook crossfade veil when entering a new realm
+      if (renderer.biomeFadeT > 0) {
+        const vk = clamp(renderer.biomeFadeT / 0.45, 0, 1);
+        ctx.fillStyle = `rgba(18, 13, 10, ${(vk * vk * 0.65).toFixed(3)})`;
+        ctx.fillRect(0, 0, this.w, this.h);
       }
     }
     drawSticks(input, opts) {
@@ -654,11 +708,16 @@ const healthBarTypes = {
       }
       ctx.globalAlpha = 1;
       if (opts.hints) {
-        this.setFont('600 14px "Instrument Sans", system-ui, sans-serif');
+        this.setFont('700 13.5px "Instrument Sans", system-ui, sans-serif');
         ctx.textAlign = "center";
-        ctx.fillStyle = "rgba(200,230,255,0.75)";
+        ctx.lineJoin = "round";
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = "rgba(18, 12, 8, 0.88)";
+        ctx.fillStyle = "rgba(255, 240, 214, 0.92)";
         let y = this.h - (opts.safe ? opts.safe.b : 0) - 58;
+        ctx.strokeText("DRAG HERE TO MOVE", this.w * 0.25, y);
         ctx.fillText("DRAG HERE TO MOVE", this.w * 0.25, y);
+        ctx.strokeText("DRAG HERE TO AIM + FIRE", this.w * 0.75, y);
         ctx.fillText("DRAG HERE TO AIM + FIRE", this.w * 0.75, y);
       }
     }

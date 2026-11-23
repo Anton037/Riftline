@@ -363,8 +363,19 @@ export class AttackView {
       const P = this.get("glasshot");
       const sc = 0.48 + k * 0.22;
       P.glow.colC(P.glow.yr(sx, hy, sz, time * 6, sc, sc, sc, 0.8, time * 8), cometCol, 1.45);
-      r.sprites.colC(r.sprites.bb(sx, hy, sz, 1.45, r.B), cometCol, 0.72);
-      r.beams.colC(r.beams.seg(sx, sz, sx + 0.55, sz - 0.35, hy + 0.9, 0.14, 0.14), WHITE, 0.68);
+      r.sprites.colC(r.sprites.bb(sx, hy, sz, 1.45, r.B), cometCol, 0.78);
+      // Tapered diagonal descending comet tail aligned with the actual fall trajectory
+      for (let ti = 1; ti <= 4; ti++) {
+        const tf = ti * 0.24;
+        const tx = sx + tf * 0.92;
+        const ty = hy + tf * 2.15;
+        const tz = sz - tf * 0.58;
+        r.sprites.colC(
+          r.sprites.bb(tx, ty, tz, 1.12 * (1 - tf * 0.58), r.B),
+          ti === 1 ? WHITE : cometCol,
+          0.68 - tf * 0.42,
+        );
+      }
       if (chance(18 + k * 24)) {
         r.emit(sx, hy, sz, (Math.random() - 0.5) * 1.6, 1.4, (Math.random() - 0.5) * 1.6, 0.4, 0.15, cometCol, {
           spark: true,

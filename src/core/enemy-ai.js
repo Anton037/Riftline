@@ -20,6 +20,20 @@ const RL_KITERS = new Set([
 ]);
 
 function updateSwarmer(game, enemy, dt, ctx) {
+  if (enemy.paperSkiff) {
+    // Orbit around the player at mid-range, then periodically swoop inward along a curved dive
+    const swoop = Math.sin(enemy.age * 2.4 + enemy.phase) > 0.45;
+    const orbitDir = enemy.phase > Math.PI ? 1 : -1;
+    const radial = swoop ? 1.15 : ctx.dist > 5.5 ? 0.65 : ctx.dist < 3.2 ? -0.35 : 0.15;
+    const tangent = (swoop ? 0.45 : 0.92) * orbitDir;
+    const tx = -ctx.cdy * tangent + ctx.cdx * radial;
+    const ty = ctx.cdx * tangent + ctx.cdy * radial;
+    const n = Math.hypot(tx, ty) || 1;
+    const spd = ctx.speed * (swoop ? 1.28 : 1.05);
+    enemy.vx = (tx / n) * spd;
+    enemy.vy = (ty / n) * spd;
+    return;
+  }
   const wobble = Math.sin(enemy.age * 6 + enemy.phase) * 0.45;
   enemy.vx = (ctx.cdx - ctx.cdy * wobble) * ctx.speed;
   enemy.vy = (ctx.cdy + ctx.cdx * wobble) * ctx.speed;
@@ -1105,6 +1119,7 @@ const ENEMY_HANDLERS = {
 };
 
 function updateEnemy(game, enemy, dt) {
+  if (enemy.caravan) return;
   const baseSpeed = enemy.speed;
   if (enemy.sunT > 0) {
     enemy.sunT = Math.max(0, enemy.sunT - dt);

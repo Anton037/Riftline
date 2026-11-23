@@ -71,16 +71,6 @@ const resistColor = hexColor(0xc2d4e8);
 const shardColors = { 1: hexColor(0x62f2d8), 5: hexColor(0xf6c25e), 25: hexColor(0xc884ff) };
 const variantColors = Object.fromEntries(Object.values(biomeVariants).map((v) => [v.id, hexColor(v.color)]));
 
-// Distinct directional sun/moon & fill angles per biome so every realm has its own shadow mood
-const BIOME_LIGHT_ANGLES = {
-  courtyard: { sun: [-0.46, 0.72, 0.52], fill: [0.62, 0.42, -0.66] }, // nocturnal lantern-hour oblique
-  shelf: { sun: [0.22, 0.94, 0.26], fill: [-0.55, 0.48, -0.68] }, // high polar moonlight
-  marsh: { sun: [0.58, 0.68, -0.44], fill: [-0.52, 0.52, 0.68] }, // canopy-filtered dappled angle
-  core: { sun: [-0.36, 0.86, -0.36], fill: [0.68, 0.35, 0.64] }, // astral zenith-oblique
-  caldera: { sun: [0.32, 0.88, -0.34], fill: [-0.64, 0.28, 0.71] }, // steep volcanic ridge glow
-  flats: { sun: [0.76, 0.48, 0.44], fill: [-0.68, 0.56, -0.48] }, // long golden-hour desert shadows
-};
-
 // Biome-matched footstep & dash wake micro-VFX (rain ripples, snow crystals, spores, stardust, ash cinders, sand-glass)
 const BIOME_WAKE_VFX = {
   courtyard: { color: hexColor(0x98c4dc), up: 1.1, life: 0.3, size: 0.14, grav: 4.5, spark: false, ring: true },
@@ -181,8 +171,7 @@ function loadImageTexture(url, onReady) {
     if (onReady) onReady(tex);
   };
   img.onerror = () => {
-    // Still unblock readiness gates cleanly if an image fails to load in an offline stub
-    tex.ready = true;
+    // Leave tex.ready = false so shaders fall back to procedural shading instead of sampling an empty 0x0 texture
     if (onReady) onReady(tex);
   };
   img.src = url;
@@ -242,7 +231,6 @@ export class Renderer {
       "emissive",
       "emissive_inst",
       "emissive_compact",
-      "floor",
       ...Object.values(RL_BIOME_LOOK).map((look) => `floor_${look.style}`),
       "aurora",
       "aegis",
@@ -572,22 +560,42 @@ export class Renderer {
   }
 
   setBiome(biome, layout) {
+    const prevBiomeId = this.biome?.id || null;
     const targetKey = layout ? layout.key : `${biome.id}:menu`;
     const changed = !this.biome || this.biome.id !== biome.id || this.arena.layKey !== targetKey;
     this.biome = biome;
     if (changed) {
       this.arena.build(biome, layout, !!layout, !layout);
       this.engine.clearWake();
-      if (layout) this.mapChanged = true;
+      if (layout) {
+        this.mapChanged = true;
+        if (prevBiomeId && prevBiomeId !== biome.id) {
+          this.biomeFadeT = 0.45;
+        }
+        // Rising dust puffs around newly emerged wave cover blocks
+        const dustHex =
+          biome.id === "shelf"
+            ? 0xdceeff
+            : biome.id === "marsh"
+              ? 0x6ba87c
+              : biome.id === "flats"
+                ? 0xe8c998
+                : biome.id === "caldera"
+                  ? 0x7a5c52
+                  : 0xb8a894;
+        for (let i = 0; i < Math.min(10, (layout.obs || []).length); i++) {
+          const ob = layout.obs[i];
+          this.smokeView?.emit(ob.x, 0.35, ob.y, Math.min(1.6, (ob.w || ob.r || 1) * 0.72), dustHex, 0.55);
+        }
+      }
     }
     const look = RL_BIOME_LOOK[biome.id] || RL_BIOME_LOOK.courtyard;
-    const angles = BIOME_LIGHT_ANGLES[biome.id] || BIOME_LIGHT_ANGLES.courtyard;
     const s = this.scene;
     s.wakeHalf.x = (layout ? layout.W : 20) + 2;
     s.wakeHalf.y = (layout ? layout.H : 15) + 2;
     s.biomeIndex = look.style;
-    s.sunDir.set(angles.sun[0], angles.sun[1], angles.sun[2]).normalize();
-    s.fillDir.set(angles.fill[0], angles.fill[1], angles.fill[2]).normalize();
+    s.sunDir.set(look.sunDir[0], look.sunDir[1], look.sunDir[2]).normalize();
+    s.fillDir.set(look.fillDir[0], look.fillDir[1], look.fillDir[2]).normalize();
     s.clearColor.setHex(look.fogColor);
     s.fogColor.setHex(look.fogColor);
     s.sunColor.setHex(look.sun);
@@ -776,19 +784,29 @@ export class Renderer {
         { x: 0, z: 0, r: 4.8, i: 0, col: hexColor(0xffcf78) },
       ];
       let li = 0;
+      const propLightColors = {
+        lantern: hexColor(0xffcf78),
+        rime: hexColor(0x9ce6ff),
+        puffball: healColor,
+        prism: hexColor(0xc8a4ff),
+        crucible: hexColor(0xff8c42),
+        sunglass: hexColor(0xffe092),
+      };
       for (const prop of props) {
         if (li >= 3) break;
-        const activeAura = prop.kind === "lantern" && prop.auraT > 0;
-        const glowingProp = !prop.dead && (prop.kind === "brazier" || prop.kind === "lantern" || prop.kind === "spore");
+        const activeAura = prop.auraT > 0;
+        const col = propLightColors[prop.kind];
+        const glowingProp = !prop.dead && !!col;
         if (!activeAura && !glowingProp) continue;
         if (player && Math.hypot(player.x - prop.x, player.y - prop.y) > 16) continue;
         const fade = activeAura ? Math.min(1, prop.auraT / 1.0) : 0.62;
         const ll = this._lanternLights[li++];
         ll.x = prop.x;
+        ll.y = 1.15;
         ll.z = prop.y;
         ll.r = activeAura ? 4.6 : 3.4;
-        ll.i = activeAura ? 1.15 * fade : 0.65;
-        ll.col = prop.kind === "spore" ? healColor : hexColor(0xffcf78);
+        ll.i = activeAura ? 1.15 * fade : 0.68;
+        ll.col = col || hexColor(0xffcf78);
         sorted.push(ll);
         if (player && activeAura) {
           const d = Math.hypot(player.x - prop.x, player.y - prop.y);
@@ -801,8 +819,9 @@ export class Renderer {
     if (world?.boss && !world.boss.dead && !world.boss.ghost) {
       const b = world.boss;
       const bid = BOSS_EFFECTS[b.type];
-      this._bossLight ||= { x: 0, z: 0, r: 5.2, i: 1.0, col: goldColor };
+      this._bossLight ||= { x: 0, y: 1.85, z: 0, r: 5.2, i: 1.0, col: goldColor };
       this._bossLight.x = b.x;
+      this._bossLight.y = 1.85;
       this._bossLight.z = b.y;
       this._bossLight.r = b.enraged ? 6.2 : 4.8;
       this._bossLight.i = b.enraged ? 1.15 : 0.82;
@@ -810,36 +829,38 @@ export class Renderer {
       sorted.push(this._bossLight);
     }
 
-    // Major active projectiles (rockets, discs, heavy boss orbs)
+    // Major active projectiles (mortars, chakrams, heavy guardian orbs)
     if (world) {
       this._projLights ||= [
-        { x: 0, z: 0, r: 2.8, i: 0.7, col: goldColor },
-        { x: 0, z: 0, r: 2.8, i: 0.7, col: goldColor },
+        { x: 0, y: 1.06, z: 0, r: 2.8, i: 0.7, col: goldColor },
+        { x: 0, y: 1.06, z: 0, r: 2.8, i: 0.7, col: goldColor },
       ];
       let pi = 0;
-      const bullets = world.bullets;
+      const bullets = world.pb;
       if (bullets && bullets.length) {
         const wCol = hexColor(weaponDefs[world.weapon]?.color || 0x62f2e8);
         for (let i = 0; i < bullets.length && pi < 2; i++) {
           const b = bullets[i];
-          if (b.rocket || b.disc || b.r >= 0.34) {
+          if (b.life > 0 && (b.explode || b.boom || b.r >= 0.3)) {
             const pl = this._projLights[pi++];
             pl.x = b.x;
+            pl.y = 1.06;
             pl.z = b.y;
-            pl.r = b.rocket ? 3.2 : 2.6;
-            pl.i = b.rocket ? 0.85 : 0.65;
+            pl.r = b.explode ? 3.2 : 2.6;
+            pl.i = b.explode ? 0.85 : 0.65;
             pl.col = wCol;
             sorted.push(pl);
           }
         }
       }
-      const ebullets = world.ebullets;
+      const ebullets = world.eb;
       if (ebullets && ebullets.length && pi < 2) {
         for (let i = 0; i < ebullets.length && pi < 2; i++) {
           const eb = ebullets[i];
-          if (eb.r >= 0.38 || eb.boss) {
+          if (eb.life > 0 && (eb.r >= 0.32 || eb.src === world.boss?.type)) {
             const pl = this._projLights[pi++];
             pl.x = eb.x;
+            pl.y = 1.0;
             pl.z = eb.y;
             pl.r = 2.8;
             pl.i = 0.72;
@@ -891,7 +912,7 @@ export class Renderer {
       const slot = lights[i + 1];
       if (f) {
         slot.x = f.x;
-        slot.y = 1.65;
+        slot.y = f.y ?? 1.15;
         slot.z = f.z;
         slot.r = f.col.r;
         slot.g = f.col.g;
@@ -917,7 +938,12 @@ export class Renderer {
     for (const ev of events) {
       if (ev.k === "nova") {
         this._zoomPunch = -0.03;
-        if (this.player) this.player.flareT = 1;
+        if (this.player) {
+          this.player.flareT = 1;
+          this.player.castT = 0.45;
+        }
+      } else if (ev.k === "grenade" || ev.k === "grenadeThrow") {
+        if (this.player) this.player.throwT = 0.34;
       } else if (ev.k === "phase" || ev.k === "enrage") {
         this._zoomPunch = -0.03;
       }
@@ -1115,7 +1141,8 @@ export class Renderer {
             } else {
               const num = {
                 id: ev.id,
-                x: ev.x + (Math.random() - 0.5) * 0.4,
+                x: ev.x + (Math.random() - 0.5) * 0.5,
+                vx: (Math.random() - 0.5) * 0.9,
                 z: ev.y,
                 y: 1.4,
                 v: ev.v,
@@ -1226,6 +1253,18 @@ export class Renderer {
           if (ev.boss) {
             this.ring(ev.x, ev.y, 0.2, 1.6 * scale, color, 0.38);
             this.emit(ev.x, 0.8, ev.y, 0, 0, 0, 0.14, 2.3 * scale, color, { drag: 0 });
+            const identity = BOSS_EFFECTS[ev.type] || { color: 0xffd27a, accent: 0xffffff };
+            this.bossDeath = {
+              type: ev.type,
+              x: ev.x,
+              y: ev.y,
+              face: this.bossView ? -this.bossView.group.rotation.y : 0,
+              t: 0,
+              dur: 1.45,
+              color: identity.color,
+              accent: identity.accent,
+              lastPulse: 0,
+            };
           } else {
             this.ring(ev.x, ev.y, 0.15, 0.95 + ev.r * 1.2, color, 0.22, 0.08);
             this.emit(ev.x, 0.65, ev.y, 0, 0, 0, 0.1, 0.8 + scale * 0.52, whiteColor, { drag: 0 });
@@ -1233,15 +1272,28 @@ export class Renderer {
               this.ring(ev.x, ev.y, 0.25, 2.35, goldColor, 0.32, 0.12);
               this.burst(ev.x, ev.y, 0.8, 10, 6.5, goldColor, 0.38, 0.22, { spark: true, up: 3.2, drag: 3.5 });
             }
-            if (material !== "energy") {
-              this.smokeView.emit(
-                ev.x,
-                0.6,
-                ev.y,
-                0.62 * scale,
-                enemySurface(ev.type) === "organic" ? 0x527a60 : 0x8a9296,
-                0.52,
-              );
+            // Family-specific tactile death pops (crystal shatter, spore mist, arcane wisps, clockwork sparks)
+            if (material === "crystal") {
+              this.burst(ev.x, ev.y, 0.72, 7, 7.2, hexColor(0xcff6ff), 0.42, 0.22, {
+                spark: true,
+                up: 3.6,
+                grav: 7,
+                drag: 2.5,
+              });
+            } else if (material === "energy") {
+              this.burst(ev.x, ev.y, 0.8, 6, 4.5, hexColor(0xd2b4ff), 0.52, 0.24, { up: 3.4, drag: 2.2 });
+              this.ring(ev.x, ev.y, 0.22, 1.35 + ev.r, hexColor(0xc090ff), 0.28, 0.06);
+            } else if (material === "organic") {
+              this.burst(ev.x, ev.y, 0.55, 6, 3.8, hexColor(0x7ae8a2), 0.55, 0.24, { up: 2.2, drag: 2.4 });
+              this.smokeView.emit(ev.x, 0.55, ev.y, 0.65 * scale, 0x4c7c5a, 0.56);
+            } else {
+              this.burst(ev.x, ev.y, 0.65, 5, 6.4, hexColor(FINISH.brass), 0.34, 0.16, {
+                spark: true,
+                up: 3.8,
+                grav: 9,
+                drag: 2.8,
+              });
+              this.smokeView.emit(ev.x, 0.6, ev.y, 0.62 * scale, 0x8a9296, 0.52);
             }
           }
           if (ev.type === "queen") {
@@ -1538,6 +1590,7 @@ export class Renderer {
           break;
         case "hurt":
           this.addShake(0.35 * shakeK);
+          if (this.player) this.player.hurtFlinchT = 0.22;
           this.burst(ev.x, ev.y, 0.7, 10, 6, hurtColor, 0.35, 0.3);
           break;
         case "heal":
@@ -1665,7 +1718,7 @@ export class Renderer {
           this.burst(ev.tx, ev.ty, 0.6, count, 4, hexColor(FINISH.jade), 0.4, 0.21, { spark: true });
           if (ev.who === "player") {
             this.ring(ev.tx, ev.ty, 0.3, 1.6, hexColor(FINISH.jade), 0.35);
-            this.camInit = false;
+            this._portalGlideT = 0.18;
           }
           break;
         }
@@ -1688,6 +1741,7 @@ export class Renderer {
     this._ctxZoom += (targetCtxZoom - this._ctxZoom) * dampFactor(2.4, dt);
     this._zoomPunch += (0 - this._zoomPunch) * dampFactor(5.5, dt);
     this.camContextZoom = this._ctxZoom + this._zoomPunch;
+    if (this.biomeFadeT > 0) this.biomeFadeT = Math.max(0, this.biomeFadeT - dt);
 
     const dist = this.camDistance();
     if (menu) {
@@ -1713,6 +1767,10 @@ export class Renderer {
         this.camInit = true;
       }
       let damp = dampFactor(5.8, dt);
+      if (this._portalGlideT > 0) {
+        this._portalGlideT = Math.max(0, this._portalGlideT - dt);
+        damp = dampFactor(18, dt);
+      }
       if (this.focus) {
         const k = clamp(this.focusK || 0, 0, 1);
         const blend = k < 0.3 ? smoothstep(k / 0.3) : k > 0.75 ? smoothstep((1 - k) / 0.25) : 1;
@@ -1722,9 +1780,12 @@ export class Renderer {
       }
       this.camX += (tx - this.camX) * damp;
       this.camZ += (tz - this.camZ) * damp;
-      const amp = this.shake * this.shake * 0.3;
-      const shakeX = (Math.random() - 0.5) * amp - Math.cos(this.kickA) * this.kick * 0.35;
-      const shakeZ = (Math.random() - 0.5) * amp - Math.sin(this.kickA) * this.kick * 0.35;
+      const amp = this.shake * this.shake * 0.28;
+      const st = this.time * 42;
+      const shakeX =
+        (Math.sin(st * 1.13) * 0.65 + Math.cos(st * 2.17) * 0.35) * amp - Math.cos(this.kickA) * this.kick * 0.35;
+      const shakeZ =
+        (Math.cos(st * 1.37) * 0.65 + Math.sin(st * 1.91) * 0.35) * amp - Math.sin(this.kickA) * this.kick * 0.35;
       cam.position.set(this.camX + shakeX, Math.sin(tilt) * dist, this.camZ + Math.cos(tilt) * dist + shakeZ);
       cam.lookAt(this.camX + shakeX, 0, this.camZ + shakeZ - 0.85);
     }
@@ -1882,8 +1943,9 @@ export class Renderer {
     for (const num of this.nums) {
       num.life -= dt;
       num.y += dt * 1.6;
+      if (num.vx) num.x += num.vx * dt;
     }
-    if (this.nums.length && this.nums[0].life <= 0) {
+    if (this.nums.length) {
       let w = 0;
       for (let i = 0; i < this.nums.length; i++) if (this.nums[i].life > 0) this.nums[w++] = this.nums[i];
       this.nums.length = w;
@@ -1977,8 +2039,31 @@ export class Renderer {
       hero.base.rotation.z = -hero.lean;
       hero.base.rotation.x = hero.bank;
       const strideDir = localFwd < -0.25 ? -1 : 1;
+      if (moving && speed > 0.6) {
+        let moveAng = Math.atan2(player.vy, player.vx);
+        if (strideDir < 0) moveAng += Math.PI;
+        hero.setStrafeYaw?.(-angleDiff(aimWorld, moveAng), dt);
+      } else {
+        hero.setStrafeYaw?.(0, dt);
+      }
       const body = hero.setWalk((player.stride / STEP_LEN) * Math.PI * strideDir, amount, jump, time);
       hero.group.position.set(player.x, body + jump * 0.6, player.y);
+      if (player.dashT > 0) {
+        if (this._dashPrevX != null) {
+          const ddx = player.x - this._dashPrevX,
+            ddz = player.y - this._dashPrevZ;
+          if (ddx * ddx + ddz * ddz > 0.04 && ddx * ddx + ddz * ddz < 16) {
+            const wCol = hexColor(weaponDefs[world.weapon].color);
+            this.line(this._dashPrevX, this._dashPrevZ, player.x, player.y, wCol, 0.22, 0.22, 0.72 + jump * 0.4);
+            this.line(this._dashPrevX, this._dashPrevZ, player.x, player.y, whiteColor, 0.16, 0.08, 0.76 + jump * 0.4);
+          }
+        }
+        this._dashPrevX = player.x;
+        this._dashPrevZ = player.y;
+      } else {
+        this._dashPrevX = null;
+        this._dashPrevZ = null;
+      }
       // Re-sync turret attachment point after lean/bank update (preserving smooth aimYaw damping)
       hero.aimAt(aimWorld, 0);
       hero.updateExpression?.(
@@ -2649,7 +2734,22 @@ export class Renderer {
         );
         const gCol = c.elite ? goldColor : pools.color;
         const gm = 1 + (1 - k) * 1.5;
-        pools.glow.push(c.x, hop, c.z, size, size, yaw, k * 0.9, 0, 0, gCol.r * gm, gCol.g * gm, gCol.b * gm, 0, 0);
+        pools.glow.push(
+          c.x,
+          hop,
+          c.z,
+          size,
+          size * (1 - k * 0.3),
+          yaw,
+          k * 0.9,
+          0,
+          0,
+          gCol.r * gm,
+          gCol.g * gm,
+          gCol.b * gm,
+          0,
+          0,
+        );
       }
       list.length = keep;
     }
@@ -2903,9 +3003,65 @@ export class Renderer {
 
   drawBoss(dt, world, boss) {
     if (!boss) {
+      if (this.bossDeath && this.bossView && this.bossView.id === this.bossDeath.type) {
+        const bd = this.bossDeath;
+        bd.t += dt;
+        const k = clamp(bd.t / bd.dur, 0, 1);
+        const view = this.bossView;
+        const group = view.group;
+        if (k >= 1) {
+          this.ring(bd.x, bd.y, 0.5, 9.5, hexColor(bd.accent), 0.55);
+          this.burst(bd.x, bd.y, 1.4, 28, 10, hexColor(bd.color), 0.85, 0.34, {
+            spark: true,
+            up: 6,
+            grav: 8,
+            drag: 1.5,
+          });
+          this.bossDeath = null;
+          group.visible = false;
+          return;
+        }
+        group.visible = true;
+        const shudder = (1 - k * 0.65) * 0.22;
+        const collapse = Math.max(0, (k - 0.25) / 0.75);
+        const ease = collapse * collapse;
+        group.position.set(bd.x + Math.sin(bd.t * 58) * shudder, -1.15 * ease, bd.y + Math.cos(bd.t * 49) * shudder);
+        group.rotation.order = "YZX";
+        group.rotation.set(ease * 0.65, -bd.face + ease * 0.35, -ease * 0.85);
+        group.scale.setScalar(Math.max(0.05, 1 - ease * 0.62));
+        const pulseCol = hexColor(bd.accent);
+        const glowPulse = 0.65 + Math.sin(bd.t * 36) * 0.35;
+        for (const mat of view.mats) {
+          mat.emissive.copy(pulseCol).multiplyScalar(glowPulse * (0.4 + k * 0.7));
+        }
+        const fade = Math.max(0, 1 - ease * 1.15);
+        if (group.userData.fadeMats) {
+          for (const mat of group.userData.fadeMats) {
+            const eff = fade * (mat.userData?.opacity ?? 1);
+            mat.opacity = eff;
+            mat.transparent = eff < 0.999;
+            mat.depthWrite = eff >= 0.999;
+          }
+        }
+        view.glowMat.opacity = fade;
+        view.glowMat.emissiveIntensity = 1.8 + glowPulse * 0.8;
+        if (bd.t - bd.lastPulse >= 0.24) {
+          bd.lastPulse = bd.t;
+          this.ring(bd.x, bd.y, 0.4, 4.8 + k * 4.5, pulseCol, 0.42);
+          this.burst(bd.x, bd.y, 1.0 + Math.random() * 1.2, 10, 6.5, hexColor(bd.color), 0.6, 0.24, {
+            spark: true,
+            up: 4.5,
+            drag: 2,
+          });
+        }
+        return;
+      }
       if (this.bossView) this.bossView.group.visible = false;
+      this._wyrmTrail = null;
+      this._wyrmBurrow = 0;
       return;
     }
+    this.bossDeath = null;
     if (!this.bossView || this.bossView.id !== boss.type) {
       if (this.bossView) {
         this.scene.remove(this.bossView.group);
@@ -2917,6 +3073,8 @@ export class Renderer {
       model.id = boss.type;
       setWorldShadows(model.group);
       this.bossView = model;
+      this._wyrmTrail = null;
+      this._wyrmBurrow = 0;
       this.scene.add(model.group);
     }
     const view = this.bossView;
@@ -2928,15 +3086,20 @@ export class Renderer {
     const scale = easeOutBack(grow);
     const walking = boss.st === "walk";
     const rushing = boss.st === "charge" && boss.sub === 1;
+    const diveTarget = boss.type === "wyrm" && boss.diveT > 0 ? 1 : 0;
+    this._wyrmBurrow = (this._wyrmBurrow || 0) + (diveTarget - (this._wyrmBurrow || 0)) * dampFactor(9, dt);
+    const burrow = boss.type === "wyrm" ? this._wyrmBurrow : 0;
     const lift =
-      boss.type === "prism" || boss.type === "wyrm"
+      (boss.type === "prism" || boss.type === "wyrm"
         ? (1 + Math.sin(time * 1.6)) * 0.09
         : boss.type === "queen"
           ? Math.abs(Math.sin(time * 2.2)) * 0.08
           : walking
             ? Math.abs(Math.sin(time * 6.5)) * 0.09
-            : 0;
-    const pitch = rushing ? -0.14 : walking ? -0.04 : 0;
+            : 0) -
+      burrow * 1.62;
+    const divePitch = boss.type === "wyrm" ? (diveTarget - burrow) * 0.55 : 0;
+    const pitch = (rushing ? -0.14 : walking ? -0.04 : 0) - divePitch;
     const roll =
       boss.type === "bellkeeper" || boss.type === "tyrant"
         ? Math.sin(time * (rushing ? 14 : 6.5)) * (rushing ? 0.06 : walking ? 0.035 : 0)
@@ -2944,8 +3107,61 @@ export class Renderer {
     group.position.set(boss.x, lift, boss.y);
     group.scale.setScalar(Math.max(0.01, scale));
     if (group.userData.tail) {
-      for (const seg of group.userData.tail)
-        seg.m.position.z = seg.z + Math.sin(time * 5.5 + seg.i * 1.15) * (0.08 + seg.i * 0.05);
+      // World-position trail ring buffer so Glasswyrm's 7 segments curve naturally along its path
+      if (!this._wyrmTrail) {
+        this._wyrmTrail = [];
+        for (let k = 0; k < 40; k++) {
+          this._wyrmTrail.push({
+            x: boss.x - Math.cos(boss.face) * k * 0.22,
+            z: boss.y - Math.sin(boss.face) * k * 0.22,
+            face: boss.face,
+          });
+        }
+      }
+      const headPt = this._wyrmTrail[0];
+      const moved = Math.hypot(boss.x - headPt.x, boss.y - headPt.z);
+      if (moved > 8) {
+        // Teleported / respawned — reset trail smoothly behind new head
+        for (let k = 0; k < this._wyrmTrail.length; k++) {
+          this._wyrmTrail[k].x = boss.x - Math.cos(boss.face) * k * 0.22;
+          this._wyrmTrail[k].z = boss.y - Math.sin(boss.face) * k * 0.22;
+          this._wyrmTrail[k].face = boss.face;
+        }
+      } else if (moved >= 0.18) {
+        this._wyrmTrail.unshift({ x: boss.x, z: boss.y, face: boss.face });
+        if (this._wyrmTrail.length > 48) this._wyrmTrail.pop();
+      }
+      const cf = Math.cos(boss.face),
+        sf = Math.sin(boss.face);
+      for (const seg of group.userData.tail) {
+        const wantDist = seg.i * 0.88;
+        let acc = 0,
+          sx = boss.x - cf * wantDist,
+          sz = boss.y - sf * wantDist,
+          sFace = boss.face;
+        for (let ti = 0; ti < this._wyrmTrail.length - 1; ti++) {
+          const a = this._wyrmTrail[ti],
+            b = this._wyrmTrail[ti + 1];
+          const segLen = Math.hypot(b.x - a.x, b.z - a.z);
+          if (acc + segLen >= wantDist && segLen > 1e-4) {
+            const frac = (wantDist - acc) / segLen;
+            sx = a.x + (b.x - a.x) * frac;
+            sz = a.z + (b.z - a.z) * frac;
+            sFace = Math.atan2(a.z - b.z, a.x - b.x);
+            break;
+          }
+          acc += segLen;
+        }
+        const dx = sx - boss.x,
+          dz = sz - boss.y;
+        const localX = dx * cf + dz * sf;
+        const localZ = -dx * sf + dz * cf;
+        const slither = Math.sin(time * 5.2 + seg.i * 1.1) * (0.06 + seg.i * 0.035);
+        seg.m.position.x = localX;
+        seg.m.position.z = localZ + slither;
+        seg.m.position.y = (seg.baseY ?? 0.92 - seg.i * 0.05) + Math.sin(time * 4.4 + seg.i * 0.8) * 0.06;
+        seg.m.rotation.y = -angleDiff(boss.face, sFace) + Math.cos(time * 5.2 + seg.i * 1.1) * 0.08;
+      }
     }
     group.rotation.order = "YZX";
     group.rotation.set(roll, -boss.face, pitch);
@@ -2966,9 +3182,8 @@ export class Renderer {
       view.overdriveMat.emissiveIntensity = 1.52 + Math.sin(time * 9) * 0.22;
     }
     const alpha = boss.ghost ? 0.14 : 1;
-    const dive = boss.type === "wyrm" && boss.diveT > 0 ? 1 : 0;
-    if (dive) group.scale.y *= 0.55;
-    const fade = alpha * (1 - dive * 0.74);
+    const dive = diveTarget;
+    const fade = alpha * (1 - burrow * 0.52);
     if (group.userData.fadeMats) {
       for (const mat of group.userData.fadeMats) {
         const eff = fade * (mat.userData?.opacity ?? 1);
@@ -2977,12 +3192,12 @@ export class Renderer {
         mat.depthWrite = eff >= 0.999;
       }
     }
-    view.glowMat.opacity = boss.ghost ? 0.18 : 1 - dive * 0.74;
-    this.shadows.y(boss.x, 0.025, boss.y, 0, boss.r * 3.4 * scale);
+    view.glowMat.opacity = boss.ghost ? 0.18 : 1 - burrow * 0.52;
+    this.shadows.y(boss.x, 0.025, boss.y, 0, boss.r * 3.4 * scale * (1 - burrow * 0.45));
     this.sprites.colHex(
       this.sprites.bb(boss.x, 1.2, boss.y, boss.r * 5, this.B),
       boss.enraged ? identity.accent : identity.color,
-      0.12,
+      0.12 * (1 - burrow * 0.7),
     );
     if (boss.shielded) this.ringPool.colC(this.ringPool.y(boss.x, 0.1, boss.y, time, boss.r * 1.6), whiteColor, 0.85);
 
@@ -2999,19 +3214,26 @@ export class Renderer {
         hexColor(0xbef2ff),
         { drag: 0.5 },
       );
-    if (boss.type === "wyrm" && dive && Math.random() < dt * 34)
-      this.emit(
-        boss.x + (Math.random() - 0.5) * 3.2,
-        0.3 + Math.random() * 0.7,
-        boss.y + (Math.random() - 0.5) * 3.2,
-        (Math.random() - 0.5) * 2.4,
-        1.2 + Math.random() * 1.8,
-        (Math.random() - 0.5) * 2.4,
-        0.7,
-        0.3,
-        hexColor(0xe0cc9e),
-        { drag: 1.2, grav: -3 },
-      );
+    if (boss.type === "wyrm" && (dive || burrow > 0.15)) {
+      this.engine.stampWake(boss.x, boss.y, 2.2, 0.9, 0.72, 0.65, 0.85, 0.6);
+      if (Math.random() < dt * 42) {
+        this.emit(
+          boss.x + (Math.random() - 0.5) * 3.2,
+          0.25 + Math.random() * 0.6,
+          boss.y + (Math.random() - 0.5) * 3.2,
+          (Math.random() - 0.5) * 3.2,
+          2.2 + Math.random() * 2.6,
+          (Math.random() - 0.5) * 3.2,
+          0.75,
+          0.34,
+          hexColor(0xe6cf9a),
+          { drag: 1.4, grav: 7.5 },
+        );
+      }
+      if (Math.random() < dt * 12) {
+        this.smokeView.emit(boss.x, 0.35, boss.y, 1.4, 0xd4b684, 0.58);
+      }
+    }
     if ((boss.type === "bellkeeper" || boss.type === "tyrant") && boss.st === "charge" && boss.sub === 0) {
       const wind = boss.enraged ? 0.65 : 0.85;
       this.chargeLine(
@@ -3080,7 +3302,7 @@ export class Renderer {
   }
 
   drawDebris() {
-    this.D.sync();
+    this.D.sync(this.time);
   }
 
   drawParticles() {
@@ -3178,6 +3400,12 @@ export class Renderer {
     this.lines.length = 0;
     this.rings.length = 0;
     this.corpses.length = 0;
+    this.bossDeath = null;
+    this._wyrmTrail = null;
+    this._wyrmBurrow = 0;
+    this._portalGlideT = 0;
+    this._dashPrevX = null;
+    this._dashPrevZ = null;
     this.rlAuroraK = 0;
     this.rlWarmK = 0;
     this.rlDarkK = 0;

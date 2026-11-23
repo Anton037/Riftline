@@ -246,10 +246,16 @@ const Input = class {
         setTouchInput(false);
       }
       if (down && (name === "escape" || name === "p")) {
+        if (name === "p" && dialogOpen) return;
         if (!ev.repeat && this.onPause) {
           ev.preventDefault();
           this.onPause();
         }
+        return;
+      }
+      if (down && !ev.repeat && name === "m" && !dialogOpen && this.onMute) {
+        ev.preventDefault();
+        this.onMute();
         return;
       }
       const hudEditOpen = typeof document !== "undefined" && document.getElementById("hudEdit")?.hidden === false;

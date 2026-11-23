@@ -47,6 +47,7 @@ function fill(text, m, name) {
 function copyDir(from, to) {
   fs.mkdirSync(to, { recursive: true });
   for (const e of fs.readdirSync(from, { withFileTypes: true })) {
+    if (e.name === "SOURCES.md") continue;
     const a = path.join(from, e.name),
       b = path.join(to, e.name);
     if (e.isDirectory()) copyDir(a, b);
@@ -57,7 +58,13 @@ function copyDir(from, to) {
 async function build() {
   const t0 = Date.now();
   const m = meta();
-  fs.rmSync(DIST, { recursive: true, force: true });
+  if (!watch) {
+    fs.rmSync(DIST, { recursive: true, force: true });
+  } else if (fs.existsSync(DIST)) {
+    for (const f of fs.readdirSync(DIST)) {
+      if (/^game-v.+\.js$/.test(f)) fs.rmSync(path.join(DIST, f), { force: true });
+    }
+  }
   copyDir(r("public"), DIST);
 
   // The game is one IIFE: src/main.js and the modules it imports — the game code is deliberately

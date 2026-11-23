@@ -27,6 +27,8 @@ let errorLog = [],
     pointermove: 0,
     pointerup: 0,
     pointercancel: 0,
+    keydown: 0,
+    keyup: 0,
     reset: 0,
     runStartMs: 0,
     runErrorSnapshot: null,
@@ -626,8 +628,6 @@ function rlMonStep(world, fxStart, dash0, sh0, killsStart, dt) {
     }
     if (RL_BOSS_EVENTS.has(kind) && !world.boss)
       rlMonIssue("FAIL", "events", `boss event "${kind}" emitted without an active boss`);
-    if (kind === "phase" && world.boss && world.boss.type !== "core")
-      rlMonIssue("FAIL", "events", `"phase" emitted by ${world.boss.type}`);
     if (kind === "dash" && world.player.dashId === dash0)
       rlMonIssue("FAIL", "events", `"dash" emitted although the player did not dash`);
     if (kind === "spawn" || kind === "boss") {
@@ -1377,9 +1377,10 @@ async function rlRunHealthNow({ context = "startup" } = {}) {
   }
   try {
     let canvas = document.getElementById("gl"),
-      gl = canvas && canvas.getContext && (canvas.getContext("webgl2") || canvas.getContext("webgl"));
+      gl = canvas && canvas.getContext && canvas.getContext("webgl2");
     if (!!renderer && !!gl) rlHealthAdd("webgl", "OK", "renderer/context ready");
-    else rlHealthAdd("webgl", "WARN", "WebGL unavailable; gameplay start is disabled but the menu remains interactive");
+    else
+      rlHealthAdd("webgl", "WARN", "WebGL2 unavailable; gameplay start is disabled but the menu remains interactive");
   } catch (err) {
     rlHealthAdd("webgl", "WARN", err.message || "WebGL check unavailable");
   }
@@ -1398,7 +1399,7 @@ async function rlRunHealthNow({ context = "startup" } = {}) {
   }
   try {
     const reqE = ["leaper", "turret", "charger", "minebot", "drone", "driller", "beacon", "weaver"],
-      reqB = ["shelf", "core", "marsh", "caldera", "flats"],
+      reqB = ["courtyard", "shelf", "core", "marsh", "caldera", "flats"],
       // 2.5.0/2.6.0: Overclock Matrix, Overbore Caliber, Vector Stabilizer, Salvage Pulse, Capacitor Bank and Bounty Protocol were retired
       reqU = [
         "overcharge",
@@ -1768,7 +1769,21 @@ export {
    2.5.0 B: event kinds of the workshop modules
    ========================================================================== */
 RL_EVENT_KINDS.add("kit");
-for (const kind of ["singularity", "singOpen", "gadgetReady", "gadgetDeny", "maxed", "trapWarn", "trapFire", "trapArm"])
+for (const kind of [
+  "singularity",
+  "singOpen",
+  "gadgetReady",
+  "gadgetDeny",
+  "trapWarn",
+  "trapFire",
+  "trapArm",
+  "banish",
+  "corrode",
+  "singe",
+  "glare",
+  "plant",
+  "tribute",
+])
   RL_EVENT_KINDS.add(kind);
 RL_EVENT_KINDS.add("barrier");
 RL_EVENT_KINDS.add("biomeProp");

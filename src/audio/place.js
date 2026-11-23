@@ -156,7 +156,7 @@ const COVER_VOICE = {
 };
 const CORNER_VOICE = {
   courtyard: ["galleryChime", 5, 10],
-  shelf: ["emberPop", 4, 8],
+  shelf: ["icicles", 4.5, 9],
   marsh: ["frogChorus", 6, 11],
   core: ["shimmer", 5, 10],
   caldera: ["fumarole", 4.5, 9],
@@ -227,7 +227,7 @@ function placeTick(e, world, dt) {
     },
     at = (x, y, g = 1) => {
       const d = Math.hypot(x - player.x, y - player.y);
-      return { g: near(d) * g, pan: Math.max(-0.85, Math.min(0.85, (x - player.x) / 14)), d };
+      return { g: near(d) * g, pan: Math.max(-0.82, Math.min(0.82, (x - player.x) / 16)), d };
     },
     // true when the timer `key` runs out (and it starts again with lo..hi seconds)
     due = (key, lo, hi) => {
@@ -287,7 +287,7 @@ function placeTick(e, world, dt) {
     const d = Math.hypot(prop.x - player.x, prop.y - player.y);
     play(prop.id, {
       g: Math.pow(Math.max(0, 1 - d / PROP_HEAR), 2) * (world.boss ? 0.3 : 0.45),
-      pan: Math.max(-0.85, Math.min(0.85, (prop.x - player.x) / 10)),
+      pan: Math.max(-0.82, Math.min(0.82, (prop.x - player.x) / 16)),
     });
   }
   // 3.13.0: the soundscape of the biome; a boss fight thins it out (its timers run at half speed, the bed is softer)

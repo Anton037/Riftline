@@ -222,6 +222,10 @@ const SoundEngine = class {
     this.sfx = ctx.createGain();
     this.sfx.gain.value = this.sfxVol;
     this.sfx.connect(this.comp);
+    // Clean UI / chime / preview bus bypassing the world/music lowpass muffle
+    this.uiBus = ctx.createGain();
+    this.uiBus.gain.value = this.sfxVol;
+    this.uiBus.connect(this.limiter);
     this.ambBus = ctx.createGain();
     this.ambBus.gain.value = this.ambVol;
     // 3.43.0: the room gives way to the big hits a little deeper than the music does (duck)
@@ -302,7 +306,7 @@ const SoundEngine = class {
     this.brownBuf = colorNoise(ctx, "brown");
   }
   _wantMuffle() {
-    if (this.muffleState?.paused || (this.mode === "menu" && this.held)) return 1600;
+    if (this.muffleState?.paused) return 1600;
     if (this.muffleState?.choosing) return 2400;
     if (this.lowWard || this.muffleState?.lowWard) return 2800;
     return 18000;
@@ -347,6 +351,7 @@ const SoundEngine = class {
       this.muffleState.choosing = false;
       this.lowWard = this.muffleState.lowWard = false;
     }
+    if (!this.muffleState.paused && this.mode === "menu") this.held = null;
     this._syncMuffle();
     return this._muffleWant;
   }
@@ -387,6 +392,7 @@ const SoundEngine = class {
     if (!this.ctx) return;
     let now = this.ctx.currentTime;
     this.sfx.gain.setTargetAtTime(sfx, now, 0.05);
+    if (this.uiBus) this.uiBus.gain.setTargetAtTime(sfx, now, 0.05);
     this.musLevel.gain.setTargetAtTime(music * MUSIC_SCALE, now, 0.1);
     this.ambBus.gain.setTargetAtTime(ambience, now, 0.05);
     this.atmos.gain.setTargetAtTime(ambience / AMB_REF, now, 0.1);
@@ -412,6 +418,10 @@ const SoundEngine = class {
   }
   suspend() {
     try {
+      if (this.timer) {
+        clearInterval(this.timer);
+        this.timer = null;
+      }
       if (this.ctx && this.ctx.state === "running") {
         this.ctx.suspend();
       }
@@ -421,6 +431,9 @@ const SoundEngine = class {
     try {
       if (this.ctx && this.ctx.state !== "running") {
         this.ctx.resume().catch(() => {});
+      }
+      if (this.ctx && !this.offline && !this.timer) {
+        this.startScheduler();
       }
     } catch {}
   }
@@ -575,7 +588,7 @@ const SoundEngine = class {
     }
     const isMusicDest = opts.dest === this.mus || opts.dest === this.pump || opts.dest === this.delay;
     const isSustained = wave === "bow" || wave === "reed" || wave === "brass" || wave === "ceramic";
-    const isPluck = wave === "harp" || wave === "kalimba" || wave === "marimba";
+    const isPluck = wave === "harp" || wave === "kalimba" || wave === "marimba" || wave === "celesta";
     const extras = [];
 
     this.envelope(amp, start, dur, level, opts);
@@ -644,16 +657,18 @@ const SoundEngine = class {
   }
   envelope(amp, start, dur, vol, opts) {
     let attack = opts.attack || 0.004;
+    let safeVol = Math.max(1e-4, vol);
     if (opts.env) {
       let env = opts.env,
         curve = new Float32Array(env.length);
-      for (let i = 0; i < env.length; i++) curve[i] = env[i] * vol;
+      for (let i = 0; i < env.length; i++) curve[i] = env[i] * safeVol;
       amp.gain.setValueCurveAtTime(curve, start, dur);
       return;
     }
     amp.gain.setValueAtTime(1e-4, start);
-    amp.gain.exponentialRampToValueAtTime(vol, start + attack);
-    if (opts.hold) amp.gain.setValueAtTime(vol, start + attack + Math.min(opts.hold, Math.max(0, dur * 0.95 - attack)));
+    amp.gain.exponentialRampToValueAtTime(safeVol, start + attack);
+    if (opts.hold)
+      amp.gain.setValueAtTime(safeVol, start + attack + Math.min(opts.hold, Math.max(0, dur * 0.95 - attack)));
     amp.gain.exponentialRampToValueAtTime(1e-4, start + dur);
   }
   noise(dur, vol, opts = {}) {
@@ -733,7 +748,7 @@ const SoundEngine = class {
     this.makeup.gain.setValueAtTime(boss ? 1.3 : 1.1, now);
   }
   /* test hook: with musicLog set (an array) every music voice is recorded: kind, start, pitch, level, length,
-     bus (m music, d delay, p pump) */
+     bus (m music, d delay, p pump, b bloom) */
   logMusic(voice, kind, pitch, vol, opts) {
     if (!this.musicLog || voice.pri !== 0) return;
     let dest = opts.dest;
@@ -743,8 +758,19 @@ const SoundEngine = class {
       pitch,
       vol,
       dur: voice.end - voice.start,
-      bus: dest === this.delay ? "d" : dest === this.pump ? "p" : "m",
+      bus: opts.bloom ? "b" : dest === this.delay ? "d" : dest === this.pump ? "p" : "m",
     });
+  }
+  /* Subtle rhythmic sidechain compression dip on the pump bus when boss kicks strike */
+  pumpDip(at = 0, depth = 0.25) {
+    if (this.budgetOnly || !this.pump || !this.ctx) return;
+    const t = Math.max(this.ctx.currentTime, this.ctx.currentTime + at);
+    const g = this.pump.gain;
+    try {
+      g.setValueAtTime(1, t);
+      g.linearRampToValueAtTime(Math.max(0.55, 1 - depth), t + 0.012);
+      g.exponentialRampToValueAtTime(1, t + 0.14);
+    } catch {}
   }
   gate(key, gap) {
     let now = this.ctx.currentTime;
@@ -756,6 +782,23 @@ const SoundEngine = class {
     if (!this.live() || this.sfxVol <= 0) return;
     const warning = bossWarning || BOSS_WARNING_VOICES.has(id) || THREAT_WARNING_VOICES.has(id);
     const atten = this.curAtten ?? 1;
+    const uiClean =
+      id === "click" ||
+      id === "hover" ||
+      id === "deny" ||
+      id === "offer" ||
+      id === "pick" ||
+      id === "evolve" ||
+      id === "reroll" ||
+      id === "banish" ||
+      id === "buy" ||
+      id === "milestone" ||
+      id === "equip" ||
+      id === "victory" ||
+      id === "bossCleared" ||
+      id === "cleared";
+    const prevBus = this.curBus;
+    if (uiClean && this.uiBus && !prevBus) this.curBus = this.uiBus;
     this.curPri = warning || KEY_SOUNDS.has(id) ? 2 : 1;
     this.curRev = SFX_ROOM[id] || 0;
     try {
@@ -773,6 +816,7 @@ const SoundEngine = class {
     } catch (err) {
       this.fail(err);
     } finally {
+      this.curBus = prevBus;
       this.curPri = 1;
       this.curRev = 0;
     }
@@ -788,12 +832,17 @@ const SoundEngine = class {
       gap = bus === "music" ? 0.5 : 0.22;
     if (now - (this.previewT[bus] ?? -1e9) < gap) return;
     this.previewT[bus] = now;
+    const prevBus = this.curBus;
     try {
-      if (bus === "sfx") this.play(weapon || "pulse");
-      else if (bus === "music") musicImpact(this, this.wantBiome(), 0);
+      if (bus === "sfx") {
+        if (this.uiBus) this.curBus = this.uiBus;
+        this.play(weapon || "pulse");
+      } else if (bus === "music") musicImpact(this, this.wantBiome(), 0);
       else if (bus === "ambience") this.placePlay(AMB_PREVIEW[this.wantBiome()] || "sparks", { g: 1, pan: 0 });
     } catch (err) {
       this.fail(err);
+    } finally {
+      this.curBus = prevBus;
     }
   }
   /* Sidechain ducking: light 80ms dip on routine hits, and -3 dB (~0.29 depth) for 0.35s on
@@ -827,15 +876,21 @@ const SoundEngine = class {
   _cozyChime(id, arg) {
     const note = (midi) => 440 * 2 ** ((midi - 69) / 12);
     const m = (deg, oct = 24) => scoreScaleMidi(this.biome, deg, oct);
-    const bell = (midi, dur, wave, vol, delay = 0, pan = 0, lp = 3800) =>
+    const bell = (midi, dur, wave, vol, delay = 0, pan = null, lp = 3800) =>
       this.tone(note(midi), dur, wave, vol, {
         at: delay,
         attack: 0.008,
         lp,
-        pan,
+        pan: pan != null ? pan : this.curPan || 0,
         rev: 0.16,
       });
     switch (id) {
+      case "superCrit":
+        if (this.gate("chime:superCrit", 0.06)) {
+          bell(m(4, 24), 0.16, "celesta", 0.036, 0, null, 5200);
+          bell(m(6, 24), 0.22, "celesta", 0.032, 0.038, null, 5600);
+        }
+        break;
       case "deny":
       case "gadgetNo":
         if (this.gate("chime:deny", 0.08)) {
@@ -871,19 +926,21 @@ const SoundEngine = class {
         break;
       }
       case "shard":
-        // Soft pentatonic grace-note tracking the score's active chord root
+        // Soft pentatonic grace-note tracking the score's active chord root and inheriting world pan
         if (this.gate("chime:shard", 0.055)) {
           const pent = [0, 2, 4, 7, 9];
           const step = (this.shardStep = ((this.shardStep || 0) + 1) % pent.length);
           const rootBase = Number.isFinite(this.activeRoot) ? this.activeRoot + 24 : m(0, 24);
-          bell(rootBase + pent[step], 0.12, "celesta", 0.024, 0, (step - 2) * 0.08, 4200);
+          const worldPan = this.curPan || (step - 2) * 0.08;
+          bell(rootBase + pent[step], 0.12, "celesta", 0.024, 0, worldPan, 4200);
         }
         break;
       case "heal":
       case "heart":
         if (this.gate("chime:heal", 0.1)) {
-          bell(m(2, 12), 0.22, "harp", 0.046, 0, -0.15);
-          bell(m(4, 24), 0.28, "celesta", 0.042, 0.065, 0.15);
+          const basePan = this.curPan || 0;
+          bell(m(2, 12), 0.22, "harp", 0.046, 0, Math.max(-0.8, basePan - 0.12));
+          bell(m(4, 24), 0.28, "celesta", 0.042, 0.065, Math.min(0.8, basePan + 0.12));
         }
         break;
       case "buy":
@@ -917,12 +974,12 @@ const SoundEngine = class {
       case "combo":
         if (this.gate("chime:combo", 0.08)) {
           const lift = Math.max(0, Math.min(12, Number(arg) || 0));
-          bell(m(lift % 7, 24), 0.16, "kalimba", 0.04);
+          bell(m(lift % 7, 24), 0.16, "kalimba", 0.04, 0, null);
         }
         break;
       case "propArm":
         if (this.gate("chime:propArm", 0.08)) {
-          bell(m(2, 24), 0.14, "kalimba", 0.032, 0, 0);
+          bell(m(2, 24), 0.14, "kalimba", 0.032, 0, null);
         }
         break;
       case "propLantern":
@@ -931,7 +988,7 @@ const SoundEngine = class {
       case "propPrism":
       case "propCrucible":
       case "propSunglass":
-        // Single resonant pedal note so the physical prop blast/bell-toll takes center stage
+        // Single resonant pedal note inheriting the relic's world stereo position
         if (this.gate("chime:prop", 0.08)) {
           const inst =
             id === "propRime"
@@ -944,7 +1001,7 @@ const SoundEngine = class {
                     ? "ceramic"
                     : "harp";
           const oct = id === "propCrucible" || id === "propPuffball" ? 12 : 24;
-          bell(m(0, oct), 0.34, inst, 0.036, 0, 0, 3200);
+          bell(m(0, oct), 0.34, inst, 0.036, 0, null, 3200);
         }
         break;
       case "wave":
@@ -987,16 +1044,26 @@ const SoundEngine = class {
           }
         }
         break;
+      case "die":
+        // Melancholic descending lantern-extinguish cadence (minor/Dorian sigh)
+        if (this.gate("chime:die", 0.35)) {
+          const rootBase = scoreScaleMidi(this.biome, 0, 12);
+          bell(rootBase + 7, 0.42, "harp", 0.044, 0.06, -0.18, 2200);
+          bell(rootBase + 3, 0.48, "harp", 0.042, 0.26, 0.14, 1900);
+          bell(rootBase, 0.78, "bow", 0.048, 0.48, 0, 1500);
+        }
+        break;
       case "bossCleared":
       case "victory":
-        // Stereo call-and-response carillon fanfare (left horn/harp call -> right celesta response -> tonic)
+        // Consonant major-triad stereo call-and-response carillon (harmonizes cleanly with musicResolve's major 3rd)
         if (this.gate("chime:fanfare", 0.25)) {
-          bell(m(0, 12), 0.42, "brass", 0.054, 0, -0.34, 2600);
-          bell(m(4, 12), 0.38, "harp", 0.048, 0.08, -0.24);
-          bell(m(2, 24), 0.36, "celesta", 0.048, 0.2, 0.28);
-          bell(m(4, 24), 0.44, "celesta", 0.052, 0.29, 0.34);
-          bell(m(0, 24), 0.62, "harp", 0.054, 0.4, -0.14);
-          bell(m(0, 36), 0.68, "celesta", 0.044, 0.42, 0.14);
+          const rootBase = scoreScaleMidi(this.biome, 0, 12);
+          bell(rootBase, 0.42, "brass", 0.054, 0, -0.34, 2600);
+          bell(rootBase + 7, 0.38, "harp", 0.048, 0.08, -0.24);
+          bell(rootBase + 12, 0.36, "celesta", 0.048, 0.2, 0.28);
+          bell(rootBase + 16, 0.44, "celesta", 0.052, 0.29, 0.34);
+          bell(rootBase + 19, 0.56, "harp", 0.052, 0.38, -0.14);
+          bell(rootBase + 24, 0.68, "celesta", 0.044, 0.44, 0.14);
         }
         break;
     }
@@ -1012,25 +1079,30 @@ const SoundEngine = class {
       if (this.muffleState) this.muffleState.lowWard = this.lowWard;
       this._syncMuffle?.();
     }
+    const hasBossDown = events.some((e) => e.k === "bossDown");
     let kills = 0;
     for (let ev of events) {
       const hasPos = listener && ev.x != null && ev.y != null && lx != null && ly != null;
       const dist = hasPos ? Math.hypot(ev.x - lx, ev.y - ly) : 0;
-      this.curPan = listener && ev.x != null && lx != null ? Math.max(-0.8, Math.min(0.8, (ev.x - lx) / 20)) : 0;
+      this.curPan = listener && ev.x != null && lx != null ? Math.max(-0.82, Math.min(0.82, (ev.x - lx) / 16)) : 0;
       this.curAtten = hasPos ? Math.max(0.28, Math.min(1, 1.15 - dist / 28)) : 1;
       this.curDistFrac = hasPos ? Math.max(0, Math.min(1, dist / 28)) : 0;
       switch (ev.k) {
         case "shot":
-          this.play(rlShotSfx(ev.w));
+          this.play(rlShotSfx(ev.w), ev.heavy ? { heavy: true } : undefined);
           break;
         case "dmg":
           if (!ev.burn) {
-            this.play(ev.crit ? "crit" : "hit", { type: ev.type, shield: !!ev.shield });
+            this.play(ev.superCrit ? "superCrit" : ev.crit ? "crit" : "hit", {
+              type: ev.type,
+              shield: !!ev.shield,
+              w: ev.w,
+            });
           }
           break;
         case "kill":
           if (ev.boss) {
-            this.play("bigkill", ev.type);
+            if (!hasBossDown) this.play("bigkill", ev.type);
           } else {
             if (kills++ < 3) {
               this.play(RL_DEATH_FAMILY[ev.type] || "kill", ev.elite ? 1.8 : Math.max(1, ev.r * 1.6));
@@ -1151,7 +1223,11 @@ const SoundEngine = class {
             this.muffleState.choosing = false;
             this._syncMuffle?.();
           }
-          this.play("pick", ev.evo ? 5 : (upgradesById[ev.id] && upgradesById[ev.id].rarity) || 1);
+          if (ev.evo) this.play("evolve");
+          else this.play("pick", (upgradesById[ev.id] && upgradesById[ev.id].rarity) || 1);
+          break;
+        case "banish":
+          this.play("banish");
           break;
         case "sealgrid":
           this.play("bcCage");
@@ -1161,6 +1237,9 @@ const SoundEngine = class {
           break;
         case "shatter":
           this.play("bcShatter");
+          break;
+        case "splinterHit":
+          if (!this.gate || this.gate("sfx:splinter", 0.04)) this.play("hit", { type: "prism" });
           break;
         case "broodHatch":
           this.play("bcHatch");
@@ -1243,9 +1322,32 @@ const SoundEngine = class {
           this.play("warp");
           break;
         case "mend":
+          this.play("mend", ev.type || ev.src);
+          break;
         case "chill":
         case "champion":
           this.play(ev.k, ev.src);
+          break;
+        case "corrode":
+          this.play("shortFizz");
+          break;
+        case "singe":
+          this.play("flame");
+          break;
+        case "glare":
+          this.play("bcShatter");
+          break;
+        case "zap":
+          if (!this.gate || this.gate("sfx:zap", 0.05)) this.play("chain");
+          break;
+        case "pop":
+          if (!this.gate || this.gate("sfx:pop", 0.04)) this.play("shieldPop");
+          break;
+        case "plant":
+          this.play("plant");
+          break;
+        case "spawn":
+          if (!this.gate || this.gate("sfx:spawn", 0.07)) this.play("spawn");
           break;
         case "tribute":
           this.play("tribute");
@@ -1382,7 +1484,7 @@ const SoundEngine = class {
     if (kind === this.playKind && biome === this.playBiome) return;
     if (this.trackFailT && ctx.currentTime - this.trackFailT < 2) return;
     let from = this.playKind,
-      track = kind === "fight" || kind === "boss" ? musicTrack(kind, biome) : null;
+      track = kind === "fight" || kind === "boss" || kind === "menu" ? musicTrack(kind, biome) : null;
     if ((from === "fight" || from === "boss") && kind === "menu")
       this.held = { kind: from, biome: this.playBiome, step: this.step, cycle: this.cycle, heat: this.heat };
     let held = this.held,
@@ -1411,6 +1513,11 @@ const SoundEngine = class {
       this.nextT = now + 0.03;
       this.fade.gain.cancelScheduledValues(now);
       this.mixFor(kind);
+      if (track && this.delay) {
+        // Tempo-sync dotted-eighth stereo echo to the active track's BPM
+        const syncedDelay = Math.max(0.16, Math.min(0.92, (60 / track.bpm) * 0.75));
+        this.delay.delayTime.setTargetAtTime(syncedDelay, now, 0.08);
+      }
       this.stopMusicBed();
       if (track) this.startMusicBed(kind, biome);
       if (resumed) {
@@ -1422,9 +1529,12 @@ const SoundEngine = class {
         this.fade.gain.linearRampToValueAtTime(gain, now + 4.1);
         this.nextT = now + 0.9;
         if (this.live() && this.musVol > 0) musicResolve(this, biome, 0);
+      } else if (from !== "off" && kind !== "off") {
+        this.fade.gain.setValueAtTime(0.0001, now);
+        this.fade.gain.linearRampToValueAtTime(gain, now + 0.35);
+        if (kind === "boss" && from === "fight" && this.live() && this.musVol > 0) musicImpact(this, biome, 0);
       } else {
         this.fade.gain.setValueAtTime(gain, now);
-        if (kind === "boss" && from === "fight" && this.live() && this.musVol > 0) musicImpact(this, biome, 0);
       }
       this.trackFailT = 0;
     } catch (err) {
@@ -1453,6 +1563,7 @@ const SoundEngine = class {
           voice.amp.gain.cancelScheduledValues(now);
           voice.amp.gain.setValueAtTime(0, now);
           voice.node.stop(now);
+          if (voice.extras) for (const ex of voice.extras) ex.stop?.(now);
           this._cleanupVoice(voice);
         } catch {}
         list[i] = list[list.length - 1];
@@ -1477,6 +1588,7 @@ const SoundEngine = class {
         }
         gain.linearRampToValueAtTime(0, end);
         voice.node.stop(end + 0.01);
+        if (voice.extras) for (const ex of voice.extras) ex.stop?.(end + 0.01);
         voice.end = end;
       } catch {}
     }
@@ -1592,9 +1704,8 @@ const SoundEngine = class {
       this.fail(err);
       return;
     }
-    for (let node of nodes) {
-      this.voices.push({ node: node, amp: gain, pri: 3, start: now, end: 1e9, loop: true, bed: bed });
-    }
+    // Continuous ambient beds are tracked in this.beds (and cleaned up by stopBed) rather than
+    // consuming the 24-slot transient combat SFX voice pool.
   }
   stopBed(name, at = 0, rel) {
     let bed = this.beds[name];
@@ -1630,8 +1741,9 @@ const SoundEngine = class {
      It goes through the music chain (volume, fade, glue) and is not a voice of the budget. */
   startMusicBed(kind, biome, fadeIn = 1.5) {
     const ctx = this.ctx;
-    if (!ctx || (kind !== "fight" && kind !== "boss")) return;
+    if (!ctx || (kind !== "fight" && kind !== "boss" && kind !== "menu")) return;
     if (this.mbed) this.stopMusicBed();
+    const bedBiome = kind === "menu" ? "menu" : biome;
     let now = ctx.currentTime,
       out = ctx.createGain(),
       nodes = [],
@@ -1669,14 +1781,14 @@ const SoundEngine = class {
         gain.connect(out);
         return gain;
       },
-      root = scoreOrigin(biome),
+      root = scoreOrigin(bedBiome),
       barRate = musicTrack(kind, biome).bpm / 240;
     out.gain.setValueAtTime(1e-4, now);
-    out.gain.linearRampToValueAtTime(kind === "boss" ? 0.29 : 0.22, now + fadeIn);
+    out.gain.linearRampToValueAtTime(kind === "boss" ? 0.29 : kind === "menu" ? 0.18 : 0.22, now + fadeIn);
     out.connect(kind === "boss" ? this.atmosPump : this.atmos);
     this.mbed = { out, nodes };
     try {
-      scoreBed({ osc, loop, filt, lfo, level, root, barRate, boss: kind === "boss" }, biome);
+      scoreBed({ osc, loop, filt, lfo, level, root, barRate, boss: kind === "boss" }, bedBiome);
     } catch (err) {
       this.stopMusicBed(0.05);
       throw err;

@@ -145,7 +145,7 @@ export class WeaponEffectsView {
     const seed = ((shot.id || 0) * 0.6180339) % 1;
     const length = Math.min(0.68 + shot.r * 3.8, Math.max(0.1, shot.age * Math.hypot(shot.vx, shot.vy) + 0.1)) * scale;
     const width = (0.42 + shot.r * 1.75) * scale;
-    const y = 1.35 + age * 0.28;
+    const y = 1.06 + age * 0.24;
     const x = shot.x - Math.cos(angle) * offset;
     const z = shot.y - Math.sin(angle) * offset;
     for (const roll of FLAME_ROLLS) {
@@ -190,13 +190,13 @@ export class WeaponEffectsView {
             Math.min(2.4, Math.max(0.05, shot.age * speed)),
             Math.min(0.13 + shot.r * 0.5, 0.04 + shot.age * speed * 0.12),
             shot.id,
-            1.35,
+            1.06,
             arcDetail,
           );
           const orbs = this.arcOrbs();
           const sc = Math.max(0.75, (shot.r || 0.18) * 4.8);
           orbs.colC(
-            orbs.yr(shot.x, 1.35, shot.y, angle, sc, sc, sc, 0, time * 14 + (shot.id || 0)),
+            orbs.yr(shot.x, 1.06, shot.y, angle, sc, sc, sc, 0, time * 14 + (shot.id || 0)),
             shot.superCrit ? GOLD : color,
             1.2,
           );
@@ -204,22 +204,22 @@ export class WeaponEffectsView {
         }
         case "returning-blade": {
           const spin = time * 26 + (shot.id || 0);
-          const idx = r.discPool.y(shot.x, 1.35, shot.y, spin, shot.r, 1, shot.r);
+          const idx = r.discPool.y(shot.x, 1.06, shot.y, spin, shot.r, 1, shot.r);
           r.discPool.col(idx, 1, 1, 1);
           for (let i = 0; i < 4; i++) {
             const a = spin - i * 0.38;
             const x = shot.x + Math.cos(a) * shot.r * 0.9;
             const z = shot.y + Math.sin(a) * shot.r * 0.9;
-            this.segment(x, z, x - ca * 0.32, z - sa * 0.32, 1.36, 0.045, color, 1.05 - i * 0.18);
+            this.segment(x, z, x - ca * 0.32, z - sa * 0.32, 1.07, 0.045, color, 1.05 - i * 0.18);
           }
           break;
         }
         case "exhaust-rocket": {
-          const body = r.rocketBodies.y(shot.x, 1.35, shot.y, angle, shot.bomblet ? 0.74 : 1.08);
+          const body = r.rocketBodies.y(shot.x, 1.06, shot.y, angle, shot.bomblet ? 0.74 : 1.08);
           r.rocketBodies.col(body, 1, 1, 1);
           this.tongue(shot, angle, 0.05, shot.bomblet ? 0.42 : 0.62, 0.36);
           if (Math.random() < dt * 20) {
-            r.smokeView.emit(shot.x - ca * 0.5, 1.32, shot.y - sa * 0.5, shot.bomblet ? 0.18 : 0.28, 0x9a9389, 0.68);
+            r.smokeView.emit(shot.x - ca * 0.5, 1.04, shot.y - sa * 0.5, shot.bomblet ? 0.18 : 0.28, 0x9a9389, 0.68);
           }
           break;
         }
@@ -228,7 +228,7 @@ export class WeaponEffectsView {
           const needles = this.railNeedles();
           const sc = Math.max(0.85, (shot.r || 0.16) * 5.2);
           needles.colC(
-            needles.yr(shot.x + ca * 0.08, 1.35, shot.y + sa * 0.08, angle, sc, sc, sc, 0, time * 18 + (shot.id || 0)),
+            needles.yr(shot.x + ca * 0.08, 1.06, shot.y + sa * 0.08, angle, sc, sc, sc, 0, time * 18 + (shot.id || 0)),
             shot.superCrit ? GOLD : color,
             1.35,
           );
@@ -237,12 +237,12 @@ export class WeaponEffectsView {
             shot.y - sa * length,
             shot.x + ca * 0.28,
             shot.y + sa * 0.28,
-            1.35,
+            1.06,
             0.068,
             WHITE,
             1.45,
           );
-          this.segment(shot.x - ca * length, shot.y - sa * length, shot.x, shot.y, 1.35, 0.175, color, 0.62);
+          this.segment(shot.x - ca * length, shot.y - sa * length, shot.x, shot.y, 1.06, 0.175, color, 0.62);
           if (!crowded) {
             const twist = time * 16 + (shot.id || 0);
             const off = Math.sin(twist) * 0.11;
@@ -251,7 +251,7 @@ export class WeaponEffectsView {
               shot.y - sa * (length * 0.82) - ca * off,
               shot.x - ca * 0.12 - sa * off,
               shot.y - sa * 0.12 + ca * off,
-              1.37,
+              1.08,
               0.042,
               PRISM,
               1.1,
@@ -264,18 +264,18 @@ export class WeaponEffectsView {
           const pellets = this.scatterPellets();
           const sc = Math.max(0.75, (shot.r || 0.13) * 6.2);
           pellets.colC(
-            pellets.yr(shot.x, 1.35, shot.y, angle, sc, sc, sc, 0, time * 22 + (shot.id || 0) * 1.7),
+            pellets.yr(shot.x, 1.06, shot.y, angle, sc, sc, sc, 0, time * 22 + (shot.id || 0) * 1.7),
             shot.superCrit ? GOLD : color,
             1.22,
           );
-          this.segment(shot.x - ca * len, shot.y - sa * len, shot.x, shot.y, 1.35, shot.r * 0.44, COPPER, 1.05);
-          this.segment(shot.x - ca * 0.28, shot.y - sa * 0.28, shot.x, shot.y, 1.35, shot.r * 0.58, WHITE, 1.25);
+          this.segment(shot.x - ca * len, shot.y - sa * len, shot.x, shot.y, 1.06, shot.r * 0.44, COPPER, 1.05);
+          this.segment(shot.x - ca * 0.28, shot.y - sa * 0.28, shot.x, shot.y, 1.06, shot.r * 0.58, WHITE, 1.25);
           break;
         }
         case "pulse-bolt": {
           const len = shot.wing ? 0.54 : 0.84;
           const width = shot.wing ? 0.044 : 0.068;
-          const y = shot.wing ? 1.05 : 1.35;
+          const y = shot.wing ? 1.02 : 1.06;
           const bolts = this.pulseBolts();
           const sc = shot.wing ? 0.72 : 1.05;
           bolts.colC(

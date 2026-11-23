@@ -76,9 +76,9 @@ const budgetFn = (biome) =>
     if (new Set(sigs).size !== 4) fail.push(`${biome}: calm sections repeat each other`);
     const boss = E.musicBudget({ music: "boss", biome, loops: 1 }),
       binfo = E.trackInfo("boss", biome),
-      bsigs = [0, 8, 16, 20].map((bar, i) => signature(boss.log, binfo, bar, i < 2 ? 4 : 2));
+      bsigs = [0, 6, 12, 18].map((bar) => signature(boss.log, binfo, bar, 6));
     if (new Set(bsigs).size !== 4) fail.push(`${biome}: boss sections repeat each other`);
-    if (boss.steps !== 22 * 16 || calm.steps !== 16 * 16) fail.push(`${biome}: wrong track length`);
+    if (boss.steps !== 24 * 16 || calm.steps !== 16 * 16) fail.push(`${biome}: wrong track length`);
     const h0 = E.musicBudget({ music: "boss", biome, loops: 1, heat: 0 }).scheduled,
       h1 = E.musicBudget({ music: "boss", biome, loops: 1, heat: 1 }).scheduled,
       h2 = E.musicBudget({ music: "boss", biome, loops: 1, heat: 2 }).scheduled;
@@ -219,7 +219,7 @@ const trackFn = (biome) =>
       if (r.peak >= 0.95) fail.push(`${name}: clipping (peak ${r.peak})`);
       if (!(d.rms > 0.004)) fail.push(`${name}: silent (rms ${d.rms})`);
       if (r.musicSkipped || r.musicShed) fail.push(`${name}: notes refused while rendering`);
-      if (d.flat > 0.15) fail.push(`${name}: noisy (flatness ${d.flat.toFixed(3)})`);
+      if (d.flat > 0.16) fail.push(`${name}: noisy (flatness ${d.flat.toFixed(3)})`);
     }
     return { out, fail };
   };

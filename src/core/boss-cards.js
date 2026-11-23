@@ -36,13 +36,13 @@ const LOCK_EVERY = 7,
   FANG_MAX = 42;
 
 // Guaranteed Guardian Relic offering on Boss Waves (W5, W10, W15, and Endless boss waves).
-// On Wave 15, if the defeated Guardian's relic is already owned or Star-Vault lore milestone is unlocked,
-// Astral Pull ('collapse') can also be offered so it is not Endless-only.
+// On Wave 15, if the defeated Guardian's relic is already owned or Star-Vault has been unlocked,
+// Astral Pull ('collapse') can be offered so it is not locked strictly behind Endless.
 function bossCardOffer(world) {
   const boss = world.bossFor(world.wave);
   let id = boss && BOSS_CARD[boss];
-  if (world.wave === 15 && (!id || world.up[id] || world.starVaultUnlocked) && !world.up.collapse) {
-    if (!id || world.up[id]) id = "collapse";
+  if (world.wave === 15 && !world.up.collapse && (!id || world.up[id] || world.starVaultUnlocked)) {
+    id = "collapse";
   }
   if (!id || world.up[id]) return null;
   world.bossLuck = BOSS_CARD_CHANCE;
@@ -488,7 +488,7 @@ function bossCardBossHit(world, boss) {
   boss._relicHits = (boss._relicHits || 0) + 1;
   const h = boss._relicHits;
   if (stats.shardField && h % 15 === 0) {
-    shatter(world, boss);
+    shatter(world, boss, true);
   }
   if (stats.brood && h % 18 === 0) {
     hatch(world, boss);

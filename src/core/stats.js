@@ -51,7 +51,6 @@ function computeStats(weaponId, run, workshop) {
       1.9 * (1 - 0.08 * moduleLevel("dash")) * (1 - 0.08 * level("speed")) * (has("phantom") ? 0.65 : 1),
     ),
     dashCharges: has("phantom") ? 2 : 1,
-    laststand: 0,
     regen: 0.8 * level("regen"),
     shieldCd,
     orbit: level("orbit"),
@@ -86,7 +85,6 @@ function computeStats(weaponId, run, workshop) {
     inferno: has("inferno"),
     trail: has("phantom"),
     boomerang: !!weapon.boomerang,
-    bounty: 0,
     capacitor: level("overcharge"),
     burn: weapon.burn || 0,
     burnMul: has("dragon") ? 2 : 1,
@@ -98,11 +96,9 @@ function computeStats(weaponId, run, workshop) {
   stats.maxHp = Math.max(25, stats.maxHp);
   stats.hunter = level("hunter");
   stats.eliteMul = stats.hunter ? 1.05 + 0.15 * stats.hunter : 1;
-  stats.supply = 0;
   stats.armor = 0.04 * moduleLevel("armorCore");
   stats.rateMul *= 1 + 0.06 * moduleLevel("arsenalLab");
   stats.hazardResist = Math.min(0.88, 0.08 * moduleLevel("armorCore"));
-  stats.cacheBonus = 0;
   stats.cacheCount = moduleLevel("fieldSupply");
   stats.overload = level("overload");
   stats.crit = Math.min(0.95, stats.crit);
@@ -110,7 +106,6 @@ function computeStats(weaponId, run, workshop) {
   const overcharge = level("overcharge");
   stats.range *= 1 + 0.06 * level("crit");
   stats.novaR *= (1 + 0.25 * Math.min(2, overcharge) + 0.1 * Math.max(0, overcharge - 2)) / (1 + 0.25 * overcharge);
-  stats.skates = 0;
   // Guardian Relics (core/boss-cards.js)
   stats.sealgrid = has("sealgrid");
   stats.shardField = has("shardfield");
@@ -120,6 +115,8 @@ function computeStats(weaponId, run, workshop) {
   stats.fang = has("fang");
   // Combat buildcraft upgrades
   stats.acidCoat = level("acidcoat");
+  stats.glazeMul = stats.acidCoat >= 2 ? 0.35 : stats.acidCoat ? 0.2 : 0;
+  stats.glazeBossMul = stats.acidCoat >= 2 ? 0.2 : stats.acidCoat ? 0.12 : 0;
   stats.heatSink = level("heatsink");
   stats.slip = level("slipstream");
   stats.surge = level("surge");
@@ -134,7 +131,6 @@ function computeStats(weaponId, run, workshop) {
   stats.gsyphon = level("gsyphon");
   stats.blackstar = has("blackstar");
   // Sanctuary Workshop modules
-  stats.novaStart = 0;
   stats.cacheValue = 1 + 0.5 * moduleLevel("fieldSupply");
   stats.attuneDmg = 0.1 * moduleLevel("hazardAttune");
   stats.attuneRegen = 0.5 * moduleLevel("hazardAttune");
@@ -187,7 +183,7 @@ function buildStatRows(weaponId, run, workshop, hp) {
     row("Armor", (s) => s.armor * 100, "%", "up", 0),
     row("HP regen", (s) => s.regen, "/s", "up", 1),
     row("Pickup radius", (s) => s.magnet, " m", "up", 1),
-    row("Nova charge", (s) => s.novaMul, "\u00d7", "up", 2),
+    row("Hearthburst charge", (s) => s.novaMul, "\u00d7", "up", 2),
   ];
   rows[0].hp = hp;
   return rows;

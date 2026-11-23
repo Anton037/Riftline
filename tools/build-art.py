@@ -34,7 +34,7 @@ def periodic_fbm(size, octaves, seed, anisotropy=(1.0, 1.0)):
 
 
 def brush_strokes(size, count, seed, angle_deg, spread_deg, length_range, width_range, strength):
-    """Stamp seamless wrapped painterly brushstroke streaks into a float32 canvas."""
+    """Stamp seamless wrapped tapered painterly brushstroke dabs into a float32 canvas."""
     rng = np.random.default_rng(seed)
     canvas = Image.new("L", (size, size), 128)
     draw = ImageDraw.Draw(canvas)
@@ -43,10 +43,11 @@ def brush_strokes(size, count, seed, angle_deg, spread_deg, length_range, width_
         cy = rng.uniform(0, size)
         ang = math.radians(angle_deg + rng.uniform(-spread_deg, spread_deg))
         length = rng.uniform(*length_range) * size
-        width = max(1, int(round(rng.uniform(*width_range) * size)))
+        width = max(2, int(round(rng.uniform(*width_range) * size)))
         val = int(round(128 + rng.uniform(-1.0, 1.0) * 120 * strength))
-        dx = math.cos(ang) * length * 0.5
-        dy = math.sin(ang) * length * 0.5
+        ca, sa = math.cos(ang), math.sin(ang)
+        dx, dy = ca * length * 0.5, sa * length * 0.5
+        px, py = -sa * width * 0.5, ca * width * 0.5
         for ox in (-size, 0, size):
             for oy in (-size, 0, size):
                 x0, y0 = cx - dx + ox, cy - dy + oy
@@ -54,8 +55,18 @@ def brush_strokes(size, count, seed, angle_deg, spread_deg, length_range, width_
                 if (max(x0, x1) < -width or min(x0, x1) > size + width or
                         max(y0, y1) < -width or min(y0, y1) > size + width):
                     continue
-                draw.line((x0, y0, x1, y1), fill=val, width=width)
-    arr = np.asarray(canvas.filter(ImageFilter.GaussianBlur(1.4)), dtype=np.float32)
+                # Tapered diamond/elliptical gouache brushstroke dab instead of flat line cap
+                mx, my = cx + ox, cy + oy
+                pts = [
+                    (x0, y0),
+                    (mx - dx * 0.32 + px, my - dy * 0.32 + py),
+                    (mx + dx * 0.32 + px * 0.92, my + dy * 0.32 + py * 0.92),
+                    (x1, y1),
+                    (mx + dx * 0.32 - px * 0.92, my + dy * 0.32 - py * 0.92),
+                    (mx - dx * 0.32 - px, my - dy * 0.32 - py),
+                ]
+                draw.polygon(pts, fill=val)
+    arr = np.asarray(canvas.filter(ImageFilter.GaussianBlur(1.5)), dtype=np.float32)
     return (arr - 128.0) / 120.0
 
 
@@ -79,16 +90,13 @@ def make_terrain_atlas():
     for idx, (base, warm, cool, angle, spread, seed) in enumerate(specs):
         fbm = periodic_fbm(size, 4, seed, anisotropy=(1.2, 0.9))
         fine = periodic_fbm(size, 3, seed + 17, anisotropy=(2.0, 2.0))
-        strokes = brush_strokes(size, 380, seed + 33, angle, spread, (0.07, 0.24), (0.010, 0.028), 0.82)
+        strokes = brush_strokes(size, 420, seed + 33, angle, spread, (0.07, 0.24), (0.012, 0.032), 0.84)
         # Soft gouache watercolor paper tooth (low-noise so floors never sparkle/shimmer)
-        tooth = np.random.default_rng(seed + 99).normal(0, 0.022, (size, size)).astype(np.float32)
-        # Gentle biome-specific handcrafted motif baked cleanly into the brushwork
+        tooth = np.random.default_rng(seed + 99).normal(0, 0.020, (size, size)).astype(np.float32)
+        # Gentle biome-specific handcrafted motif baked cleanly into the brushwork (no ghost grid seams)
         motif = np.zeros((size, size), dtype=np.float32)
-        if idx == 0:  # courtyard dressed paving slabs
-            gx = np.abs(np.sin(TAU * x * 4.0))
-            gy = np.abs(np.sin(TAU * y * 4.0))
-            seam = np.minimum(gx, gy)
-            motif = np.where(seam < 0.038, -0.20, 0.04 * np.cos(TAU * (x * 2 + y)))
+        if idx == 0:  # courtyard soft rain-glazed slate brush wash (flagstone mortar comes cleanly from floor shader)
+            motif = 0.13 * np.cos(TAU * (x * 2.0 + y * 1.0 + fbm * 0.32))
         elif idx == 1:  # shelf gentle wind-carved snow drifts
             motif = 0.16 * np.sin(TAU * (x * 2.0 + y * 1.0 + fbm * 0.30))
         elif idx == 2:  # marsh soft mossy hummocks
@@ -100,7 +108,7 @@ def make_terrain_atlas():
         elif idx == 5:  # flats wind-brushed sandstone ripples
             motif = 0.15 * np.sin(TAU * (y * 6.0 + fbm * 0.25))
 
-        t = np.clip(0.5 + fbm * 0.28 + strokes * 0.18 + fine * 0.08 + motif * 0.30 + tooth, 0.0, 1.0)
+        t = np.clip(0.5 + fbm * 0.28 + strokes * 0.19 + fine * 0.08 + motif * 0.28 + tooth, 0.0, 1.0)
         base_v = np.array(base, dtype=np.float32)[None, None, :]
         warm_v = np.array(warm, dtype=np.float32)[None, None, :]
         cool_v = np.array(cool, dtype=np.float32)[None, None, :]
@@ -110,7 +118,7 @@ def make_terrain_atlas():
         rgb = np.where(t[..., None] < 0.5, cool_v * (1.0 - lo) + base_v * lo, base_v * (1.0 - hi) + warm_v * hi)
         tile = Image.fromarray(np.clip(rgb, 0, 255).astype("uint8"))
         atlas.paste(tile, (size * (idx % 3), size * (idx // 3)))
-    atlas.save(PUBLIC / "textures" / "terrain-atlas.webp", "WEBP", quality=88, method=6)
+    atlas.save(PUBLIC / "textures" / "terrain-atlas.webp", "WEBP", quality=90, method=6)
 
 
 def make_surface_atlas():
@@ -119,6 +127,7 @@ def make_surface_atlas():
       (0,0) metal      (1,0) armor       (2,0) organic
       (0,1) basalt     (1,1) stone/wood  (2,1) ice/crystal
     R = painterly value/brush height, G = stylized micro-roughness, B = edge/ridge glint accent.
+    Saved as lossless WebP so linear R/G/B data channels never suffer YUV chroma subsampling bleed.
     """
     size = 512
     atlas = Image.new("RGB", (size * 3, size * 2))
@@ -128,23 +137,23 @@ def make_surface_atlas():
         (32, 24, 360, 5, 0.32, 702),    # armor: smooth glazed porcelain-ceramic & enamel brushwork
         (74, 38, 440, 7, 0.66, 703),    # organic: velvety chitin / mushroom cap / moss bark
         (-18, 50, 480, 5, 0.82, 704),   # basalt/rubber: matte hand-carved volcanic stone
-        (14, 28, 420, 6, 0.72, 705),    # stone/wood/sandstone: warm masonry & timber gouache
+        (8, 18, 460, 7, 0.70, 705),     # stone/wood/sandstone: clean directional masonry & timber gouache
         (-45, 16, 360, 11, 0.14, 706),  # ice/crystal: gleaming faceted storybook crystal streaks
     ]
     y, x = np.mgrid[0:size, 0:size] / size
     for idx, (ang, spread, count, rfreq, rough_base, seed) in enumerate(configs):
         fbm = periodic_fbm(size, 4, seed)
-        strokes = brush_strokes(size, count, seed + 11, ang, spread, (0.06, 0.24), (0.007, 0.022), 0.92)
-        tooth = np.random.default_rng(seed + 29).normal(0, 0.026, (size, size)).astype(np.float32)
-        val = np.clip(0.50 + fbm * 0.16 + strokes * 0.18 + tooth, 0.0, 1.0)
-        rough = np.clip(rough_base + fbm * 0.12 - strokes * 0.09, 0.05, 0.98)
+        strokes = brush_strokes(size, count, seed + 11, ang, spread, (0.06, 0.24), (0.008, 0.024), 0.92)
+        tooth = np.random.default_rng(seed + 29).normal(0, 0.022, (size, size)).astype(np.float32)
+        val = np.clip(0.50 + fbm * 0.16 + strokes * 0.19 + tooth, 0.0, 1.0)
+        rough = np.clip(rough_base + fbm * 0.11 - strokes * 0.09, 0.05, 0.98)
         band = np.abs(np.cos(TAU * (x * rfreq * math.cos(math.radians(ang)) +
                                     y * rfreq * math.sin(math.radians(ang)) + fbm * 0.35)))
         glint = np.clip((band ** 7) * 0.42 + np.maximum(0.0, strokes) * 0.28, 0.0, 1.0)
         rgb = np.dstack([val * 255.0, rough * 255.0, glint * 255.0])
         tile = Image.fromarray(np.clip(rgb, 0, 255).astype("uint8"))
         atlas.paste(tile, (size * (idx % 3), size * (idx // 3)))
-    atlas.save(PUBLIC / "textures" / "surface-atlas.webp", "WEBP", quality=88, method=6)
+    atlas.save(PUBLIC / "textures" / "surface-atlas.webp", "WEBP", lossless=True, method=6)
 
 
 def make_vfx_atlas():
@@ -202,7 +211,7 @@ def make_vfx_atlas():
     q3 = np.dstack([np.full_like(alpha3, 0.06), np.full_like(alpha3, 0.05), np.full_like(alpha3, 0.11), alpha3]) * 255.0
     atlas.paste(Image.fromarray(q3.astype("uint8"), "RGBA"), (q, q))
 
-    atlas.save(PUBLIC / "textures" / "vfx-atlas.webp", "WEBP", quality=90, method=6)
+    atlas.save(PUBLIC / "textures" / "vfx-atlas.webp", "WEBP", quality=92, method=6)
 
 
 def orbital_emblem(draw, cx, cy, unit, opacity=1.0):
@@ -245,60 +254,6 @@ def orbital_emblem(draw, cx, cy, unit, opacity=1.0):
         draw.polygon([(px, py - d), (px + d, py), (px, py + d), (px - d, py)], fill=col(255, 206, 134, 218))
 
 
-def make_title_chart():
-    """Warm storybook-diorama twilight meadow/aurora/lantern backdrop for the Home screen."""
-    rng = np.random.default_rng(6171)
-    w, h = 1728, 1080
-    cx, cy, radius = 557, 521, 355
-    y, x = np.mgrid[0:h, 0:w]
-    yn = y / h
-    xn = x / w
-    dist = np.sqrt(((x - cx) / w) ** 2 + ((y - cy) / h) ** 2)
-    # Warm golden-hour hearth glow behind title + soft twilight-mint aurora ribbon + velvety dusk sky
-    warm_glow = np.exp(-((x - cx) / 540) ** 2 - ((y - cy - 40) / 480) ** 2)
-    aurora_band = np.exp(-((yn - (0.28 + 0.07 * np.sin(xn * 5.2 + 0.4))) / 0.16) ** 2) * (0.45 + 0.55 * np.sin(xn * 3.1))
-    sunset_horizon = np.exp(-((yn - 0.84) / 0.26) ** 2)
-    grain = rng.normal(0, 1.3, (h, w))
-    r_ch = 24 + warm_glow * 52 + sunset_horizon * 42 + aurora_band * 12 - dist * 10 + grain
-    g_ch = 28 + warm_glow * 40 + sunset_horizon * 26 + aurora_band * 36 - dist * 9 + grain
-    b_ch = 44 + warm_glow * 24 + sunset_horizon * 18 + aurora_band * 40 - dist * 12 + grain
-    bg = Image.fromarray(np.dstack([r_ch, g_ch, b_ch]).clip(0, 255).astype("uint8")).convert("RGBA")
-
-    # Soft layered storybook silhouettes along the bottom (distant cozy hills & lantern glow)
-    hills = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    hdraw = ImageDraw.Draw(hills, "RGBA")
-    for layer_i, (base_y, amp, freq, phase, col) in enumerate([
-        (0.79, 0.055, 2.2, 0.3, (28, 38, 52, 160)),
-        (0.86, 0.042, 3.1, 1.6, (22, 33, 44, 210)),
-        (0.92, 0.028, 4.4, 2.8, (17, 26, 34, 245)),
-    ]):
-        pts = [(0, h)]
-        for px in range(0, w + 16, 16):
-            t = px / w
-            py = int(h * (base_y + amp * math.sin(t * TAU * freq + phase) + amp * 0.4 * math.cos(t * TAU * freq * 1.9)))
-            pts.append((px, py))
-        pts.append((w, h))
-        hdraw.polygon(pts, fill=col)
-    bg.alpha_composite(hills.filter(ImageFilter.GaussianBlur(2)))
-
-    # Soft golden storybook compass halo behind the Riftline logo (softer, warmer, less clinical)
-    trace = Image.new("RGBA", (w, h))
-    draw = ImageDraw.Draw(trace, "RGBA")
-    orbital_emblem(draw, cx, cy, radius, 0.62)
-    # Cozy floating fireflies / lantern motes across the twilight sky
-    for _ in range(180):
-        px, py = rng.integers([40, 40], [w - 40, h - 40])
-        if (px - cx) ** 2 + (py - cy) ** 2 < radius ** 2 * 0.06:
-            continue
-        r_dot = int(rng.integers(2, 5))
-        c = (255, 232, 174) if rng.random() < 0.62 else (142, 242, 214) if rng.random() < 0.7 else (246, 174, 152)
-        a = int(rng.integers(55, 175))
-        draw.ellipse((int(px) - r_dot, int(py) - r_dot, int(px) + r_dot, int(py) + r_dot), fill=(*c, a))
-    bg.alpha_composite(trace.filter(ImageFilter.GaussianBlur(9)))
-    bg.alpha_composite(trace)
-    bg.convert("RGB").save(PUBLIC / "textures" / "title-chart.webp", "WEBP", quality=90, method=6)
-
-
 def make_app_icons():
     canvas = Image.new("RGB", (1536, 1536), "#0e1924")
     ink = ImageDraw.Draw(canvas, "RGBA")
@@ -316,5 +271,4 @@ if __name__ == "__main__":
     make_terrain_atlas()
     make_surface_atlas()
     make_vfx_atlas()
-    make_title_chart()
     make_app_icons()

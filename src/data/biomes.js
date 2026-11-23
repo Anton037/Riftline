@@ -167,11 +167,21 @@ const RL_BIOME_INFO = {
     tag: "Firefly tide",
     grip: 24,
     mud: 0.92,
-    mix: { swarmer: 1.6, splitter: 2.4, hive: 2.2, mender: 1.8, sapper: 1.8, carrier: 1.5, gunner: 0.6, beacon: 1.2 },
+    mix: {
+      swarmer: 1.6,
+      splitter: 2.2,
+      leaper: 1.8,
+      hive: 2.1,
+      mender: 1.8,
+      sapper: 1.6,
+      carrier: 1.4,
+      gunner: 0.6,
+      beacon: 1.2,
+    },
   },
   core: {
     tag: "Astral portals",
-    mix: { striker: 2.2, phantom: 2.4, weaver: 2.2, leaper: 1.8, drone: 1.8, sniper: 0.6 },
+    mix: { striker: 2.2, phantom: 2.4, weaver: 2.2, sentinel: 1.8, drone: 1.8, sniper: 0.6 },
   },
   flats: {
     tag: "Sunglass whirls",

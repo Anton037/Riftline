@@ -118,7 +118,9 @@ test("the focused menu keeps workshop upgrades and achievement rewards working",
     "news",
     "settings",
   ]);
-  assert.equal(await page.locator("#daily, #pacts, #training, #codexList, #recTabs").count(), 0);
+  assert.equal(await page.locator("#daily, #pacts, #training").count(), 0);
+  assert.equal(await page.locator("#recTabs").count(), 1);
+  assert.equal(await page.locator("#codexList").count(), 1);
   await page.evaluate(() => {
     const { store, ui } = window.__riftTest;
     store.data.shards = 100;

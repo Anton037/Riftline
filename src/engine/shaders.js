@@ -75,12 +75,12 @@ const SHADOW_FN = `
 uniform highp sampler2DShadow uShadowMap;
 float sampleShadow(vec3 worldPos, vec3 worldNormal) {
   if (uShadowsEnabled < 0.5) return 1.0;
-  vec3 biased = worldPos + worldNormal * 0.058 + uSunDir * 0.028;
+  vec3 biased = worldPos + worldNormal * 0.036 + uSunDir * 0.018;
   vec4 lp = uLightSpace * vec4(biased, 1.0);
   vec3 proj = lp.xyz / max(lp.w, 0.0001) * 0.5 + 0.5;
   if (proj.x < 0.01 || proj.x > 0.99 || proj.y < 0.01 || proj.y > 0.99 || proj.z > 0.995) return 1.0;
   vec2 texel = 1.0 / vec2(textureSize(uShadowMap, 0));
-  float bias = max(0.00105 * (1.0 - dot(worldNormal, uSunDir)), 0.00038);
+  float bias = max(0.00085 * (1.0 - dot(worldNormal, uSunDir)), 0.00030);
   float zRef = proj.z - bias;
   // Rotated 4-tap Poisson hardware-PCF (each LINEAR shadow tap evaluates 2x2 bilinear depth comparisons = 16 samples)
   float ang = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) * 6.2831853;
@@ -92,7 +92,9 @@ float sampleShadow(vec3 worldPos, vec3 worldNormal) {
   sum += texture(uShadowMap, vec3(proj.xy + (rot * vec2( 0.68,  0.42)) * spread, zRef));
   sum += texture(uShadowMap, vec3(proj.xy + (rot * vec2(-0.36, -0.74)) * spread, zRef));
   sum += texture(uShadowMap, vec3(proj.xy + (rot * vec2( 0.44, -0.66)) * spread, zRef));
-  return sum * 0.25;
+  float edgeFade = smoothstep(0.01, 0.07, proj.x) * smoothstep(0.01, 0.07, 1.0 - proj.x)
+                 * smoothstep(0.01, 0.07, proj.y) * smoothstep(0.01, 0.07, 1.0 - proj.y);
+  return mix(1.0, sum * 0.25, edgeFade);
 }
 `;
 
@@ -179,7 +181,7 @@ void evalPartAnim(inout vec3 pos, inout vec3 norm, vec4 meta, float packedAnim, 
     } else {
       float throb = 1.0 + (0.085 + actionState * 0.14) * sin(time * 5.2 + animPhase * 0.7 - ph);
       pos.x = pAux + (pos.x - pAux) * throb;
-      pos.y = py + (pos.y - py) * (2.0 - throb * 0.92);
+      pos.y = py + (pos.y - py) * (1.0 + (1.0 - throb) * 0.92);
       pos.z *= throb;
     }
   } else if (kind == 5) {
@@ -197,6 +199,18 @@ void evalPartAnim(inout vec3 pos, inout vec3 norm, vec4 meta, float packedAnim, 
     // Mode 6: Continuous Z-axle wheel rotation around wheel axle (x=pAux, y=py)
     float spd = (ph == 0.0 ? 9.5 : ph) * (0.2 + moveK * 1.15 + actionState * 0.85);
     float ang = -(animPhase * 1.45 + time * spd);
+    float c = cos(ang), s = sin(ang);
+    float dx = pos.x - pAux, dy = pos.y - py;
+    pos.x = pAux + dx * c - dy * s;
+    pos.y = py + dx * s + dy * c;
+    float nx = norm.x, ny = norm.y;
+    norm.x = nx * c - ny * s;
+    norm.y = nx * s + ny * c;
+  } else if (kind == 7) {
+    // Mode 7: Pendulum swing around top pivot (x=pAux, y=py)
+    float spd = (ph == 0.0 ? 2.8 : ph);
+    float amp = 0.24 + moveK * 0.22 + actionState * 0.26;
+    float ang = sin(time * spd + animPhase * 0.65) * amp;
     float c = cos(ang), s = sin(ang);
     float dx = pos.x - pAux, dy = pos.y - py;
     pos.x = pAux + dx * c - dy * s;
@@ -466,7 +480,7 @@ void main() {
   if (uBiomeSkin > 0.5) {
     vec3 biomeTint = 0.90 + uHemiSky * 0.12 + uRimColor * 0.08;
     albedo = mix(albedo, albedo * biomeTint, 0.09);
-    float footMask = smoothstep(0.40, 0.02, vLocalPos.y) * (0.65 + 0.35 * brush);
+    float footMask = smoothstep(0.45, 0.02, vWorldPos.y) * (0.65 + 0.35 * brush);
     vec3 weatherCol = mix(uHemiGround, uHemiSky, 0.45) * 0.80 + uRimColor * 0.06;
     albedo = mix(albedo, mix(albedo, weatherCol, 0.24), footMask * 0.16);
   }
@@ -834,8 +848,8 @@ ${
 vec3 sampleTerrainTile(vec2 uv, int tileIdx) {
   float col = float(tileIdx % 3);
   float row = float(tileIdx / 3);
-  vec2 scale = vec2(0.990) / vec2(3.0, 2.0);
-  vec2 cell = (vec2(col, row) + mix(vec2(0.005), vec2(0.995), fract(uv))) / vec2(3.0, 2.0);
+  vec2 scale = vec2(0.976) / vec2(3.0, 2.0);
+  vec2 cell = (vec2(col, row) + mix(vec2(0.012), vec2(0.988), fract(uv))) / vec2(3.0, 2.0);
   return pow(max(textureGrad(uTerrainAtlas, cell, dFdx(uv) * scale, dFdy(uv) * scale).rgb, vec3(0.0)), vec3(2.2));
 }
 
@@ -939,7 +953,8 @@ export function emissiveProgram(mode = false) {
   const isInst = isMat4 || isCompact;
   const vs = `${HEADER}
 layout(location=0) in vec3 aPos;
-${isCompact ? "layout(location=1) in vec3 aNorm;\nlayout(location=10) in vec4 aPartMeta;\nlayout(location=4) in vec4 aInstPosScale;\nlayout(location=5) in vec4 aInstRotAnim;\nlayout(location=6) in vec4 aInstTintFlash;" : ""}
+layout(location=1) in vec3 aNorm;
+${isCompact ? "layout(location=10) in vec4 aPartMeta;\nlayout(location=4) in vec4 aInstPosScale;\nlayout(location=5) in vec4 aInstRotAnim;\nlayout(location=6) in vec4 aInstTintFlash;" : ""}
 layout(location=2) in vec2 aUv;
 layout(location=3) in vec3 aCol;
 ${
@@ -954,6 +969,7 @@ ${isCompact ? COMPACT_ACTOR_FN : ""}
 uniform mat4 uModel;
 uniform float uUseVertexColors;
 out vec3 vWorldPos;
+out vec3 vWorldNorm;
 out vec2 vUv;
 out vec3 vColor;
 void main() {
@@ -962,10 +978,12 @@ void main() {
       ? `vec3 wp, wn; float fl;
   unpackCompactActor(aInstPosScale, aInstRotAnim, aInstTintFlash, aPos, aNorm, aPartMeta, uTime, wp, wn, fl);
   vWorldPos = wp;
+  vWorldNorm = wn;
   vec3 instCol = aInstTintFlash.rgb;`
       : `mat4 M = ${isMat4 ? "uModel * aInstMat" : "uModel"};
   vec4 wp = M * vec4(aPos, 1.0);
   vWorldPos = wp.xyz;
+  vWorldNorm = normalize(mat3(M) * aNorm);
   vec3 instCol = ${isMat4 ? "aInstCol" : "vec3(1.0)"};`
   }
   vUv = aUv;
@@ -986,6 +1004,7 @@ uniform float uOpacity;
 uniform float uFogEnabled;
 uniform float uAdditive;
 in vec3 vWorldPos;
+in vec3 vWorldNorm;
 in vec2 vUv;
 in vec3 vColor;
 out vec4 fragColor;
@@ -1004,6 +1023,13 @@ void main() {
       alpha *= pow(clamp(1.0 - d, 0.0, 1.0), 1.8);
     }
     if (alpha < 0.01) discard;
+  } else if (uFogEnabled > 0.5 && uAdditive < 0.5) {
+    // Subtle fresnel/depth volume shading on solid 3D glowing pieces (lantern glass, crystals, boss cores)
+    vec3 N = normalize(vWorldNorm);
+    vec3 V = normalize(uCamPos - vWorldPos);
+    float ndv = abs(dot(N, V));
+    float fres = pow(1.0 - ndv, 2.2);
+    col *= mix(0.84, 1.08, smoothstep(0.08, 0.72, ndv)) + fres * 0.14;
   }
   if (uFogEnabled > 0.5 && uAdditive < 0.5) col = applyFog(col, vWorldPos);
   fragColor = vec4(col, alpha);
@@ -1389,12 +1415,12 @@ in vec3 vI;
 out vec4 fragColor;
 
 vec3 elementColor(int i) {
-  if (i == 1 || i == 2 || i == 7) return vec3(1.16, 0.18, 0.02);
-  if (i == 3) return vec3(0.04, 0.54, 1.12);
-  if (i == 4) return vec3(0.05, 0.84, 0.22);
-  if (i == 5) return vec3(0.56, 0.09, 1.14);
-  if (i == 8) return vec3(1.12, 0.42, 0.03);
-  return vec3(1.18, 0.09, 0.08);
+  if (i == 1 || i == 2 || i == 7) return vec3(1.12, 0.28, 0.14);
+  if (i == 3) return vec3(0.20, 0.64, 1.06);
+  if (i == 4) return vec3(0.24, 0.84, 0.44);
+  if (i == 5) return vec3(0.68, 0.28, 1.04);
+  if (i == 8) return vec3(1.12, 0.54, 0.14);
+  return vec3(1.14, 0.22, 0.20);
 }
 void main() {
   float r = length(vP), a = atan(vP.y, vP.x + 1e-5), k = clamp(vI.r, 0.0, 1.0);

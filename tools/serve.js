@@ -6,7 +6,7 @@
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -73,7 +73,7 @@ export function serve(dir, port = 8124, { base = "/", quiet = true, intercept = 
   });
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   const dist = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "dist");
   const { url } = await serve(dist, +(process.argv[2] || 8124), { base: process.argv[3] || "/", quiet: false });
   console.log(`serving ${dist} at ${url}`);

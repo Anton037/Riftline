@@ -53,7 +53,7 @@ export class SmokeView {
     p.r = _col.r;
     p.g = _col.g;
     p.b = _col.b;
-    p.a = Math.min(opacity, 0.42);
+    p.a = Math.min(opacity, 0.68);
     p.rot = Math.random() * 6.283;
     p.spin = (Math.random() - 0.5) * 1.4;
   }

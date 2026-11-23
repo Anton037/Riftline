@@ -1,7 +1,7 @@
 // DOM UI (GameUI): screens, HUD, dialogs, workshop, records and settings, plus DOM helpers and icons.
 
 import { RL_RT, logError } from "../core/diagnostics.js";
-import { enemyDefs, bossDefs, bossByBiome } from "../data/enemies.js";
+import { enemyDefs, bossDefs, bossByBiome, RL_ENEMY_TIPS } from "../data/enemies.js";
 import { biomeList, biomesById } from "../data/biomes.js";
 import { store } from "../main.js";
 import { clamp, GAME_VERSION, formatCount, rlAgo, formatTime } from "../core/util.js";
@@ -126,6 +126,8 @@ const iconPaths = {
   brood: '<path d="m12 4 5 6 1 6-6 5-6-5 1-6zm-5 6-4-3m14 3 4-3M7 16l-4 2m14-2 4 2"/>',
   collapse: '<path d="m12 2 10 10-10 10L2 12zm0 5 5 5-5 5-5-5z"/>',
   tribute: '<path d="m12 3 5 7-5 8-5-8zM4 15l3 5h10l3-5"/>',
+  volOn: '<path d="M11 5 6 9H2v6h4l5 4zM15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/>',
+  volOff: '<path d="M11 5 6 9H2v6h4l5 4zM22 9l-6 6M16 9l6 6"/>',
 };
 function iconSvg(name, cls = "") {
   let paths = iconPaths[name] || iconPaths.info;
@@ -158,37 +160,36 @@ const getById = (id) => document.getElementById(id),
     ["Fire rate", (stats) => stats.weapon.rate * stats.rateMul, (value) => formatTenths(value) + "/s"],
     ["Shots", (stats) => stats.weapon.count + (stats.weapon.cone ? stats.extra * 2 : stats.extra), String],
     ["Pierce", (stats) => (stats.pierce > 99 ? 0 : stats.pierce), String],
-    ["Bounces", (stats) => stats.bounce, String],
-    ["Crit", (stats) => stats.crit, formatPercent],
+    ["Ricochets", (stats) => stats.bounce, String],
+    ["Crit chance", (stats) => stats.crit, formatPercent],
     ["Max HP", (stats) => stats.maxHp, String],
-    ["Speed", (stats) => stats.speed, (value) => formatTenths(value) + " m/s"],
+    ["Move speed", (stats) => stats.speed, (value) => formatTenths(value) + " m/s"],
     ["Range", (stats) => stats.range, (value) => Math.round(value) + " m"],
-    ["Pickup radius", (stats) => stats.magnet, (value) => formatTenths(value) + " m"],
+    ["Pickup reach", (stats) => stats.magnet, (value) => formatTenths(value) + " m"],
     ["Dash charges", (stats) => stats.dashCharges, String],
     ["Dash cooldown", (stats) => stats.dashCd, formatCooldown],
-    ["Shield cooldown", (stats) => stats.shieldCd, formatCooldown],
+    ["Mirror Ward", (stats) => stats.shieldCd, formatCooldown],
     ["HP regen", (stats) => stats.regen, (value) => formatTenths(value) + " HP/s"],
-    ["Blades", (stats) => stats.orbit, String],
+    ["Sunblades", (stats) => stats.orbit, String],
     ["Blade damage", (stats) => (stats.orbit ? stats.orbitDmg * stats.dmgMul : 0), formatTenths],
     ["Frost chance", (stats) => stats.cryo, formatPercent],
-    ["Lightning chance", (stats) => stats.arc, formatPercent],
-    ["Chain jumps", (stats) => stats.chain, String],
+    ["Stormchain", (stats) => stats.arc, formatPercent],
+    ["Chain jumps", (stats) => (stats.arc ? stats.arcJumps : stats.chain), String],
     [
       "Burn damage",
       (stats) => (stats.burn ? stats.burn * stats.burnMul * stats.dmgMul : 0),
       (value) => formatTenths(value) + "/s",
     ],
-    ["Lightning jumps", (stats) => (stats.arc ? stats.arcJumps : 0), String],
-    ["Explosive chance", (stats) => stats.payloadF, formatPercent],
-    ["Grenades", (stats) => stats.gadgetMax, String],
-    ["Grenade cooldown", (stats) => stats.gadgetCd, formatCooldown],
-    ["Grenade damage", (stats) => stats.gadgetDmg, (value) => "\u00d7" + formatTenths(value)],
-    ["Burn DPS", (stats) => stats.thermite, formatPercent],
-    ["Heal on kill", (stats) => stats.siphonCh, formatPercent],
-    ["Nova radius", (stats) => stats.novaR, (value) => formatTenths(value) + " m"],
-    ["Nova charge", (stats) => stats.novaMul, (value) => "\u00d7" + formatTenths(value)],
-    ["Drones", (stats) => stats.wingmen, String],
-    ["Speed boost cap", (stats) => (stats.bloodrush ? 0.4 : 0), formatPercent],
+    ["Burn bonus", (stats) => stats.thermite, formatPercent],
+    ["Sparkshot", (stats) => stats.payloadF, formatPercent],
+    ["Gravity Chimes", (stats) => stats.gadgetMax, String],
+    ["Chime cooldown", (stats) => stats.gadgetCd, formatCooldown],
+    ["Chime power", (stats) => stats.gadgetDmg, (value) => "\u00d7" + formatTenths(value)],
+    ["Soul Mend", (stats) => stats.siphonCh, formatPercent],
+    ["Hearthburst reach", (stats) => stats.novaR, (value) => formatTenths(value) + " m"],
+    ["Hearthburst charge", (stats) => stats.novaMul, (value) => "\u00d7" + formatTenths(value)],
+    ["Lantern Wisps", (stats) => stats.wingmen, String],
+    ["Gale Haste cap", (stats) => (stats.bloodrush ? 0.4 : 0), formatPercent],
   ],
   hitSourceName = (src) =>
     enemyDefs[src]?.name ||
@@ -199,35 +200,36 @@ const getById = (id) => document.getElementById(id),
       acid: "Acid pool",
       trap: "Arena trap",
       devil: "Dust devil",
-      prop: "Arena object",
-      starfall: "Meteor",
-      crucible: "Crucible bomb",
+      prop: "Realm relic",
+      starfall: "Starfall",
+      crucible: "Crucible blast",
     }[src],
   damageSources = {
-    arc: ["Chain Lightning", "#c0a6db"],
+    arc: ["Stormchain", "#c0a6db"],
     burn: ["Burn", "#ff8a2a"],
-    payload: ["Explosive Shots", "#ffa13d"],
-    orbit: ["Orbiting Blades", "#b8dace"],
-    wingman: ["Mini Drones", "#91c9b4"],
-    dash: ["Shock Dash", "#a7d1bf"],
-    trail: ["Fire Trail", "#a7d1bf"],
-    nova: ["Nova", "#ffd47e"],
-    pop: ["Ignite Pop", "#e9bf89"],
+    payload: ["Sparkshot", "#ffa13d"],
+    orbit: ["Sunblade Ring", "#b8dace"],
+    wingman: ["Lantern Wisps", "#91c9b4"],
+    dash: ["Thunder Stride", "#a7d1bf"],
+    trail: ["Cinder Wake", "#a7d1bf"],
+    nova: ["Hearthburst", "#ffd47e"],
+    pop: ["Cinder Pop", "#e9bf89"],
+    shatter: ["Thermal Shatter", "#bfe9ff"],
     lava: ["Lava vents", "#ff6a2a"],
     shock: ["Shock pads", "#e5b878"],
     inferno: ["Wildfire", "#ff5a3a"],
-    overload: ["Heat Blast", "#ffd27a"],
-    reactive: ["Shockwave Armor", "#b8dace"],
-    surge: ["Combo Blast", "#e9bf89"],
-    grenade: ["Gravity Grenade", "#c89eff"],
+    overload: ["Kiln Burst", "#ffd27a"],
+    reactive: ["Retribution Ward", "#b8dace"],
+    surge: ["Crescendo", "#e9bf89"],
+    grenade: ["Gravity Chime", "#c89eff"],
     trap: ["Arena traps", "#c9bfa8"],
-    prop: ["Arena objects", "#f2c879"],
-    starfall: ["Meteor shower", "#ffd872"],
+    prop: ["Realm relics", "#f2c879"],
+    starfall: ["Starfall", "#ffd872"],
     crucible: ["Crucible blast", "#ff8438"],
-    sealgrid: ["Shock Cage", "#f08e70"],
-    shard: ["Frost Shards", "#bacfd9"],
+    sealgrid: ["Storm Cage", "#f08e70"],
+    shard: ["Rime Splinters", "#bacfd9"],
     fang: ["Glasswyrm Fang", "#ffd98a"],
-    brood: ["Swarm", "#c1d291"],
+    brood: ["Spore Brood", "#c1d291"],
     other: ["Other", "#93a2bf"],
   },
   escapeHtml = (text) =>
@@ -242,6 +244,8 @@ const getById = (id) => document.getElementById(id),
       this.stack = [];
       this.viewWeapon = 0;
       this.viewThreat = 0;
+      this.recTab = "milestones";
+      this.codexTab = "realms";
       this.hudCache = {};
       // 3.46.0: the buff row and its step bars are cached per frame (see buffs)
       this.buffRow = null;
@@ -249,7 +253,7 @@ const getById = (id) => document.getElementById(id),
       this.buffTimed = new Map();
       this.dlgResolve = null;
       this.fillIcons(document);
-      getById("pauseBtn").innerHTML = iconSvg("pause");
+      getById("pauseBtn").innerHTML = iconSvg("pause") + '<span class="key" aria-hidden="true">ESC</span>';
       this.bind();
     }
     fillIcons(root) {
@@ -392,6 +396,11 @@ const getById = (id) => document.getElementById(id),
         getById("pauseBtn").blur?.();
         this.g.pause();
       });
+      this.click(getById("choosePauseBtn"), () => {
+        getById("choosePauseBtn").blur?.();
+        this.g.pause();
+      });
+      this.click(getById("muteBtn"), () => this.g.toggleMute?.());
       this.click(getById("resumeBtn"), () => this.g.resume());
       this.click(getById("abandonBtn"), async () => {
         if (
@@ -401,11 +410,53 @@ const getById = (id) => document.getElementById(id),
         }
       });
       this.click(getById("rerollBtn"), () => this.g.reroll());
+      this.click(getById("anvilContinueBtn"), () => this.g.leaveAnvil?.());
+      this.click(getById("claimAllBtn"), () => this.claimAll());
+      for (const tabBtn of document.querySelectorAll("#recTabs [data-rec-tab]")) {
+        this.click(tabBtn, () => {
+          this.recTab = tabBtn.dataset.recTab;
+          this.renderRecords();
+        });
+      }
+      for (const tabBtn of document.querySelectorAll("#codexSubtabs [data-codex-tab]")) {
+        this.click(tabBtn, () => {
+          this.codexTab = tabBtn.dataset.codexTab;
+          this.renderCodex();
+        });
+      }
+      getById("buildStrip")?.addEventListener("click", (ev) => {
+        const btn = ev.target.closest?.("[data-up]"),
+          world = this.g.world,
+          info = getById("chooseUpInfo");
+        if (!btn || !world || !info) return;
+        const wasSel = btn.getAttribute("aria-pressed") === "true";
+        for (const el of getById("buildStrip").querySelectorAll("[data-up]")) {
+          el.setAttribute("aria-pressed", "false");
+        }
+        if (wasSel) {
+          info.hidden = true;
+          return;
+        }
+        btn.setAttribute("aria-pressed", "true");
+        const up = upgradesById[btn.dataset.up],
+          lv = world.up[btn.dataset.up] || 0;
+        if (up) {
+          const tag = up.boss
+            ? "Guardian Relic"
+            : up.evo
+              ? "Masterwork"
+              : up.repeat
+                ? `\xD7${lv}`
+                : `Lv ${lv}/${up.max}`;
+          info.innerHTML = `<b>${escapeHtml(up.name)}</b> <span class="lv">${escapeHtml(tag)}</span> — ${escapeHtml(up.desc(Math.max(0, lv - 1)))}`;
+          info.hidden = false;
+        }
+      });
       this.click(getById("restartBtn"), async () => {
         if (
           await this.confirm(
             "Restart run?",
-            "Shards collected so far are kept. A fresh run starts with the same weapon and threat.",
+            "Shards collected so far are kept. A fresh run starts with the same armament and trial.",
             "Restart",
           )
         ) {
@@ -420,28 +471,47 @@ const getById = (id) => document.getElementById(id),
       let settings = () => this.save.settings,
         bindToggle = (id, key) => {
           let input = getById(id);
+          if (!input) return;
           input.addEventListener("change", () => {
             settings()[key] = input.checked;
             this.g.settingsChanged();
+            this.syncMuteButton();
           });
         };
       bindToggle("setAuto", "autoFire");
       bindToggle("setAssist", "assist");
       bindToggle("setNumbers", "numbers");
-      for (let [id, key] of [
-        ["setSfx", "sfx"],
-        ["setMusic", "music"],
-        ["setAmb", "ambience"],
+      bindToggle("setMuted", "muted");
+      const setRangeFill = (input) => {
+        if (!input) return;
+        const min = +input.min || 0,
+          max = +input.max || 1,
+          pct = clamp(((+input.value - min) / Math.max(1e-6, max - min)) * 100, 0, 100);
+        input.style.setProperty("--p", pct.toFixed(1) + "%");
+      };
+      this._setRangeFill = setRangeFill;
+      for (let [id, key, previewKey] of [
+        ["setMaster", "master", "sfx"],
+        ["setSfx", "sfx", "sfx"],
+        ["setMusic", "music", "music"],
+        ["setAmb", "ambience", "ambience"],
       ]) {
         let input = getById(id),
           out = getById(id + "V");
+        if (!input) continue;
         input.addEventListener("input", () => {
           settings()[key] = +input.value;
+          if (key === "master" && +input.value > 0 && settings().muted) {
+            settings().muted = false;
+            if (getById("setMuted")) getById("setMuted").checked = false;
+          }
           if (out) out.textContent = Math.round(+input.value * 100) + "%";
+          setRangeFill(input);
           this.g.settingsChanged(true);
+          this.syncMuteButton();
           // 3.48.0: hear the bus you are turning, at the level you just set (a shot of the weapon in
           // hand for effects, the arrival braam of the place for music, one far voice for the ambience)
-          this.g.sound.previewBus(key, this.save.weapon);
+          this.g.sound.previewBus(previewKey, this.save.weapon);
         });
         input.addEventListener("change", () => {
           this.g.settingsChanged();
@@ -465,7 +535,7 @@ const getById = (id) => document.getElementById(id),
         if (
           (await this.confirm(
             "Reset all progress?",
-            "Shards, workshop, weapons, records and milestones are wiped. Settings stay.",
+            "Shards, Sanctuary crafts, armaments, Journal records, and milestones are wiped. Settings stay.",
             "Continue",
           )) &&
           (await this.confirm("Really reset?", "This cannot be undone.", "Reset everything", true))
@@ -478,7 +548,7 @@ const getById = (id) => document.getElementById(id),
         if (
           await this.confirm(
             "Restore default settings?",
-            "Audio, video, controls and the HUD layout go back to stock. Your progress stays as it is.",
+            "Sound, display, controls, and touch layout return to defaults. Your progress stays untouched.",
             "Restore",
           )
         ) {
@@ -490,6 +560,15 @@ const getById = (id) => document.getElementById(id),
           this.closeDialog(null);
         }
       });
+    }
+    syncMuteButton() {
+      const btn = getById("muteBtn");
+      if (!btn) return;
+      const muted = !!this.save.settings.muted || (this.save.settings.master ?? 1) <= 0;
+      btn.innerHTML = iconSvg(muted ? "volOff" : "volOn");
+      btn.classList.toggle("muted", muted);
+      btn.setAttribute("aria-pressed", String(muted));
+      btn.setAttribute("aria-label", muted ? "Unmute sound" : "Mute sound");
     }
     show(screen) {
       if (menuScreens.includes(this.screen) && this.screen !== screen) {
@@ -543,6 +622,11 @@ const getById = (id) => document.getElementById(id),
       for (let el of document.querySelectorAll(".bankMirror")) el.textContent = formatCount(save.shards);
       const upBtn = getById("updateReadyBtn");
       if (upBtn) upBtn.hidden = !this.g.pendingUpdate;
+      this.syncMuteButton();
+      const corruptBanner = getById("corruptBanner");
+      if (corruptBanner) corruptBanner.hidden = !this.g.store.corruptBackupKey || !!this.corruptDismissed;
+      const webglBanner = getById("webglBanner");
+      if (webglBanner) webglBanner.hidden = !!this.g.renderer;
       if (this.viewWeapon == null || !weaponOrder[this.viewWeapon]) {
         this.viewWeapon = 0;
       }
@@ -566,7 +650,7 @@ const getById = (id) => document.getElementById(id),
       const checkpoint = getById("continueNote");
       checkpoint.hidden = !run;
       checkpoint.textContent = run?.offer
-        ? "Continue at your saved card choice."
+        ? "Continue at your saved craft choice."
         : "Continue restarts the saved wave from its beginning.";
       this.updatePlayState();
       getById("recBadge").hidden = !this.g.claimable().length;
@@ -591,12 +675,9 @@ const getById = (id) => document.getElementById(id),
       card.style.setProperty("--wc", "#" + weapon.color.toString(16).padStart(6, "0"));
       getById("wIndex").textContent = `${this.viewWeapon + 1}/${weaponOrder.length}`;
       getById("wName").innerHTML = (owned ? "" : iconSvg("lock", "inline")) + escapeHtml(weapon.name);
-      if (getById("wName").querySelector(".ico")) {
-        getById("wName").querySelector(".ico").style.cssText =
-          "display:inline-block;vertical-align:-3px;margin-right:6px;width:18px;height:18px";
-      }
       getById("wBlurb").textContent = weapon.blurb;
       let burst = weapon.dmg * weapon.count + (weapon.explodeDmg || 0),
+        dps = Math.round(burst * weapon.rate),
         range = weaponRange(weapon),
         segs = (value) => {
           let lit = clamp(Math.round(value), 1, 8);
@@ -612,6 +693,19 @@ const getById = (id) => document.getElementById(id),
             : weapon.explodeDmg
               ? `${weapon.dmg}+${weapon.explodeDmg}`
               : String(weapon.dmg);
+      const traits = [`${dps} DPS`];
+      if (weapon.homing) traits.push("Homing");
+      if (weapon.chain) traits.push(`Chains \xD7${weapon.chain}`);
+      if (weapon.pierce >= 99) traits.push("Full Pierce");
+      else if (weapon.pierce > 0) traits.push(`Pierce ${weapon.pierce}`);
+      if (weapon.boomerang) traits.push("Boomerang");
+      if (weapon.explode) traits.push("Splash Blast");
+      if (weapon.burn) traits.push("Ignites");
+      if (weapon.count > 1 && !weapon.burn) traits.push(`${weapon.count}-Pellet Fan`);
+      const traitsEl = getById("wTraits");
+      if (traitsEl) {
+        traitsEl.innerHTML = traits.map((t) => `<span class="wc-trait">${escapeHtml(t)}</span>`).join("");
+      }
       getById("wStats").innerHTML = `
     <div class="stat"><span class="k">DAMAGE</span><span class="v">${dmgText}</span>${segs((burst / 55) * 8)}</div>
     <div class="stat"><span class="k">RATE</span><span class="v">${weapon.rate.toFixed(1)}/s</span>${segs((weapon.rate / 6.5) * 8)}</div>
@@ -625,7 +719,8 @@ const getById = (id) => document.getElementById(id),
       getById("wPrev").disabled = this.viewWeapon <= 0;
       getById("wNext").disabled = this.viewWeapon >= weaponOrder.length - 1;
       this.updatePlayState();
-      this.g.previewWeapon(owned ? id : save.weapon);
+      // Preview locked armaments in 3D too so players can inspect what they are saving up for.
+      this.g.previewWeapon(id);
       markHomeViewDirty();
     }
     renderThreat() {
@@ -644,10 +739,18 @@ const getById = (id) => document.getElementById(id),
     updatePlayState() {
       let save = this.save,
         id = weaponOrder[this.viewWeapon],
-        playable = !!save.weapons[id] && this.viewThreat <= save.threatMax,
+        playable = !!save.weapons[id] && this.viewThreat <= save.threatMax && !!this.g.renderer,
         btn = getById("playBtn");
       btn.disabled = !playable;
-      btn.textContent = playable ? (save.run ? "NEW RUN" : "PLAY") : save.weapons[id] ? "TIER LOCKED" : "WEAPON LOCKED";
+      btn.textContent = !this.g.renderer
+        ? "3D UNAVAILABLE"
+        : playable
+          ? save.run
+            ? "NEW RUN"
+            : "PLAY"
+          : save.weapons[id]
+            ? "TRIAL LOCKED"
+            : "ARMAMENT LOCKED";
     }
     stepWeapon(dir) {
       this.viewWeapon = clamp(this.viewWeapon + dir, 0, weaponOrder.length - 1);
@@ -702,25 +805,30 @@ const getById = (id) => document.getElementById(id),
       let save = this.save;
       for (let el of document.querySelectorAll(".bankMirror")) el.textContent = formatCount(save.shards);
       let list = getById("wsList");
-      const catOf = (id) =>
-        id === "hull" || id === "revive" || id === "armorCore" || id === "emergencyShield"
-          ? "cat-ward"
-          : id === "power" || id === "nova" || id === "arsenalLab" || id === "hazardAttune"
-            ? "cat-fire"
-            : id === "thrust" || id === "dash" || id === "magnet" || id === "droneBay"
-              ? "cat-stride"
-              : "cat-fate";
-      list.innerHTML = workshopModules
-        .map((mod) => {
-          let level = save.workshop[mod.id] || 0,
-            maxLevel = mod.costs.length,
-            cost = mod.costs[level],
-            pips = Array.from({ length: maxLevel }, (_, i) => `<i class="${i < level ? "on" : ""}"></i>`).join(""),
-            btn =
-              level >= maxLevel
-                ? '<button class="btn max-btn" disabled>MAX</button>'
-                : `<button class="btn buy" data-buy="${mod.id}" ${save.shards < cost ? "disabled" : ""}><span class="shard-ico"></span>${cost}</button>`;
-          return `<div class="row panel ${catOf(mod.id)}"><div class="rico">${iconSvg(mod.icon)}</div><div><b>${escapeHtml(mod.name)}</b><small>${escapeHtml(mod.desc)}</small><div class="pips">${pips}</div></div>${btn}</div>`;
+      const groups = [
+        ["ward", "Ward & Vitality", "cat-ward"],
+        ["arms", "Armaments", "cat-fire"],
+        ["stride", "Stride & Reflex", "cat-stride"],
+        ["craft", "Artificer's Craft", "cat-fate"],
+      ];
+      list.innerHTML = groups
+        .map(([gKey, gTitle, catCls]) => {
+          const mods = workshopModules.filter((m) => (m.group || "craft") === gKey);
+          if (!mods.length) return "";
+          const rows = mods
+            .map((mod) => {
+              let level = save.workshop[mod.id] || 0,
+                maxLevel = mod.costs.length,
+                cost = mod.costs[level],
+                pips = Array.from({ length: maxLevel }, (_, i) => `<i class="${i < level ? "on" : ""}"></i>`).join(""),
+                btn =
+                  level >= maxLevel
+                    ? '<button class="btn max-btn" disabled>MAX</button>'
+                    : `<button class="btn buy" data-buy="${mod.id}" ${save.shards < cost ? "disabled" : ""}><span class="shard-ico"></span>${cost}</button>`;
+              return `<div class="row panel ${catCls}"><div class="rico">${iconSvg(mod.icon)}</div><div><b>${escapeHtml(mod.name)}</b><small>${escapeHtml(mod.desc)}</small><div class="pips">${pips}</div></div>${btn}</div>`;
+            })
+            .join("");
+          return `<h3 class="ws-group-h">${escapeHtml(gTitle)}</h3>${rows}`;
         })
         .join("");
       for (let btn of list.querySelectorAll("[data-buy]")) this.click(btn, () => this.buyModule(btn.dataset.buy));
@@ -745,16 +853,26 @@ const getById = (id) => document.getElementById(id),
       let save = this.save,
         stats = save.stats;
       for (let el of document.querySelectorAll(".bankMirror")) el.textContent = formatCount(save.shards);
+      const tab = this.recTab || "milestones";
+      for (const btn of document.querySelectorAll("#recTabs [data-rec-tab]")) {
+        const active = btn.dataset.recTab === tab;
+        btn.classList.toggle("on", active);
+        btn.setAttribute("aria-selected", String(active));
+      }
+      getById("recMilestonesPane").hidden = tab !== "milestones";
+      getById("recChroniclePane").hidden = tab !== "chronicle";
+      getById("recCodexPane").hidden = tab !== "codex";
+
       let bossKills = Object.values(stats.bosses).reduce((sum, count) => sum + count, 0),
         cells = [
           ["Runs", stats.runs],
           ["Best wave", stats.bestWave || "\u2014"],
           ["Clears", stats.clears],
           ["Kills", formatCount(stats.kills)],
-          ["Bosses killed", bossKills],
-          ["Highest tier", stats.bestClearThreat >= 0 ? threatLevels[stats.bestClearThreat].name : "\u2014"],
+          ["Guardians felled", bossKills],
+          ["Highest trial", stats.bestClearThreat >= 0 ? threatLevels[stats.bestClearThreat].name : "\u2014"],
           ["Time played", formatTime(stats.playTime)],
-          ["Fastest clear", stats.bestTime > 0 ? formatTime(stats.bestTime) : "—"],
+          ["Fastest clear", stats.bestTime > 0 ? formatTime(stats.bestTime) : "\u2014"],
           ["Shards earned", formatCount(stats.shardsEarned)],
         ];
       getById("statGrid").innerHTML = cells
@@ -763,15 +881,28 @@ const getById = (id) => document.getElementById(id),
             `<div class="cell"><div class="k">${escapeHtml(label)}</div><div class="v">${escapeHtml(value)}</div></div>`,
         )
         .join("");
+
+      const readyIds = this.g.claimable(),
+        readySet = new Set(readyIds),
+        totalReadyReward = readyIds.reduce((sum, id) => sum + (milestones.find((m) => m.id === id)?.reward || 0), 0),
+        claimAllBtn = getById("claimAllBtn");
+      if (claimAllBtn) {
+        claimAllBtn.hidden = readyIds.length < 1;
+        claimAllBtn.innerHTML = `Claim All (${readyIds.length}) \xB7 <span class="shard-ico"></span>${formatCount(totalReadyReward)}`;
+      }
+      const ordered = [...milestones].sort((a, b) => {
+        const rank = (m) => (readySet.has(m.id) ? 0 : save.milestones[m.id] ? 2 : 1);
+        return rank(a) - rank(b);
+      });
       let list = getById("msList");
-      list.innerHTML = milestones
+      list.innerHTML = ordered
         .map((ms) => {
           let done = !!save.milestones[ms.id],
-            ready = !done && ms.test(save),
+            ready = readySet.has(ms.id),
             action = done
               ? `<span class="chip">${iconSvg("check")}DONE</span>`
               : ready
-                ? `<button class="btn" data-claim="${ms.id}"><span class="shard-ico"></span>${ms.reward}</button>`
+                ? `<button class="btn buy" data-claim="${ms.id}"><span class="shard-ico"></span>${ms.reward}</button>`
                 : `<span class="chip"><span class="shard-ico"></span>${ms.reward}</span>`;
           return `<div class="row panel ${done ? "done" : ready ? "claim" : ""}"><div class="rico">${iconSvg(done ? "check" : "trophy")}</div><div><b>${escapeHtml(ms.name)}</b><small>${escapeHtml(ms.desc)}</small></div>${action}</div>`;
         })
@@ -783,6 +914,66 @@ const getById = (id) => document.getElementById(id),
       } catch (err) {
         logError("history", err);
       }
+      if (tab === "codex") {
+        this.renderCodex();
+      }
+    }
+    renderCodex() {
+      const box = getById("codexList");
+      if (!box) return;
+      const save = this.save,
+        sub = this.codexTab || "realms";
+      for (const btn of document.querySelectorAll("#codexSubtabs [data-codex-tab]")) {
+        btn.classList.toggle("on", btn.dataset.codexTab === sub);
+      }
+      if (sub === "realms") {
+        box.innerHTML = biomeList
+          .map((biome) => {
+            const bossId = bossByBiome[biome.id],
+              boss = bossDefs[bossId],
+              kills = save.stats.bosses?.[bossId] || 0,
+              medal = save.stats.medals?.[bossId],
+              medalText = medal
+                ? `${MEDAL_NAMES[medal.medal] || "Medal"} (${medal.secs}s)`
+                : kills
+                  ? `${kills} felled`
+                  : "Unbeaten";
+            return `<div class="codex-card"><div class="codex-head"><b>${escapeHtml(biome.name)}</b><span class="codex-tag">${escapeHtml(biome.tag || "Realm")}</span></div><p>${escapeHtml(RL_BIOME_CARD[biome.id] || "")}</p><div class="codex-meta">Guardian: ${escapeHtml(boss ? boss.name : "\u2014")} \xB7 ${escapeHtml(medalText)}</div></div>`;
+          })
+          .join("");
+      } else if (sub === "foes") {
+        const bossCards = Object.entries(bossDefs)
+          .map(([id, b]) => {
+            const kills = save.stats.bosses?.[id] || 0,
+              medal = save.stats.medals?.[id],
+              meta = medal
+                ? `${kills} felled \xB7 Best ${MEDAL_NAMES[medal.medal]} (${medal.secs}s)`
+                : kills
+                  ? `${kills} felled`
+                  : "Awaiting challenge";
+            return `<div class="codex-card"><div class="codex-head"><b>${escapeHtml(b.name)}</b><span class="codex-tag">Guardian</span></div><p>${escapeHtml(b.title)}</p><div class="codex-meta">${escapeHtml(meta)}</div></div>`;
+          })
+          .join("");
+        const foeCards = Object.entries(enemyDefs)
+          .map(([id, e]) => {
+            const seen = !!save.seen["tip_enemy_" + id] || save.stats.kills > 0;
+            const tip = RL_ENEMY_TIPS[id] || "Hostile construct roaming the realms.";
+            return `<div class="codex-card${seen ? "" : " undiscovered"}"><div class="codex-head"><b>${escapeHtml(e.name)}</b><span class="codex-tag">Foe</span></div><p>${escapeHtml(tip)}</p></div>`;
+          })
+          .join("");
+        box.innerHTML = bossCards + foeCards;
+      } else {
+        const evos = upgradeList.filter((u) => u.evo);
+        box.innerHTML = evos
+          .map((u) => {
+            const recipe = Object.entries(u.evo)
+              .map(([reqId, lv]) => `${upgradesById[reqId]?.name || reqId} Lv ${lv}`)
+              .join(" + ");
+            const wTag = u.weapon && weaponDefs[u.weapon] ? weaponDefs[u.weapon].name : "Any Armament";
+            return `<div class="codex-card"><div class="codex-head"><b>${escapeHtml(u.name)}</b><span class="codex-tag">${escapeHtml(wTag)}</span></div><p>${escapeHtml(u.desc(0))}</p><div class="codex-meta">Requires: ${escapeHtml(recipe)}</div></div>`;
+          })
+          .join("");
+      }
     }
     claim(id) {
       let save = this.save,
@@ -791,18 +982,35 @@ const getById = (id) => document.getElementById(id),
         save.milestones[id] = true;
         save.shards += ms.reward;
         this.g.store.save("claim");
-        this.g.sound.play("buy");
+        this.g.sound.play("milestone");
         this.toast(`${ms.name}: +${ms.reward} shards`, "gold");
         this.renderRecords();
       }
+    }
+    claimAll() {
+      const save = this.save,
+        ready = this.g.claimable();
+      if (!ready.length) return;
+      let total = 0;
+      for (const id of ready) {
+        const ms = milestones.find((m) => m.id === id);
+        if (ms && !save.milestones[id]) {
+          save.milestones[id] = true;
+          save.shards += ms.reward;
+          total += ms.reward;
+        }
+      }
+      this.g.store.save("claim-all");
+      this.g.sound.play("milestone");
+      this.toast(`Claimed ${ready.length} milestones: +${formatCount(total)} shards`, "gold");
+      this.renderRecords();
     }
     // the What's new tab: opening it marks this version's notes as read (the badge on the home screen goes away)
 
     renderNews() {
       getById("newsList").innerHTML = WHATS_NEW.map(
         (entry, i) =>
-          `<h3 class="section-h">${escapeHtml(entry.version)} · ${escapeHtml(entry.title)}${i === 0 ? " · current" : ""}</h3>` +
-          `<div class="set-group">${entry.items.map((t) => `<div class="set-row"><span>${escapeHtml(t)}</span></div>`).join("")}</div>`,
+          `<article class="news-card"><div class="news-card-head"><span class="news-ver">v${escapeHtml(entry.version)}${i === 0 ? " · Latest" : ""}</span><h3>${escapeHtml(entry.title)}</h3></div><ul class="news-list">${entry.items.map((t) => `<li>${escapeHtml(t)}</li>`).join("")}</ul></article>`,
       ).join("");
       const key = "news_" + GAME_VERSION;
       if (!this.save.seen[key]) {
@@ -815,9 +1023,19 @@ const getById = (id) => document.getElementById(id),
       getById("setAuto").checked = settings.autoFire;
       getById("setAssist").checked = settings.assist;
       getById("setNumbers").checked = settings.numbers;
+      if (getById("setMuted")) getById("setMuted").checked = !!settings.muted;
+      const masterVal = settings.master ?? 1;
+      if (getById("setMaster")) {
+        getById("setMaster").value = masterVal;
+        this._setRangeFill?.(getById("setMaster"));
+      }
+      if (getById("setMasterV")) getById("setMasterV").textContent = Math.round(masterVal * 100) + "%";
       getById("setSfx").value = settings.sfx;
       getById("setMusic").value = settings.music;
       getById("setAmb").value = settings.ambience;
+      this._setRangeFill?.(getById("setSfx"));
+      this._setRangeFill?.(getById("setMusic"));
+      this._setRangeFill?.(getById("setAmb"));
       if (getById("setSfxV")) getById("setSfxV").textContent = Math.round(settings.sfx * 100) + "%";
       if (getById("setMusicV")) getById("setMusicV").textContent = Math.round(settings.music * 100) + "%";
       if (getById("setAmbV")) getById("setAmbV").textContent = Math.round(settings.ambience * 100) + "%";
@@ -830,14 +1048,16 @@ const getById = (id) => document.getElementById(id),
       }
       getById("storageWarn").hidden = this.g.store.storageOk;
       getById("storageWarnText").textContent = this.g.store.held
-        ? "the old save is kept unread (storage full): progress is not saved"
-        : "storage is blocked in this browser";
+        ? "Previous save kept unread because storage is full; progress is not saved."
+        : "Storage is blocked in this browser.";
+      const corruptRow = getById("corruptSettingsRow");
+      if (corruptRow) corruptRow.hidden = this.g.store.listBackups().length === 0;
       getById("verText").textContent = `v${GAME_VERSION}`;
       const ownLayout =
         !!settings.hudLayout || settings.stickFixed || settings.stickSize !== 1 || settings.hudAlpha !== 1;
       getById("hudLayoutNote").textContent = ownLayout
-        ? "Your own layout is on."
-        : "Move and resize the buttons and the sticks.";
+        ? "Your own layout is active."
+        : "Move and resize the touch buttons and sticks.";
     }
     async copy(text) {
       let ok = false;
@@ -1055,11 +1275,9 @@ const getById = (id) => document.getElementById(id),
       });
       let waveMax = world.endless ? "" : "/" + 20;
       update("wave", world.wave + waveMax, () => {
-        getById("waveLabel").textContent = `WAVE ${world.wave}${waveMax}`;
+        getById("waveLabel").textContent = `Wave ${world.wave}${waveMax}`;
       });
-      // 3.45.0: the progress bar carries the wave's count ("N LEFT" churned text with every kill;
-      // a boss fight is named by the boss bar, CLEARED stays for the moment between the waves)
-      let sub = world.state === "cleared" ? "CLEARED" : "\xA0";
+      let sub = world.state === "cleared" ? "Cleared" : "";
       update("sub", sub, (text) => {
         getById("waveSub").textContent = text;
       });
@@ -1067,14 +1285,29 @@ const getById = (id) => document.getElementById(id),
       update("progOn", showProg, (on) => {
         getById("waveProg").hidden = !on;
       });
+      let foesLeft = 0;
       if (showProg) {
-        let left = world.enemies.length + world.markers.length;
-        for (let i = world.planIdx; i < world.plan.length; i++) left += world.plan[i].members.length;
-        let progress = clamp(1 - left / Math.max(world.planTotal, left), 0, 1);
+        foesLeft = world.enemies.length + world.markers.length;
+        for (let i = world.planIdx; i < world.plan.length; i++) foesLeft += world.plan[i].members.length;
+        let progress = clamp(1 - foesLeft / Math.max(world.planTotal, foesLeft), 0, 1);
         update("prog", Math.round(progress * 50), () => {
           getById("waveProgFill").style.transform = `scaleX(${progress})`;
         });
       }
+      update("timer", Math.floor(world.time), (secs) => {
+        const el = getById("hudTimer");
+        if (el) el.textContent = formatTime(secs);
+      });
+      update("foes", showProg ? foesLeft : -1, (n) => {
+        const el = getById("hudFoes");
+        if (!el) return;
+        el.hidden = n <= 0;
+        if (n > 0) el.textContent = `${n} left`;
+      });
+      update("autoPill", !!this.save.settings.autoFire, (on) => {
+        const el = getById("hudAutoPill");
+        if (el) el.hidden = !on;
+      });
       let boss = world.boss || (world.champion && !world.champion.dead ? world.champion : null);
       update("bossOn", !!boss, (on) => {
         getById("bossBar").hidden = !on;
@@ -1082,9 +1315,9 @@ const getById = (id) => document.getElementById(id),
       if (boss) {
         update("bossName", boss.type + (boss.enraged ? "!" : "") + (boss.champion ? "c" : ""), () => {
           getById("bossName").textContent = boss.champion
-            ? `${enemyDefs[boss.type].name.toUpperCase()} CHAMPION`
+            ? `${enemyDefs[boss.type].name} Champion`
             : bossDefs[boss.type].name;
-          getById("bossPhase").textContent = boss.enraged ? "PHASE 2" : boss.champion ? "BOOSTING" : "";
+          getById("bossPhase").textContent = boss.enraged ? "Phase 2" : boss.champion ? "Rallying" : "";
         });
         update("bossF", Math.round((boss.hp / boss.maxHp) * 100), (value) => {
           getById("bossFill").style.transform = `scaleX(${clamp(value / 100, 0, 1)})`;
@@ -1169,7 +1402,7 @@ const getById = (id) => document.getElementById(id),
         }
         const btn = getById("gadgetBtn");
         btn.classList.toggle("empty", gadgetN <= 0);
-        btn.setAttribute("aria-label", `Throw Gravity Grenade, ${gadgetN} of ${gadgetMax} ready`);
+        btn.setAttribute("aria-label", `Throw Gravity Chime, ${gadgetN} of ${gadgetMax} ready`);
       });
       const gadgetPct =
         gadgetN >= gadgetMax || !(stats.gadgetCd > 0)
@@ -1187,19 +1420,22 @@ const getById = (id) => document.getElementById(id),
         stats = world.stats,
         chips = [];
       if (stats.bloodrush && player.rushN > 0) {
-        chips.push(["rush", `SPEED \xD7${player.rushN}`, "#f08e70", player.rushT / 4]);
+        chips.push(["rush", `HASTE \xD7${player.rushN}`, "#f08e70", player.rushT / 4]);
+      }
+      if (player.grazeT > 0) {
+        chips.push(["graze", "GRAZE+", "#ffd872", player.grazeT / 1.5]);
       }
       if (world.chronoT > 0) {
         chips.push(["chrono", "SLOW TIME", "#bacfd9", world.chronoT / 1.5]);
       }
       if ((world.ws.revive || 0) > 0 && !world.revived) {
-        chips.push(["life", "REVIVE", "#abd397", -1]);
+        chips.push(["life", "SECOND WIND", "#abd397", -1]);
       }
       if (world.barrierT > 0) {
-        chips.push(["barrier", "SHIELD", "#b5dcdc", world.barrierT / Math.max(1, stats.barrierT || 1)]);
+        chips.push(["barrier", "AEGIS", "#b5dcdc", world.barrierT / Math.max(1, stats.barrierT || 1)]);
       }
       if (world.attuned && world.state === "fight") {
-        chips.push(["attune", "HAZARD RESIST", "#ffb86b", -1]);
+        chips.push(["attune", "REALM WARD", "#ffb86b", -1]);
       }
       if (world.event && world.state === "fight") {
         chips.unshift(["event", waveEvents[world.event].name, world.event === "gilded" ? "#ffc84a" : "#a7d1bf", -1]);
@@ -1221,12 +1457,21 @@ const getById = (id) => document.getElementById(id),
       if (player.inDevil && world.state === "fight") {
         chips.push(["devil", "WHIRLWIND", "#ffe9c4", -1]);
       }
+      if (player.corrodeT > 0) {
+        chips.push(["corrode", "CORRODED", "#86f8ba", player.corrodeT / 2.2]);
+      }
+      if (player.singeT > 0) {
+        chips.push(["singe", "SINGED", "#ff9d5c", player.singeT / 2.0]);
+      }
+      if (player.dazeT > 0) {
+        chips.push(["daze", "DAZED", "#ffe59e", player.dazeT / 1.5]);
+      }
       if (player.slowT > 0) {
         if (player.slowKind === "shock") chips.push(["shock", "SHOCKED", "#ffe98a", player.slowT / 0.9]);
         else if (player.slowKind === "acid") chips.push(["acidSlow", "SLOWED", "#86f8ba", player.slowT / 1.4]);
         else if (player.slowKind === "burn") chips.push(["burnSlow", "BURNED", "#ff9d5c", player.slowT / 1.2]);
-        else if (player.slowKind === "glass") chips.push(["glassSlow", "BLINDED", "#ffe59e", player.slowT / 1.3]);
-        else chips.push(["chill", "FROZEN", "#aee8ff", player.slowT / 1.6]);
+        else if (player.slowKind === "glass") chips.push(["glassSlow", "GLARED", "#ffe59e", player.slowT / 1.3]);
+        else chips.push(["chill", "CHILLED", "#aee8ff", player.slowT / 1.6]);
       }
       let key = chips.map((chip) => chip[0] + chip[1]).join("|"),
         // 3.46.0: the row element is cached (it is static in the page); the step bars are cached
@@ -1331,9 +1576,9 @@ const getById = (id) => document.getElementById(id),
     showChoose(world) {
       let bossReward = world.offerBoss;
       getById("chooseEyebrow").textContent = bossReward
-        ? `${bossDefs[world.bossKills[world.bossKills.length - 1]] ? bossDefs[world.bossKills[world.bossKills.length - 1]].name : "BOSS"} DEFEATED`
-        : `WAVE ${world.wave} CLEARED`;
-      getById("chooseTitle").textContent = bossReward ? "Choose a boss reward" : "Choose an upgrade";
+        ? `${bossDefs[world.bossKills[world.bossKills.length - 1]] ? bossDefs[world.bossKills[world.bossKills.length - 1]].name : "Guardian"} Defeated`
+        : `Wave ${world.wave} Cleared`;
+      getById("chooseTitle").textContent = bossReward ? "Choose a Guardian Relic" : "Choose a Craft";
       getById("chooseFirstHint").hidden = bossReward || world.wave !== 1;
       let hpFrac = clamp(world.player.hp / world.stats.maxHp, 0, 1);
       getById("chooseHp").style.transform = `scaleX(${hpFrac})`;
@@ -1349,9 +1594,10 @@ const getById = (id) => document.getElementById(id),
       const next = world.previewWave(world.wave + 1),
         chips = [[`Wave ${next.wave}`, ""]];
       if (next.newBiome) chips.push([`Entering ${biomesById[next.biome].name}`, "biome"]);
-      if (next.boss) chips.push([`Boss \u00b7 ${bossDefs[next.boss] ? bossDefs[next.boss].name : next.boss}`, "boss"]);
+      if (next.boss)
+        chips.push([`Guardian \u00b7 ${bossDefs[next.boss] ? bossDefs[next.boss].name : next.boss}`, "boss"]);
       if (next.event && waveEvents[next.event]) chips.push([waveEvents[next.event].name, "event"]);
-      if (next.mutator && MUTATORS[next.mutator]) chips.push([`Modifier \u00b7 ${MUTATORS[next.mutator].name}`, "mut"]);
+      if (next.mutator && MUTATORS[next.mutator]) chips.push([`Omen \u00b7 ${MUTATORS[next.mutator].name}`, "mut"]);
       if (next.traps) chips.push(["Arena traps active", ""]);
       box.innerHTML = chips.map(([text, cls]) => `<span class="nw ${cls}">${escapeHtml(text)}</span>`).join("");
     }
@@ -1369,9 +1615,9 @@ const getById = (id) => document.getElementById(id),
             crest = tierCrests[up.rarity] || "",
             tierName = (rarityNames[up.rarity] || "").toUpperCase(),
             tag = up.boss
-              ? `${crest} ${bossDefs[up.boss] ? bossDefs[up.boss].name.toUpperCase() : "BOSS"} \xB7 REWARD`
+              ? `${crest} ${bossDefs[up.boss] ? bossDefs[up.boss].name.toUpperCase() : "GUARDIAN"} \xB7 RELIC`
               : up.evo
-                ? `${crest} EVOLUTION`
+                ? `${crest} MASTERWORK`
                 : up.repeat
                   ? `${crest} ${tierName}`
                   : level
@@ -1389,7 +1635,7 @@ const getById = (id) => document.getElementById(id),
       for (let card of cards.querySelectorAll("[data-pick]")) {
         card.addEventListener("click", () => {
           if (!cards.classList.contains("locked")) {
-            // 3.25.0: with Banish armed the card is banished instead of taken
+            // 3.25.0: with Seal armed the card is sealed out of the run instead of taken
             if (this.banishMode) this.g.banish(card.dataset.pick);
             else this.g.choose(card.dataset.pick);
           }
@@ -1399,7 +1645,7 @@ const getById = (id) => document.getElementById(id),
           if (ev.pointerType === "mouse" && !cards.classList.contains("locked")) this.g.sound.play("hover");
         });
       }
-      // 3.25.0: Banish Protocol: shown when the module is owned (or a banish is left in a resumed run)
+      // 3.25.0: Waxen Seal: shown when the module is owned (or a seal is left in a resumed run)
       {
         const btn = getById("banishBtn"),
           has = (world.ws.banish || 0) > 0 || world.banishes > 0;
@@ -1408,12 +1654,13 @@ const getById = (id) => document.getElementById(id),
         btn.disabled = world.banishes <= 0 || world.offer.length < 2;
         btn.classList.toggle("on", !!this.banishMode);
         btn.setAttribute("aria-pressed", String(!!this.banishMode));
-        getById("banishTxt").textContent = `Banish (${world.banishes})`;
+        getById("banishTxt").textContent = `Seal (${world.banishes})`;
         cards.classList.toggle("banishing", !!this.banishMode);
       }
       getById("rerollTxt").textContent = `Reroll (${world.rerolls})`;
       getById("rerollBtn").disabled = world.rerolls <= 0;
-      getById("buildStrip").innerHTML = this.buildHtml(world);
+      getById("buildStrip").innerHTML = this.buildHtml(world, true);
+      if (getById("chooseUpInfo")) getById("chooseUpInfo").hidden = true;
       if (!RL_INPUT.touch) {
         cards.querySelectorAll("[data-pick]").forEach((card, i) => {
           card.classList.add("has-key");
@@ -1444,28 +1691,62 @@ const getById = (id) => document.getElementById(id),
         // 3.6.0: a value, its unit and the arrow never break apart (a lone "s" or "0/1" on a line of its own)
         const keep = (value) => String(format(value)).replace(/ /g, "\u00a0");
         lines.push(`${label} ${keep(before)}\u00a0\u2192\u00a0${keep(after)}`);
-        if (lines.length >= 2) break;
+        if (lines.length >= 4) break;
       }
       return lines.length ? `<small class="delta">${escapeHtml(lines.join(" \xB7 "))}</small>` : "";
     }
     evoHint(up, world) {
       if (up.evo)
-        return `<small class="evo-hint">Merges ${Object.keys(up.evo)
+        return `<small class="evo-hint">Forges ${Object.keys(up.evo)
           .map((id) => escapeHtml(upgradesById[id].name))
           .join(" + ")}</small>`;
       let evos = upgradeList.filter(
-          (evo) => evo.evo && evo.evo[up.id] && !world.up[evo.id] && (!evo.weapon || evo.weapon === world.weapon),
-        ),
-        evo = evos.find((evo) => evo.weapon) || evos[0];
-      if (!evo) return "";
-      let others = Object.keys(evo.evo)
-          .filter((id) => id !== up.id)
-          .map((id) => `${upgradesById[id].name}\u00a0${Math.min(world.up[id] || 0, evo.evo[id])}/${evo.evo[id]}`),
-        mine = `${Math.min((world.up[up.id] || 0) + 1, evo.evo[up.id])}/${evo.evo[up.id]}`;
-      return `<small class="evo-hint">\u2192 ${escapeHtml(evo.name)}: this\u00a0${mine} \xB7 ${escapeHtml(others.join(", "))}</small>`;
+        (evo) => evo.evo && evo.evo[up.id] && !world.up[evo.id] && (!evo.weapon || evo.weapon === world.weapon),
+      );
+      if (!evos.length) return "";
+      evos.sort((a, b) => (b.weapon ? 1 : 0) - (a.weapon ? 1 : 0));
+      return evos
+        .slice(0, 2)
+        .map((evo) => {
+          let others = Object.keys(evo.evo)
+              .filter((id) => id !== up.id)
+              .map((id) => `${upgradesById[id].name}\u00a0${Math.min(world.up[id] || 0, evo.evo[id])}/${evo.evo[id]}`),
+            mine = `${Math.min((world.up[up.id] || 0) + 1, evo.evo[up.id])}/${evo.evo[up.id]}`;
+          return `<small class="evo-hint">\u2192 ${escapeHtml(evo.name)}: ${escapeHtml(up.name)}\u00a0${mine} \xB7 ${escapeHtml(others.join(", "))}</small>`;
+        })
+        .join("");
     }
     hideChoose() {
       getById("choose").hidden = true;
+      if (getById("chooseUpInfo")) getById("chooseUpInfo").hidden = true;
+      this.coverHud(false);
+    }
+    showAnvil(world) {
+      const box = getById("anvil");
+      if (!box || !world.anvilOffers) return;
+      const next = world.previewWave(world.wave + 1),
+        nextBiome = biomesById[next.biome];
+      getById("anvilEyebrow").textContent = nextBiome ? `Ahead · ${nextBiome.name}` : "Between Realms";
+      getById("anvilShards").textContent = formatCount(world.shards);
+      const hpFrac = clamp(world.player.hp / world.stats.maxHp, 0, 1);
+      getById("anvilHp").style.transform = `scaleX(${hpFrac})`;
+      getById("anvilHpNum").textContent = `${Math.ceil(world.player.hp)}/${world.stats.maxHp}`;
+      const grid = getById("anvilOffers");
+      grid.innerHTML = world.anvilOffers
+        .map((offer, i) => {
+          const disabled = offer.bought || world.shards < offer.cost;
+          return `<div class="anvil-card${offer.bought ? " bought" : ""}"><b>${escapeHtml(offer.name)}</b><p>${escapeHtml(offer.desc)}</p><button class="btn buy small" data-anvil="${i}" ${disabled ? "disabled" : ""}>${offer.bought ? "FORGED" : `<span class="shard-ico"></span>${offer.cost}`}</button></div>`;
+        })
+        .join("");
+      for (const btn of grid.querySelectorAll("[data-anvil]")) {
+        this.click(btn, () => this.g.buyAnvil?.(+btn.dataset.anvil));
+      }
+      this.coverHud(true);
+      box.hidden = false;
+    }
+    hideAnvil() {
+      const box = getById("anvil");
+      if (box) box.hidden = true;
       this.coverHud(false);
     }
     coverHud(on) {
@@ -1479,16 +1760,18 @@ const getById = (id) => document.getElementById(id),
         this.clearTitleCard();
       }
     }
-    buildHtml(world) {
+    buildHtml(world, interactive = false) {
       let own = upgradeList.filter((upgrade) => world.up[upgrade.id] && !upgrade.repeat);
-      return own.length
-        ? own
-            .map(
-              (upgrade) =>
-                `<span class="bi r${upgrade.rarity}" title="${escapeHtml(upgrade.name)}">${iconSvg(upgrade.icon)}${escapeHtml(upgrade.name)}${world.up[upgrade.id] > 1 ? " \xD7" + world.up[upgrade.id] : ""}</span>`,
-            )
-            .join("")
-        : '<span class="note">No upgrades yet.</span>';
+      if (!own.length) return '<span class="note">No crafts yet.</span>';
+      return own
+        .map((upgrade) => {
+          const cnt = world.up[upgrade.id] > 1 ? " \xD7" + world.up[upgrade.id] : "";
+          if (interactive) {
+            return `<button type="button" class="bi r${upgrade.rarity}" data-up="${upgrade.id}" aria-pressed="false" title="${escapeHtml(upgrade.name)}">${iconSvg(upgrade.icon)}${escapeHtml(upgrade.name)}${cnt}</button>`;
+          }
+          return `<span class="bi r${upgrade.rarity}" title="${escapeHtml(upgrade.name)}">${iconSvg(upgrade.icon)}${escapeHtml(upgrade.name)}${cnt}</span>`;
+        })
+        .join("");
     }
     showPause(world) {
       getById("pauseTitle").textContent = `Wave ${world.wave}${world.endless ? " \xB7 Endless" : ""}`;
@@ -1499,19 +1782,12 @@ const getById = (id) => document.getElementById(id),
       this.coverHud(true);
       getById("pause").hidden = false;
       this.screen = "pause";
-      // 2.4.2: the build in the pause menu explains each upgrade on tap or click
+      // 2.4.2: the build in the pause menu explains each craft on tap or click
       const own = upgradeList.filter((upgrade) => world.up[upgrade.id] && !upgrade.repeat),
         info = getById("pauseUpInfo");
-      getById("pauseBuild").innerHTML = own.length
-        ? own
-            .map(
-              (upgrade) =>
-                `<button type="button" class="bi r${upgrade.rarity}" data-up="${upgrade.id}" aria-pressed="false" aria-label="${escapeHtml(upgrade.name)}">${iconSvg(upgrade.icon)}${escapeHtml(upgrade.name)}${world.up[upgrade.id] > 1 ? " \xD7" + world.up[upgrade.id] : ""}</button>`,
-            )
-            .join("")
-        : this.buildHtml(world);
+      getById("pauseBuild").innerHTML = own.length ? this.buildHtml(world, true) : this.buildHtml(world, false);
       info.hidden = !own.length;
-      info.innerHTML = '<p class="note">Select an upgrade to see what it does.</p>';
+      info.innerHTML = '<p class="note">Select a craft to see what it does.</p>';
     }
     /* 3.22.0: the numbers behind the build: the value now and, next to it, how far it is from what the weapon has without the
        upgrades of the run (green: better, red: worse) */
@@ -1540,7 +1816,9 @@ const getById = (id) => document.getElementById(id),
       closePauseSettings(this);
       getById("pause").hidden = true;
       getById("settings").hidden = true;
-      this.coverHud(false);
+      if (!this.g.chooseShown && !this.g.anvilShown) {
+        this.coverHud(false);
+      }
     }
     // 2.4.2: settings from the pause menu (without backup and reset)
     openPauseSettings() {
@@ -1551,11 +1829,14 @@ const getById = (id) => document.getElementById(id),
       this._show("settings");
     }
     showOver(result) {
+      const overEl = getById("over");
+      overEl.classList.toggle("is-win", !!result.win);
+      overEl.classList.toggle("is-lose", !result.win);
       getById("overEyebrow").textContent = result.win
-        ? `${threatLevels[result.threat].name.toUpperCase()} \xB7 ALL ${20} WAVES`
-        : `${weaponDefs[result.weapon].name.toUpperCase()} \xB7 ${threatLevels[result.threat].name.toUpperCase()}`;
+        ? `${threatLevels[result.threat].name} \xB7 All ${20} Waves`
+        : `${weaponDefs[result.weapon].name} \xB7 ${threatLevels[result.threat].name}`;
       let title = getById("overTitle");
-      title.textContent = result.win ? "VICTORY" : result.abandoned ? "RUN ENDED" : "RUN OVER";
+      title.textContent = result.win ? "Victory" : result.abandoned ? "Expedition Ended" : "Fallen";
       title.className = "over-title " + (result.win ? "win" : "lose");
       getById("overBest").hidden = !(result.best || result.fastest);
       getById("overBest").textContent = result.fastest && !result.best ? "NEW FASTEST" : "NEW BEST";
@@ -1568,7 +1849,7 @@ const getById = (id) => document.getElementById(id),
         ["Wave", result.wave],
         ["Time", formatTime(result.time)],
         ["Kills", result.kills],
-        ["Bosses", result.bosses],
+        ["Guardians", result.bosses],
       ]
         .map(([label, value]) => `<div class="cell"><div class="k">${label}</div><div class="v">${value}</div></div>`)
         .join("");
@@ -1597,13 +1878,14 @@ const getById = (id) => document.getElementById(id),
           .querySelectorAll(".card-key")
           .forEach((el) => el.remove());
       getById("endlessBtn").hidden = !result.canEndless;
-      getById("retryBtn").hidden = result.canEndless;
+      getById("retryBtn").hidden = false;
+      getById("retryBtn").classList.toggle("primary", !result.canEndless);
       // 3.45.4: R runs again from the end screen (keyboard players only)
       if (!RL_INPUT.touch) {
         const targetBtn = getById(result.canEndless ? "endlessBtn" : "retryBtn");
         targetBtn.insertAdjacentHTML("beforeend", '<kbd class="card-key inline" aria-hidden="true">R</kbd>');
       }
-      getById("over").hidden = false;
+      overEl.hidden = false;
       this.countUp(getById("payTotal"), result.total);
       this.renderRunExtra();
     }
@@ -1710,7 +1992,10 @@ const getById = (id) => document.getElementById(id),
       requestAnimationFrame(step);
     }
     showCrash(log) {
-      for (let id of ["choose", "pause", "over"]) getById(id).hidden = true;
+      for (let id of ["choose", "anvil", "pause", "over"]) {
+        const el = getById(id);
+        if (el) el.hidden = true;
+      }
       this.showHud(false);
       getById("crashLog").value = log;
       getById("crash").hidden = false;
@@ -1746,7 +2031,7 @@ const getById = (id) => document.getElementById(id),
       holdTitleCard(
         this,
         "biome",
-        `<div class="tcard biome hold" data-biome="${escapeHtml(info.id)}" style="--bc:${info.color}"><div class="tc-band"><div class="tc-eye">${wave ? `Wave ${escapeHtml(wave)} \xB7 ` : ""}Entering</div><div class="tc-name">${escapeHtml(info.name)}</div>${info.hazard ? `<div class="tc-haz">${escapeHtml(info.hazard)}</div>` : ""}${info.boss ? `<div class="tc-boss"><span>Boss</span>${escapeHtml(info.boss)}</div>` : ""}</div></div>`,
+        `<div class="tcard biome hold" data-biome="${escapeHtml(info.id)}" style="--bc:${info.color}"><div class="tc-band"><div class="tc-eye">${wave ? `Wave ${escapeHtml(wave)} \xB7 ` : ""}Entering</div><div class="tc-name">${escapeHtml(info.name)}</div>${info.hazard ? `<div class="tc-haz">${escapeHtml(info.hazard)}</div>` : ""}${info.boss ? `<div class="tc-boss"><span>Guardian</span>${escapeHtml(info.boss)}</div>` : ""}</div></div>`,
         2500,
         ms,
       );
@@ -1759,7 +2044,7 @@ const getById = (id) => document.getElementById(id),
       holdTitleCard(
         this,
         "boss",
-        `<div class="tcard boss hold" data-boss="${escapeHtml(id)}" style="--bc:${rlHex(boss.color)}"><div class="tc-panel"><i class="tc-accent"></i><div class="tc-eye">Boss${biome ? " \xB7 " + escapeHtml(biome.name) : ""}</div><div class="tc-name">${escapeHtml(boss.name)}</div><i class="tc-line"></i><div class="tc-title">${escapeHtml(boss.title)}</div></div></div>`,
+        `<div class="tcard boss hold" data-boss="${escapeHtml(id)}" style="--bc:${rlHex(boss.color)}"><div class="tc-panel"><i class="tc-accent"></i><div class="tc-eye">Guardian${biome ? " \xB7 " + escapeHtml(biome.name) : ""}</div><div class="tc-name">${escapeHtml(boss.name)}</div><i class="tc-line"></i><div class="tc-title">${escapeHtml(boss.title)}</div></div></div>`,
         2800,
         ms,
       );

@@ -321,6 +321,7 @@ const overlay = new Overlay(elementById("ov")),
           weapon: options.weapon || save.weapon,
           threat: options.threat ?? save.threat,
           ws: save.workshop,
+          starVaultUnlocked: (save.stats.bosses?.core || 0) > 0,
           snap,
         });
       } catch (err) {
@@ -397,13 +398,13 @@ const overlay = new Overlay(elementById("ov")),
         syncSoundMuffle();
       }
     },
-    /* 3.25.0: Banish Protocol: the card is replaced and the upgrade never comes again in this run */
+    /* 3.25.0: Waxen Seal: the card is replaced and the craft never comes again in this run */
     banish(id) {
       const world = this.world;
       if (world && world.banish(id)) {
         ui.banishMode = false;
         ui.renderCards(world);
-        ui.toast(`Banished: ${upgradesById[id] ? upgradesById[id].name : id}`, "", 2600);
+        ui.toast(`Sealed: ${upgradesById[id] ? upgradesById[id].name : id}`, "", 2600);
         store.data.run = world.snapshot();
         store.save("banish");
       }
@@ -417,6 +418,17 @@ const overlay = new Overlay(elementById("ov")),
         store.save("reroll");
       }
     },
+    toggleMute() {
+      const settings = store.data.settings;
+      settings.muted = !settings.muted;
+      if (!settings.muted && (settings.master ?? 1) <= 0) {
+        settings.master = 1;
+      }
+      this.settingsChanged();
+      ui.syncMuteButton();
+      if (ui.screen === "settings") ui.renderSettings();
+      ui.toast(settings.muted ? "Sound muted" : "Sound unmuted", "", 1600);
+    },
     pause() {
       let world = this.world;
       if (!(
@@ -424,9 +436,13 @@ const overlay = new Overlay(elementById("ov")),
         !world ||
         this.paused ||
         this.overShown ||
-        (world.state !== "fight" && world.state !== "cleared")
+        (world.state !== "fight" && world.state !== "cleared" && world.state !== "choose" && world.state !== "anvil")
       )) {
         this.paused = true;
+        this._pausedFromChoose = this.chooseShown && !getById("choose").hidden;
+        this._pausedFromAnvil = this.anvilShown && getById("anvil") && !getById("anvil").hidden;
+        if (this._pausedFromChoose) getById("choose").hidden = true;
+        if (this._pausedFromAnvil) getById("anvil").hidden = true;
         input.reset();
         ui.showPause(world);
         sound.setMusic("menu");
@@ -441,6 +457,15 @@ const overlay = new Overlay(elementById("ov")),
         document.activeElement?.blur?.();
         this.paused = false;
         ui.hidePause();
+        if (this._pausedFromChoose) {
+          this._pausedFromChoose = false;
+          getById("choose").hidden = false;
+          ui.coverHud(true);
+        } else if (this._pausedFromAnvil) {
+          this._pausedFromAnvil = false;
+          if (getById("anvil")) getById("anvil").hidden = false;
+          ui.coverHud(true);
+        }
         input.reset();
         this.last = performance.now();
         setWakeLock(true);
@@ -477,6 +502,7 @@ const overlay = new Overlay(elementById("ov")),
         ui.showHud(true);
         placeHud();
         this.chooseShown = false;
+        this.anvilShown = false;
         syncSoundMuffle();
         // 2.8.1: the victory screen released the wake lock; Endless needs it again
         setWakeLock(true);
@@ -495,10 +521,15 @@ const overlay = new Overlay(elementById("ov")),
       this.mode = "menu";
       this.world = null;
       this.paused = false;
+      this.chooseShown = false;
+      this.anvilShown = false;
+      this._pausedFromChoose = false;
+      this._pausedFromAnvil = false;
       this._settledOverlayFrames = 0;
       if (renderer) renderer.clearTransient();
       ui.hideOver();
       ui.hideChoose();
+      ui.hideAnvil?.();
       ui.hidePause();
       ui.showHud(false);
       window.__riftUpdateDeviceProfile?.();
@@ -649,8 +680,8 @@ const overlay = new Overlay(elementById("ov")),
         syncSoundMuffle();
         setWakeLock(false);
       }
-      // 2.2.3: run audit and run history (a silent end is recorded too)
-      if (pre)
+      // 2.2.3: run audit and run history (only run synthetic post-run monitor probes when diagnostics are enabled)
+      if (pre && RL_MON?.enabled)
         try {
           rlMonFinish(world, pre, !!win, !!abandoned, !!silent, false);
         } catch (err) {
@@ -764,7 +795,9 @@ input.onBlur = () => {
     game.pause();
   }
 };
-input.isPlaying = () => game.mode === "game" && !game.paused && !game.chooseShown && !game.overShown;
+input.isPlaying = () =>
+  game.mode === "game" && !game.paused && !game.chooseShown && !game.anvilShown && !game.overShown;
+input.onMute = () => game.toggleMute();
 input.onPause = () => {
   if (!getById("dialog").hidden) {
     ui.closeDialog(null);
@@ -800,8 +833,10 @@ if (typeof matchMedia === "function") {
   if (motionQuery.addEventListener) motionQuery.addEventListener("change", () => applySettings());
 }
 function applySettings() {
-  let settings = store.data.settings;
-  sound.setVolumes(settings.sfx, settings.music, settings.ambience);
+  let settings = store.data.settings,
+    master = settings.muted ? 0 : (settings.master ?? 1);
+  sound.setVolumes(settings.sfx * master, settings.music * master, settings.ambience * master);
+  ui.syncMuteButton();
   input.stickScale = settings.stickSize;
   input.fixedMove = settings.stickFixed ? (radius) => fixedStickCenter(store.data.settings, radius) : null;
   placeHud();
@@ -994,18 +1029,15 @@ let cardWave = 0,
 function announceMutator(ev) {
   const mutator = MUTATORS[ev.id];
   if (!mutator) return;
-  ui.banner(
-    `OMEN · ${mutator.name.toUpperCase()}${ev.level > 1 ? " " + "I".repeat(ev.level) : ""}`,
-    mutator.desc,
-    "warn",
-    2600,
-  );
+  ui.banner(`Omen · ${mutator.name}${ev.level > 1 ? " " + "I".repeat(ev.level) : ""}`, mutator.desc, "warn", 2600);
   sound.play("mutator", ev.id);
 }
 function syncSoundMuffle() {
   const world = game.world,
     inGame = game.mode === "game" && !!world && !game.overShown,
-    choosing = inGame && (game.chooseShown || world.state === "choose" || !!world.choosing),
+    choosing =
+      inGame &&
+      (game.chooseShown || game.anvilShown || world.state === "choose" || world.state === "anvil" || !!world.choosing),
     lowWard = inGame && world.player.alive && world.player.hp / Math.max(1, world.stats.maxHp) < 0.25;
   sound.setMuffleState?.({
     paused: !!(inGame && game.paused),
@@ -1042,10 +1074,14 @@ function handleWorldEvents(world) {
   // 2.5.0 B: the events of the new modules
   for (const ev of world.fx) {
     if (ev.k === "kit") {
-      ui.toast(`STARTER PACK · ${ev.ids.map((id) => upgradesById[id]?.name || id).join(", ")}`, "good hint", 3200);
+      ui.toast(
+        `Traveler's Satchel · ${ev.ids.map((id) => upgradesById[id]?.name || id).join(", ")}`,
+        "good hint",
+        3200,
+      );
     } else {
       if (ev.k === "barrier") {
-        ui.banner("EMERGENCY SHIELD", "Low HP — shield activated", "good", 1400);
+        ui.banner("Sanctuary Aegis", "Low HP — ward activated", "good", 1400);
       }
     }
   }
@@ -1072,29 +1108,29 @@ function handleWorldEvents(world) {
           }
         } else
           ui.banner(
-            ev.boss ? "BOSS" : `WAVE ${ev.n}`,
-            ev.boss ? "Boss incoming" : newBiome ? rlBiomeTitle(biome) : world.endless ? "Endless" : "",
+            ev.boss ? "Guardian" : `Wave ${ev.n}`,
+            ev.boss ? "Guardian incoming" : newBiome ? rlBiomeTitle(biome) : world.endless ? "Endless" : "",
             ev.boss ? "boss" : "",
             ev.boss ? 3e3 : 2e3,
           );
         if (!ev.boss && world.arena.vents.length) {
           if (world.arena.biome.id === "courtyard")
-            showTipOnce("shock", "Shock pads glow before they zap. Lure enemies onto them to stun them.");
+            showTipOnce("shock", "Shock pads glow before they zap. Lure foes onto them to stun them.");
           else if (world.arena.biome.id === "caldera")
             showTipOnce(
               "pyro",
-              "Lava vents glow before they erupt. Lure enemies onto them \u2014 the lava burns them too.",
+              "Lava vents glow before they erupt. Lure foes onto them \u2014 the lava burns them too.",
             );
-          else showTipOnce("lava", "Lava vents glow before they erupt. Lure enemies onto them \u2014 they burn too.");
+          else showTipOnce("lava", "Lava vents glow before they erupt. Lure foes onto them \u2014 they burn too.");
         }
         if (!ev.boss && world.arena.ice.length) {
-          showTipOnce("ice", "The Aurora Shelf: the floor is icy and slippery \u2014 enemies slide on it too.");
+          showTipOnce("ice", "The Aurora Shelf: the floor is icy and slippery \u2014 foes slide on it too.");
         }
         if (!ev.boss && world.arena.acid.length) {
-          showTipOnce("acid", "Acid pools drain your HP \u2014 but enemies standing in them take 25% more damage.");
+          showTipOnce("acid", "Acid pools drain your HP \u2014 but foes standing in them take 25% more damage.");
         }
         if (!ev.boss && world.arena.portals.length) {
-          showTipOnce("portal", "Portals teleport you across the arena. Shots fly through them too.");
+          showTipOnce("portal", "Portals warp you across the arena. Shots fly through them too.");
         }
         if (!ev.boss && world.arena.devils && world.arena.devils.length) {
           showTipOnce("devil", "Dust devils pull you around \u2014 shoot sun pillars to calm them.");
@@ -1104,7 +1140,7 @@ function handleWorldEvents(world) {
           showTipOnce(
             "dash",
             rlKeys()
-              ? "Tip: SPACE dashes \u2014 you cannot be hit during a dash."
+              ? "Tip: SPACE or right-click dashes \u2014 you cannot be hit during a dash."
               : "Tip: DASH dodges through attacks \u2014 you cannot be hit during it.",
           );
         }
@@ -1112,8 +1148,8 @@ function handleWorldEvents(world) {
           showTipOnce(
             "singularity",
             rlKeys()
-              ? "Tip: press G to throw a Gravity Grenade. It pulls enemies together and explodes. Charges refill."
-              : "Tip: tap GRENADE to throw a Gravity Grenade at enemies. Hold the right side to aim where it lands.",
+              ? "Tip: press G to toss a Gravity Chime. It pulls foes together and bursts. Charges refill."
+              : "Tip: tap CHIME to toss a Gravity Chime at foes. Hold the right side to aim where it lands.",
           );
         }
         if (ev.n === 3) {
@@ -1121,7 +1157,7 @@ function handleWorldEvents(world) {
             "aim",
             rlKeys()
               ? "Tip: hold the left mouse button to aim and fire at the cursor."
-              : "Tip: drag the right side to aim yourself. Holding it fires at the nearest enemy.",
+              : "Tip: drag the right side to aim yourself. Holding it fires at the nearest foe.",
           );
         }
         break;
@@ -1129,7 +1165,7 @@ function handleWorldEvents(world) {
       case "trapWarn":
         showTipOnce(
           "trap",
-          "Arena traps warn before they trigger \u2014 lure enemies in, or shoot armed bombs to blow them up!",
+          "Arena traps warn before they trigger \u2014 lure foes in, or shoot armed charges to detonate them!",
         );
         break;
       case "gadgetReady":
@@ -1141,7 +1177,7 @@ function handleWorldEvents(world) {
       case "boss":
         // 3.1.0: the boss track starts on the spot, at the camera pan
         sound.setMusic("boss", world.biomeFor(world.wave).id);
-        showTipOnce("boss", "Bosses show warnings before every attack. Step out of marked zones and beams.");
+        showTipOnce("boss", "Guardians telegraph every attack. Step clear of marked zones and beams.");
         if (world.player.alive && world.boss && renderer) {
           game.intro = { t: 0 };
           renderer.focusOn(world.boss.x, world.boss.y);
@@ -1154,12 +1190,12 @@ function handleWorldEvents(world) {
         showTipOnce(
           "nova",
           rlKeys()
-            ? "NOVA is charged \u2014 press E to unleash a huge shockwave."
-            : "NOVA is charged \u2014 tap NOVA to unleash a huge shockwave.",
+            ? "Hearthburst is charged \u2014 press E to unleash a wide shockwave."
+            : "Hearthburst is charged \u2014 tap BURST to unleash a wide shockwave.",
         );
         break;
       case "cleared":
-        ui.banner(ev.boss ? "BOSS DEFEATED" : "CLEARED", ev.flawless ? "Flawless" : `Wave ${ev.n}`, "good", 1500);
+        ui.banner(ev.boss ? "Guardian Defeated" : "Cleared", ev.flawless ? "Flawless" : `Wave ${ev.n}`, "good", 1500);
         if (!ev.boss) {
           game.slowMo = Math.max(game.slowMo, 0.45);
         }
@@ -1173,20 +1209,20 @@ function handleWorldEvents(world) {
         break;
       case "champion":
         ui.banner(
-          "CHAMPION",
-          `A ${enemyDefs[ev.type].name} leads the pack \u2014 nearby enemies move faster`,
+          "Champion",
+          `A ${enemyDefs[ev.type].name} rallies the pack \u2014 nearby foes move faster`,
           "warn",
           2200,
         );
-        showTipOnce("champion", "Champions buff nearby enemies. Kill the champion to weaken the pack.");
+        showTipOnce("champion", "Champions bolster nearby foes. Defeat the champion to break the aura.");
         break;
       case "championDown":
-        ui.banner("CHAMPION DEFEATED", "Enemy buff broken", "good", 1400);
+        ui.banner("Champion Defeated", "Pack aura broken", "good", 1400);
         game.slowMo = Math.max(game.slowMo, 0.5);
         hitStop(0.08);
         break;
       case "mend":
-        showTipOnce("mender", "Healers restore nearby enemies' HP. Take them out first.");
+        showTipOnce("mender", "Mender-Clocks restore nearby foes' HP. Take them out first.");
         break;
       case "kill":
         if ((ev.elite || ev.r >= 0.8) && !ev.cleanup) {
@@ -1209,17 +1245,17 @@ function handleWorldEvents(world) {
         }
         break;
       case "maxed":
-        ui.toast(`ALL UPGRADES MAXED · +${ev.heal} HP, +${ev.shards} shards`, "gold", 3500);
+        ui.toast(`All Crafts Maxed · +${ev.heal} HP, +${ev.shards} shards`, "gold", 3500);
         break;
       case "combo":
         ui.comboPop(ev.n, ev.bonus);
         break;
       case "bountyPulse":
-        if (ev.amount > 0) ui.toast(`BONUS · +${ev.amount} shards`, "good hint", 1500);
+        if (ev.amount > 0) ui.toast(`Bonus · +${ev.amount} shards`, "good hint", 1500);
         break;
       case "pick":
         if (ev.evo) {
-          ui.banner("EVOLUTION", upgradesById[ev.id].name, "good", 1800);
+          ui.banner("Masterwork", upgradesById[ev.id].name, "good", 1800);
         }
         break;
       case "dash":
@@ -1228,7 +1264,7 @@ function handleWorldEvents(world) {
         }
         break;
       case "enrage":
-        ui.banner("PHASE 2", "The boss speeds up", "warn", 1400);
+        ui.banner("Phase 2", "The Guardian quickens", "warn", 1400);
         break;
       case "mutator":
         if (world.wave === 1 || world.biomeFor(world.wave - 1).id !== world.biomeFor(world.wave).id)
@@ -1236,14 +1272,14 @@ function handleWorldEvents(world) {
         else announceMutator(ev);
         break;
       case "phase":
-        ui.banner(`PHASE ${ev.n}`, ev.n === 2 ? "The arena shifts" : "Final phase!", "warn", 1600);
+        ui.banner(`Phase ${ev.n}`, ev.n === 2 ? "The arena shifts" : "Final phase!", "warn", 1600);
         break;
       case "bossDown":
         game.slowMo = 1.1;
         if (world.player.alive) awardBossMedal(ev, world);
         break;
       case "revive":
-        ui.banner("SECOND WIND", "Revived!", "good", 1600);
+        ui.banner("Second Wind", "Back in the fight!", "good", 1600);
         break;
       case "die":
         game.slowMo = 0.55;
@@ -1351,10 +1387,10 @@ const // 2.3.4: keyboard/mouse players got the touch texts ("drag the left side"
     () => (rlKeys() ? "Move with W A S D or the arrow keys." : "Drag anywhere on the left side to move."),
     () =>
       rlKeys()
-        ? "Enemies ahead! Your weapon shoots automatically \u2014 hold the left mouse button to aim yourself."
-        : "Enemies ahead! Your weapon shoots automatically \u2014 drag the right side to aim yourself.",
+        ? "Foes ahead! Your armament shoots automatically \u2014 hold the left mouse button to aim yourself."
+        : "Foes ahead! Your armament shoots automatically \u2014 drag the right side to aim yourself.",
     () => (rlKeys() ? "Press SPACE to dash through danger." : "Tap DASH to dodge through danger."),
-    () => "Collect shards \u2014 spend them on permanent upgrades in the Workshop.",
+    () => "Collect shards \u2014 spend them on permanent crafts in the Sanctuary.",
   ];
 function updateTutorial(dt, world) {
   let tut = game.tut;
@@ -1445,6 +1481,7 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("pagehide", () => {
   input.reset(true);
   store.save("pagehide");
+  sound.suspend();
 });
 window.addEventListener("pageshow", () => {
   input.reset(true);
@@ -1456,10 +1493,18 @@ const unlockAudio = () => {
     sound.setMusic("menu");
   }
 };
-for (let type of ["pointerdown", "keydown", "click"])
+for (let type of ["pointerdown", "touchend", "keydown", "click"])
   document.addEventListener(type, unlockAudio, { capture: true, passive: true });
 document.addEventListener("gesturestart", (ev) => ev.preventDefault());
-document.addEventListener("dblclick", (ev) => ev.preventDefault(), { passive: false });
+document.addEventListener(
+  "dblclick",
+  (ev) => {
+    const tag = ev.target?.tagName;
+    if (tag === "TEXTAREA" || tag === "INPUT") return;
+    ev.preventDefault();
+  },
+  { passive: false },
+);
 document.addEventListener(
   "touchmove",
   (ev) => {
@@ -1475,17 +1520,64 @@ document.addEventListener(
   { passive: false },
 );
 
-/* v1.6.0 merged polish: save backup + tutorial replay (the run metrics are in GameUI.renderRunExtra) */
+/* v1.6.0 merged polish: save backup (.json + text), corrupt-save recovery, diagnostic log + tutorial replay */
 (function () {
   const makeBackup = function () {
     return store.text(2);
+  };
+  const downloadJson = function (filename, text) {
+    try {
+      const blob = new Blob([text], { type: "application/json;charset=utf-8" }),
+        url = URL.createObjectURL(blob),
+        a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      ui.toast(`Downloaded ${filename}`, "good", 2400);
+    } catch {
+      ui.copy(text);
+    }
+  };
+  const latestCorruptRaw = function () {
+    if (store.corruptBackupRaw) return { key: store.corruptBackupKey, raw: store.corruptBackupRaw };
+    const keys = store.listBackups();
+    if (!keys.length) return null;
+    return { key: keys[0], raw: store.getBackup(keys[0]) || "" };
+  };
+  const inspectCorruptBackup = async function () {
+    const entry = latestCorruptRaw();
+    if (!entry) {
+      ui.toast("No raw save backup found.");
+      return;
+    }
+    const res = await ui.dialog({
+      title: "Raw save backup",
+      body: `<p>This is the raw data stored under <code>${escapeHtml(entry.key)}</code> before Riftline started fresh. You can copy or download it for manual recovery.</p><textarea id="corruptRawText" class="log" spellcheck="false" readonly></textarea>`,
+      buttons: [
+        { label: "Download .json", value: "download", cls: "ghost" },
+        { label: "Copy", value: "copy", cls: "ghost" },
+        { label: "Close", value: null, cls: "primary" },
+      ],
+      onOpen: function () {
+        getById("corruptRawText").value = entry.raw;
+      },
+      read: function () {
+        return getById("corruptRawText").value;
+      },
+    });
+    if (res && res.value === "copy") ui.copy(res.text || entry.raw);
+    if (res && res.value === "download") downloadJson("riftline-corrupt-backup.json", res.text || entry.raw);
   };
   const exportSave = async function () {
     const value = makeBackup();
     const result = await ui.dialog({
       title: "Export save",
-      body: '<p>Copy this text and keep it somewhere safe. It contains your Riftline progress and settings.</p><textarea id="saveExport" class="log" spellcheck="false" readonly></textarea>',
+      body: '<p>Download a <code>.json</code> backup file or copy the text below. It contains your Riftline progress and settings.</p><textarea id="saveExport" class="log" spellcheck="false" readonly></textarea>',
       buttons: [
+        { label: "Download .json", value: "download", cls: "ghost" },
         { label: "Copy", value: "copy", cls: "ghost" },
         { label: "Close", value: null, cls: "primary" },
       ],
@@ -1497,15 +1589,35 @@ document.addEventListener(
       },
     });
     if (result && result.value === "copy") ui.copy(result.text || value);
+    if (result && result.value === "download") {
+      const stamp = new Date().toISOString().slice(0, 10);
+      downloadJson(`riftline-save-${stamp}.json`, result.text || value);
+    }
   };
   const importSave = async function () {
     const result = await ui.dialog({
       title: "Import save",
-      body: '<p>Paste a Riftline save export below. Importing replaces the current progress on this device.</p><textarea id="saveImport" class="log" spellcheck="false" placeholder="Paste save JSON here"></textarea>',
+      body: '<p>Choose a Riftline <code>.json</code> save file or paste your save export below. Importing replaces local progress on this device.</p><p><label class="btn small" style="display:inline-flex;cursor:pointer">Choose .json file<input id="saveFile" type="file" accept=".json,application/json,text/plain" hidden></label></p><textarea id="saveImport" class="log" spellcheck="false" placeholder="Paste save JSON here"></textarea>',
       buttons: [
         { label: "Cancel", value: null, cls: "ghost" },
         { label: "Restore", value: "restore", cls: "primary" },
       ],
+      onOpen: function () {
+        const fileEl = getById("saveFile"),
+          area = getById("saveImport");
+        if (fileEl && area) {
+          fileEl.addEventListener("change", () => {
+            const file = fileEl.files && fileEl.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+              area.value = String(reader.result || "");
+              ui.toast(`Loaded ${file.name}`, "good", 2000);
+            };
+            reader.readAsText(file);
+          });
+        }
+      },
       read: function () {
         return getById("saveImport").value;
       },
@@ -1513,7 +1625,7 @@ document.addEventListener(
     if (!result || result.value !== "restore") return;
     const parsed = store.parse(result.text);
     if (!parsed.ok) {
-      ui.alert("Invalid save", "That text is not a valid Riftline save export.");
+      ui.alert("Invalid save", "That text or file is not a valid Riftline save export.");
       return;
     }
     if (
@@ -1542,6 +1654,7 @@ document.addEventListener(
     game.paused = false;
     ui.hideOver();
     ui.hideChoose();
+    ui.hideAnvil?.();
     ui.hidePause();
     ui.showHud(false);
     ui.homeInit = false;
@@ -1554,6 +1667,7 @@ document.addEventListener(
   const shareBtn = getById("shareBtn");
   const restoreBtn = getById("restoreBtn");
   const replayTutBtn = getById("replayTutBtn");
+  const diagLogBtn = getById("diagLogBtn");
   if (backupBtn) {
     ui.click(backupBtn, exportSave);
   }
@@ -1572,17 +1686,35 @@ document.addEventListener(
   if (restoreBtn) {
     ui.click(restoreBtn, importSave);
   }
+  if (diagLogBtn) {
+    ui.click(diagLogBtn, () => ui.copy(buildReport("diagnostics")));
+  }
+  ui.click(getById("corruptDownloadBtn"), () => {
+    const entry = latestCorruptRaw();
+    if (entry) downloadJson("riftline-corrupt-backup.json", entry.raw);
+  });
+  ui.click(getById("corruptInspectBtn"), inspectCorruptBackup);
+  ui.click(getById("corruptDismissBtn"), () => {
+    ui.corruptDismissed = true;
+    const banner = getById("corruptBanner");
+    if (banner) banner.hidden = true;
+  });
+  ui.click(getById("corruptSetInspectBtn"), inspectCorruptBackup);
+  ui.click(getById("corruptSetDownloadBtn"), () => {
+    const entry = latestCorruptRaw();
+    if (entry) downloadJson("riftline-corrupt-backup.json", entry.raw);
+  });
   if (replayTutBtn) {
     ui.click(replayTutBtn, async function () {
       const ok = await ui.confirm(
         "Replay tutorial?",
-        "The onboarding will show again on your next fresh run. Your current run and progress stay untouched.",
+        "The four-step introduction will play on your next new run. Your progress stays untouched.",
         "Enable",
       );
       if (!ok) return;
       store.data.seen.tutorial = false;
       store.save("tutorial-replay");
-      ui.toast("Tutorial queued for your next fresh run", "good", 2800);
+      ui.toast("The four-step introduction will play on your next new run.", "good", 2800);
     });
   }
 })();
@@ -1592,7 +1724,7 @@ function rlRetireToast() {
   if (!note || !note.count) return;
   set_RL_RETIRE_NOTE(null);
   ui.toast(
-    `Older weapon unlocks converted to the current arsenal${note.refund ? `, +${formatCount(note.refund)} shards refunded` : ""}.`,
+    `Older armament unlocks converted to the current arsenal${note.refund ? `, +${formatCount(note.refund)} shards refunded` : ""}.`,
     "good",
     9000,
   );
@@ -1603,7 +1735,7 @@ function rlRetireToast() {
 (() => {
   // Touch ghost-click shield: after a touch activation the browser still sends a
   // compatibility click to whatever is under the finger NOW — often a button on
-  // the next screen, a settings toggle or a workshop "buy". Drop that one click
+  // the next screen, a settings toggle or a Sanctuary "buy". Drop that one click
   // in the capture phase, before any handler (guarded or plain) can see it.
   document.addEventListener(
     "click",
@@ -1633,7 +1765,7 @@ function rlRetireToast() {
  - a run that is already lost (or won) is settled when the page is hidden, so a reload in
    the 1.5 s before the game-over screen no longer brings the run back
  - Settings can be opened from the pause menu (without backup and reset)
- - the build in the pause menu explains each upgrade on tap or click
+ - the build in the pause menu explains each craft on tap or click
  ========================================================================== */
 (() => {
   // ---- settle a lost or won run before the page goes away
@@ -1661,12 +1793,18 @@ function rlRetireToast() {
   // ---- the button layout editor
   ui.click(getById("hudEditBtn"), () => hudEditor.open());
 
-  // ---- what each upgrade of the build does (pause menu)
+  // ---- what each craft of the build does (pause menu)
   const info = getById("pauseUpInfo"),
     upInfo = (id, lv) => {
       const upgrade = upgradesById[id];
       if (!upgrade) return "";
-      const tag = upgrade.evo ? "EVOLUTION" : upgrade.repeat ? `\xD7${lv}` : `LV ${lv}/${upgrade.max}`;
+      const tag = upgrade.boss
+        ? "GUARDIAN RELIC"
+        : upgrade.evo
+          ? "MASTERWORK"
+          : upgrade.repeat
+            ? `\xD7${lv}`
+            : `LV ${lv}/${upgrade.max}`;
       return `<b>${escapeHtml(upgrade.name)}</b> <span class="lv">${tag}</span><p>${escapeHtml(upgrade.desc(Math.max(0, lv - 1)))}</p>`;
     };
   getById("pauseBuild").addEventListener("click", (ev) => {
@@ -1684,13 +1822,14 @@ function rlRetireToast() {
 applySettings();
 ui.show("home");
 setTimeout(rlRetireToast, 700);
-// 3.37.0: the startup health checks were meant for test sessions (a player offline got a WARN for a fetch that
-// tells them nothing). 3.45.2, the honest note: window.__riftTest exists for everyone since the test-interface
-// refactor, so these run for every boot. They are quiet when green and they catch real breakage (the missing
-// log button of 3.45.0 showed up here), so they stay for all.
-setTimeout(() => {
-  if (window.__riftTest) rlRunHealth({ context: "startup" }).catch((err) => logError("health", err));
-}, 900);
+const diagOptIn =
+  (typeof location !== "undefined" && /[?&]diag=1\b/.test(location.search)) ||
+  (typeof navigator !== "undefined" && !!navigator.webdriver);
+if (diagOptIn) {
+  setTimeout(() => {
+    rlRunHealth({ context: "startup" }).catch((err) => logError("health", err));
+  }, 900);
+}
 if (renderer) {
   startLoop();
 } else {
@@ -1698,11 +1837,24 @@ if (renderer) {
   elementById("continueBtn").disabled = true;
   elementById("playBtn").title = "3D graphics unavailable — enable hardware acceleration and reload to play.";
   elementById("continueBtn").title = "3D graphics unavailable — enable hardware acceleration and reload to play.";
+  const webglBanner = elementById("webglBanner");
+  if (webglBanner) webglBanner.hidden = false;
   ui.toast(
     "3D graphics unavailable. The menu remains usable; enable hardware acceleration and reload to play.",
     "warn",
     9000,
   );
+}
+// Fade out the warm boot veil once the first menu frame is painted.
+{
+  const veil = elementById("bootVeil");
+  if (veil) {
+    veil.style.pointerEvents = "none";
+    requestAnimationFrame(() => {
+      veil.classList.add("done");
+      setTimeout(() => veil.remove(), 340);
+    });
+  }
 }
 // 2.4.6: no "New version ready" bar any more. A downloaded update is applied on its own when no run
 // is going on: right away while the game is still starting (that is the next opening), otherwise

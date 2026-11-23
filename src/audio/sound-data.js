@@ -77,6 +77,7 @@ export const RL_DASH_VOICE = { charger: "ram", striker: "ram", driller: "ramDril
 export const RL_BOSS_ATK = {
   charge: null,
   ring: "bRing",
+  carillon: "bRing",
   stomp: "bSlam",
   summon: "bSummon",
   spiral: "bRing",
@@ -441,11 +442,11 @@ export function softClipCurve() {
 }
 
 export function trackInfo(kind, biome) {
-  if (kind === "fight" || kind === "boss") {
+  if (kind === "fight" || kind === "boss" || kind === "menu") {
     const track = musicTrack(kind, biome);
     return { bpm: track.bpm, steps: track.bars * 16 };
   }
-  return { bpm: 84, steps: 128 };
+  return { bpm: 84, steps: 256 };
 }
 
 export function rlSoundCatalog() {

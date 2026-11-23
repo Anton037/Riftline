@@ -17,6 +17,9 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="48x48" href="favicon-48.png">
 <link rel="preload" href="fonts/baskervville-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/instrument-sans-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/instrument-sans-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/instrument-sans-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
 <style>
 /* ============================================================================
    (1) Design Tokens & Biome Themes
@@ -354,7 +357,7 @@ button {
 }
 #ov { pointer-events: none; }
 #touch { touch-action: none; z-index: 10; pointer-events: auto; }
-body:not(.input-touch) #touch { cursor: crosshair; }
+body:not(.input-touch) #touch { cursor: none; }
 
 #flash {
   position: absolute;
@@ -505,25 +508,34 @@ h2 {
   min-height: 0;
   padding-bottom: 12px;
 }
-.scroll, .cards, .center-col {
+.scroll, .cards, .center-col, #dlgBody, .log, textarea {
   scrollbar-width: thin;
   scrollbar-color: rgba(224, 182, 118, 0.38) transparent;
   scroll-padding-block: 12px calc(16px + var(--sb));
 }
 .scroll::-webkit-scrollbar,
 .cards::-webkit-scrollbar,
-.center-col::-webkit-scrollbar {
+.center-col::-webkit-scrollbar,
+#dlgBody::-webkit-scrollbar,
+.log::-webkit-scrollbar,
+textarea::-webkit-scrollbar {
   width: 7px;
   height: 7px;
 }
 .scroll::-webkit-scrollbar-track,
 .cards::-webkit-scrollbar-track,
-.center-col::-webkit-scrollbar-track {
+.center-col::-webkit-scrollbar-track,
+#dlgBody::-webkit-scrollbar-track,
+.log::-webkit-scrollbar-track,
+textarea::-webkit-scrollbar-track {
   background: transparent;
 }
 .scroll::-webkit-scrollbar-thumb,
 .cards::-webkit-scrollbar-thumb,
-.center-col::-webkit-scrollbar-thumb {
+.center-col::-webkit-scrollbar-thumb,
+#dlgBody::-webkit-scrollbar-thumb,
+.log::-webkit-scrollbar-thumb,
+textarea::-webkit-scrollbar-thumb {
   background: rgba(224, 182, 118, 0.32);
   border-radius: 99px;
 }
@@ -3713,6 +3725,524 @@ body.device-phone.is-landscape #app:has(#hud:not([hidden])) .toast {
     outline-offset: 3px;
   }
 }
+/* ============================================================================
+   Storybook UI Cohesion, Desktop HUD Fixes, Boot Veil, Journal Codex & Anvil
+   ============================================================================ */
+.boot-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: radial-gradient(ellipse at 50% 42%, #241b14 0%, #130f0c 72%);
+  transition: opacity 0.28s ease-out;
+  pointer-events: auto;
+}
+.boot-veil.done {
+  opacity: 0;
+  pointer-events: none;
+}
+.boot-veil[hidden] { display: none; }
+.boot-crest {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  border: 2px solid rgba(223, 186, 106, 0.55);
+  box-shadow: 0 0 28px rgba(223, 186, 106, 0.24), inset 0 0 18px rgba(223, 186, 106, 0.14);
+  display: grid;
+  place-items: center;
+  animation: bootPulse 1.6s ease-in-out infinite;
+}
+.boot-crest::after {
+  content: "";
+  width: 18px;
+  height: 24px;
+  background: linear-gradient(180deg, #fff1c8, #dfba6a);
+  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+}
+.boot-label {
+  font: 600 13px/1.2 var(--display);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--amber);
+}
+@keyframes bootPulse {
+  0%, 100% { transform: scale(0.96); opacity: 0.85; }
+  50% { transform: scale(1.04); opacity: 1; }
+}
+
+/* Unified antique-brass toggles & filled gold sliders (WebKit + Firefox parity) */
+.toggle:hover:not(:disabled) { border-color: rgba(223, 186, 106, 0.65); }
+.toggle:disabled { opacity: 0.45; cursor: not-allowed; }
+.toggle:checked {
+  background: rgba(223, 186, 106, 0.34);
+  border-color: var(--amber);
+}
+.toggle:checked::after { background: #fff7e2; }
+input[type=range] {
+  --p: 50%;
+}
+input[type=range]::-webkit-slider-runnable-track {
+  background: linear-gradient(90deg, rgba(223, 186, 106, 0.72) var(--p), rgba(255, 244, 224, 0.2) var(--p));
+}
+input[type=range]::-webkit-slider-thumb {
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+input[type=range]:hover::-webkit-slider-thumb,
+input[type=range]:active::-webkit-slider-thumb {
+  transform: scale(1.1);
+  box-shadow: 0 0 0 4px rgba(223, 186, 106, 0.22), 0 2px 8px var(--shadow);
+}
+input[type=range]::-moz-range-track {
+  background: linear-gradient(90deg, rgba(223, 186, 106, 0.72) var(--p), rgba(255, 244, 224, 0.2) var(--p));
+}
+input[type=range]::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--amber);
+  border: 2px solid var(--surf-lo);
+  box-shadow: 0 2px 6px var(--shadow);
+}
+
+/* Warm storybook parchment-ink logs instead of green terminal boxes */
+.log, #dlgBody textarea {
+  background: rgba(18, 13, 10, 0.92);
+  color: #e8dcc4;
+  border: 1.5px solid rgba(223, 186, 106, 0.28);
+  border-radius: 10px;
+}
+
+/* Gilded storybook corner accents on primary cards & bottom nav */
+.weapon-card, .threat-row, .news-card, .codex-card, .anvil-card, .alert-banner {
+  position: relative;
+  border-color: rgba(223, 186, 106, 0.34);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 240, 206, 0.12);
+}
+.wc-name .ico.inline {
+  display: inline-block;
+  vertical-align: -3px;
+  margin-right: 6px;
+  width: 18px;
+  height: 18px;
+}
+.wc-traits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 2px;
+}
+.wc-trait {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font: 600 11px/1.3 var(--display);
+  letter-spacing: 0.06em;
+  color: #f3e4c6;
+  background: rgba(223, 186, 106, 0.14);
+  border: 1px solid rgba(223, 186, 106, 0.32);
+}
+.wc-trait.dps {
+  color: var(--amber);
+  background: rgba(223, 186, 106, 0.2);
+}
+
+/* Desktop HUD fixes: anchor action buttons low-right, keep waveSub compact, add pause key badge */
+body.device-desktop .act {
+  bottom: calc(var(--sb) + 18px);
+}
+body.device-desktop:not(.input-touch) #hudEditRow {
+  display: none;
+}
+#waveSub:empty { display: none; }
+.hud-meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 2px;
+  font: 600 11px/1.1 var(--display);
+  letter-spacing: 0.08em;
+  color: rgba(242, 232, 212, 0.8);
+}
+.hud-auto {
+  padding: 2px 7px;
+  border-radius: 999px;
+  font: 700 10px/1.1 var(--display);
+  letter-spacing: 0.1em;
+  background: rgba(223, 186, 106, 0.16);
+  border: 1px solid rgba(223, 186, 106, 0.38);
+  color: var(--amber);
+}
+.hud-auto.manual {
+  background: rgba(255, 244, 224, 0.08);
+  border-color: rgba(255, 244, 224, 0.22);
+  color: var(--dim);
+}
+#pauseBtn {
+  position: relative;
+}
+#pauseBtn .key {
+  position: absolute;
+  bottom: -6px;
+  right: -4px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  font: 700 9px/1 var(--display);
+  background: rgba(18, 13, 10, 0.92);
+  border: 1px solid rgba(223, 186, 106, 0.42);
+  color: var(--amber);
+  pointer-events: none;
+}
+body.input-touch #pauseBtn .key { display: none; }
+.buffs {
+  max-height: 54px;
+  overflow: hidden;
+}
+#coach {
+  top: calc(var(--st) + 126px);
+}
+
+/* Corrupt-save recovery & inline WebGL banners */
+.alert-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(64, 34, 22, 0.94), rgba(34, 21, 15, 0.96));
+  border: 1.5px solid rgba(232, 160, 96, 0.58);
+  color: #f6e7cf;
+  font-size: 13px;
+}
+.alert-banner[hidden] { display: none; }
+.alert-banner b { color: var(--amber); }
+.alert-banner .btn-row { width: auto; flex: 0 0 auto; }
+
+/* Sanctuary Workshop category headings */
+.ws-group-h {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0 2px;
+  font: 700 12px/1 var(--display);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--amber);
+}
+.ws-group-h:first-child { margin-top: 2px; }
+.ws-group-h::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(223, 186, 106, 0.42), transparent);
+}
+
+/* Journal tabs (Milestones / Chronicle / Codex) & Codex cards */
+.tab-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.tab-btn {
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1.5px solid var(--line2);
+  background: rgba(24, 18, 14, 0.72);
+  color: var(--dim);
+  font: 600 13px/1 var(--display);
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: background 0.14s, color 0.14s, border-color 0.14s;
+}
+.tab-btn.on {
+  background: rgba(223, 186, 106, 0.22);
+  border-color: var(--amber);
+  color: var(--amber);
+}
+.rec-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.codex-subtabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.codex-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 10px;
+}
+.codex-card {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(26, 20, 15, 0.86);
+  border: 1px solid rgba(223, 186, 106, 0.26);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.codex-card.undiscovered { opacity: 0.65; }
+.codex-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.codex-head b { font-size: 15px; color: var(--text); }
+.codex-tag {
+  font: 600 11px/1 var(--display);
+  letter-spacing: 0.08em;
+  color: var(--amber);
+  text-transform: uppercase;
+}
+.codex-card p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--dim);
+}
+.codex-meta {
+  font: 600 11.5px/1.2 var(--display);
+  color: rgba(223, 186, 106, 0.84);
+  margin-top: 2px;
+}
+
+/* Dedicated What's New cards */
+.news-card {
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(26, 20, 15, 0.86);
+  border: 1px solid rgba(223, 186, 106, 0.28);
+  margin-bottom: 12px;
+}
+.news-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.news-ver {
+  padding: 3px 9px;
+  border-radius: 999px;
+  font: 700 12px/1 var(--display);
+  background: rgba(223, 186, 106, 0.2);
+  border: 1px solid rgba(223, 186, 106, 0.45);
+  color: var(--amber);
+}
+.news-card h3 {
+  margin: 0;
+  font: 400 18px/1.2 var(--serif);
+  color: var(--text);
+  flex: 1;
+}
+.news-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--dim);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.news-list li::marker { color: var(--amber); }
+
+/* Upgrade choice heading consistency, clickable build strip & phone visibility */
+#choose .choose-head h2 { color: var(--amber); }
+#choose .choose-top-actions {
+  position: absolute;
+  top: calc(var(--st) + 12px);
+  right: calc(var(--sr) + 14px);
+  display: flex;
+  gap: 8px;
+}
+.build-strip button.bi {
+  cursor: pointer;
+  border: 1px solid rgba(223, 186, 106, 0.28);
+  background: rgba(26, 20, 15, 0.85);
+  color: var(--text);
+  font: 600 12px/1 var(--display);
+  padding: 5px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.build-strip button.bi[aria-pressed="true"] {
+  border-color: var(--amber);
+  background: rgba(223, 186, 106, 0.2);
+}
+#chooseUpInfo {
+  max-width: 560px;
+  width: 100%;
+  margin: 4px auto 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(22, 16, 12, 0.9);
+  border: 1px solid rgba(223, 186, 106, 0.34);
+  font-size: 13px;
+  color: var(--text);
+  text-align: center;
+}
+#chooseUpInfo[hidden] { display: none; }
+
+/* Keep weapon blurb readable on short desktop windows, keep build strip visible on phones */
+@media (max-height: 680px) {
+  body.device-desktop #home .wc-blurb {
+    display: block;
+    font-size: 12.5px;
+    line-height: 1.3;
+  }
+}
+@media (max-height: 560px) {
+  .build-strip {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    max-width: 100%;
+    padding-bottom: 2px;
+    justify-content: flex-start;
+  }
+  .build-strip .bi { flex: 0 0 auto; }
+}
+
+/* 2-column desktop Pause layout + Controls card */
+.pause-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+@media (min-width: 900px) {
+  body.device-desktop #pause .center-col {
+    max-width: 820px;
+  }
+  body.device-desktop #pause .pause-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+    text-align: left;
+  }
+}
+.controls-card {
+  padding: 10px 14px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--dim);
+  text-align: left;
+}
+.controls-card .ctrl-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(255, 244, 224, 0.06);
+}
+.controls-card .ctrl-row:last-child { border-bottom: none; }
+.controls-card kbd {
+  font: 600 11.5px/1.2 var(--display);
+  color: var(--amber);
+}
+
+/* Distinct Victory vs Defeat end-screen atmosphere */
+#over.is-win {
+  background: radial-gradient(ellipse at 50% 24%, rgba(68, 52, 22, 0.88), rgba(14, 11, 8, 0.94));
+}
+#over.is-lose {
+  background: radial-gradient(ellipse at 50% 24%, rgba(56, 22, 22, 0.86), rgba(13, 9, 9, 0.95));
+}
+.over-title.win {
+  color: var(--amber);
+  text-shadow: 0 2px 26px rgba(223, 186, 106, 0.5);
+}
+.over-title.lose {
+  color: #e48d7b;
+  text-shadow: 0 2px 24px rgba(226, 120, 100, 0.44);
+}
+.over-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  width: 100%;
+}
+.over-actions .btn { flex: 1 1 130px; }
+
+/* Resume Countdown Overlay */
+.resume-count {
+  position: fixed;
+  inset: 0;
+  z-index: 65;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  background: rgba(12, 9, 7, 0.32);
+}
+.resume-count[hidden] { display: none; }
+.resume-count span {
+  font: 400 clamp(54px, 12vw, 96px)/1 var(--serif);
+  color: var(--amber);
+  text-shadow: 0 4px 28px rgba(0, 0, 0, 0.72), 0 0 22px rgba(223, 186, 106, 0.5);
+}
+
+/* Wayfarer's Anvil (between-biome shard shop) */
+#anvil .center-col {
+  max-width: 720px;
+}
+.anvil-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+  width: 100%;
+}
+.anvil-card {
+  padding: 14px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(36, 26, 19, 0.95), rgba(22, 16, 12, 0.96));
+  border: 1.5px solid rgba(223, 186, 106, 0.36);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+.anvil-card b { font-size: 15px; color: var(--amber); }
+.anvil-card p { margin: 0; font-size: 13px; color: var(--dim); flex: 1; }
+.anvil-card .btn { width: 100%; }
+
+/* Mute button on Home/Settings topbar */
+.mute-btn {
+  min-width: 38px;
+  height: 38px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1.5px solid var(--line2);
+  background: rgba(24, 18, 14, 0.8);
+  color: var(--text);
+  font: 600 12px/1 var(--display);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.mute-btn.muted {
+  border-color: rgba(228, 141, 123, 0.55);
+  color: #e48d7b;
+}
 </style>
 
 <script>
@@ -3804,6 +4334,10 @@ body.device-phone.is-landscape #app:has(#hud:not([hidden])) .toast {
 </head>
 <body>
 <div id="app">
+  <div id="bootVeil" class="boot-veil" aria-hidden="true">
+    <div class="boot-crest"></div>
+    <div class="boot-label">Kindling the Lanterns</div>
+  </div>
   <canvas id="gl" aria-label="Game view"></canvas>
   <canvas id="ov" aria-hidden="true"></canvas>
   <div id="touch" hidden></div>
@@ -3814,14 +4348,19 @@ body.device-phone.is-landscape #app:has(#hud:not([hidden])) .toast {
   <div id="hud" hidden>
     <div class="hud-top">
       <div class="hp-block">
-        <div class="hp-label"><span>HP</span><span id="hpNum" class="num">100</span><span id="shieldPip" class="pip" hidden title="Energy Shield"></span></div>
+        <div class="hp-label"><span>HP</span><span id="hpNum" class="num">100</span><span id="shieldPip" class="pip" hidden title="Mirror Ward"></span></div>
         <div class="bar hp"><i id="hpFill"></i></div>
         <div id="buffs" class="buffs"></div>
       </div>
       <div class="wave-block">
-        <div id="waveLabel" class="wave-label">WAVE 1</div>
-        <div id="waveSub" class="wave-sub">&nbsp;</div>
+        <div id="waveLabel" class="wave-label">Wave 1</div>
+        <div id="waveSub" class="wave-sub"></div>
         <div id="waveProg" class="wave-prog" hidden><i id="waveProgFill"></i></div>
+        <div class="hud-meta">
+          <span id="hudTimer" class="num">0:00</span>
+          <span id="hudFoes" class="num" hidden></span>
+          <span id="hudAutoPill" class="auto-pill" hidden>AUTO</span>
+        </div>
         <div id="combo" class="combo" hidden><b id="comboN" class="num">×0</b><span class="combo-bar"><i id="comboBar"></i></span></div>
       </div>
       <div class="right-block">
@@ -3830,18 +4369,19 @@ body.device-phone.is-landscape #app:has(#hud:not([hidden])) .toast {
       </div>
     </div>
     <div id="bossBar" class="boss-bar" hidden>
-      <div class="boss-name"><span id="bossName">BOSS</span><span id="bossPhase"></span></div>
+      <div class="boss-name"><span id="bossName">Guardian</span><span id="bossPhase"></span></div>
       <div class="bar boss"><i id="bossFill"></i><b id="bossLag"></b><span id="bossTicks" class="ticks"></span></div>
     </div>
     <div id="coach" class="coach" hidden><div id="coachDots" class="coach-dots"></div><p id="coachText"></p></div>
     <div class="act">
       <div class="act-row">
-        <button id="gadgetBtn" class="act-btn gadget" aria-label="Throw Gravity Grenade"><span class="ring"></span><svg class="gico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="currentColor"/><path d="M12 3.5a8.5 8.5 0 0 1 8.5 8.5M20.5 12a8.5 8.5 0 0 1-8.5 8.5M12 20.5A8.5 8.5 0 0 1 3.5 12M3.5 12A8.5 8.5 0 0 1 12 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="7 6"/><path d="M12 7.2a4.8 4.8 0 0 1 4.8 4.8M12 16.8A4.8 4.8 0 0 1 7.2 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span class="lbl">GRENADE</span><span id="gadgetPips" class="pips" aria-hidden="true"></span><span id="gadgetKey" class="key" aria-hidden="true">G</span></button>
-        <button id="novaBtn" class="act-btn nova" aria-label="Nova"><span class="ring"></span><span class="lbl">NOVA</span><span class="key" aria-hidden="true">E</span></button>
+        <button id="gadgetBtn" class="act-btn gadget" aria-label="Throw Gravity Chime"><span class="ring"></span><svg class="gico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="currentColor"/><path d="M12 3.5a8.5 8.5 0 0 1 8.5 8.5M20.5 12a8.5 8.5 0 0 1-8.5 8.5M12 20.5A8.5 8.5 0 0 1 3.5 12M3.5 12A8.5 8.5 0 0 1 12 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="7 6"/><path d="M12 7.2a4.8 4.8 0 0 1 4.8 4.8M12 16.8A4.8 4.8 0 0 1 7.2 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span class="lbl">CHIME</span><span id="gadgetPips" class="pips" aria-hidden="true"></span><span id="gadgetKey" class="key" aria-hidden="true">G</span></button>
+        <button id="novaBtn" class="act-btn nova" aria-label="Hearthburst"><span class="ring"></span><span class="lbl">BURST</span><span class="key" aria-hidden="true">E</span></button>
       </div>
       <button id="dashBtn" class="act-btn dash" aria-label="Dash"><span class="ring"></span><span class="lbl">DASH</span><span id="dashPips" class="pips" aria-hidden="true" hidden></span><span class="key" aria-hidden="true">SPACE</span></button>
     </div>
   </div>
+  <div id="resumeCount" class="resume-count" hidden aria-live="polite"><span id="resumeCountNum">3</span></div>
   <div id="banner" aria-live="polite"></div>
   <!-- the button layout editor (ui/hud-layout.js); the real HUD shows through -->
   <section id="hudEdit" hidden aria-label="Button layout">
@@ -3865,29 +4405,42 @@ body.device-phone.is-landscape #app:has(#hud:not([hidden])) .toast {
     <header class="topbar">
       <div class="shard-chip big"><span class="shard-ico"></span><span id="bank" class="num">0</span></div>
       <div class="spacer"></div>
-      <button id="updateReadyBtn" class="btn small buy" hidden>Update ready — tap to reload</button>
+      <button id="updateReadyBtn" class="btn small buy" hidden>Update ready — reload</button>
+      <button id="muteBtn" class="icon-btn mute-btn" aria-label="Toggle sound mute" aria-pressed="false" title="Mute / Unmute (M)"></button>
     </header>
+    <div id="corruptBanner" class="alert-banner" hidden role="alert">
+      <span><b>Previous save could not be read.</b> A raw backup was kept safe before starting fresh.</span>
+      <div class="btn-row compact-row">
+        <button id="corruptDownloadBtn" class="btn small">Download .json</button>
+        <button id="corruptInspectBtn" class="btn small ghost">Inspect</button>
+        <button id="corruptDismissBtn" class="btn small ghost">Dismiss</button>
+      </div>
+    </div>
+    <div id="webglBanner" class="alert-banner" hidden role="alert">
+      <span><b>3D graphics unavailable.</b> Enable hardware acceleration in your browser and reload to start a run.</span>
+    </div>
     <div class="home-grid">
       <div class="brand">
         <h1 class="logo" data-text="Riftline">Riftline</h1>
-        <p class="tagline">20 Waves · 6 Worlds · Action Roguelite</p>
+        <p class="tagline">Six Miniature Realms · Twenty Waves · Lantern-Artificer</p>
         <p id="bestLine" class="best-line" hidden></p>
       </div>
       <div class="home-panel">
         <div class="weapon-card panel">
           <div class="wc-head">
             <button id="wPrev" class="arrow" aria-label="Previous weapon" data-icon="back"></button>
-            <div class="wc-title"><div class="eyebrow">WEAPON <span id="wIndex"></span></div><div id="wName" class="wc-name">Pulse Blaster</div></div>
+            <div class="wc-title"><div class="eyebrow">ARMAMENT <span id="wIndex"></span></div><div id="wName" class="wc-name">Lantern Repeater</div></div>
             <button id="wNext" class="arrow flip" aria-label="Next weapon" data-icon="back"></button>
           </div>
           <p id="wBlurb" class="wc-blurb"></p>
+          <div id="wTraits" class="wc-traits"></div>
           <div id="wStats" class="wc-stats"></div>
           <button id="wBuy" class="btn buy" hidden></button>
         </div>
         <div class="threat-row panel">
-          <button id="tPrev" class="arrow small" aria-label="Lower difficulty" data-icon="back"></button>
-          <div class="threat-mid"><div id="tName" class="threat-name">Normal</div><div id="tDesc" class="threat-desc"></div></div>
-          <button id="tNext" class="arrow small flip" aria-label="Higher difficulty" data-icon="back"></button>
+          <button id="tPrev" class="arrow small" aria-label="Lower trial" data-icon="back"></button>
+          <div class="threat-mid"><div id="tName" class="threat-name">Wayfarer</div><div id="tDesc" class="threat-desc"></div></div>
+          <button id="tNext" class="arrow small flip" aria-label="Higher trial" data-icon="back"></button>
         </div>
         <button id="continueBtn" class="btn primary alt" hidden></button>
         <p id="continueNote" class="note checkpoint-note" hidden></p>
@@ -3895,39 +4448,60 @@ body.device-phone.is-landscape #app:has(#hud:not([hidden])) .toast {
       </div>
     </div>
     <nav class="bottom-nav" aria-label="Primary">
-      <button data-go="workshop"><span data-icon="wrench"></span>Workshop</button>
-      <button data-go="records"><span data-icon="trophy"></span>Records<i id="recBadge" class="badge" hidden></i></button>
+      <button data-go="workshop"><span data-icon="wrench"></span>Sanctuary</button>
+      <button data-go="records"><span data-icon="trophy"></span>Journal<i id="recBadge" class="badge" hidden></i></button>
       <button data-go="news"><span data-icon="info"></span>News<i id="newsBadge" class="badge" hidden></i></button>
       <button data-go="settings"><span data-icon="gear"></span>Settings</button>
     </nav>
   </section>
 
-  <!-- ====================================================== WORKSHOP -->
+  <!-- ====================================================== SANCTUARY (WORKSHOP) -->
   <section id="workshop" class="screen page" hidden>
     <header class="topbar">
       <button class="icon-btn" data-back aria-label="Back" data-icon="back"></button>
-      <h2>Workshop</h2>
+      <h2>Sanctuary</h2>
       <div class="spacer"></div>
       <div class="shard-chip big"><span class="shard-ico"></span><span class="num bankMirror">0</span></div>
     </header>
-    <p class="page-intro">Permanent upgrades. Spend shards earned from every run — won or lost.</p>
+    <p class="page-intro">Permanent crafts forged at the lantern bench. Spend shards earned from every expedition — won or lost.</p>
     <div id="wsList" class="list scroll"></div>
   </section>
 
-  <!-- ====================================================== RECORDS -->
+  <!-- ====================================================== JOURNAL (RECORDS + CODEX) -->
   <section id="records" class="screen page" hidden>
     <header class="topbar">
       <button class="icon-btn" data-back aria-label="Back" data-icon="back"></button>
-      <h2>Records</h2>
+      <h2>Journal</h2>
       <div class="spacer"></div>
       <div class="shard-chip big"><span class="shard-ico"></span><span class="num bankMirror">0</span></div>
     </header>
+    <div class="tab-bar" id="recTabs" role="tablist" aria-label="Journal sections">
+      <button class="tab-btn on" data-rec-tab="milestones" role="tab" aria-selected="true">Milestones</button>
+      <button class="tab-btn" data-rec-tab="chronicle" role="tab" aria-selected="false">Chronicle</button>
+      <button class="tab-btn" data-rec-tab="codex" role="tab" aria-selected="false">Codex</button>
+    </div>
     <div class="scroll">
-      <p class="page-intro">Claim shard rewards for completing milestones.</p>
-      <div id="msList" class="list"></div>
-      <h3 class="section-h">Lifetime stats</h3>
-      <div id="statGrid" class="stat-grid"></div>
-      <div id="runHist" class="list"></div>
+      <div id="recMilestonesPane">
+        <div class="rec-actions">
+          <p class="page-intro" style="margin:0">Claim shard rewards for milestones completed across your runs.</p>
+          <button id="claimAllBtn" class="btn small buy" hidden>Claim All</button>
+        </div>
+        <div id="msList" class="list"></div>
+      </div>
+      <div id="recChroniclePane" hidden>
+        <h3 class="section-h">Lifetime stats</h3>
+        <div id="statGrid" class="stat-grid"></div>
+        <h3 class="section-h">Recent Expeditions</h3>
+        <div id="runHist" class="list"></div>
+      </div>
+      <div id="recCodexPane" hidden>
+        <div class="codex-subtabs" id="codexSubtabs">
+          <button class="tab-btn on" data-codex-tab="realms">Realms &amp; Relics</button>
+          <button class="tab-btn" data-codex-tab="foes">Foes &amp; Guardians</button>
+          <button class="tab-btn" data-codex-tab="masterworks">Masterworks</button>
+        </div>
+        <div id="codexList" class="codex-grid"></div>
+      </div>
     </div>
   </section>
 
@@ -3949,33 +4523,45 @@ body.device-phone.is-landscape #app:has(#hud:not([hidden])) .toast {
     <div class="scroll settings-body">
       <h3 class="section-h">Controls</h3>
       <div class="set-group">
-        <label class="set-row"><span><b>Auto-fire</b><small>Shoots the nearest enemy while you are not aiming.</small></span><input type="checkbox" id="setAuto" class="toggle"></label>
-        <label class="set-row"><span><b>Aim assist</b><small>Nudges your aim onto nearby targets.</small></span><input type="checkbox" id="setAssist" class="toggle"></label>
-        <div class="set-row"><span><b>Button layout</b><small id="hudLayoutNote">Move and resize the buttons and the sticks.</small></span><button id="hudEditBtn" class="btn small">Edit</button></div>
+        <label class="set-row"><span><b>Auto-fire</b><small>Shoots the nearest foe while you are not aiming.</small></span><input type="checkbox" id="setAuto" class="toggle"></label>
+        <label class="set-row"><span><b>Aim assist</b><small>Gently steadies your aim onto nearby targets.</small></span><input type="checkbox" id="setAssist" class="toggle"></label>
+        <div class="set-row" id="hudEditRow"><span><b>Button layout</b><small id="hudLayoutNote">Move and resize the touch buttons and sticks.</small></span><button id="hudEditBtn" class="btn small">Edit</button></div>
+      </div>
+      <div class="panel controls-card" id="settingsControlsCard">
+        <div class="ctrl-row"><span>Move</span><kbd>W A S D / Arrows / Left Stick</kbd></div>
+        <div class="ctrl-row"><span>Aim &amp; Fire</span><kbd>Mouse + LMB / Right Stick + RT</kbd></div>
+        <div class="ctrl-row"><span>Dash</span><kbd>Space / Shift / RMB / A</kbd></div>
+        <div class="ctrl-row"><span>Hearthburst</span><kbd>E / Q / F / B / RB</kbd></div>
+        <div class="ctrl-row"><span>Gravity Chime</span><kbd>G / Shift+RMB / Y / LT</kbd></div>
+        <div class="ctrl-row"><span>Pause / Mute</span><kbd>Esc / P · M</kbd></div>
       </div>
       <h3 class="section-h">Display</h3>
       <div class="set-group">
-        <div class="set-row"><span><b>Frame rate</b><small>High graphics at every frame rate.</small></span>
+        <div class="set-row"><span><b>Frame rate</b><small>Target smoothness for 3D rendering.</small></span>
           <div class="seg" id="setFrameRate"><button data-v="30">30 FPS</button><button data-v="60">60 FPS</button><button data-v="120">120 FPS</button></div></div>
         <label class="set-row"><span><b>Damage numbers</b></span><input type="checkbox" id="setNumbers" class="toggle"></label>
       </div>
       <h3 class="section-h">Tutorial</h3>
       <div class="set-group">
-        <div class="set-row"><span><b>Replay tutorial</b><small>Shows the four-step onboarding again on your next fresh run. Your current run and progress stay untouched.</small></span><button id="replayTutBtn" class="btn small">Replay</button></div>
+        <div class="set-row"><span><b>Replay tutorial</b><small>Shows the four-step introduction again on your next new run. Your progress stays untouched.</small></span><button id="replayTutBtn" class="btn small">Replay</button></div>
       </div>
-      <h3 class="section-h menu-only">Backup</h3>
+      <h3 class="section-h menu-only">Save &amp; Recovery</h3>
       <div class="set-group menu-only">
-        <div class="set-row"><span><b>Save backup</b><small>Export your Riftline progress as text, or share it directly on supported devices.</small></span><div class="btn-row compact-row"><button id="backupBtn" class="btn small">Export</button><button id="shareBtn" class="btn small">Share</button><button id="restoreBtn" class="btn small">Import</button></div></div>
+        <div class="set-row"><span><b>Save backup</b><small>Export or download your progress as a .json file, or restore from text or file.</small></span><div class="btn-row compact-row"><button id="backupBtn" class="btn small">Export</button><button id="shareBtn" class="btn small">Share</button><button id="restoreBtn" class="btn small">Import</button></div></div>
+        <div class="set-row" id="corruptSettingsRow" hidden><span><b>Raw save backup</b><small>Inspect or download a previously unreadable save snapshot.</small></span><div class="btn-row compact-row"><button id="corruptSetInspectBtn" class="btn small">Inspect</button><button id="corruptSetDownloadBtn" class="btn small">Download .json</button></div></div>
       </div>
       <h3 class="section-h">Sound</h3>
       <div class="set-group">
+        <label class="set-row"><span><b>Mute all sound</b><small>Quickly silence all channels (shortcut: M).</small></span><input type="checkbox" id="setMuted" class="toggle"></label>
+        <label class="set-row"><span><b>Master volume</b></span><span class="row-ctl"><input type="range" id="setMaster" min="0" max="1" step="0.05"><output id="setMasterV" class="num set-val">100%</output></span></label>
         <label class="set-row"><span><b>Effects</b></span><span class="row-ctl"><input type="range" id="setSfx" min="0" max="1" step="0.05"><output id="setSfxV" class="num set-val">80%</output></span></label>
         <label class="set-row"><span><b>Music</b></span><span class="row-ctl"><input type="range" id="setMusic" min="0" max="1" step="0.05"><output id="setMusicV" class="num set-val">45%</output></span></label>
-        <label class="set-row"><span><b>Ambience</b><small>Background world sounds: wind, lava vents, ice, acid pools, sand, portals, and distant chimes.</small></span><span class="row-ctl"><input type="range" id="setAmb" min="0" max="1" step="0.05"><output id="setAmbV" class="num set-val">80%</output></span></label>
+        <label class="set-row"><span><b>Ambience</b><small>Background realm sounds: wind, lava vents, ice, acid pools, sand, portals, and distant chimes.</small></span><span class="row-ctl"><input type="range" id="setAmb" min="0" max="1" step="0.05"><output id="setAmbV" class="num set-val">80%</output></span></label>
       </div>
       <div class="set-foot">
-        <span class="note">Riftline <span id="verText" class="num"></span> · progress saves automatically<span id="storageWarn" hidden> — <b id="storageWarnText">storage is blocked in this browser</b></span></span>
+        <span class="note">Riftline <span id="verText" class="num"></span> · progress saves automatically<span id="storageWarn" hidden> — <b id="storageWarnText">Storage is blocked in this browser.</b></span></span>
         <div class="btn-row">
+          <button id="diagLogBtn" class="btn ghost small">Copy diagnostic log</button>
           <button id="defaultsBtn" class="btn ghost small menu-only">Restore default settings</button>
           <button id="resetBtn" class="btn danger ghost small menu-only">Reset progress</button>
         </div>
@@ -3985,19 +4571,36 @@ body.device-phone.is-landscape #app:has(#hud:not([hidden])) .toast {
 
   <!-- ====================================================== CHOOSE UPGRADE -->
   <section id="choose" class="screen overlay" hidden>
+    <div class="choose-top-actions">
+      <button id="choosePauseBtn" class="icon-btn" aria-label="Pause" data-icon="pause"></button>
+    </div>
     <div class="choose-head">
       <div id="chooseEyebrow" class="eyebrow">WAVE 1 CLEARED</div>
       <h2 id="chooseTitle">Choose an upgrade</h2>
-      <p id="chooseFirstHint" class="choose-first-hint" hidden>Cards upgrade your build for this run. Spend shards in the Workshop for permanent upgrades.</p>
+      <p id="chooseFirstHint" class="choose-first-hint" hidden>Crafts strengthen your build for this run. Spend shards in the Sanctuary for permanent upgrades.</p>
       <div id="nextWave" class="next-wave" aria-live="polite"></div>
       <div class="choose-hp"><div class="bar hp small"><i id="chooseHp"></i></div><span id="chooseHpNum" class="num"></span></div>
     </div>
     <div id="cards" class="cards"></div>
     <div class="choose-foot">
       <button id="rerollBtn" class="btn ghost"><span data-icon="reroll"></span><span id="rerollTxt">Reroll</span></button>
-      <button id="banishBtn" class="btn ghost" hidden><span data-icon="skull"></span><span id="banishTxt">Banish</span></button>
+      <button id="banishBtn" class="btn ghost" hidden><span data-icon="skull"></span><span id="banishTxt">Seal</span></button>
     </div>
     <div id="buildStrip" class="build-strip"></div>
+    <div id="chooseUpInfo" aria-live="polite" hidden></div>
+  </section>
+
+  <!-- ====================================================== WAYFARER'S ANVIL -->
+  <section id="anvil" class="screen overlay" hidden>
+    <div class="center-col">
+      <div id="anvilEyebrow" class="eyebrow">BETWEEN REALMS</div>
+      <h2>Wayfarer's Anvil</h2>
+      <p class="note">Spend run shards before stepping into the next realm, or keep them for the Sanctuary.</p>
+      <div class="shard-chip big"><span class="shard-ico"></span><span id="anvilShards" class="num">0</span></div>
+      <div class="choose-hp"><div class="bar hp small"><i id="anvilHp"></i></div><span id="anvilHpNum" class="num"></span></div>
+      <div id="anvilOffers" class="anvil-grid"></div>
+      <button id="anvilContinueBtn" class="btn primary">Continue to Next Realm</button>
+    </div>
   </section>
 
   <!-- ====================================================== PAUSE -->
@@ -4006,17 +4609,32 @@ body.device-phone.is-landscape #app:has(#hud:not([hidden])) .toast {
       <div class="eyebrow">PAUSED</div>
       <h2 id="pauseTitle">Wave 1</h2>
       <div id="pauseStats" class="mini-stats"></div>
-      <button id="resumeBtn" class="btn primary">RESUME</button>
-      <div class="btn-row">
-        <button id="restartBtn" class="btn">Restart</button>
-        <button id="pauseSetBtn" class="btn">Settings</button>
+      <div class="pause-grid">
+        <div class="pause-col">
+          <button id="resumeBtn" class="btn primary" style="width:100%">RESUME</button>
+          <div class="btn-row" style="margin-top:8px">
+            <button id="restartBtn" class="btn">Restart</button>
+            <button id="pauseSetBtn" class="btn">Settings</button>
+          </div>
+          <button id="abandonBtn" class="btn danger ghost" style="width:100%;margin-top:8px">Abandon run</button>
+          <div class="section-h">Stats</div>
+          <div id="pauseStatRows" class="stat-rows panel"></div>
+        </div>
+        <div class="pause-col">
+          <div class="section-h" style="margin-top:0">Crafts</div>
+          <div id="pauseBuild" class="build-list"></div>
+          <div id="pauseUpInfo" class="up-info" aria-live="polite" hidden></div>
+          <div class="section-h">Controls</div>
+          <div class="panel controls-card">
+            <div class="ctrl-row"><span>Move</span><kbd>W A S D / Arrows</kbd></div>
+            <div class="ctrl-row"><span>Aim &amp; Fire</span><kbd>Mouse + LMB</kbd></div>
+            <div class="ctrl-row"><span>Dash</span><kbd>Space / Shift / RMB</kbd></div>
+            <div class="ctrl-row"><span>Hearthburst</span><kbd>E / Q / F</kbd></div>
+            <div class="ctrl-row"><span>Gravity Chime</span><kbd>G / Shift+RMB</kbd></div>
+            <div class="ctrl-row"><span>Pause / Mute</span><kbd>Esc / P · M</kbd></div>
+          </div>
+        </div>
       </div>
-      <button id="abandonBtn" class="btn danger ghost">Abandon run</button>
-      <div class="section-h">Stats</div>
-      <div id="pauseStatRows" class="stat-rows panel"></div>
-      <div class="section-h">Upgrades</div>
-      <div id="pauseBuild" class="build-list"></div>
-      <div id="pauseUpInfo" class="up-info" aria-live="polite" hidden></div>
     </div>
   </section>
 
@@ -4024,7 +4642,7 @@ body.device-phone.is-landscape #app:has(#hud:not([hidden])) .toast {
   <section id="over" class="screen overlay" hidden>
     <div class="center-col">
       <div id="overEyebrow" class="eyebrow"></div>
-      <h2 id="overTitle" class="over-title">RUN OVER</h2>
+      <h2 id="overTitle" class="over-title">Fallen</h2>
       <div id="overCause" class="over-cause" hidden></div>
       <div id="overBest" class="chip best" hidden>NEW BEST</div>
       <div id="overStats" class="stat-grid compact"></div>
@@ -4036,9 +4654,11 @@ body.device-phone.is-landscape #app:has(#hud:not([hidden])) .toast {
       <div id="overDmg" class="dmg-panel panel" hidden></div>
       <div id="overExtra" class="run-extra panel" hidden></div>
       <div id="overMs" class="ms-unlocked"></div>
-      <button id="endlessBtn" class="btn primary" hidden>CONTINUE · ENDLESS</button>
-      <button id="retryBtn" class="btn primary">PLAY AGAIN</button>
-      <button id="homeBtn" class="btn">Home</button>
+      <div class="over-actions">
+        <button id="endlessBtn" class="btn primary" hidden>Continue · Endless</button>
+        <button id="retryBtn" class="btn primary">Play Again</button>
+        <button id="homeBtn" class="btn">Home</button>
+      </div>
     </div>
   </section>
 

@@ -285,7 +285,7 @@ test(
     assert.equal(settingsCheck.updateBtnHidden, true, "Update ready button must be hidden until a new SW waits");
     assert.equal(settingsCheck.audit.ok, true, JSON.stringify(settingsCheck.audit.findings));
 
-    await press("#hudEditBtn");
+    await page.evaluate(() => document.getElementById("hudEditBtn").click());
     await visible(page, "hudEdit");
     await page.keyboard.press("KeyP");
     assert.equal(await page.evaluate(() => document.getElementById("hudEdit").hidden), false);
@@ -311,7 +311,7 @@ test(
     assert.equal(hudDesktop.dashKey, true);
     assert.equal(hudDesktop.novaKey, true);
     assert.equal(hudDesktop.gadgetKey, true);
-    assert.equal(hudDesktop.cursor, "crosshair");
+    assert.equal(hudDesktop.cursor, "none");
     assert.equal(hudDesktop.touchInput, false);
     assert.equal(hudDesktop.audit.ok, true, JSON.stringify(hudDesktop.audit.findings));
 

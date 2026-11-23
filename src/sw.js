@@ -2,7 +2,7 @@
 // Scope isolates separate deployments on the same GitHub Pages origin.
 const PREFIX = `riftline:${encodeURIComponent(self.registration.scope)}:`;
 const CACHE = PREFIX + 'v__RL_VERSION_DASHED__-__RL_BUILD__-__RL_ASSETS__';
-const FILES = ["./","index.html","__RL_GAME_FILE__","manifest.webmanifest","audio/physical-bank.wav","textures/terrain-atlas.webp","textures/surface-atlas.webp","textures/vfx-atlas.webp","icon-192.png","icon-512.png","icon-maskable-512.png","apple-touch-icon.png","favicon-48.png","build-info.json","textures/title-chart.webp","fonts/baskervville-latin-400-normal.woff2","fonts/instrument-sans-latin-500-normal.woff2","fonts/instrument-sans-latin-600-normal.woff2","fonts/instrument-sans-latin-700-normal.woff2"];
+const FILES = ["index.html","__RL_GAME_FILE__","manifest.webmanifest","audio/physical-bank.wav","textures/terrain-atlas.webp","textures/surface-atlas.webp","textures/vfx-atlas.webp","icon-192.png","icon-512.png","icon-maskable-512.png","apple-touch-icon.png","favicon-48.png","build-info.json","fonts/baskervville-latin-400-normal.woff2","fonts/instrument-sans-latin-500-normal.woff2","fonts/instrument-sans-latin-600-normal.woff2","fonts/instrument-sans-latin-700-normal.woff2"];
 const ASSETS = FILES;
 const INSTALLED = new URL('.riftline-installed', self.registration.scope).href;
 self.addEventListener('install', (e) => {
@@ -56,16 +56,15 @@ self.addEventListener('fetch', (e) => {
     // Serve the atomic installed HTML snapshot from CACHE first so navigation and sub-resources never version-skew.
     const cached = () =>
       caches.open(CACHE).then((c) => c.match('index.html', { ignoreSearch: true }).then((hit) => hit || c.match('./', { ignoreSearch: true })));
-    const net = fetch(req, { cache: 'no-store' });
-    const good = net.then((res) => (res && res.ok ? res : cached().then((hit) => hit || res)));
     e.respondWith(
       cached().then((hit) => {
         if (hit) return hit;
+        const net = fetch(req, { cache: 'no-store' });
+        const good = net.then((res) => (res && res.ok ? res : cached().then((h) => h || res)));
         const slow = new Promise((resolve) => setTimeout(resolve, 3000)).then(cached).then((h) => h || good);
         return Promise.race([good, slow]).catch(() => cached());
       }),
     );
-    e.waitUntil(net.catch(() => null));
     return;
   }
   if (url.pathname.endsWith('/build-info.json')) {

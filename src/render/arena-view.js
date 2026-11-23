@@ -445,7 +445,7 @@ function buildCover(view, biomeId, obstacles, rng) {
           );
         }
       } else if (variant === 1) {
-        // Hollow Mossy Log Shrine with warm amber spore-lantern inside
+        // Hollow Mossy Log Shrine with warm amber spore-lantern nested in its front hollow alcove
         const logR = rad * 0.72;
         const logH = 1.18;
         place(
@@ -455,6 +455,15 @@ function buildCover(view, biomeId, obstacles, rng) {
           obs.x,
           h * 0.52 + logH * 0.5,
           obs.y,
+        );
+        // Dark hollow recess collar on the front face
+        place(
+          props,
+          beveledBox(logR * 0.72, logH * 0.52, logR * 0.36, 0.04),
+          baseMat("wood", 0x1b140f),
+          obs.x,
+          h * 0.52 + logH * 0.48,
+          obs.y + logR * 0.78,
         );
         place(
           props,
@@ -467,10 +476,10 @@ function buildCover(view, biomeId, obstacles, rng) {
         place(
           props,
           octahedron(rad * 0.24),
-          glowMat(0xffd878, 1.28),
+          glowMat(0xffd878, 1.38),
           obs.x,
           h * 0.52 + logH * 0.48,
-          obs.y,
+          obs.y + logR * 0.92,
           0,
           1,
           1.25,
@@ -767,22 +776,18 @@ function buildCover(view, biomeId, obstacles, rng) {
         place(props, octahedron(rad * 0.24), glowMat(look.accent, 1.2), obs.x, h * 0.62, obs.y, 0, 1, 1.35, 1);
         const canW = isCircle ? rad * 1.26 : w * 0.82;
         const canD = isCircle ? rad * 1.26 : d * 0.82;
-        place(
-          props,
-          cylinder(0.05, 0.06, 1.05, 6),
-          baseMat("wood", 0x6e4e32),
-          obs.x - canW * 0.36,
-          h * 0.44 + 0.52,
-          obs.y - canD * 0.36,
-        );
-        place(
-          props,
-          cylinder(0.05, 0.06, 1.05, 6),
-          baseMat("wood", 0x6e4e32),
-          obs.x + canW * 0.36,
-          h * 0.44 + 0.52,
-          obs.y - canD * 0.36,
-        );
+        for (const px of [-1, 1]) {
+          for (const pz of [-1, 1]) {
+            place(
+              props,
+              cylinder(0.05, 0.06, 1.05, 6),
+              baseMat("wood", 0x6e4e32),
+              obs.x + px * canW * 0.36,
+              h * 0.44 + 0.52,
+              obs.y + pz * canD * 0.36,
+            );
+          }
+        }
         place(
           props,
           beveledBox(canW, 0.08, canD, 0.03),
@@ -890,7 +895,7 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
     const roofCopper = mat("metal", 0x2c5658);
     const woodMat = mat("wood", 0x483226);
     const tealWin = glow(look.accent, 1.02);
-    const swayBrass = worldMaterial({ color: FINISH.brass, surface: "metal", reedWind: true, wakeReact: 1.0 });
+    const swayBrass = worldMaterial({ color: FINISH.brass, surface: "metal" });
 
     // Bespoke Perimeter: Rain-slate stepped plinth + arched brass storm-drain grates + wrought-brass courtyard balustrade
     for (const sz of [-1, 1]) {
@@ -922,7 +927,6 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
     }
 
     // 4 Corner Landmarks: Warm Paper-Screen Gatehouse Corner Pavilions with Gently Swaying Hanging Lanterns
-    const swayParts = [[], []];
     for (const sz of [-1, 1]) {
       for (const sx of [-1, 1]) {
         const cx = sx * (W + 1.85);
@@ -938,18 +942,17 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
         addLampGeo(box(0.92, 0.34, 1.22).translate(cx, 3.26, cz));
         place(props, cone(1.36, 0.72, 4).toFlatShaded(), roofCopper, cx, 3.78, cz, Math.PI / 4);
         place(props, octahedron(0.18), brassMat, cx, 4.26, cz, 0, 1, 1.5, 1);
-        // Gently swaying hanging brass eave-lanterns outside the arena
+        // Gently swaying hanging brass eave-lanterns outside the arena (pivoted from top hook)
         const lx = cx + sx * 0.95;
         const lz = cz + sz * 0.95;
-        swayParts[sz < 0 ? 0 : 1].push(
-          rawCylinder(0.025, 0.025, 0.42, 5).translate(lx, 2.28, lz),
-          octahedron(0.2).scale(0.85, 1.25, 0.85).translate(lx, 1.96, lz),
-        );
-        addLampGeo(octahedron(0.16).translate(lx, 1.96, lz));
+        const lanternPivot = new Node();
+        lanternPivot.position.set(lx, 2.49, lz);
+        place(lanternPivot, rawCylinder(0.025, 0.025, 0.42, 5), swayBrass, 0, -0.21, 0);
+        place(lanternPivot, octahedron(0.2), swayBrass, 0, -0.53, 0, 0, 0.85, 1.25, 0.85);
+        place(lanternPivot, octahedron(0.16), lampLens, 0, -0.53, 0);
+        props.add(lanternPivot);
+        view.rlAnim.push({ o: lanternPivot, k: "sway", s: 1.45, a: 0.08, ph: sx * 1.1 + sz * 1.7 });
       }
-    }
-    for (const list of swayParts) {
-      if (list.length) props.add(new MeshNode(mergeGeometries(list), swayBrass));
     }
 
     // Distant Northern Elevated Brass-and-Slate Tram Viaduct & Lit Tram Car Silhouette
@@ -1081,12 +1084,16 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
         0.6 + bh + roofH * 0.62,
         hz - bd * 0.18,
       );
-      // Warm glowing multi-story windows on all 4 facades via slightly proud bands
+      // Warm glowing multi-story windows framed by recessed dark timber mullions & sills
       for (const wy of [0.6 + bh * 0.28, 0.6 + bh * 0.74]) {
-        const wGeo = box(bw * 0.64, 0.42, bd * 0.97).translate(hx, wy, hz);
-        const wGeo2 = box(bw * 0.97, 0.42, bd * 0.64).translate(hx, wy, hz);
+        place(props, box(bw * 0.7, 0.52, bd * 0.96), darkMat, hx, wy, hz);
+        place(props, box(bw * 0.96, 0.52, bd * 0.7), darkMat, hx, wy, hz);
+        place(props, box(bw * 0.74, 0.08, bd * 0.99), brassMat, hx, wy - 0.26, hz);
+        place(props, box(bw * 0.99, 0.08, bd * 0.74), brassMat, hx, wy - 0.26, hz);
+        const wGeo = box(bw * 0.6, 0.36, bd * 0.975).translate(hx, wy, hz);
+        const wGeo2 = box(bw * 0.975, 0.36, bd * 0.6).translate(hx, wy, hz);
         if ((idx + Math.round(wy)) % 4 === 0) {
-          place(props, box(bw * 0.64, 0.42, bd * 0.97), tealWin, hx, wy, hz);
+          place(props, box(bw * 0.6, 0.36, bd * 0.975), tealWin, hx, wy, hz);
         } else {
           addLampGeo(wGeo);
           addLampGeo(wGeo2);
@@ -1316,9 +1323,11 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
       if (!safeExterior(lx, lz, rCheck, W, H, 0.5)) return;
       place(props, beveledBox(lw * 1.06, 0.55, ld * 1.06, 0.1), darkMat, lx, 0.27, lz, ry);
       place(props, beveledBox(lw, lh, ld, 0.12), timberMat, lx, 0.55 + lh * 0.5, lz, ry);
-      // Warm glowing paned cabin windows
-      place(props, box(lw * 0.58, 0.52, ld * 1.03), hearthGlow, lx, 0.55 + lh * 0.52, lz, ry);
-      place(props, box(lw * 1.03, 0.52, ld * 0.54), hearthGlow, lx, 0.55 + lh * 0.52, lz, ry);
+      // Warm glowing paned cabin windows with recessed dark frames
+      place(props, box(lw * 0.66, 0.62, ld * 1.015), darkMat, lx, 0.55 + lh * 0.52, lz, ry);
+      place(props, box(lw * 1.015, 0.62, ld * 0.62), darkMat, lx, 0.55 + lh * 0.52, lz, ry);
+      place(props, box(lw * 0.54, 0.44, ld * 1.032), hearthGlow, lx, 0.55 + lh * 0.52, lz, ry);
+      place(props, box(lw * 1.032, 0.44, ld * 0.5), hearthGlow, lx, 0.55 + lh * 0.52, lz, ry);
       // Steep snow-dusted Nordic A-frame roof + stone chimney
       const roofH = lh * 0.95;
       const rRad = Math.max(lw, ld) * 0.82;
@@ -1490,7 +1499,8 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
       }
     }
 
-    // Weeping Bog-Willow Silhouettes with Draped Bioluminescent Vine Curtains on the Northern & Flank Mists
+    // Weeping Bog-Willow Silhouettes with Swaying Bioluminescent Vine Curtains on the Northern & Flank Mists
+    let willowIdx = 0;
     for (const [wx, wz] of [
       [-W * 0.28, -(H + 13.4)],
       [W * 0.3, -(H + 13.8)],
@@ -1498,19 +1508,56 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
       if (safeExterior(wx, wz, 3.2, W, H, 0.6)) {
         place(props, cone(1.4, 1.6, 6), barkMat, wx, 0.8, wz);
         place(props, cylinder(0.32, 0.62, 6.4, 7), barkMat, wx, 3.2, wz, 0, 1, 1, 1, 0.08);
-        place(props, sculptedCap(2.6, 1.45, 109), mossRoof, wx, 6.3, wz);
+        const canopy = new Node();
+        canopy.position.set(wx, 6.3, wz);
+        place(canopy, sculptedCap(2.6, 1.45, 109), mossRoof, 0, 0, 0);
         for (let v = 0; v < 6; v++) {
           const va = (v / 6) * TAU;
           place(
-            props,
+            canopy,
             cylinder(0.05, 0.02, 2.6, 5),
             v % 2 === 0 ? accentGlow : mossRoof,
-            wx + Math.cos(va) * 1.8,
-            4.8,
-            wz + Math.sin(va) * 1.8,
+            Math.cos(va) * 1.8,
+            -1.5,
+            Math.sin(va) * 1.8,
           );
         }
+        props.add(canopy);
+        view.rlAnim.push({ o: canopy, k: "sway", s: 0.95 + willowIdx * 0.22, a: 0.055, ph: willowIdx * 1.9 });
+        willowIdx++;
       }
+    }
+
+    // Slow-turning mossy wooden bog waterwheel mill beside the northeastern stilt hut
+    const mwx = W * 0.42;
+    const mwz = -(H + 8.6);
+    if (safeExterior(mwx, mwz, 2.5, W, H, 0.55)) {
+      place(props, cylinder(0.14, 0.2, 2.8, 6), barkMat, mwx - 0.55, 1.4, mwz);
+      place(props, cylinder(0.14, 0.2, 2.8, 6), barkMat, mwx + 0.55, 1.4, mwz);
+      const wheel = new Node();
+      wheel.position.set(mwx, 1.85, mwz);
+      place(wheel, torus(1.42, 0.1, 6, 14), timberMat, 0, 0, 0);
+      place(wheel, cylinder(0.18, 0.18, 0.75, 6), barkMat, 0, 0, 0, 0, 1, 1, 1, Math.PI / 2);
+      for (let p = 0; p < 8; p++) {
+        const pa = (p / 8) * TAU;
+        place(wheel, box(0.12, 2.8, 0.12), timberMat, 0, 0, 0, 0, 1, 1, 1, 0, pa);
+        place(
+          wheel,
+          beveledBox(0.42, 0.14, 0.66, 0.03),
+          p % 2 === 0 ? mossRoof : timberMat,
+          Math.cos(pa) * 1.44,
+          Math.sin(pa) * 1.44,
+          0,
+          0,
+          1,
+          1,
+          1,
+          0,
+          pa + Math.PI / 2,
+        );
+      }
+      props.add(wheel);
+      view.rlAnim.push({ o: wheel, k: "wheel", s: 0.52 });
     }
 
     // 4 Cardinal Wooden Stilt-Boardwalk Piers extending over the glowing bog lagoon
@@ -2017,18 +2064,27 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
     const brassMat = mat("metal", FINISH.brass);
     const palmTrunk = mat("wood", 0x6e4e32);
     const palmFrond = mat("organic", 0x3e8858);
-    const clothMat = worldMaterial({ color: FINISH.ivory, surface: "organic", reedWind: true, doubleSide: true });
+    const clothMat = worldMaterial({ color: FINISH.ivory, surface: "organic", doubleSide: true });
     const turquoiseGlow = glow(look.trim, 1.12);
     const sunGoldGlow = glow(look.accent, 1.16);
     const bannerParts = [];
 
-    // Bespoke Perimeter: Wind-Sculpted Layered Terracotta Sandstone Curbs & Turquoise Tile Inlays
+    // Bespoke Perimeter: Wind-Sculpted Layered Terracotta Sandstone Curbs, Carved Merlons & Turquoise Tile Inlays
     for (const sz of [-1, 1]) {
       const zCurb = sz * (H + 0.74);
       place(props, beveledBox(W * 2 + 2.3, 0.48, 1.04, 0.12), sandWarm, 0, 0.24, zCurb);
       place(props, beveledBox(W * 2 + 2.0, 0.34, 0.72, 0.1), sandLight, 0, 0.62, zCurb);
       place(props, box(W * 2 + 1.7, 0.07, 0.16), turquoiseGlow, 0, 0.81, sz * (H + 0.48));
       place(props, box(W * 2 + 1.9, 0.06, 0.76), brassMat, 0, 0.49, zCurb);
+      const merlons = Math.max(6, Math.round(W * 0.46));
+      for (let m = 0; m <= merlons; m++) {
+        const mx = -W + 1.6 + (m / merlons) * (W * 2 - 3.2);
+        if (Math.abs(mx) < 3.0) continue;
+        place(props, beveledBox(0.56, 0.42, 0.46, 0.06), sandLight, mx, 0.96, sz * (H + 0.78));
+        if (m % 2 === 0) {
+          place(props, octahedron(0.14), brassMat, mx, 1.24, sz * (H + 0.78), 0, 0.9, 1.35, 0.9);
+        }
+      }
     }
     for (const sx of [-1, 1]) {
       const xCurb = sx * (W + 0.74);
@@ -2036,6 +2092,15 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
       place(props, beveledBox(0.72, 0.34, H * 2 + 0.5, 0.1), sandLight, xCurb, 0.62, 0);
       place(props, box(0.16, 0.07, H * 2 + 0.4), turquoiseGlow, sx * (W + 0.48), 0.81, 0);
       place(props, box(0.76, 0.06, H * 2 + 0.5), brassMat, xCurb, 0.49, 0);
+      const merlons = Math.max(5, Math.round(H * 0.46));
+      for (let m = 0; m <= merlons; m++) {
+        const mz = -H + 1.6 + (m / merlons) * (H * 2 - 3.2);
+        if (Math.abs(mz) < 3.0) continue;
+        place(props, beveledBox(0.46, 0.42, 0.56, 0.06), sandLight, sx * (W + 0.78), 0.96, mz);
+        if (m % 2 === 0) {
+          place(props, octahedron(0.14), brassMat, sx * (W + 0.78), 1.24, mz, 0, 0.9, 1.35, 0.9);
+        }
+      }
     }
 
     // 4 Corner Landmarks: Woven Desert-Cloth Sun-Awning & Brass Wind-Chime Corner Pavilions
@@ -2053,7 +2118,7 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
         // Woven sun-awning roof + brass finial + hanging wind-chimes
         place(props, cone(1.85, 0.72, 4).toFlatShaded(), sandLight, cx, 3.34, cz, Math.PI / 4);
         place(props, octahedron(0.24), turquoiseGlow, cx, 3.84, cz, 0, 1, 1.4, 1);
-        bannerParts.push(plane(1.68, 0.62, 2, 1).translate(cx, 2.68, cz + sz * 0.92));
+        bannerParts.push({ side: sz < 0 ? 0 : 1, geo: plane(1.68, 0.62, 2, 1).translate(cx, 2.68, cz + sz * 0.92) });
         for (const chOff of [-0.36, 0, 0.36]) {
           place(props, cylinder(0.03, 0.03, 0.56 - Math.abs(chOff) * 0.3, 5), brassMat, cx + chOff, 2.58, cz);
         }
@@ -2082,7 +2147,7 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
       }
     }
 
-    // 4 Cardinal Monumental Sandstone Temple Pylon-Gateways + Fluttering Cloth Awnings
+    // 4 Cardinal Monumental Sandstone Temple Pylon-Gateways + Fluttering Cloth Awnings on all 4 Gates
     for (const sz of [-1, 1]) {
       const gz = sz * (H + 2.55);
       const ph = sz < 0 ? 4.4 : 3.2;
@@ -2093,8 +2158,8 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
       }
       place(props, beveledBox(5.4, 0.52, 0.92, 0.1), sandWarm, 0, ph + 0.18, gz);
       place(props, octahedron(0.42), sunGoldGlow, 0, ph + 0.68, gz, 0, 1.3, 1.3, 0.5);
-      if (safeExterior(0, gz, 2.8, W, H, 0.45)) {
-        bannerParts.push(plane(2.6, 1.15, 2, 2).translate(0, ph - 0.68, gz));
+      if (safeExterior(0, gz, 2.0, W, H, 0.45)) {
+        bannerParts.push({ side: sz < 0 ? 0 : 1, geo: plane(2.6, 1.15, 2, 2).translate(0, ph - 0.68, gz) });
       }
     }
     for (const sx of [-1, 1]) {
@@ -2106,6 +2171,15 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
         place(props, box(0.96, 0.16, 0.96), brassMat, gx, ph * 0.78, side);
       }
       place(props, beveledBox(0.92, 0.52, 5.4, 0.1), sandWarm, gx, ph + 0.18, 0);
+      place(props, octahedron(0.36), sunGoldGlow, gx, ph + 0.64, 0, 0, 0.5, 1.2, 1.2);
+      if (safeExterior(gx, 0, 2.0, W, H, 0.45)) {
+        bannerParts.push({
+          side: sx < 0 ? 2 : 3,
+          geo: plane(2.5, 1.05, 2, 2)
+            .rotateY(Math.PI / 2)
+            .translate(gx, ph - 0.65, 0),
+        });
+      }
     }
 
     // Perimeter Sun-Bleached Banner Poles
@@ -2115,22 +2189,24 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
           bz = s * (H + 2.45);
         place(props, cylinder(0.1, 0.15, 3.6, 6), brassMat, bx, 1.8, bz);
         if (safeExterior(bx + 0.45, bz, 1.1, W, H, 0.4)) {
-          bannerParts.push(plane(0.92, 1.35, 1, 2).translate(0.46, 2.75, 0).translate(bx, 0, bz));
+          bannerParts.push({
+            side: s < 0 ? 0 : 1,
+            geo: plane(0.92, 1.35, 1, 2).translate(0.46, 2.75, 0).translate(bx, 0, bz),
+          });
         }
       }
     }
     if (bannerParts.length) {
-      const bSides = [[], []];
-      for (const g of bannerParts) {
-        bSides[g.computeBounds().max.z <= -H ? 0 : 1].push(g);
-      }
+      const bSides = [[], [], [], []];
+      for (const b of bannerParts) bSides[b.side].push(b.geo);
       for (const list of bSides) {
         if (list.length) props.add(new MeshNode(mergeGeometries(list), clothMat));
       }
     }
 
-    // Helper: Oasis Palm Tree with curved segmented trunk & wind-swaying fan-frond crown
+    // Helper: Oasis Palm Tree with curved segmented trunk & layered wind-swaying fan-frond crown
     let palmIdx = 0;
+    const palmFrondBright = mat("organic", 0x54a266);
     const buildPalm = (px, pz, scale = 1, lean = 0.18, rot = 0) => {
       if (!safeExterior(px, pz, 2.5 * scale, W, H, 0.55)) return;
       const h = 3.8 * scale;
@@ -2140,26 +2216,90 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
       const topY = h * 0.94;
       const crown = new Node();
       crown.position.set(topX, topY, topZ);
+      // Lower drooping fronds + upper arched bright fronds
       for (let f = 0; f < 6; f++) {
         const fa = (f / 6) * TAU + rot;
         place(
           crown,
-          cone(0.42 * scale, 1.85 * scale, 4).toFlatShaded(),
+          cone(0.42 * scale, 1.9 * scale, 4).toFlatShaded(),
           palmFrond,
           Math.cos(fa) * 0.72 * scale,
-          -0.12 * scale,
+          -0.14 * scale,
           Math.sin(fa) * 0.72 * scale,
           fa,
           0.65,
           1,
           1,
-          1.22,
+          1.26,
+        );
+      }
+      for (let f = 0; f < 5; f++) {
+        const fa = (f / 5) * TAU + rot + 0.35;
+        place(
+          crown,
+          cone(0.32 * scale, 1.45 * scale, 4).toFlatShaded(),
+          palmFrondBright,
+          Math.cos(fa) * 0.5 * scale,
+          0.16 * scale,
+          Math.sin(fa) * 0.5 * scale,
+          fa,
+          0.62,
+          1,
+          1,
+          0.88,
         );
       }
       props.add(crown);
       view.rlAnim.push({ o: crown, k: "sway", s: 1.65 + (palmIdx % 4) * 0.22, a: 0.085, ph: palmIdx * 1.15 });
       palmIdx++;
     };
+
+    // Animated Desert Brass Sundial & Sailed Wind-Mill Tower on the Northern Horizon
+    const wmx = 0.0;
+    const wmz = -(H + 14.8);
+    if (safeExterior(wmx, wmz, 3.8, W, H, 0.6)) {
+      place(props, cylinder(1.6, 2.25, 2.2, 8), sandDeep, wmx, 1.1, wmz);
+      place(props, cylinder(1.15, 1.55, 6.2, 8), sandWarm, wmx, 5.1, wmz);
+      place(props, torus(1.25, 0.1, 6, 16), brassMat, wmx, 7.6, wmz, 0, 1, 1, 1, Math.PI / 2);
+      place(props, cone(1.55, 1.9, 8).toFlatShaded(), sandLight, wmx, 9.1, wmz);
+      place(props, octahedron(0.45), sunGoldGlow, wmx, 10.35, wmz, 0, 1, 1.4, 1);
+      const sails = new Node();
+      sails.position.set(wmx, 7.45, wmz + 1.32);
+      place(sails, cylinder(0.24, 0.24, 0.52, 8), brassMat, 0, 0, 0, 0, 1, 1, 1, Math.PI / 2);
+      for (let s = 0; s < 6; s++) {
+        const sa = (s / 6) * TAU;
+        place(
+          sails,
+          box(0.11, 3.4, 0.08),
+          brassMat,
+          Math.cos(sa) * 1.65,
+          Math.sin(sa) * 1.65,
+          0,
+          0,
+          1,
+          1,
+          1,
+          0,
+          sa - Math.PI / 2,
+        );
+        place(
+          sails,
+          beveledBox(0.72, 2.3, 0.05, 0.01),
+          sandLight,
+          Math.cos(sa) * 2.05 - Math.sin(sa) * 0.3,
+          Math.sin(sa) * 2.05 + Math.cos(sa) * 0.3,
+          0.06,
+          0,
+          1,
+          1,
+          1,
+          0,
+          sa - Math.PI / 2,
+        );
+      }
+      props.add(sails);
+      view.rlAnim.push({ o: sails, k: "wheel", s: 0.44 });
+    }
 
     // Helper: Ruined Classical Sandstone Colonnade & Vitrified Glass Oasis Shrine
     const buildColonnade = (rx, rz, alongX, idx) => {
@@ -2523,7 +2663,7 @@ export class ArenaView {
     this.uniforms.uStyle.value = look.style;
 
     this.groundOcclusion?.dispose();
-    this.groundOcclusion = createGroundOcclusion(layout.W, layout.H, layout.obs);
+    this.groundOcclusion = createGroundOcclusion(layout.W, layout.H, layout.obs, layout.props || []);
     this.uniforms.uOcclusion.value = this.groundOcclusion;
     if (this.engine) this.engine.textures.occlusion = this.groundOcclusion;
 
@@ -2635,13 +2775,15 @@ export class ArenaView {
         obj.rotation.y = f * 0.24;
       } else if (anim.k === "pour") {
         const p = Math.sin(time * (anim.s || 4.5) + (anim.ph || 0));
-        const a = anim.a || 0.14;
-        obj.scale.set(1 + p * a, 1, 1 - p * a * 0.65);
+        const a = Math.min(0.045, (anim.a || 0.14) * 0.32);
+        obj.scale.set(1 + p * a, 1 + p * a * 1.4, 1 - p * a * 0.65);
       } else if (anim.k === "sway") {
         const s = anim.s || 1.7;
         const a = anim.a || 0.085;
         obj.rotation.z = Math.sin(time * s + (anim.ph || 0)) * a;
         obj.rotation.x = Math.cos(time * s * 0.78 + (anim.ph || 0)) * a * 0.7;
+      } else if (anim.k === "wheel") {
+        obj.rotation.z -= dt * (anim.s || 0.5);
       }
     }
   }

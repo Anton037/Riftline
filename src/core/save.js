@@ -45,16 +45,18 @@ function rlBackupSave(text) {
     }
     old.sort((a, b) => Number(a.slice(prefix.length)) - Number(b.slice(prefix.length)));
     for (const key of old.slice(0, Math.max(0, old.length - 2))) localStorage.removeItem(key);
-    localStorage.setItem(prefix + Date.now(), String(text));
-    return true;
+    const backupKey = prefix + Date.now();
+    localStorage.setItem(backupKey, String(text));
+    return backupKey;
   } catch (err) {
     logError("backup", err);
-    return false;
+    return null;
   }
 }
 /* 2.3.2: numeric settings get the range of their control (volume 0–1) instead of a blanket 0–2 clamp. */
 // the opacity of the buttons and the stick size have the range of their sliders (data/hud.js)
 const RL_SETTING_RANGE = {
+  master: [0, 1],
   sfx: [0, 1],
   music: [0, 1],
   ambience: [0, 1],
@@ -161,6 +163,8 @@ function rlMigrateRetired(raw, recordNote = true, notesOut = null) {
 }
 const SAVE_KEY = "riftline.save.v1",
   defaultSettings = {
+    master: 1,
+    muted: false,
     sfx: 0.8,
     music: 0.45,
     // 3.9.0: the sounds of the place (atmospheres, hazards, far sounds of the biome)
@@ -545,13 +549,43 @@ const safeStorage = {
       // 3.32.0: a save that cannot be used is backed up; when even the backup fails (full storage), `held` stops this
       // tab from writing over it (the menu warns) until the player makes room and reloads
       let loaded = data && typeof data == "object" ? rlLoadSave(data) : null;
-      if (text && !loaded) this.held = !rlBackupSave(text);
+      this.corruptBackupKey = null;
+      this.corruptBackupRaw = null;
+      if (text && !loaded) {
+        const backupKey = rlBackupSave(text);
+        this.held = !backupKey;
+        if (backupKey) {
+          this.corruptBackupKey = backupKey;
+          this.corruptBackupRaw = String(text);
+        }
+      }
       this.data = loaded || newSave();
       this.kept = loaded ? keptOf(data) : null;
       this.persistent = safeStorage.get(SAVE_KEY) !== null || safeStorage.set("riftline.probe", "1");
       safeStorage.del("riftline.probe");
       // 3.35.0: the sound notes are gone; their list is not left behind in the browser
       safeStorage.del("riftline.soundNotes");
+    }
+    listBackups() {
+      const prefix = "riftline.save.v1.backup-";
+      const out = [];
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith(prefix)) {
+            out.push({ key, ts: Number(key.slice(prefix.length)) || 0 });
+          }
+        }
+      } catch {}
+      return out.sort((a, b) => b.ts - a.ts);
+    }
+    getBackup(key) {
+      if (!key) return this.corruptBackupRaw || null;
+      try {
+        return localStorage.getItem(key) || (key === this.corruptBackupKey ? this.corruptBackupRaw : null);
+      } catch {
+        return key === this.corruptBackupKey ? this.corruptBackupRaw : null;
+      }
     }
     get storageOk() {
       return safeStorage.ok !== false && !this.held;

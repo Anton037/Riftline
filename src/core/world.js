@@ -400,27 +400,22 @@ const rlStep = 1 / 60,
         // 3.3.0: the Endless mutators of this wave (see mutators.js)
         const mutators = rlMutatorsFor(this.seed, wave);
         this.mods = mutators.mods;
-        this.hpMul =
-          (1 + 0.085 * (wave - 1) + 0.0058 * (wave - 1) * (wave - 1)) *
-          this.tm.hp *
-          endlessHpBoost(wave) *
-          (1 + 0.25 * (this.mods.armored || 0));
-        this.dmgMul = (1 + 0.035 * (wave - 1)) * this.tm.dmg * (1 + 0.1 * (this.mods.barrage || 0));
-        this.shotMul = 1 + 0.2 * (this.mods.barrage || 0);
+        this.hpMul = (1 + 0.085 * (wave - 1) + 0.0058 * (wave - 1) * (wave - 1)) * this.tm.hp * endlessHpBoost(wave);
+        this.dmgMul = (1 + 0.035 * (wave - 1)) * this.tm.dmg;
+        this.shotMul = 1;
         this.stragglerT = 0;
         let boss = this.bossFor(wave);
-        // Mirage Winds Endless Omen: spawns a wandering sunlit dust devil on non-boss waves
+        // Mirage Winds Endless Omen: spawns wandering sunlit dust devils scaled by omen level on non-boss waves
         if (this.mods.barrage && !boss && this.arena) {
           if (!this.arena.devils) this.arena.devils = [];
-          rlAddHazard250(
-            this.arena,
-            "devils",
-            makeRng(hashString(this.seed + ":mirage-omen:" + wave)),
-            this.arena.obs,
-            this.arena.W,
-            this.arena.H,
-            { avoid: [{ x: player.x, y: player.y, r: 4 }], cap: 9, tries: 40 },
-          );
+          const devilRng = makeRng(hashString(this.seed + ":mirage-omen:" + wave));
+          for (let d = 0; d < this.mods.barrage; d++) {
+            rlAddHazard250(this.arena, "devils", devilRng, this.arena.obs, this.arena.W, this.arena.H, {
+              avoid: [{ x: player.x, y: player.y, r: 4 }],
+              cap: 9,
+              tries: 40,
+            });
+          }
         }
         this.event = this.eventFor(wave);
         this.rainT = 1.5;
@@ -445,7 +440,6 @@ const rlStep = 1 / 60,
         this.emit("wave", { n: wave, boss: boss, biome: biome.id, event: this.event });
         if (mutators.gained && !resumed)
           this.emit("mutator", { id: mutators.gained, level: this.mods[mutators.gained], x: player.x, y: player.y });
-        if (nova == null && this.stats.novaStart > 0) player.nova = Math.min(100, player.nova + this.stats.novaStart);
         const director = this.arena?.director,
           mode = director?.mode || "standard";
         this.waveMode = mode;
@@ -473,7 +467,6 @@ const rlStep = 1 / 60,
         }
         if (fresh && !this.bossPending && !this.boss && wave >= 2) {
           const extra =
-            Math.max(0, this.stats.cacheBonus || 0) +
             Math.max(0, this.stats.cacheCount || 0) +
             (mode === "cache-run" ? 2 : 0) +
             (mode === "salvage" ? 2 : 0) +
@@ -483,7 +476,7 @@ const rlStep = 1 / 60,
             const spot = this.arena.freePoint(cacheRng, player.x, player.y, 6.2, 0.35);
             if (!spot) continue;
             const kind = cacheRng.chance(0.18) ? "heal" : "shard",
-              value = kind === "heal" ? 20 : rlCacheShards(this, 5 + 3 * (this.stats.cacheBonus || 0));
+              value = kind === "heal" ? 20 : rlCacheShards(this, 5);
             const pickup = this.mkPickup(kind, spot.x, spot.y, value);
             pickup.vx = 0;
             pickup.vy = 0;
@@ -1063,6 +1056,19 @@ const rlStep = 1 / 60,
       player.hurtT = Math.max(0, player.hurtT - dt);
       if (player.tractionT > 0) player.tractionT = Math.max(0, player.tractionT - dt);
       if (player.hopT > 0) player.hopT = Math.max(0, player.hopT - dt);
+      if (player.corrodeT > 0) player.corrodeT = Math.max(0, player.corrodeT - dt);
+      if (player.dazeT > 0) player.dazeT = Math.max(0, player.dazeT - dt);
+      if (player.singeT > 0) {
+        player.singeT = Math.max(0, player.singeT - dt);
+        player._singeTick = (player._singeTick || 0) + dt;
+        if (player._singeTick >= 0.5) {
+          player._singeTick -= 0.5;
+          const singeDmg = Math.max(1, Math.round(3 * this.dmgMul * Math.max(0, 1 - (stats.hazardResist || 0))));
+          this.hurtPlayer(singeDmg, player.x, player.y, "trap", true);
+        }
+      } else {
+        player._singeTick = 0;
+      }
       if (player.rushT > 0) {
         player.rushT -= dt;
         if (player.rushT <= 0) {
@@ -1362,17 +1368,21 @@ const rlStep = 1 / 60,
         } else {
           for (let i = 0; i < count; i++) shoot(angle + (i - (count - 1) / 2) * weapon.fan, 1);
         }
-        // Rear Guard: astern bolts equal to ceil(weapon.count * 0.5) at 0.75x damage; Lv 2 adds flank fan
+        // Rear Guard: astern bolts equal to ceil(count * 0.5) at 0.75x damage; Lv 2 adds flank fan
         if (stats.rear >= 1) {
-          const rearN = Math.max(1, Math.ceil(weapon.count * 0.5));
+          const rearN = Math.max(1, Math.ceil(count * 0.5));
           for (let i = 0; i < rearN; i++) {
             const off = rearN > 1 ? (i - (rearN - 1) / 2) * Math.max(0.12, weapon.fan || 0.14) : 0;
             shoot(angle + Math.PI + off, 0.75);
           }
         }
         if (stats.rear >= 2) {
-          shoot(angle + Math.PI / 2, 0.75);
-          shoot(angle - Math.PI / 2, 0.75);
+          const sideN = Math.max(1, Math.floor(1 + stats.extra * 0.5));
+          for (let i = 0; i < sideN; i++) {
+            const off = sideN > 1 ? (i - (sideN - 1) / 2) * Math.max(0.12, weapon.fan || 0.14) : 0;
+            shoot(angle + Math.PI / 2 + off, 0.75);
+            shoot(angle - Math.PI / 2 + off, 0.75);
+          }
         }
         this.emit("shot", { w: weapon.id, x: originX, y: originY, a: angle, heavy });
         // Deterministic Echo-Bell ('echo'): Lv 1 every 4th shot (0.80x), Lv 2 every 3rd shot (0.95x) after 0.10s
@@ -1516,7 +1526,7 @@ const rlStep = 1 / 60,
             speed = weapon.speed * stats.velMul;
           for (let i = 0; i < 8; i++) {
             const a = (i / 8) * TAU;
-            this.pb.push({
+            const bolt = {
               id: this.nextId++,
               x: sing.tx,
               y: sing.ty,
@@ -1527,14 +1537,28 @@ const rlStep = 1 / 60,
               dmg: weapon.dmg * stats.dmgMul,
               baseDmg: weapon.dmg,
               life: Math.min(1.1, weapon.life),
-              pierce: stats.pierce,
+              pierce: stats.lance ? 999 : stats.pierce,
               bounce: weapon.boomerang ? 0 : stats.bounce,
               hits: [],
               w: weapon.id,
               age: 0,
               homing: stats.homing,
               pierceCount: 0,
-            });
+            };
+            if (weapon.boomerang) {
+              bolt.boom = true;
+              bolt.turn = bolt.life * 0.48;
+              bolt.sp = speed;
+            }
+            if (weapon.explode) {
+              bolt.explode = weapon.explode;
+              bolt.dm = weapon.explodeDmg * stats.dmgMul;
+            }
+            if (weapon.drag) {
+              bolt.drag = weapon.drag;
+              bolt.grow = weapon.grow;
+            }
+            this.pb.push(bolt);
           }
         }
         this.hash.query(sing.tx, sing.ty, radius, (enemy) => {
@@ -1624,6 +1648,7 @@ const rlStep = 1 / 60,
       const armor = Math.min(0.5, stats.armor || 0);
       if (armor > 0 && !RL_HAZARD_SRC.has(src)) dmg = dmg * (1 - armor);
       if (contact && stats.meleeResist > 0) dmg = dmg * (1 - stats.meleeResist);
+      if (player.corrodeT > 0 && !chip) dmg = dmg * 1.15;
       let hpBefore = player.hp,
         hit,
         shieldBlocked = false;
@@ -1942,13 +1967,14 @@ const rlStep = 1 / 60,
       if (burning && !enemy.shielded && !enemy.ghost) {
         const stats = this.stats,
           hunterMatch = enemy.elite || enemy.boss || enemy.champion || enemy.hp < enemy.maxHp * 0.35,
-          glazeMul = stats.glazeMul || 0.18;
+          glazeMul = Math.max(enemy.glazeMul || 0, stats.glazeMul || 0) || 0.2,
+          glazeBossMul = Math.max(enemy.glazeMul ? 0.15 : 0, stats.glazeBossMul || 0) || 0.12;
         let dmg =
           enemy.burnDps *
           dt *
           (hunterMatch ? stats.eliteMul || 1 : 1) *
           (enemy.corrode && !enemy.boss ? 1.25 : 1) *
-          (enemy.glazeT > 0 ? 1 + (enemy.boss ? (glazeMul >= 0.3 ? 0.2 : 0.12) : glazeMul) : 1) *
+          (enemy.glazeT > 0 ? 1 + (enemy.boss ? glazeBossMul : glazeMul) : 1) *
           (enemy.chimeVulnT > 0 ? 1.25 : 1) *
           (enemy.inChimeT > 0 && stats.gsyphon ? 1 + (stats.gsyphon > 1 ? 0.45 : 0.25) : 1) *
           (stats.inferno ? 1.2 : 1) *
@@ -2005,7 +2031,7 @@ const rlStep = 1 / 60,
       }
     }
     moveEnemy(enemy, dt) {
-      let mul = (enemy.slowT > 0 ? 0.55 : 1) * (enemy.rallyT > 0 ? 1.2 : 1),
+      let mul = (enemy.slowT > 0 ? (enemy.boss ? 0.7 : 0.55) : 1) * (enemy.rallyT > 0 ? 1.2 : 1),
         vx = enemy.vx,
         vy = enemy.vy;
       if (!enemy.leaping && this.arena.ice.length && !enemy.boss && this.arena.onIce(enemy.x, enemy.y)) {
@@ -2123,8 +2149,9 @@ const rlStep = 1 / 60,
           dmg *= 1.25;
         }
         if (enemy.glazeT > 0) {
-          const g = stats.glazeMul || 0.18;
-          dmg *= 1 + (enemy.boss ? (g >= 0.3 ? 0.2 : 0.12) : g);
+          const g = Math.max(enemy.glazeMul || 0, stats.glazeMul || 0) || 0.2;
+          const gb = Math.max(enemy.glazeMul ? 0.15 : 0, stats.glazeBossMul || 0) || 0.12;
+          dmg *= 1 + (enemy.boss ? gb : g);
         }
         if (enemy.weakenT > 0) {
           dmg *= enemy.boss ? 1.12 : 1.25;
@@ -2216,6 +2243,7 @@ const rlStep = 1 / 60,
           superCrit: !!(extra && extra.superCrit),
           id: enemy.id,
           type: enemy.type,
+          w: this.weapon?.id,
         });
         if (enemy.hp <= 0) {
           this.killEnemy(enemy);
@@ -3357,13 +3385,28 @@ const rlStep = 1 / 60,
               this.arena.los(beam.x, beam.y, player.x, player.y)
             ) {
               if (this.hurtPlayer(beam.dmg, cx, cy, beam.src)) {
-                if (beam.special === "cryo") {
+                const sp = beam.special || (beam.skin === "cryo" ? "chill" : null);
+                if (sp === "chill" || sp === "cryo") {
                   player.slowT = Math.max(player.slowT, 1.5);
                   player.slowKind = "chill";
                   this.emit("chill", { x: player.x, y: player.y });
-                } else if (beam.special === "acid") {
+                } else if (sp === "acid") {
                   player.slowT = Math.max(player.slowT, 1.0);
                   player.slowKind = "acid";
+                  player.corrodeT = Math.max(player.corrodeT || 0, 2.0);
+                  this.emit("corrode", { x: player.x, y: player.y });
+                } else if (sp === "shock") {
+                  player.slowT = Math.max(player.slowT, 0.75);
+                  player.slowKind = "shock";
+                  this.emit("stun", { x: player.x, y: player.y });
+                } else if (sp === "burn") {
+                  player.singeT = Math.max(player.singeT || 0, 1.5);
+                  this.emit("singe", { x: player.x, y: player.y });
+                } else if (sp === "glass") {
+                  player.slowT = Math.max(player.slowT, 0.6);
+                  player.slowKind = "daze";
+                  player.dazeT = Math.max(player.dazeT || 0, 1.0);
+                  this.emit("glare", { x: player.x, y: player.y });
                 }
               }
             }
@@ -3380,7 +3423,8 @@ const rlStep = 1 / 60,
               const along = clamp(((ob.x - beam.x) * dx + (ob.y - beam.y) * dy) / lenSq, 0, 1);
               const cx = beam.x + dx * along,
                 cy = beam.y + dy * along,
-                hitR = beam.w * 0.5 + ob.w * 0.6;
+                obRadius = ob.r || ob.w || 0.72,
+                hitR = beam.w * 0.5 + obRadius * 0.85;
               if ((ob.x - cx) ** 2 + (ob.y - cy) ** 2 <= hitR * hitR) {
                 ob.shattered = true;
                 ob.life = 0;
@@ -3410,13 +3454,14 @@ const rlStep = 1 / 60,
                   this.hurtEnemy(enemy, enemy.trapBeamAcc, enemy.x - cx, enemy.y - cy, 0.8, false, "trap");
                   enemy.trapBeamAcc = 0;
                 }
-                if ((beam.special === "burn" || beam.special === "sun") && !enemy.dead && !enemy.shielded) {
+                const sp = beam.special || (beam.skin === "cryo" ? "chill" : null);
+                if ((sp === "burn" || sp === "sun") && !enemy.dead && !enemy.shielded) {
                   enemy.burnT = Math.max(enemy.burnT || 0, 1.8);
                   enemy.burnDps = Math.max(enemy.burnDps || 0, enemy.maxHp * 0.06);
                   enemy.burnSrc = "trap";
-                } else if ((beam.special === "shock" || beam.special === "cryo") && !enemy.dead && !enemy.shielded) {
-                  enemy.slowT = Math.max(enemy.slowT || 0, beam.special === "cryo" ? 2.0 : 0.8);
-                } else if (beam.special === "acid" && !enemy.dead && !enemy.shielded) {
+                } else if ((sp === "shock" || sp === "cryo" || sp === "chill") && !enemy.dead && !enemy.shielded) {
+                  enemy.slowT = Math.max(enemy.slowT || 0, sp === "shock" ? 0.8 : 2.0);
+                } else if (sp === "acid" && !enemy.dead && !enemy.shielded) {
                   enemy.corrodeT = Math.max(enemy.corrodeT || 0, 3.0);
                   enemy.corrode = true;
                 }
@@ -3474,6 +3519,8 @@ const rlStep = 1 / 60,
         shootable: !!opts.shootable,
         mine: !!opts.mine,
         crucibleBomb: !!opts.crucibleBomb,
+        ownerId: opts.ownerId ?? null,
+        hitR: opts.hitR ?? 0,
         ax: opts.ax,
         ay: opts.ay,
         bx: opts.bx,

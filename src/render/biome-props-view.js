@@ -158,16 +158,33 @@ function buildPropKit(kind) {
   };
 }
 
+const PROP_SURFACE = {
+  lantern: "metal",
+  rime: "crystal",
+  puffball: "organic",
+  prism: "crystal",
+  crucible: "basalt",
+  sunglass: "crystal",
+};
+
 export class BiomePropsView {
   constructor(renderer) {
     this.r = renderer;
     this.pools = {};
     this.list = [];
-    const bodyMat = worldMaterial({ surface: "stone", vertexColors: true });
+    const mats = new Map();
+    const getBodyMat = (surface) => {
+      let m = mats.get(surface);
+      if (!m) {
+        m = worldMaterial({ surface, vertexColors: true });
+        mats.set(surface, m);
+      }
+      return m;
+    };
     const glowMat = emissiveMaterial({ color: 0xffffff, emissiveIntensity: 1.32, vertexColors: true });
     for (const kind of Object.keys(PROP_COLORS)) {
       const kit = buildPropKit(kind);
-      const body = new CompactInstancePool(kit.body, bodyMat, 6);
+      const body = new CompactInstancePool(kit.body, getBodyMat(PROP_SURFACE[kind] || "stone"), 6);
       body.mesh.castShadow = true;
       body.mesh.receiveShadow = true;
       body.mesh.renderOrder = 1;

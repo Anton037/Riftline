@@ -19,7 +19,7 @@ function obstacleDistance(x, z, obs) {
   return Math.sqrt(ox * ox + oz * oz) + (inside < 0 ? inside : 0);
 }
 
-export function createGroundOcclusion(halfW, halfH, obstacles = [], size = 128) {
+export function createGroundOcclusion(halfW, halfH, obstacles = [], props = [], size = 128) {
   const len = size * size;
   if (!_occScratch || _occScratch.length !== len) _occScratch = new Float32Array(len);
   const occBuf = _occScratch;
@@ -61,6 +61,32 @@ export function createGroundOcclusion(halfW, halfH, obstacles = [], size = 128) 
           const t = clamp((d + 0.35) / (feather + 0.35), 0, 1);
           const smooth = t * t * (3 - 2 * t);
           const v = 0.32 + 0.68 * smooth;
+          if (v < occBuf[rowOff + col]) occBuf[rowOff + col] = v;
+        }
+      }
+    }
+  }
+
+  // Stamp subtle feathered contact AO beneath interactive biome relics
+  const propFeather = 1.05;
+  for (let i = 0; i < props.length; i++) {
+    const prop = props[i];
+    const pr = Math.max(0.42, (prop.r || 0.72) * 0.72);
+    const spanR = pr + propFeather;
+    const cMin = Math.max(0, Math.floor(((prop.x - spanR + halfW) / spanW) * size));
+    const cMax = Math.min(size - 1, Math.ceil(((prop.x + spanR + halfW) / spanW) * size));
+    const rMin = Math.max(0, Math.floor(((prop.y - spanR + halfH) / spanH) * size));
+    const rMax = Math.min(size - 1, Math.ceil(((prop.y + spanR + halfH) / spanH) * size));
+    for (let row = rMin; row <= rMax; row++) {
+      const z = ((row + 0.5) / size) * spanH - halfH;
+      const rowOff = row * size;
+      for (let col = cMin; col <= cMax; col++) {
+        const x = ((col + 0.5) / size) * spanW - halfW;
+        const d = Math.hypot(x - prop.x, z - prop.y) - pr;
+        if (d < propFeather) {
+          const t = clamp((d + 0.28) / (propFeather + 0.28), 0, 1);
+          const smooth = t * t * (3 - 2 * t);
+          const v = 0.44 + 0.56 * smooth;
           if (v < occBuf[rowOff + col]) occBuf[rowOff + col] = v;
         }
       }

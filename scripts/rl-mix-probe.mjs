@@ -157,9 +157,10 @@ const result = await page.evaluate(async (secs) => {
     engine.playBiome = "courtyard";
     engine.intensity = 0.9;
     engine.heat = 0;
-    // courtyard fight track gain = 1 (MUSIC_TRACKS.courtyard.fight.gain)
+    // courtyard fight track gain = 1
     engine.fade.gain.value = 1;
     engine.mixFor("fight");
+    engine.startMusicBed("fight", "courtyard", 0.05);
     engine.live = () => true;
     engine.startTone("courtyard");
     engine.stopTone("courtyard", secs);

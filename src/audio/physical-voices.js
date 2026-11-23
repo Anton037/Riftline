@@ -3,7 +3,8 @@ import { SOURCE_CLIPS } from "./source-bank.js";
 import { actorMaterial } from "../data/materials.js";
 import { BOSS_EFFECTS } from "../data/combat-effects.js";
 
-let bytesPromise, decodedPromise;
+let bytesPromise;
+const decodedByCtx = new WeakMap();
 export function preloadPhysicalAudio() {
   if (!bytesPromise && typeof fetch === "function")
     bytesPromise = fetch("audio/physical-bank.wav")
@@ -11,7 +12,10 @@ export function preloadPhysicalAudio() {
         if (!r.ok) throw new Error("Physical audio bank unavailable");
         return r.arrayBuffer();
       })
-      .catch(() => null);
+      .catch(() => {
+        bytesPromise = null;
+        return null;
+      });
   return bytesPromise;
 }
 const hash = (value) => {
@@ -914,6 +918,169 @@ const P = {
     bellToll: true,
   },
   buzz: { dur: 0.65, model: "buzz", body: 60, gain: 0.14, gate: 0 },
+  superCrit: {
+    dur: 0.28,
+    sample: "plate",
+    body: 587,
+    air: 0.08,
+    grain: 0.06,
+    gain: 0.31,
+    gate: 0.04,
+    lowpass: 6200,
+    modal: "crystal",
+    critPing: true,
+    bellToll: true,
+  },
+  wave: {
+    dur: 0.34,
+    sample: "plate",
+    body: 210,
+    air: 0.1,
+    grain: 0.03,
+    gain: 0.22,
+    gate: 0.15,
+    lowpass: 2800,
+    modal: "brass",
+  },
+  spawn: {
+    dur: 0.22,
+    sample: "soft",
+    body: 280,
+    air: 0.24,
+    grain: 0.03,
+    gain: 0.15,
+    gate: 0.06,
+    lowpass: 3400,
+    modal: "crystal",
+  },
+  reroll: {
+    dur: 0.18,
+    sample: "grass",
+    body: 310,
+    air: 0.18,
+    grain: 0.08,
+    gain: 0.18,
+    gate: 0.06,
+    lowpass: 3200,
+    modal: "wood",
+  },
+  banish: {
+    dur: 0.24,
+    sample: "heavy",
+    body: 164,
+    air: 0.08,
+    grain: 0.04,
+    gain: 0.22,
+    gate: 0.06,
+    lowpass: 2200,
+    modal: "wood",
+    subDrop: 0.22,
+  },
+  comboEnd: {
+    dur: 0.22,
+    sample: "wood",
+    body: 175,
+    air: 0.06,
+    grain: 0.02,
+    gain: 0.15,
+    gate: 0.12,
+    lowpass: 1900,
+    modal: "wood",
+    sigh: true,
+  },
+  bossIntro: {
+    dur: 0.88,
+    sample: "plate",
+    body: 132,
+    air: 0.22,
+    grain: 0.06,
+    gain: 0.36,
+    gate: 0.2,
+    lowpass: 2800,
+    modal: "brass",
+    bellToll: true,
+  },
+  bossDown: {
+    dur: 0.92,
+    sample: "plate",
+    body: 92,
+    air: 0.28,
+    grain: 0.14,
+    gain: 0.38,
+    gate: 0.2,
+    lowpass: 2900,
+    modal: "brass",
+    subDrop: 0.55,
+  },
+  bcCage: {
+    dur: 0.32,
+    sample: "plate",
+    body: 410,
+    air: 0.08,
+    grain: 0.05,
+    gain: 0.24,
+    gate: 0.06,
+    lowpass: 4200,
+    modal: "brass",
+  },
+  bcHatch: {
+    dur: 0.28,
+    sample: "flesh",
+    body: 155,
+    air: 0.16,
+    grain: 0.06,
+    gain: 0.22,
+    gate: 0.06,
+    lowpass: 2200,
+    modal: "wood",
+  },
+  bcBurst: {
+    dur: 0.32,
+    sample: "flesh",
+    body: 128,
+    air: 0.22,
+    grain: 0.1,
+    gain: 0.26,
+    gate: 0.06,
+    lowpass: 2400,
+    modal: "wood",
+  },
+  bcImplode: {
+    dur: 0.44,
+    sample: "heavy",
+    body: 54,
+    air: 0.32,
+    grain: 0.1,
+    arc: 0.12,
+    gain: 0.32,
+    gate: 0.08,
+    lowpass: 2200,
+    modal: "brass",
+    subDrop: 0.42,
+  },
+  milestone: {
+    dur: 0.48,
+    sample: "glass",
+    body: 587,
+    air: 0.04,
+    grain: 0.015,
+    gain: 0.22,
+    gate: 0.12,
+    lowpass: 5200,
+    modal: "crystal",
+    ascend: true,
+  },
+  equip: {
+    dur: 0.16,
+    sample: "metal",
+    body: 380,
+    air: 0.04,
+    grain: 0.03,
+    gain: 0.19,
+    gate: 0.06,
+    lowpass: 3600,
+    modal: "brass",
+  },
 };
 const BOSS_TIMBRE = {
   bellkeeper: ["plate", 245, 3000],
@@ -951,7 +1118,22 @@ export function physicalProfile(id, arg, place = false) {
           crystal: "hitCrystal",
           energy: "hitEnergy",
         }[actorMaterial(arg?.type)];
-    return { ...P[family], family, gain: P[family].gain * (id === "crit" ? 1.25 : 1) };
+    const base = P[family];
+    const isCrit = id === "crit";
+    const out = {
+      ...base,
+      family,
+      gain: base.gain * (isCrit ? 1.32 : 1),
+      body: base.body * (isCrit ? 1.24 : 1),
+      lowpass: Math.min(7200, (base.lowpass || 2800) * (isCrit ? 1.38 : 1)),
+      ...(isCrit ? { critPing: true } : {}),
+    };
+    const w = arg?.w;
+    if (w === "tesla") out.arc = Math.max(out.arc || 0, 0.16);
+    else if (w === "flame") out.lowpass = Math.max(1200, out.lowpass * 0.84);
+    else if (w === "rail" || w === "disc") out.body *= 1.12;
+    else if (w === "rocket" || w === "scatter") out.body *= 0.88;
+    return out;
   }
   if (place) {
     family = P[id]?.model === "ceramic" ? id : (PLACE_FAMILIES.find(([names]) => names.test(id))?.[1] ?? "room");
@@ -1047,7 +1229,7 @@ export function physicalProfile(id, arg, place = false) {
     });
   const source = typeof arg === "string" ? arg : arg?.src,
     identity = BOSS_EFFECTS[source];
-  if (!place && identity && /^(b[A-Z]|boss|enrage|bigkill|blink|thud|lob|hatch)/.test(id)) {
+  if (!place && identity && /^(b[A-Z]|boss|enrage|phase|bigkill|blink|thud|lob|hatch)/.test(id)) {
     const timbre = BOSS_TIMBRE[source];
     p.family += ":" + source;
     [p.sample, p.body, p.lowpass] = timbre;
@@ -1243,8 +1425,15 @@ export class PhysicalVoices {
     this.ready = decode
       ? Promise.resolve(preloadPhysicalAudio()).then(async (bytes) => {
           if (!bytes) return false;
-          if (!decodedPromise) decodedPromise = ctx.decodeAudioData(bytes.slice(0)).catch(() => null);
-          this.bank = await decodedPromise;
+          let p = decodedByCtx.get(ctx);
+          if (!p) {
+            p = ctx.decodeAudioData(bytes.slice(0)).catch(() => {
+              decodedByCtx.delete(ctx);
+              return null;
+            });
+            decodedByCtx.set(ctx, p);
+          }
+          this.bank = await p;
           this.buffers.clear();
           return !!this.bank;
         })
@@ -1273,6 +1462,7 @@ export class PhysicalVoices {
       p.sigh ? 1 : 0,
       p.ascend ? 1 : 0,
       p.creak ? 1 : 0,
+      p.critPing ? 1 : 0,
       p.subDrop || 0,
       p.model ? "procedural" : !!this.bank,
     ].join(":");
@@ -1391,6 +1581,13 @@ export class PhysicalVoices {
         const [ratio, weight, decay] = partials[m];
         const modeDecay = p.warn || p.hold || p.ascend ? 1 : Math.exp(-t * decay * (p.bellToll ? 0.52 : 0.85));
         modes += Math.sin(phase * ratio + m * 0.41) * weight * modeDecay;
+      }
+      if (p.critPing) {
+        // Bright harmonic crunch overtone (distinct critical bite without breaking target material identity)
+        const pingF = Math.min(3400, Math.max(920, p.body * 3.0));
+        modes +=
+          (Math.sin(t * Math.PI * 2 * pingF) * 0.22 + Math.sin(t * Math.PI * 2 * pingF * 1.498) * 0.14) *
+          Math.exp(-t * 26);
       }
       if (p.bellToll) {
         // Deep bronze sub-swell under the bell partials
@@ -1530,7 +1727,7 @@ export class PhysicalVoices {
     if (!engine.gate(id === "hit" || id === "crit" ? `${id}:${p.family}` : id, p.gate)) return;
     if (id === "flame") {
       // Smooth cross-faded kiln-bellows draft + soft organic ember pop (avoids 15/sec clip machine-gunning)
-      this.source(engine, id, p, { gain: 0.92 });
+      this.source(engine, id, p, { gain: arg?.heavy ? 1.1 : 0.92 });
       if ((this.flamePhase++ & 1) === 0) {
         this.source(
           engine,
@@ -1541,7 +1738,26 @@ export class PhysicalVoices {
       }
       return;
     }
-    this.source(engine, id, p);
+    this.source(engine, id, p, arg?.heavy ? { gain: 1.18 } : undefined);
+    // Overdrive 4th-shot heavy brass weight accent
+    if (arg?.heavy) {
+      this.source(
+        engine,
+        "heavyAccent",
+        {
+          dur: 0.16,
+          sample: "plate",
+          body: 112,
+          air: 0.08,
+          grain: 0.04,
+          gain: 0.14,
+          lowpass: 1900,
+          modal: "brass",
+          subDrop: 0.32,
+        },
+        { at: 0 },
+      );
+    }
     // Weapon mechanical tail layer for distinct tactile foley across the 7 weapons
     if (id === "scatter")
       this.source(engine, "chamber", { ...P.ui, sample: "metal", body: 280, gain: 0.11 }, { at: 0.13 });

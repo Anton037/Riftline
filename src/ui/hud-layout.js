@@ -13,15 +13,15 @@ import { getById } from "./ui.js";
 /* the movable controls: element, name in the editor, smallest size on screen (px) */
 const CONTROL_INFO = {
     dash: { el: "dashBtn", name: "DASH", min: 40 },
-    nova: { el: "novaBtn", name: "NOVA", min: 40 },
-    gadget: { el: "gadgetBtn", name: "GRENADE", min: 40 },
+    nova: { el: "novaBtn", name: "BURST", min: 40 },
+    gadget: { el: "gadgetBtn", name: "CHIME", min: 40 },
     pause: { el: "pauseBtn", name: "PAUSE", min: 36 },
   },
   HUD_CONTROLS = HUD_CONTROL_IDS.map((id) => ({ id, ...CONTROL_INFO[id] })),
   /* the space a control keeps to the others (px) and to the readouts of the HUD; the readouts grow in a run (a row of
-     buff chips under the hull bar, the combo and the wave progress under the wave), so their room reaches lower */
+     buff chips under the HP bar, the combo and the wave progress under the wave), so their room reaches lower */
   GAP = 2,
-  TOUCH_HALO = 6, // +12px (.act-btn::before) diameter touch halo around action buttons
+  TOUCH_HALO = 12, // +12px radius (.act-btn::before inset: -12px) touch halo around action buttons
   KEEP_GAP = 3,
   KEEP_CLEAR = [
     ["#hud .hp-block", 22],
@@ -430,7 +430,7 @@ class HudEditor {
     if (this.refused(id)) {
       if (!hadLayout) this.draft.layouts[orient] = null;
       else Object.assign(spot, old);
-      this.note = "Not there: it would cover another button or the ward and wave display.";
+      this.note = "Not there: it would cover another button or the HP and wave display.";
     } else {
       this.note = "";
     }
@@ -504,7 +504,7 @@ class HudEditor {
     if (!back) return;
     if (!drag.from) this.draft.layouts[drag.orient] = null;
     else Object.assign(this.spotOf(this.draft.layouts[drag.orient], drag.id), drag.from);
-    if (!cancelled) this.note = "Not there: it would cover another button or the ward and wave display.";
+    if (!cancelled) this.note = "Not there: it would cover another button or the HP and wave display.";
   }
   /* the size slider: the picked control grows or shrinks around its centre (never below its smallest size on screen) */
   setSize(value) {
@@ -586,8 +586,8 @@ class HudEditor {
       [lo, hi] = onStick ? HUD_LIMITS.stick : HUD_LIMITS.size,
       sizeInput = getById("heSize"),
       sizeRow = sizeInput && sizeInput.closest(".he-row");
-    if (sizeRow) sizeRow.hidden = onStick;
-    sizeInput.hidden = onStick;
+    if (sizeRow) sizeRow.hidden = false;
+    sizeInput.hidden = false;
     getById("heWhat").textContent = picked ? picked.name : "STICK";
     sizeInput.min = String(lo);
     sizeInput.max = String(hi);
@@ -602,7 +602,7 @@ class HudEditor {
     note.textContent =
       this.note ||
       (bad.size
-        ? "Red buttons cover another button or the ward and wave display: move them."
+        ? "Red buttons cover another button or the HP and wave display: move them."
         : this.draft.stickFixed
           ? "Drag a button or the stick to move it, tap a button to resize it."
           : "Drag a button to move it, tap it to resize it. The move stick starts where your thumb lands.");

@@ -262,6 +262,7 @@ export class WebGL2Engine {
     this.hdrTarget = null;
     this.bloomA = null;
     this.bloomB = null;
+    this.bloomC = null;
 
     // Shared std140 FrameUniforms UBO (148 floats = 592 bytes)
     this._uboData = new Float32Array(148);
@@ -399,6 +400,7 @@ export class WebGL2Engine {
       this.hdrTarget = null;
       this.bloomA = null;
       this.bloomB = null;
+      this.bloomC = null;
       this.wakeA = null;
       this.wakeB = null;
       this.frameUbo = null;
@@ -421,6 +423,7 @@ export class WebGL2Engine {
       this._initWakeTargets();
       this._initShadowTarget();
       this._initPostTargets();
+      if (this._warmupKeys?.length) this.warmupPrograms(this._warmupKeys);
     });
   }
 
@@ -596,6 +599,7 @@ export class WebGL2Engine {
     this._deleteTarget(this.hdrTarget);
     this._deleteTarget(this.bloomA);
     this._deleteTarget(this.bloomB);
+    this._deleteTarget(this.bloomC);
     this.msaaTarget = null;
     const rw = Math.max(2, Math.round(this.pixelWidth * this.renderScale));
     const rh = Math.max(2, Math.round(this.pixelHeight * this.renderScale));
@@ -616,8 +620,11 @@ export class WebGL2Engine {
     this.hdrTarget = hdr;
     const bw = Math.max(2, rw >> 1);
     const bh = Math.max(2, rh >> 1);
+    const qw = Math.max(2, bw >> 1);
+    const qh = Math.max(2, bh >> 1);
     this.bloomA = this._createColorTarget(bw, bh, false);
-    this.bloomB = this._createColorTarget(Math.max(2, bw >> 1), Math.max(2, bh >> 1), false);
+    this.bloomB = this._createColorTarget(qw, qh, false);
+    this.bloomC = this._createColorTarget(Math.max(2, qw >> 1), Math.max(2, qh >> 1), false);
   }
 
   setTargetFps(fps) {
@@ -779,7 +786,8 @@ export class WebGL2Engine {
   // key _getProgram can build (the fixed cases here plus floor styles and hazard surfaces), so no
   // in-run frame ever waits for a link.
   warmupPrograms(keys) {
-    for (let i = 0; i < keys.length; i++) this._getProgram(keys[i]);
+    this._warmupKeys = Array.isArray(keys) ? [...keys] : [];
+    for (let i = 0; i < this._warmupKeys.length; i++) this._getProgram(this._warmupKeys[i]);
   }
 
   _useProgram(p) {
@@ -1736,25 +1744,43 @@ export class WebGL2Engine {
       gl.viewport(0, 0, this.bloomA.width, this.bloomA.height);
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, this.hdrTarget.tex);
-      gl.uniform1f(pre.uniforms.uThreshold, scene.bloomThreshold);
+      const bloomThresh = this.hdrTarget.isHalf ? scene.bloomThreshold : Math.min(scene.bloomThreshold, 0.78);
+      gl.uniform1f(pre.uniforms.uThreshold, bloomThresh);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
 
-      // Kawase downsample -> bloomB (quarter-res)
+      // Kawase downsample 1 -> bloomB (quarter-res)
       const kaw = this._getProgram("bloomKawase");
       this._useProgram(kaw);
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.bloomB.fbo);
       gl.viewport(0, 0, this.bloomB.width, this.bloomB.height);
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, this.bloomA.tex);
-      gl.uniform1f(kaw.uniforms.uOffset, 1.25);
+      gl.uniform1f(kaw.uniforms.uOffset, 1.15);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
 
-      // Kawase upsample -> bloomA (half-res)
+      // Kawase downsample 2 -> bloomC (eighth-res) -> upsample -> bloomB
+      if (this.bloomC) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.bloomC.fbo);
+        gl.viewport(0, 0, this.bloomC.width, this.bloomC.height);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, this.bloomB.tex);
+        gl.uniform1f(kaw.uniforms.uOffset, 1.45);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.bloomB.fbo);
+        gl.viewport(0, 0, this.bloomB.width, this.bloomB.height);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, this.bloomC.tex);
+        gl.uniform1f(kaw.uniforms.uOffset, 1.65);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+      }
+
+      // Kawase final upsample -> bloomA (half-res)
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.bloomA.fbo);
       gl.viewport(0, 0, this.bloomA.width, this.bloomA.height);
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, this.bloomB.tex);
-      gl.uniform1f(kaw.uniforms.uOffset, 1.85);
+      gl.uniform1f(kaw.uniforms.uOffset, 1.55);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
 
       // Final ACES tone-mapped composite -> full-DPR canvas backbuffer
