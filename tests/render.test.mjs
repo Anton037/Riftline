@@ -105,9 +105,9 @@ test("every weapon stays attached and aims horizontally through turns, banking a
           model.aimAt(aimRad);
           model.group.updateWorldMatrix(true);
           model.weaponMount.getWorldPosition(a);
-          model.turret.getWorldPosition(b);
+          model.weaponBearing.getWorldPosition(b);
           assert.ok(Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) < 1e-6, `${weapon}: bearing separated`);
-          const e = model.turret.worldMatrix.elements;
+          const e = model.weaponBearing.worldMatrix.elements;
           const dx = e[0],
             dy = e[1],
             dz = e[2];
@@ -259,7 +259,7 @@ test("all 18 biome trap 3D models build finite bounded geometry within budget", 
 
 test("player model includes right weapon-holding arm and animates death and pose reset cleanly", async () => {
   const { buildPlayerModel } = await import("../src/render/models.js");
-  const hero = buildPlayerModel("pulse", 0xffc864);
+  const hero = buildPlayerModel("lanternGun", 0xffc864);
   assert.ok(hero.rightArm, "hero model must have a right arm holding the weapon");
   assert.ok(hero.weaponMount.position.y < 1.25, "weaponMount sits at natural chest/hip height");
   hero.setDeath(0.9, 1.0);
@@ -273,4 +273,31 @@ test("player model includes right weapon-holding arm and animates death and pose
   assert.equal(hero.base.position.y, 0, "resetPose restores base position");
   assert.equal(hero.base.rotation.z, 0, "resetPose restores upright base rotation");
   assert.equal(hero.lantern.position.y, 0.89, "resetPose restores lantern position");
+});
+
+test("normal shots, flashes and the weapon model share the muzzle on all seven weapons", async () => {
+  const { World } = await import("../src/core/world.js");
+  const { weaponOrder, weaponDefs } = await import("../src/data/weapons.js");
+  const { buildPlayerModel } = await import("../src/render/models.js");
+  for (const weapon of weaponOrder) {
+    const world = new World({ seed: 215, weapon, threat: 0 });
+    const model = buildPlayerModel(weapon, weaponDefs[weapon].color);
+    world.arena.obs = [];
+    world.player.x = 3;
+    world.player.y = -4;
+    model.group.position.set(3, 0, -4);
+    for (const angle of [0, 0.73, Math.PI, -1.2]) {
+      model.base.rotation.y = -angle;
+      model.aimAt(angle);
+      const mouth = model.muzzle.getWorldPosition(new Vec3());
+      world.pb.length = 0;
+      world.fx.length = 0;
+      world.fire(angle);
+      const flash = world.fx.find((event) => event.k === "shot");
+      for (const bullet of world.pb) {
+        assert.ok(Math.hypot(bullet.x - mouth.x, bullet.y - mouth.z) < 1e-6, weapon);
+      }
+      assert.ok(Math.hypot(flash.x - mouth.x, flash.y - mouth.z, flash.height - mouth.y) < 1e-6, weapon);
+    }
+  }
 });

@@ -6,66 +6,66 @@ import { rarityWeights, bossRarityWeights, upgradeList } from "../data/upgrades.
 import { RL_BIOME_INFO } from "../data/biomes.js";
 
 const waveEvents = {
-  gilded: {
-    id: "gilded",
-    name: "Gilded Caravan",
+  goldCart: {
+    id: "goldCart",
+    name: "Gold Cart",
     desc: "A golden merchant carriage crosses the arena · elites grant speed & fire rate · shards +50%",
     shardMul: 1.5,
     plan: { budget: 0.6, elite: 0.5 },
   },
   starfall: {
     id: "starfall",
-    name: "Starfall Shower",
-    desc: "Falling comets strike foes (65 damage) and scatter clusters of 3–5 shards",
+    name: "Falling Stars",
+    desc: "Falling comets strike enemies (65 damage) and scatter clusters of 3–5 shards",
     shardMul: 1,
-    plan: { weights: { swarmer: 3, bomber: 1.6 } },
+    plan: { weights: { smallBug: 3, firePot: 1.6 } },
   },
-  aurora: {
-    id: "aurora",
-    name: "Aurora Wind",
-    desc: "Glacier sheets grant sure footing and brisker dash recharge · shards +25%",
+  snowWind: {
+    id: "snowWind",
+    name: "Snow Wind",
+    desc: "Ice improves grip and recharges dash faster · shards +25%",
     shardMul: 1.25,
-    biome: "shelf",
+    biome: "snowRidge",
     plan: {},
   },
-  mirage: {
-    id: "mirage",
-    name: "Sunglass Mirage",
-    desc: "Extra whirlwinds roam · dash near a whirlwind to shatter it into shards · shards +25%",
+  sandstorm: {
+    id: "sandstorm",
+    name: "Sandstorm",
+    desc: "More whirlwinds roam · dash by one to release shards · shards +25%",
     shardMul: 1.25,
-    biome: "flats",
+    biome: "sunDunes",
     plan: {},
   },
-  nectar: {
-    id: "nectar",
-    name: "Firefly Tide",
-    desc: "Luminous motes mend HP and quicken your stride · shards +25%",
+  fireflies: {
+    id: "fireflies",
+    name: "Fireflies",
+    desc: "Fireflies heal you and boost movement speed · shards +25%",
     shardMul: 1.25,
-    biome: "marsh",
+    biome: "mossBog",
     plan: {},
   },
   festival: {
     id: "festival",
     name: "Lantern Festival",
-    desc: "Lanterns quicken fire rate and courtyard bells toll in sequence · shards +25%",
+    desc: "Lanterns make you fire faster · bells ring in order · shards +25%",
     shardMul: 1.25,
-    biome: "courtyard",
+    biome: "lanternYard",
     plan: {},
   },
-  harmonic: {
-    id: "harmonic",
-    name: "Leyline Convergence",
-    desc: "Starlight threads link portal pairs (+25% speed, slows foes) · warped shots deal +35% damage · shards +25%",
+  starPaths: {
+    id: "starPaths",
+    name: "Star Paths",
+    desc: "Paths link portals (+25% speed, slows enemies) · warped shots deal +35% damage · shards +25%",
     shardMul: 1.25,
-    biome: "core",
+    biome: "starHall",
     plan: {},
   },
-  forgewind: {
-    id: "forgewind",
-    name: "Forge Wind",
-    desc: "Molten vents ignite foes and kindle your Hearthburst faster · shards +25%",
+  hotWind: {
+    id: "hotWind",
+    name: "Hot Wind",
+    desc: "Lava vents burn enemies and charge Fire Burst faster · shards +25%",
     shardMul: 1.25,
-    biome: "caldera",
+    biome: "emberHill",
     plan: {},
   },
 };
@@ -74,8 +74,8 @@ const EVENT_CHANCE = 0.2;
 
 // Cards that do nothing for the active weapon are excluded from offers.
 function deadForWeapon(id, weapon, owned) {
-  if (weapon === "disc") return id === "ricochet" || id === "pierce";
-  if (weapon === "rail") return id === "pierce" && (owned.lance || 0) > 0;
+  if (weapon === "ringBlade") return id === "bounceShot" || id === "pierce";
+  if (weapon === "starSpear") return id === "pierce" && (owned.starLance || 0) > 0;
   return false;
 }
 
@@ -194,26 +194,26 @@ function planWave(rng, wave, tm, boss, plan = {}) {
       waveBudget(wave, tm) * (boss ? 0.18 + 0.025 * Math.min(6, Math.floor(wave / 5) - 1) : 1) * (plan.budget || 1);
     const types = enemyOrder.filter((type) => enemyDefs[type].from <= wave && (!boss || !heavyEnemies[type])),
       caps = {
-        hive: 1 + Math.floor(wave / 8),
-        brute: 2 + Math.floor(wave / 4),
-        sniper: 2 + Math.floor(wave / 4),
-        splitter: 3 + Math.floor(wave / 3),
-        bulwark: 1 + Math.floor(wave / 6),
-        mortar: 1 + Math.floor(wave / 6),
-        striker: 2 + Math.floor(wave / 5),
-        mender: 1 + Math.floor(wave / 10),
-        leaper: 2 + Math.floor(wave / 5),
-        turret: 1 + Math.floor(wave / 8),
-        charger: 2 + Math.floor(wave / 6),
-        minebot: 2 + Math.floor(wave / 8),
-        sapper: 1 + Math.floor(wave / 7),
-        phantom: 1 + Math.floor(wave / 8),
-        sentinel: 1 + Math.floor(wave / 9),
-        carrier: 1 + Math.floor(wave / 10),
-        drone: 2 + Math.floor(wave / 6),
-        driller: 1 + Math.floor(wave / 8),
-        beacon: 1 + Math.floor(wave / 14),
-        weaver: 1 + Math.floor(wave / 8),
+        mushroomNest: 1 + Math.floor(wave / 8),
+        ironGolem: 2 + Math.floor(wave / 4),
+        longshot: 2 + Math.floor(wave / 4),
+        sporePod: 3 + Math.floor(wave / 3),
+        shieldGuard: 1 + Math.floor(wave / 6),
+        bellCannon: 1 + Math.floor(wave / 6),
+        blinkBlade: 2 + Math.floor(wave / 5),
+        mossHealer: 1 + Math.floor(wave / 10),
+        bogHopper: 2 + Math.floor(wave / 5),
+        watchTower: 1 + Math.floor(wave / 8),
+        wildBoar: 2 + Math.floor(wave / 6),
+        mineCart: 2 + Math.floor(wave / 8),
+        bombMaker: 1 + Math.floor(wave / 7),
+        starGhost: 1 + Math.floor(wave / 8),
+        crystalTower: 1 + Math.floor(wave / 9),
+        supplyKite: 1 + Math.floor(wave / 10),
+        dartSprite: 2 + Math.floor(wave / 6),
+        burrowMole: 1 + Math.floor(wave / 8),
+        healingStone: 1 + Math.floor(wave / 14),
+        starSpider: 1 + Math.floor(wave / 8),
       },
       counts = {},
       spawns = [],
@@ -229,7 +229,7 @@ function planWave(rng, wave, tm, boss, plan = {}) {
       );
       counts[type] = (counts[type] || 0) + 1;
       budget -= enemyDefs[type].cost;
-      spawns.push({ type, elite: type !== "swarmer" && rng.chance(eliteChance) });
+      spawns.push({ type, elite: type !== "smallBug" && rng.chance(eliteChance) });
     }
     for (let i = spawns.length - 1; i > 0; i--) {
       const j = Math.floor(rng.next() * (i + 1));
@@ -251,7 +251,7 @@ function planWave(rng, wave, tm, boss, plan = {}) {
       for (; next < order.length && weight < size;) {
         const spawn = order[next++];
         members.push(spawn);
-        weight += spawn.type === "swarmer" ? 0.5 : 1;
+        weight += spawn.type === "smallBug" ? 0.5 : 1;
       }
       groups.push({ gap: gap * rng.range(0.85, 1.15), members });
     }
@@ -267,12 +267,12 @@ function set_RL_BIOME_MIX_CUR(mix) {
 }
 
 const RL_BIOME_EVENT = {
-  courtyard: "festival",
-  shelf: "aurora",
-  marsh: "nectar",
-  core: "harmonic",
-  caldera: "forgewind",
-  flats: "mirage",
+  lanternYard: "festival",
+  snowRidge: "snowWind",
+  mossBog: "fireflies",
+  starHall: "starPaths",
+  emberHill: "hotWind",
+  sunDunes: "sandstorm",
 };
 
 const RL_EARLY_WEIGHT_250 = 0.5;

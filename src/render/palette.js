@@ -2,7 +2,7 @@
 // Every biome owns a distinct value range, hue triad and key/shadow temperature contrast.
 
 export const GLAZES = {
-  courtyard: {
+  lanternYard: {
     // Rain-dappled dusk courtyard: indigo-slate flagstones bathed in warm lantern amber & cool twilight sky
     style: 5,
     base: 0x24384a,
@@ -24,7 +24,7 @@ export const GLAZES = {
     fog: [1.46, 3.45],
     bloom: 0.28,
   },
-  shelf: {
+  snowRidge: {
     // Alpine twilight snowfield: crisp powder blue-silver snow, deep sapphire glacier ponds & emerald-violet aurora
     style: 2,
     base: 0x4b7496,
@@ -46,7 +46,7 @@ export const GLAZES = {
     fog: [1.42, 3.35],
     bloom: 0.18,
   },
-  marsh: {
+  mossBog: {
     // Enchanted twilight bog: velvety emerald moss turf, deep teal pools & warm honey-mint fungal lanterns
     style: 3,
     base: 0x1e4036,
@@ -68,7 +68,7 @@ export const GLAZES = {
     fog: [1.38, 3.25],
     bloom: 0.28,
   },
-  core: {
+  starHall: {
     // Velvety midnight-obsidian sanctuary with calm jewel-like amethyst & rose-gold rift fractures
     style: 4,
     base: 0x261f4c,
@@ -90,7 +90,7 @@ export const GLAZES = {
     fog: [1.52, 3.65],
     bloom: 0.32,
   },
-  caldera: {
+  emberHill: {
     // Dramatic charred polygonal basalt plates split by rich glowing magma seams
     style: 6,
     base: 0x342428,
@@ -112,7 +112,7 @@ export const GLAZES = {
     fog: [1.44, 3.4],
     bloom: 0.32,
   },
-  flats: {
+  sunDunes: {
     // Golden-hour terracotta-ochre sandstone dunes, deep plum shadows & jewel-teal vitrified glass oases
     style: 7,
     base: 0x765636,

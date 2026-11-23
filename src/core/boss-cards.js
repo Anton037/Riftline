@@ -35,9 +35,9 @@ const LOCK_EVERY = 7,
   FANG_LIFE = 0.9,
   FANG_MAX = 42;
 
-// Guaranteed Guardian Relic offering on Boss Waves (W5, W10, W15, and Endless boss waves).
-// On Wave 15, if the defeated Guardian's relic is already owned or Star-Vault has been unlocked,
-// Astral Pull ('collapse') can be offered so it is not locked strictly behind Endless.
+// Guaranteed Boss Relic offering on Boss Waves (W5, W10, W15, and Endless boss waves).
+// On Wave 15, if the defeated Guardian's relic is already owned or Star Hall has been unlocked,
+// Star Pull ('collapse') can be offered so it is not locked strictly behind Endless.
 function bossCardOffer(world) {
   const boss = world.bossFor(world.wave);
   let id = boss && BOSS_CARD[boss];
@@ -94,7 +94,7 @@ function updateSealgrid(world, dt) {
       player.lockT = LOCK_EVERY;
       const cage = { id: world.nextId++, x: at.x, y: at.y, r: LOCK_R, t: 0, held: [] };
       world.cages.push(cage);
-      world.emit("sealgrid", { x: at.x, y: at.y, r: LOCK_R });
+      world.emit("bellCage", { x: at.x, y: at.y, r: LOCK_R });
     } else player.lockT = 0.5;
   }
   for (const cage of world.cages) {
@@ -137,7 +137,7 @@ function updateSealgrid(world, dt) {
       }
       enemy.lockAcc = (enemy.lockAcc || 0) + dmg * dt;
       if (enemy.lockAcc >= dmg * 0.5) {
-        world.hurtEnemy(enemy, enemy.lockAcc, 0, 0, 0, false, "sealgrid");
+        world.hurtEnemy(enemy, enemy.lockAcc, 0, 0, 0, false, "bellCage");
         enemy.lockAcc = 0;
       }
     }
@@ -309,16 +309,16 @@ function updateLances(world, dt) {
 }
 
 function hatch(world, enemy) {
-  const brood = world.player.brood;
-  if (brood.length >= BROOD_MAX) return;
-  brood.push({ id: world.nextId++, x: enemy.x, y: enemy.y, vx: 0, vy: 0, t: 0, life: BROOD_LIFE, target: null });
+  const mossHelpers = world.player.mossHelpers;
+  if (mossHelpers.length >= BROOD_MAX) return;
+  mossHelpers.push({ id: world.nextId++, x: enemy.x, y: enemy.y, vx: 0, vy: 0, t: 0, life: BROOD_LIFE, target: null });
   world.emit("broodHatch", { x: enemy.x, y: enemy.y });
 }
 
 function burstLarva(world, larva) {
   const stats = world.stats;
   larva.life = 0;
-  world.explode(larva.x, larva.y, BROOD_R, BROOD_DMG * stats.dmgMul, { enemies: true, knock: 2, kind: "brood" });
+  world.explode(larva.x, larva.y, BROOD_R, BROOD_DMG * stats.dmgMul, { enemies: true, knock: 2, kind: "mossHelpers" });
   world.hash.query(larva.x, larva.y, BROOD_R, (enemy) => {
     if (
       enemy.dead ||
@@ -330,7 +330,7 @@ function burstLarva(world, larva) {
     const was = enemy.burnT > 0 ? enemy.burnDps : 0;
     enemy.burnT = Math.max(enemy.burnT, 3.5);
     enemy.burnDps = Math.max(was, BROOD_POISON * stats.dmgMul);
-    enemy.burnSrc = "brood";
+    enemy.burnSrc = "mossHelpers";
     // Apply 3.5s Vitriol Glaze (+25% damage taken)
     enemy.glazeT = Math.max(enemy.glazeT || 0, 3.5);
     enemy.glazeMul = Math.max(enemy.glazeMul || 0, 0.25);
@@ -341,11 +341,11 @@ function burstLarva(world, larva) {
 
 function updateBrood(world, dt) {
   const player = world.player,
-    brood = player.brood;
-  if (!brood.length) return;
+    mossHelpers = player.mossHelpers;
+  if (!mossHelpers.length) return;
   const fight = world.state === "fight";
-  for (let i = 0; i < brood.length; i++) {
-    const larva = brood[i];
+  for (let i = 0; i < mossHelpers.length; i++) {
+    const larva = mossHelpers[i];
     larva.t += dt;
     larva.life -= dt;
     if (larva.target && (larva.target.dead || larva.target.ghost)) larva.target = null;
@@ -384,8 +384,8 @@ function updateBrood(world, dt) {
     else if (larva.life <= 0 && fight) burstLarva(world, larva);
   }
   let w = 0;
-  for (let i = 0; i < brood.length; i++) if (brood[i].life > 0) brood[w++] = brood[i];
-  brood.length = w;
+  for (let i = 0; i < mossHelpers.length; i++) if (mossHelpers[i].life > 0) mossHelpers[w++] = mossHelpers[i];
+  mossHelpers.length = w;
 }
 
 function updateImplode(world, dt) {
@@ -417,14 +417,18 @@ function updateImplode(world, dt) {
 
 function novaBlast(world, radius, mul = 1, collapse = false) {
   const player = world.player;
-  world.explode(player.x, player.y, radius, 70 * mul * world.stats.dmgMul, { enemies: true, knock: 12, kind: "nova" });
+  world.explode(player.x, player.y, radius, 70 * mul * world.stats.dmgMul, {
+    enemies: true,
+    knock: 12,
+    kind: "fireBurst",
+  });
   for (const bullet of world.eb) {
     if (Math.hypot(bullet.x - player.x, bullet.y - player.y) < radius * 1.7) {
       bullet.life = 0;
       world.emit("pop", { x: bullet.x, y: bullet.y });
     }
   }
-  world.emit("nova", { x: player.x, y: player.y, r: radius, collapse });
+  world.emit("fireBurst", { x: player.x, y: player.y, r: radius, collapse });
 }
 
 function bossCardNova(world, radius) {
@@ -446,26 +450,26 @@ function dropMoltenIngot(world, at) {
   world.explode(at.x, at.y, TRIBUTE_R, TRIBUTE_DMG * stats.dmgMul, {
     enemies: true,
     knock: 3.5,
-    kind: "tribute",
-    src: "tribute",
+    kind: "forgeGift",
+    src: "forgeGift",
   });
   world.player.tributeT = Math.max(world.player.tributeT || 0, 4.0);
   world.dropShards(at.x, at.y, 18);
   world.pickups.push(world.mkPickup("heal", at.x, at.y, 12));
-  world.emit("tribute", { x: at.x, y: at.y, r: TRIBUTE_R });
+  world.emit("forgeGift", { x: at.x, y: at.y, r: TRIBUTE_R });
 }
 
 function bossCardKill(world, enemy) {
   const stats = world.stats;
   if (stats.shardField) shatter(world, enemy);
-  if (stats.brood) {
+  if (stats.mossHelpers) {
     world.broodN = (world.broodN || 0) + 1;
     if (world.broodN >= BROOD_EVERY) {
       world.broodN = 0;
       hatch(world, enemy);
     }
   }
-  if (stats.tribute) {
+  if (stats.forgeGift) {
     world.tributeN = (world.tributeN || 0) + 1;
     if (world.tributeN >= TRIBUTE_EVERY) {
       world.tributeN = 0;
@@ -490,10 +494,10 @@ function bossCardBossHit(world, boss) {
   if (stats.shardField && h % 15 === 0) {
     shatter(world, boss, true);
   }
-  if (stats.brood && h % 18 === 0) {
+  if (stats.mossHelpers && h % 18 === 0) {
     hatch(world, boss);
   }
-  if (stats.tribute && h % 20 === 0) {
+  if (stats.forgeGift && h % 20 === 0) {
     dropMoltenIngot(world, boss);
   }
   if (stats.fang && h % 16 === 0) {
@@ -503,8 +507,8 @@ function bossCardBossHit(world, boss) {
 
 function updateBossCards(world, dt) {
   const stats = world.stats;
-  if (!world.player.brood) world.player.brood = [];
-  if (stats.sealgrid) updateSealgrid(world, dt);
+  if (!world.player.mossHelpers) world.player.mossHelpers = [];
+  if (stats.bellCage) updateSealgrid(world, dt);
   else if (world.cages.length) world.cages = [];
   updateBurnPools(world, dt);
   updateSplinters(world, dt);

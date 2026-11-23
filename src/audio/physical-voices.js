@@ -47,7 +47,7 @@ const sample = {
   timber: "panel_step",
 };
 const P = {
-  nova: {
+  fireBurst: {
     dur: 0.65,
     sample: "heavy",
     body: 56,
@@ -96,7 +96,7 @@ const P = {
     gate: 0.035,
     lowpass: 2200,
   },
-  pulse: {
+  lanternGun: {
     dur: 0.2,
     sample: "report",
     body: 192,
@@ -106,9 +106,9 @@ const P = {
     gate: 0.045,
     lowpass: 3300,
     modal: "brass",
-    weaponStage: "pulse",
+    weaponStage: "lanternGun",
   },
-  scatter: {
+  brassShotgun: {
     dur: 0.38,
     sample: "shotgun",
     body: 90,
@@ -119,9 +119,9 @@ const P = {
     lowpass: 2900,
     modal: "wood",
     subDrop: 0.35,
-    weaponStage: "scatter",
+    weaponStage: "brassShotgun",
   },
-  tesla: {
+  sparkWand: {
     dur: 0.21,
     sample: "metal",
     recordGain: 0.09,
@@ -133,7 +133,7 @@ const P = {
     gain: 0.28,
     gate: 0.045,
     modal: "crystal",
-    weaponStage: "tesla",
+    weaponStage: "sparkWand",
   },
   chain: {
     dur: 0.15,
@@ -148,7 +148,7 @@ const P = {
     gate: 0.05,
     modal: "crystal",
   },
-  rail: {
+  starSpear: {
     dur: 0.52,
     sample: "rifle",
     body: 78,
@@ -159,9 +159,9 @@ const P = {
     lowpass: 3500,
     modal: "brass",
     subDrop: 0.42,
-    weaponStage: "rail",
+    weaponStage: "starSpear",
   },
-  rocket: {
+  emberLauncher: {
     dur: 0.46,
     sample: "heavy",
     body: 86,
@@ -172,9 +172,9 @@ const P = {
     lowpass: 2600,
     modal: "wood",
     subDrop: 0.3,
-    weaponStage: "rocket",
+    weaponStage: "emberLauncher",
   },
-  disc: {
+  ringBlade: {
     dur: 0.29,
     sample: "blade",
     body: 440,
@@ -184,9 +184,9 @@ const P = {
     gate: 0.06,
     lowpass: 4100,
     modal: "crystal",
-    weaponStage: "disc",
+    weaponStage: "ringBlade",
   },
-  flame: {
+  fireBellows: {
     dur: 0.36,
     sample: "soft",
     body: 118,
@@ -197,7 +197,7 @@ const P = {
     lowpass: 1850,
     hold: true,
     modal: "wood",
-    weaponStage: "flame",
+    weaponStage: "fireBellows",
   },
   eshotGunner: { dur: 0.16, sample: "report", body: 180, air: 0.08, grain: 0.06, gain: 0.2, gate: 0.07, lowpass: 3200 },
   snipe: { dur: 0.29, sample: "rifle", body: 120, air: 0.18, grain: 0.04, gain: 0.27, gate: 0.12 },
@@ -964,7 +964,7 @@ const P = {
     lowpass: 3200,
     modal: "wood",
   },
-  banish: {
+  seal: {
     dur: 0.24,
     sample: "heavy",
     body: 164,
@@ -1083,12 +1083,12 @@ const P = {
   },
 };
 const BOSS_TIMBRE = {
-  bellkeeper: ["plate", 245, 3000],
-  queen: ["flesh", 105, 1800],
-  prism: ["glass", 710, 6500],
-  core: ["soft", 165, 1800],
-  tyrant: ["wood", 88, 2000],
-  wyrm: ["glass", 440, 4800],
+  bellKeeper: ["plate", 245, 3000],
+  mossQueen: ["flesh", 105, 1800],
+  iceCrystal: ["glass", 710, 6500],
+  starHeart: ["soft", 165, 1800],
+  emberKing: ["wood", 88, 2000],
+  sandDragon: ["glass", 440, 4800],
 };
 const PLACE_FAMILIES = [
   [/lampBuzz|portalHum|gravityHum|^hum$/i, "buzz"],
@@ -1129,10 +1129,10 @@ export function physicalProfile(id, arg, place = false) {
       ...(isCrit ? { critPing: true } : {}),
     };
     const w = arg?.w;
-    if (w === "tesla") out.arc = Math.max(out.arc || 0, 0.16);
-    else if (w === "flame") out.lowpass = Math.max(1200, out.lowpass * 0.84);
-    else if (w === "rail" || w === "disc") out.body *= 1.12;
-    else if (w === "rocket" || w === "scatter") out.body *= 0.88;
+    if (w === "sparkWand") out.arc = Math.max(out.arc || 0, 0.16);
+    else if (w === "fireBellows") out.lowpass = Math.max(1200, out.lowpass * 0.84);
+    else if (w === "starSpear" || w === "ringBlade") out.body *= 1.12;
+    else if (w === "emberLauncher" || w === "brassShotgun") out.body *= 0.88;
     return out;
   }
   if (place) {
@@ -1145,12 +1145,13 @@ export function physicalProfile(id, arg, place = false) {
     else if (/^dArmor|dClang|block|guard|shield|plant|ram|resist|bRing/i.test(id)) family = "armor";
     else if (/dShatter|frost|freeze|cryo|^tsIce|^tsFrost|aIce|bLance|bounce/i.test(id)) family = "glass";
     else if (/^d(?=[A-Z])/.test(id) || /kill/i.test(id)) family = "debris";
-    else if (/eshot|snipe|wing|lob|chain/i.test(id)) family = /Queen|Weaver|Frost|Prism/.test(id) ? "tesla" : "pulse";
+    else if (/eshot|snipe|wing|lob|chain/i.test(id))
+      family = /Queen|Weaver|Frost|Prism/.test(id) ? "sparkWand" : "lanternGun";
     else if (/step|land/.test(id)) family = "step";
     else if (/dash|blink|warp|singPull|devil/i.test(id)) family = "wind";
     else if (/ready|buy|pick|clear|victory|heal|evolve|shard|tribute|bounty|reward|surge|champion|mutator/i.test(id))
       family = "reward";
-    else if (/beam|rift|stun|chill|short|zap/i.test(id)) family = "tesla";
+    else if (/beam|rift|stun|chill|short|zap/i.test(id)) family = "sparkWand";
     else if (/^ts|^a[A-Z]|^bc|boss|phase|enrage|rumble/i.test(id)) family = "boom";
     else if (/click|hover|deny|offer|reroll|supply|combo|wave|spawn|mend|gadget/i.test(id)) family = "ui";
   }
@@ -1160,7 +1161,7 @@ export function physicalProfile(id, arg, place = false) {
   if (id === "hurt") Object.assign(p, P.organic, { family: "organic", body: 78, gain: 0.38 });
   if (id === "dPop") Object.assign(p, { sample: "soft", body: 175, dur: 0.17, gain: 0.16 });
   if (id === "dGhost") Object.assign(p, P.wind, { family: "wind", body: 96, dur: 0.5, gain: 0.18 });
-  if (id === "dZap") Object.assign(p, P.tesla, { family: "tesla", dur: 0.27, gain: 0.23 });
+  if (id === "dZap") Object.assign(p, P.sparkWand, { family: "sparkWand", dur: 0.27, gain: 0.23 });
   if (id === "eshotFrost") Object.assign(p, P.glass, { family: "glass", dur: 0.23, gain: 0.22 });
   if (id === "bOverdrive")
     Object.assign(p, P.warning, {
@@ -1238,7 +1239,7 @@ export function physicalProfile(id, arg, place = false) {
       p.air = 0.24;
       p.grain = 0.08;
     }
-    if (id.startsWith("blink") && source === "wyrm") {
+    if (id.startsWith("blink") && source === "sandDragon") {
       p.air = 0.32;
       p.grain = 0.2;
     }
@@ -1265,7 +1266,7 @@ export function physicalProfile(id, arg, place = false) {
   if (!place && id === "mend")
     Object.assign(
       p,
-      source === "beacon"
+      source === "healingStone"
         ? { ...P.chain, family: "repairField", body: 280, arc: 0.025, air: 0.08, grain: 0.01, dur: 0.3, gain: 0.18 }
         : {
             ...P.organic,
@@ -1488,13 +1489,14 @@ export class PhysicalVoices {
       subPhase = 0;
     let recordedLow = 0;
     const recordedAlpha = p.lowpass ? 1 - Math.exp((-Math.PI * 2 * p.lowpass) / rate) : 1;
-    const center = p.model === "air" ? 0.055 : p.family === "tesla" ? 0.48 : p.family === "flame" ? 0.16 : 0.31;
+    const center =
+      p.model === "air" ? 0.055 : p.family === "sparkWand" ? 0.48 : p.family === "fireBellows" ? 0.16 : 0.31;
     const mechanical = p.model === "buzz";
     const ceramic = p.model === "ceramic";
     const liquid = p.model === "rain" || p.model === "water";
     const airy = p.model === "air";
     const partials = MODAL_RATIOS[modal] || MODAL_RATIOS.wood;
-    const isFlame = p.weaponStage === "flame";
+    const isFlame = p.weaponStage === "fireBellows";
     const isWeapon = !!p.weaponStage && !isFlame;
     const isWood = modal === "wood";
     for (let i = 0; i < n; i++) {
@@ -1609,9 +1611,9 @@ export class PhysicalVoices {
         const mechT = Math.max(0, t - tailStart);
         const mechEnv = t > tailStart ? Math.exp(-mechT / (p.dur * 0.14)) * Math.min(1, mechT / 0.006) : 0;
         const mechTone =
-          p.weaponStage === "disc"
+          p.weaponStage === "ringBlade"
             ? Math.sin(phase * 2.32) * 0.11 * mechEnv
-            : p.weaponStage === "rocket"
+            : p.weaponStage === "emberLauncher"
               ? (band - low) * 0.22 * mechEnv
               : Math.sin(t * Math.PI * 2 * (p.body * 2.1 + 140)) * 0.08 * mechEnv;
         weaponLayer = snap + mechTone;
@@ -1725,7 +1727,7 @@ export class PhysicalVoices {
     }
     const p = physicalProfile(id, arg);
     if (!engine.gate(id === "hit" || id === "crit" ? `${id}:${p.family}` : id, p.gate)) return;
-    if (id === "flame") {
+    if (id === "fireBellows") {
       // Smooth cross-faded kiln-bellows draft + soft organic ember pop (avoids 15/sec clip machine-gunning)
       this.source(engine, id, p, { gain: arg?.heavy ? 1.1 : 0.92 });
       if ((this.flamePhase++ & 1) === 0) {
@@ -1759,18 +1761,18 @@ export class PhysicalVoices {
       );
     }
     // Weapon mechanical tail layer for distinct tactile foley across the 7 weapons
-    if (id === "scatter")
+    if (id === "brassShotgun")
       this.source(engine, "chamber", { ...P.ui, sample: "metal", body: 280, gain: 0.11 }, { at: 0.13 });
-    else if (id === "rail")
+    else if (id === "starSpear")
       this.source(engine, "chamber", { ...P.ui, sample: "plate", body: 360, gain: 0.12 }, { at: 0.18 });
-    else if (id === "rocket")
+    else if (id === "emberLauncher")
       this.source(
         engine,
         "ventTail",
         { dur: 0.18, sample: "soft", body: 140, air: 0.26, grain: 0.05, gain: 0.1, lowpass: 1800, modal: "wood" },
         { at: 0.11 },
       );
-    else if (id === "pulse")
+    else if (id === "lanternGun")
       this.source(
         engine,
         "escapement",
@@ -1787,7 +1789,7 @@ export class PhysicalVoices {
               ? P.organic
               : id === "tbLaser"
                 ? P.wind
-                : P.tesla;
+                : P.sparkWand;
       this.source(engine, id + "-active", { ...base, dur: Math.min(1.2, arg.dur) }, { at: p.dur, gain: 0.7 });
     }
   }

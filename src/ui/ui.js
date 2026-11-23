@@ -106,9 +106,9 @@ const iconPaths = {
     '<path d="m12 8 3 4-3 4-3-4z"/><ellipse cx="12" cy="12" rx="9.7" ry="5.2" transform="rotate(-32 12 12)"/><circle cx="20" cy="7" r="1.4" fill="currentColor"/>',
   snow: '<path d="M12 2v20M3 7l18 10M3 17 21 7m-9 0 4 5-4 5-4-5z"/>',
   bolt: '<path d="M13 2 5 13h6l-1 9 9-12h-7z"/>',
-  flame: '<path d="M12 22c-4 0-7-3-7-7 0-4 4-5 3-10l4 5 3-7c2 5 4 7 4 12 0 4-3 7-7 7zm0-2-3-4 3-4 3 4z"/>',
+  fireBellows: '<path d="M12 22c-4 0-7-3-7-7 0-4 4-5 3-10l4 5 3-7c2 5 4 7 4 12 0 4-3 7-7 7zm0-2-3-4 3-4 3 4z"/>',
   map: '<path d="m3 5 6-2 6 3 6-2v15l-6 2-6-3-6 2zm6-2v15m6-12v15"/><circle cx="12" cy="12" r="1"/>',
-  drone: '<path d="M12 5l3 5-3 7-3-7zm-3 5C5 7 3 8 4 12c1 2 3 2 5 0m6 0c4-3 6-2 5 2-1 2-3 2-5 0M12 2v3"/>',
+  dartSprite: '<path d="M12 5l3 5-3 7-3-7zm-3 5C5 7 3 8 4 12c1 2 3 2 5 0m6 0c4-3 6-2 5 2-1 2-3 2-5 0M12 2v3"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 5v7l4 2m-4 5v2m-9-9h2m14 0h2"/>',
   reroll: '<path d="M21 10a9 9 0 00-15-5m-1-3v4h5m-7 8a9 9 0 0015 5m1 3v-4h-5"/>',
   eye: '<path d="m2 12 5-5 5-2 5 2 5 5-5 5-5 2-5-2zm10-4 3 4-3 4-3-4z"/>',
@@ -122,10 +122,10 @@ const iconPaths = {
   skull:
     '<path d="m12 3 7 4 2 6-5 4v4H8v-4l-5-4 2-6zm-2 14v4m4-4v4"/><circle cx="8.5" cy="11" r="1.2"/><circle cx="15.5" cy="11" r="1.2"/>',
   target: '<circle cx="12" cy="12" r="9"/><path d="m12 6 6 6-6 6-6-6z"/><circle cx="12" cy="12" r="1.2"/>',
-  sealgrid: '<path d="M8 4h8l2 5v8l-6 4-6-4V9zm4-2v2m-4 5h8m-4 0v9m-3-4h6"/>',
-  brood: '<path d="m12 4 5 6 1 6-6 5-6-5 1-6zm-5 6-4-3m14 3 4-3M7 16l-4 2m14-2 4 2"/>',
+  bellCage: '<path d="M8 4h8l2 5v8l-6 4-6-4V9zm4-2v2m-4 5h8m-4 0v9m-3-4h6"/>',
+  mossHelpers: '<path d="m12 4 5 6 1 6-6 5-6-5 1-6zm-5 6-4-3m14 3 4-3M7 16l-4 2m14-2 4 2"/>',
   collapse: '<path d="m12 2 10 10-10 10L2 12zm0 5 5 5-5 5-5-5z"/>',
-  tribute: '<path d="m12 3 5 7-5 8-5-8zM4 15l3 5h10l3-5"/>',
+  forgeGift: '<path d="m12 3 5 7-5 8-5-8zM4 15l3 5h10l3-5"/>',
   volOn: '<path d="M11 5 6 9H2v6h4l5 4zM15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/>',
   volOff: '<path d="M11 5 6 9H2v6h4l5 4zM22 9l-6 6M16 9l6 6"/>',
 };
@@ -135,12 +135,12 @@ function iconSvg(name, cls = "") {
 }
 const getById = (id) => document.getElementById(id),
   BIOME_THEME_COLOR = {
-    courtyard: "#14100d",
-    shelf: "#0e1a28",
-    marsh: "#0e1a14",
-    core: "#150e24",
-    caldera: "#1c100d",
-    flats: "#1b140d",
+    lanternYard: "#14100d",
+    snowRidge: "#0e1a28",
+    mossBog: "#0e1a14",
+    starHall: "#150e24",
+    emberHill: "#1c100d",
+    sunDunes: "#1b140d",
   },
   setBiomeTheme = (id) => {
     const app = getById("app");
@@ -168,28 +168,28 @@ const getById = (id) => document.getElementById(id),
     ["Pickup reach", (stats) => stats.magnet, (value) => formatTenths(value) + " m"],
     ["Dash charges", (stats) => stats.dashCharges, String],
     ["Dash cooldown", (stats) => stats.dashCd, formatCooldown],
-    ["Mirror Ward", (stats) => stats.shieldCd, formatCooldown],
+    ["Mirror Shield", (stats) => stats.shieldCd, formatCooldown],
     ["HP regen", (stats) => stats.regen, (value) => formatTenths(value) + " HP/s"],
     ["Sunblades", (stats) => stats.orbit, String],
     ["Blade damage", (stats) => (stats.orbit ? stats.orbitDmg * stats.dmgMul : 0), formatTenths],
-    ["Frost chance", (stats) => stats.cryo, formatPercent],
-    ["Stormchain", (stats) => stats.arc, formatPercent],
+    ["Frost chance", (stats) => stats.iceShot, formatPercent],
+    ["Spark Chain", (stats) => stats.arc, formatPercent],
     ["Chain jumps", (stats) => (stats.arc ? stats.arcJumps : stats.chain), String],
     [
       "Burn damage",
       (stats) => (stats.burn ? stats.burn * stats.burnMul * stats.dmgMul : 0),
       (value) => formatTenths(value) + "/s",
     ],
-    ["Burn bonus", (stats) => stats.thermite, formatPercent],
-    ["Sparkshot", (stats) => stats.payloadF, formatPercent],
-    ["Gravity Chimes", (stats) => stats.gadgetMax, String],
+    ["Burn bonus", (stats) => stats.burningShot, formatPercent],
+    ["Blast Shot", (stats) => stats.payloadF, formatPercent],
+    ["Gravity Bells", (stats) => stats.gadgetMax, String],
     ["Chime cooldown", (stats) => stats.gadgetCd, formatCooldown],
     ["Chime power", (stats) => stats.gadgetDmg, (value) => "\u00d7" + formatTenths(value)],
     ["Soul Mend", (stats) => stats.siphonCh, formatPercent],
-    ["Hearthburst reach", (stats) => stats.novaR, (value) => formatTenths(value) + " m"],
-    ["Hearthburst charge", (stats) => stats.novaMul, (value) => "\u00d7" + formatTenths(value)],
-    ["Lantern Wisps", (stats) => stats.wingmen, String],
-    ["Gale Haste cap", (stats) => (stats.bloodrush ? 0.4 : 0), formatPercent],
+    ["Fire Burst reach", (stats) => stats.novaR, (value) => formatTenths(value) + " m"],
+    ["Fire Burst charge", (stats) => stats.novaMul, (value) => "\u00d7" + formatTenths(value)],
+    ["Helper Wisps", (stats) => stats.wingmen, String],
+    ["Streak speed cap", (stats) => (stats.killStreak ? 0.4 : 0), formatPercent],
   ],
   hitSourceName = (src) =>
     enemyDefs[src]?.name ||
@@ -200,36 +200,36 @@ const getById = (id) => document.getElementById(id),
       acid: "Acid pool",
       trap: "Arena trap",
       devil: "Dust devil",
-      prop: "Realm relic",
+      prop: "Interactive object",
       starfall: "Starfall",
-      crucible: "Crucible blast",
+      crucible: "Forge blast",
     }[src],
   damageSources = {
-    arc: ["Stormchain", "#c0a6db"],
+    arc: ["Spark Chain", "#c0a6db"],
     burn: ["Burn", "#ff8a2a"],
-    payload: ["Sparkshot", "#ffa13d"],
-    orbit: ["Sunblade Ring", "#b8dace"],
-    wingman: ["Lantern Wisps", "#91c9b4"],
-    dash: ["Thunder Stride", "#a7d1bf"],
-    trail: ["Cinder Wake", "#a7d1bf"],
-    nova: ["Hearthburst", "#ffd47e"],
-    pop: ["Cinder Pop", "#e9bf89"],
-    shatter: ["Thermal Shatter", "#bfe9ff"],
+    blastShot: ["Blast Shot", "#ffa13d"],
+    orbit: ["Spinning Blades", "#b8dace"],
+    helperWisps: ["Helper Wisps", "#91c9b4"],
+    dash: ["Shock Dash", "#a7d1bf"],
+    trail: ["Dash Trail", "#a7d1bf"],
+    fireBurst: ["Fire Burst", "#ffd47e"],
+    pop: ["Fire Pop", "#e9bf89"],
+    shatter: ["Heat Shatter", "#bfe9ff"],
     lava: ["Lava vents", "#ff6a2a"],
     shock: ["Shock pads", "#e5b878"],
-    inferno: ["Wildfire", "#ff5a3a"],
-    overload: ["Kiln Burst", "#ffd27a"],
-    reactive: ["Retribution Ward", "#b8dace"],
-    surge: ["Crescendo", "#e9bf89"],
-    grenade: ["Gravity Chime", "#c89eff"],
+    wildfire: ["Wildfire", "#ff5a3a"],
+    fireWave: ["Fire Wave", "#ffd27a"],
+    shieldPulse: ["Shield Pulse", "#b8dace"],
+    surge: ["Bell Wave", "#e9bf89"],
+    grenade: ["Gravity Bell", "#c89eff"],
     trap: ["Arena traps", "#c9bfa8"],
-    prop: ["Realm relics", "#f2c879"],
+    prop: ["Interactive objects", "#f2c879"],
     starfall: ["Starfall", "#ffd872"],
-    crucible: ["Crucible blast", "#ff8438"],
-    sealgrid: ["Storm Cage", "#f08e70"],
-    shard: ["Rime Splinters", "#bacfd9"],
-    fang: ["Glasswyrm Fang", "#ffd98a"],
-    brood: ["Spore Brood", "#c1d291"],
+    crucible: ["Forge blast", "#ff8438"],
+    bellCage: ["Bell Cage", "#f08e70"],
+    shard: ["Ice Shards", "#bacfd9"],
+    fang: ["Sand Dragon Fang", "#ffd98a"],
+    mossHelpers: ["Spore Brood", "#c1d291"],
     other: ["Other", "#93a2bf"],
   },
   escapeHtml = (text) =>
@@ -245,7 +245,7 @@ const getById = (id) => document.getElementById(id),
       this.viewWeapon = 0;
       this.viewThreat = 0;
       this.recTab = "milestones";
-      this.codexTab = "realms";
+      this.codexTab = "areas";
       this.hudCache = {};
       // 3.46.0: the buff row and its step bars are cached per frame (see buffs)
       this.buffRow = null;
@@ -366,7 +366,7 @@ const getById = (id) => document.getElementById(id),
           el.blur?.();
           action();
         });
-      for (const action of ["dash", "nova", "gadget"]) {
+      for (const action of ["dash", "fireBurst", "gravityBell"]) {
         onPress(getById(action + "Btn"), () => this.g.input.press(action));
       }
       this.click(getById("pauseBtn"), () => {
@@ -420,9 +420,9 @@ const getById = (id) => document.getElementById(id),
           lv = world.up[btn.dataset.up] || 0;
         if (up) {
           const tag = up.boss
-            ? "Guardian Relic"
+            ? "Boss Reward"
             : up.evo
-              ? "Masterwork"
+              ? "Master Craft"
               : up.repeat
                 ? `\xD7${lv}`
                 : `Lv ${lv}/${up.max}`;
@@ -434,7 +434,7 @@ const getById = (id) => document.getElementById(id),
         if (
           await this.confirm(
             "Restart run?",
-            "Shards collected so far are kept. A fresh run starts with the same armament and trial.",
+            "Shards collected so far are kept. A fresh run starts with the same weapon and trial.",
             "Restart",
           )
         ) {
@@ -513,7 +513,7 @@ const getById = (id) => document.getElementById(id),
         if (
           (await this.confirm(
             "Reset all progress?",
-            "Shards, Sanctuary crafts, armaments, Journal records, and milestones are wiped. Settings stay.",
+            "Shards, workshop upgrades, weapons, Journal records, and milestones are wiped. Settings stay.",
             "Continue",
           )) &&
           (await this.confirm("Really reset?", "This cannot be undone.", "Reset everything", true))
@@ -697,7 +697,7 @@ const getById = (id) => document.getElementById(id),
       getById("wPrev").disabled = this.viewWeapon <= 0;
       getById("wNext").disabled = this.viewWeapon >= weaponOrder.length - 1;
       this.updatePlayState();
-      // Preview locked armaments in 3D too so players can inspect what they are saving up for.
+      // Preview locked weapons in 3D too so players can inspect what they are saving up for.
       this.g.previewWeapon(id);
       markHomeViewDirty();
     }
@@ -728,7 +728,7 @@ const getById = (id) => document.getElementById(id),
             : "PLAY"
           : save.weapons[id]
             ? "TRIAL LOCKED"
-            : "ARMAMENT LOCKED";
+            : "WEAPON LOCKED";
     }
     stepWeapon(dir) {
       this.viewWeapon = clamp(this.viewWeapon + dir, 0, weaponOrder.length - 1);
@@ -784,10 +784,10 @@ const getById = (id) => document.getElementById(id),
       for (let el of document.querySelectorAll(".bankMirror")) el.textContent = formatCount(save.shards);
       let list = getById("wsList");
       const groups = [
-        ["ward", "Ward & Vitality", "cat-ward"],
-        ["arms", "Armaments", "cat-fire"],
-        ["stride", "Stride & Reflex", "cat-stride"],
-        ["craft", "Artificer's Craft", "cat-fate"],
+        ["ward", "Health & Shield", "cat-ward"],
+        ["arms", "Weapons", "cat-fire"],
+        ["stride", "Movement", "cat-stride"],
+        ["craft", "Run Help", "cat-fate"],
       ];
       list.innerHTML = groups
         .map(([gKey, gTitle, catCls]) => {
@@ -847,7 +847,7 @@ const getById = (id) => document.getElementById(id),
           ["Best wave", stats.bestWave || "\u2014"],
           ["Clears", stats.clears],
           ["Kills", formatCount(stats.kills)],
-          ["Guardians felled", bossKills],
+          ["Bosses felled", bossKills],
           ["Highest trial", stats.bestClearThreat >= 0 ? threatLevels[stats.bestClearThreat].name : "\u2014"],
           ["Time played", formatTime(stats.playTime)],
           ["Fastest clear", stats.bestTime > 0 ? formatTime(stats.bestTime) : "\u2014"],
@@ -900,11 +900,11 @@ const getById = (id) => document.getElementById(id),
       const box = getById("codexList");
       if (!box) return;
       const save = this.save,
-        sub = this.codexTab || "realms";
+        sub = this.codexTab || "areas";
       for (const btn of document.querySelectorAll("#codexSubtabs [data-codex-tab]")) {
         btn.classList.toggle("on", btn.dataset.codexTab === sub);
       }
-      if (sub === "realms") {
+      if (sub === "areas") {
         box.innerHTML = biomeList
           .map((biome) => {
             const bossId = bossByBiome[biome.id],
@@ -916,10 +916,10 @@ const getById = (id) => document.getElementById(id),
                 : kills
                   ? `${kills} felled`
                   : "Unbeaten";
-            return `<div class="codex-card"><div class="codex-head"><b>${escapeHtml(biome.name)}</b><span class="codex-tag">${escapeHtml(biome.tag || "Realm")}</span></div><p>${escapeHtml(RL_BIOME_CARD[biome.id] || "")}</p><div class="codex-meta">Guardian: ${escapeHtml(boss ? boss.name : "\u2014")} \xB7 ${escapeHtml(medalText)}</div></div>`;
+            return `<div class="codex-card"><div class="codex-head"><b>${escapeHtml(biome.name)}</b><span class="codex-tag">${escapeHtml(biome.tag || "Realm")}</span></div><p>${escapeHtml(RL_BIOME_CARD[biome.id] || "")}</p><div class="codex-meta">Boss: ${escapeHtml(boss ? boss.name : "\u2014")} \xB7 ${escapeHtml(medalText)}</div></div>`;
           })
           .join("");
-      } else if (sub === "foes") {
+      } else if (sub === "enemies") {
         const bossCards = Object.entries(bossDefs)
           .map(([id, b]) => {
             const kills = save.stats.bosses?.[id] || 0,
@@ -929,14 +929,14 @@ const getById = (id) => document.getElementById(id),
                 : kills
                   ? `${kills} felled`
                   : "Awaiting challenge";
-            return `<div class="codex-card"><div class="codex-head"><b>${escapeHtml(b.name)}</b><span class="codex-tag">Guardian</span></div><p>${escapeHtml(b.title)}</p><div class="codex-meta">${escapeHtml(meta)}</div></div>`;
+            return `<div class="codex-card"><div class="codex-head"><b>${escapeHtml(b.name)}</b><span class="codex-tag">Boss</span></div><p>${escapeHtml(b.title)}</p><div class="codex-meta">${escapeHtml(meta)}</div></div>`;
           })
           .join("");
         const foeCards = Object.entries(enemyDefs)
           .map(([id, e]) => {
             const seen = !!save.seen["tip_enemy_" + id] || save.stats.kills > 0;
-            const tip = RL_ENEMY_TIPS[id] || "Hostile construct roaming the realms.";
-            return `<div class="codex-card${seen ? "" : " undiscovered"}"><div class="codex-head"><b>${escapeHtml(e.name)}</b><span class="codex-tag">Foe</span></div><p>${escapeHtml(tip)}</p></div>`;
+            const tip = RL_ENEMY_TIPS[id] || "Hostile construct roaming the areas.";
+            return `<div class="codex-card${seen ? "" : " undiscovered"}"><div class="codex-head"><b>${escapeHtml(e.name)}</b><span class="codex-tag">Enemy</span></div><p>${escapeHtml(tip)}</p></div>`;
           })
           .join("");
         box.innerHTML = bossCards + foeCards;
@@ -947,7 +947,7 @@ const getById = (id) => document.getElementById(id),
             const recipe = Object.entries(u.evo)
               .map(([reqId, lv]) => `${upgradesById[reqId]?.name || reqId} Lv ${lv}`)
               .join(" + ");
-            const wTag = u.weapon && weaponDefs[u.weapon] ? weaponDefs[u.weapon].name : "Any Armament";
+            const wTag = u.weapon && weaponDefs[u.weapon] ? weaponDefs[u.weapon].name : "Any Weapon";
             return `<div class="codex-card"><div class="codex-head"><b>${escapeHtml(u.name)}</b><span class="codex-tag">${escapeHtml(wTag)}</span></div><p>${escapeHtml(u.desc(0))}</p><div class="codex-meta">Requires: ${escapeHtml(recipe)}</div></div>`;
           })
           .join("");
@@ -1276,7 +1276,7 @@ const getById = (id) => document.getElementById(id),
         const el = getById("hudTimer");
         if (el) el.textContent = formatTime(secs);
       });
-      update("foes", showProg ? foesLeft : -1, (n) => {
+      update("enemies", showProg ? foesLeft : -1, (n) => {
         const el = getById("hudFoes");
         if (!el) return;
         el.hidden = n <= 0;
@@ -1308,7 +1308,7 @@ const getById = (id) => document.getElementById(id),
           getById("bossTicks").innerHTML =
             type === "champ"
               ? ""
-              : type === "core"
+              : type === "starHeart"
                 ? '<s style="left:66%"></s><s style="left:33%"></s>'
                 : '<s style="left:50%"></s>';
         });
@@ -1362,16 +1362,16 @@ const getById = (id) => document.getElementById(id),
         }
         btn.classList.toggle("cooling", cooling);
       });
-      let nova = Math.floor(player.nova / 5) * 5;
-      update("nova", nova, (pct) => {
-        getById("novaBtn").style.setProperty("--p", pct + "%");
-        getById("novaBtn").classList.toggle("ready", pct >= 100);
+      let fireBurst = Math.floor(player.fireBurst / 5) * 5;
+      update("fireBurst", fireBurst, (pct) => {
+        getById("fireBurstBtn").style.setProperty("--p", pct + "%");
+        getById("fireBurstBtn").classList.toggle("ready", pct >= 100);
       });
       // 3.0.0: gadget charges as pips, recharge ring from gadgetT/gadgetCd
       const gadgetN = player.gadgetN | 0,
         gadgetMax = stats.gadgetMax | 0;
-      update("gadgetPips", gadgetN + "/" + gadgetMax, () => {
-        const pips = getById("gadgetPips");
+      update("gravityBellPips", gadgetN + "/" + gadgetMax, () => {
+        const pips = getById("gravityBellPips");
         while (pips.children.length < gadgetMax) {
           pips.appendChild(document.createElement("i"));
         }
@@ -1381,16 +1381,16 @@ const getById = (id) => document.getElementById(id),
         for (let i = 0; i < pips.children.length; i++) {
           pips.children[i].classList.toggle("on", i < gadgetN);
         }
-        const btn = getById("gadgetBtn");
+        const btn = getById("gravityBellBtn");
         btn.classList.toggle("empty", gadgetN <= 0);
-        btn.setAttribute("aria-label", `Throw Gravity Chime, ${gadgetN} of ${gadgetMax} ready`);
+        btn.setAttribute("aria-label", `Throw Gravity Bell, ${gadgetN} of ${gadgetMax} ready`);
       });
       const gadgetPct =
         gadgetN >= gadgetMax || !(stats.gadgetCd > 0)
           ? 100
           : Math.round(clamp(1 - player.gadgetT / stats.gadgetCd, 0, 1) * 20) * 5;
       update("gadgetRing", gadgetPct, (pct) => {
-        let btn = getById("gadgetBtn");
+        let btn = getById("gravityBellBtn");
         // 3.45.0: the pips say how many charges are ready - the ring only speaks while one recharges
         btn.querySelector(".ring").hidden = pct >= 100;
         btn.style.setProperty("--q", pct + "%");
@@ -1400,14 +1400,14 @@ const getById = (id) => document.getElementById(id),
       let player = world.player,
         stats = world.stats,
         chips = [];
-      if (stats.bloodrush && player.rushN > 0) {
+      if (stats.killStreak && player.rushN > 0) {
         chips.push(["rush", `HASTE \xD7${player.rushN}`, "#f08e70", player.rushT / 4]);
       }
       if (player.grazeT > 0) {
         chips.push(["graze", "PERFECT GRAZE", "#ffd872", player.grazeT / 1.5]);
       }
       if (world.chronoT > 0) {
-        chips.push(["chrono", "SLOW TIME", "#bacfd9", world.chronoT / 1.5]);
+        chips.push(["timeDash", "SLOW TIME", "#bacfd9", world.chronoT / 1.5]);
       }
       if ((world.ws.revive || 0) > 0 && !world.revived) {
         chips.push(["life", "SECOND WIND", "#abd397", -1]);
@@ -1416,10 +1416,10 @@ const getById = (id) => document.getElementById(id),
         chips.push(["barrier", "AEGIS", "#b5dcdc", world.barrierT / Math.max(1, stats.barrierT || 1)]);
       }
       if (world.attuned && world.state === "fight") {
-        chips.push(["attune", "REALM WARD", "#ffb86b", -1]);
+        chips.push(["attune", "TRAP BOOST", "#ffb86b", -1]);
       }
       if (world.event && world.state === "fight") {
-        chips.unshift(["event", waveEvents[world.event].name, world.event === "gilded" ? "#ffc84a" : "#a7d1bf", -1]);
+        chips.unshift(["event", waveEvents[world.event].name, world.event === "goldCart" ? "#ffc84a" : "#a7d1bf", -1]);
       }
       for (const [id, level] of Object.entries(world.mods || {}))
         if (MUTATORS[id])
@@ -1496,7 +1496,7 @@ const getById = (id) => document.getElementById(id),
         want.push(["ingot", "POWER+", "#ffb86c", player.tributeT / 4.0]);
       }
       if (on && player.leylineT > 0) {
-        want.push(["leyline", "LEYLINE", "#d6b8ff", -1]);
+        want.push(["leyline", "STAR PATH", "#d6b8ff", -1]);
       }
       if (on && player.tractionT > 0) {
         want.push(["rime", "ICE GRIP", "#9cf4ff", player.tractionT / 3.8]);
@@ -1508,7 +1508,7 @@ const getById = (id) => document.getElementById(id),
         want.push(["gild", "SHARD BOOST", "#ffd872", player.gildT / 3.2]);
       }
       if (on && player.festT > 0) {
-        if (world.arena?.biome?.id === "core") want.push(["fest", "STAR BOOST", "#e0b4ff", player.festT / 3.0]);
+        if (world.arena?.biome?.id === "starHall") want.push(["fest", "STAR BOOST", "#e0b4ff", player.festT / 3.0]);
         else want.push(["fest", "WARMTH", "#ffb86c", player.festT / 3.0]);
       }
       const row = buffRow;
@@ -1557,9 +1557,9 @@ const getById = (id) => document.getElementById(id),
     showChoose(world) {
       let bossReward = world.offerBoss;
       getById("chooseEyebrow").textContent = bossReward
-        ? `${bossDefs[world.bossKills[world.bossKills.length - 1]] ? bossDefs[world.bossKills[world.bossKills.length - 1]].name : "Guardian"} Defeated`
+        ? `${bossDefs[world.bossKills[world.bossKills.length - 1]] ? bossDefs[world.bossKills[world.bossKills.length - 1]].name : "Boss"} Defeated`
         : `Wave ${world.wave} Cleared`;
-      getById("chooseTitle").textContent = bossReward ? "Choose a Guardian Relic" : "Choose a Craft";
+      getById("chooseTitle").textContent = bossReward ? "Choose a Boss Reward" : "Choose a Craft";
       getById("chooseFirstHint").hidden = bossReward || world.wave !== 1;
       let hpFrac = clamp(world.player.hp / world.stats.maxHp, 0, 1);
       getById("chooseHp").style.transform = `scaleX(${hpFrac})`;
@@ -1575,15 +1575,14 @@ const getById = (id) => document.getElementById(id),
       const next = world.previewWave(world.wave + 1),
         chips = [[`Wave ${next.wave}`, ""]];
       if (next.newBiome) chips.push([`Entering ${biomesById[next.biome].name}`, "biome"]);
-      if (next.boss)
-        chips.push([`Guardian \u00b7 ${bossDefs[next.boss] ? bossDefs[next.boss].name : next.boss}`, "boss"]);
+      if (next.boss) chips.push([`Boss \u00b7 ${bossDefs[next.boss] ? bossDefs[next.boss].name : next.boss}`, "boss"]);
       if (next.event && waveEvents[next.event]) chips.push([waveEvents[next.event].name, "event"]);
-      if (next.mutator && MUTATORS[next.mutator]) chips.push([`Omen \u00b7 ${MUTATORS[next.mutator].name}`, "mut"]);
+      if (next.mutator && MUTATORS[next.mutator]) chips.push([`Modifier \u00b7 ${MUTATORS[next.mutator].name}`, "mut"]);
       if (next.traps) chips.push(["Arena traps active", ""]);
       box.innerHTML = chips.map(([text, cls]) => `<span class="nw ${cls}">${escapeHtml(text)}</span>`).join("");
     }
     renderCards(world) {
-      for (const id of ["rerollBtn", "banishBtn"])
+      for (const id of ["rerollBtn", "sealBtn"])
         getById(id)
           .querySelectorAll(".card-key")
           .forEach((el) => el.remove());
@@ -1596,9 +1595,9 @@ const getById = (id) => document.getElementById(id),
             crest = tierCrests[up.rarity] || "",
             tierName = (rarityNames[up.rarity] || "").toUpperCase(),
             tag = up.boss
-              ? `${crest} ${bossDefs[up.boss] ? bossDefs[up.boss].name.toUpperCase() : "GUARDIAN"} \xB7 RELIC`
+              ? `${crest} ${bossDefs[up.boss] ? bossDefs[up.boss].name.toUpperCase() : "BOSS"} \xB7 RELIC`
               : up.evo
-                ? `${crest} MASTERWORK`
+                ? `${crest} MASTER CRAFT`
                 : up.repeat
                   ? `${crest} ${tierName}`
                   : level
@@ -1617,7 +1616,7 @@ const getById = (id) => document.getElementById(id),
         card.addEventListener("click", () => {
           if (!cards.classList.contains("locked")) {
             // 3.25.0: with Seal armed the card is sealed out of the run instead of taken
-            if (this.banishMode) this.g.banish(card.dataset.pick);
+            if (this.banishMode) this.g.seal(card.dataset.pick);
             else this.g.choose(card.dataset.pick);
           }
         });
@@ -1626,16 +1625,16 @@ const getById = (id) => document.getElementById(id),
           if (ev.pointerType === "mouse" && !cards.classList.contains("locked")) this.g.sound.play("hover");
         });
       }
-      // 3.25.0: Waxen Seal: shown when the module is owned (or a seal is left in a resumed run)
+      // 3.25.0: Seal Cards: shown when the module is owned (or a seal is left in a resumed run)
       {
-        const btn = getById("banishBtn"),
-          has = (world.ws.banish || 0) > 0 || world.banishes > 0;
+        const btn = getById("sealBtn"),
+          has = (world.ws.seal || 0) > 0 || world.banishes > 0;
         btn.hidden = !has;
         if (world.banishes <= 0 || world.offer.length < 2) this.banishMode = false;
         btn.disabled = world.banishes <= 0 || world.offer.length < 2;
         btn.classList.toggle("on", !!this.banishMode);
         btn.setAttribute("aria-pressed", String(!!this.banishMode));
-        getById("banishTxt").textContent = `Seal (${world.banishes})`;
+        getById("sealTxt").textContent = `Seal (${world.banishes})`;
         cards.classList.toggle("banishing", !!this.banishMode);
       }
       getById("rerollTxt").textContent = `Reroll (${world.rerolls})`;
@@ -1647,11 +1646,8 @@ const getById = (id) => document.getElementById(id),
           card.classList.add("has-key");
           card.insertAdjacentHTML("beforeend", `<kbd class="card-key" aria-hidden="true">${i + 1}</kbd>`);
         });
-        if (!getById("banishBtn").hidden) {
-          getById("banishTxt").insertAdjacentHTML(
-            "afterend",
-            '<kbd class="card-key inline" aria-hidden="true">B</kbd>',
-          );
+        if (!getById("sealBtn").hidden) {
+          getById("sealTxt").insertAdjacentHTML("afterend", '<kbd class="card-key inline" aria-hidden="true">B</kbd>');
         }
         getById("rerollTxt").insertAdjacentHTML("afterend", '<kbd class="card-key inline" aria-hidden="true">R</kbd>');
       }
@@ -1707,7 +1703,7 @@ const getById = (id) => document.getElementById(id),
       if (world.state !== "anvil") return;
       const next = world.previewWave(world.wave + 1),
         nextBiome = biomesById[next.biome];
-      getById("anvilEyebrow").textContent = nextBiome ? `Ahead · ${nextBiome.name}` : "Between Realms";
+      getById("anvilEyebrow").textContent = nextBiome ? `Ahead · ${nextBiome.name}` : "Between Areas";
       getById("anvilShards").textContent = formatCount(world.shards);
       const hpFrac = clamp(world.player.hp / world.stats.maxHp, 0, 1);
       getById("anvilHp").style.transform = `scaleX(${hpFrac})`;
@@ -1830,7 +1826,7 @@ const getById = (id) => document.getElementById(id),
         ["Wave", result.wave],
         ["Time", formatTime(result.time)],
         ["Kills", result.kills],
-        ["Guardians", result.bosses],
+        ["Bosses", result.bosses],
       ]
         .map(([label, value]) => `<div class="cell"><div class="k">${label}</div><div class="v">${value}</div></div>`)
         .join("");
@@ -2011,7 +2007,7 @@ const getById = (id) => document.getElementById(id),
       holdTitleCard(
         this,
         "biome",
-        `<div class="tcard biome hold" data-biome="${escapeHtml(info.id)}" style="--bc:${info.color}"><div class="tc-band"><div class="tc-eye">${wave ? `Wave ${escapeHtml(wave)} \xB7 ` : ""}Entering</div><div class="tc-name">${escapeHtml(info.name)}</div>${info.hazard ? `<div class="tc-haz">${escapeHtml(info.hazard)}</div>` : ""}${info.boss ? `<div class="tc-boss"><span>Guardian</span>${escapeHtml(info.boss)}</div>` : ""}</div></div>`,
+        `<div class="tcard biome hold" data-biome="${escapeHtml(info.id)}" style="--bc:${info.color}"><div class="tc-band"><div class="tc-eye">${wave ? `Wave ${escapeHtml(wave)} \xB7 ` : ""}Entering</div><div class="tc-name">${escapeHtml(info.name)}</div>${info.hazard ? `<div class="tc-haz">${escapeHtml(info.hazard)}</div>` : ""}${info.boss ? `<div class="tc-boss"><span>Boss</span>${escapeHtml(info.boss)}</div>` : ""}</div></div>`,
         2500,
         ms,
       );
@@ -2062,12 +2058,12 @@ function closePauseSettings(ui) {
 }
 
 const RL_BIOME_CARD = {
-  courtyard: "Shock pads zap enemies · shoot lanterns to stun nearby enemies",
-  shelf: "Slippery ice floor · shoot ice crystals to freeze enemies and get better grip",
-  marsh: "Acid pools weaken enemies · shoot spore bulbs for a quick speed boost",
-  core: "Portals teleport you and your shots · shoot prisms to boost shots and slow enemy bullets",
-  caldera: "Lava vents erupt regularly · shoot slag crucibles to crack enemy armor",
-  flats: "Dust devils pull you off course · shoot sun pillars to fire solar bolts and calm winds",
+  lanternYard: "Shock pads zap enemies · shoot lanterns to stun nearby enemies",
+  snowRidge: "Slippery ice floor · shoot ice crystals to freeze enemies and get better grip",
+  mossBog: "Acid pools weaken enemies · shoot spore bulbs for a quick speed boost",
+  starHall: "Portals move you and your shots · shoot crystals to boost shots and slow enemy fire",
+  emberHill: "Lava vents erupt · shoot forge pots to break enemy armor",
+  sunDunes: "Whirlwinds pull you off course · shoot pillars to fire bolts and calm the wind",
 };
 const rlHex = (color) => "#" + ((Number(color) >>> 0) & 0xffffff).toString(16).padStart(6, "0");
 function rlBiomeCardInfo(biome) {

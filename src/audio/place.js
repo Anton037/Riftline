@@ -71,7 +71,7 @@ const PLACE = Object.fromEntries(
 );
 
 const SCAPE = {
-  courtyard: {
+  lanternYard: {
     bed: [
       ["rainDrop", 4.5, 8.5, 0.32],
       ["galleryChime", 10, 19, 0.27, 0.34],
@@ -82,7 +82,7 @@ const SCAPE = {
       { id: "gutter", every: [24, 48] },
     ],
   },
-  shelf: {
+  snowRidge: {
     bed: [
       ["wind", 4.8, 9.2, 0.36],
       ["iceTink", 8, 15, 0.25],
@@ -94,7 +94,7 @@ const SCAPE = {
       { id: "avalanche", every: [72, 130], big: true },
     ],
   },
-  marsh: {
+  mossBog: {
     bed: [
       ["drip", 4.2, 8.2, 0.34, 0],
       ["cricket", 7, 13, 0.24, 0.35],
@@ -106,7 +106,7 @@ const SCAPE = {
       { id: "breath", every: [42, 66], big: true },
     ],
   },
-  flats: {
+  sunDunes: {
     bed: [
       ["glassPing", 6.5, 12.5, 0.28, 0],
       ["gust", 8, 15, 0.28],
@@ -118,7 +118,7 @@ const SCAPE = {
       { id: "shimmer", every: [28, 54] },
     ],
   },
-  core: {
+  starHall: {
     bed: [
       ["gravityHum", 6.8, 12.0, 0.35, 0.5],
       ["shimmer", 8.5, 15.5, 0.28],
@@ -130,7 +130,7 @@ const SCAPE = {
       { id: "swell", every: [38, 62], big: true },
     ],
   },
-  caldera: {
+  emberHill: {
     bed: [
       ["emberPop", 4.2, 8.4, 0.34],
       ["calderaRumble", 6.5, 11.5, 0.36, 0],
@@ -147,26 +147,26 @@ const PLACE_IDS = Object.keys(PLACE);
 
 const PROP_HEAR = 7;
 const COVER_VOICE = {
-  courtyard: "hum",
-  shelf: "iceTink",
-  marsh: "drip",
-  core: "gravityHum",
-  caldera: "ventPulse",
-  flats: "glassPing",
+  lanternYard: "hum",
+  snowRidge: "iceTink",
+  mossBog: "drip",
+  starHall: "gravityHum",
+  emberHill: "ventPulse",
+  sunDunes: "glassPing",
 };
 const CORNER_VOICE = {
-  courtyard: ["galleryChime", 5, 10],
-  shelf: ["icicles", 4.5, 9],
-  marsh: ["frogChorus", 6, 11],
-  core: ["shimmer", 5, 10],
-  caldera: ["fumarole", 4.5, 9],
-  flats: ["crystals", 5, 10],
+  lanternYard: ["galleryChime", 5, 10],
+  snowRidge: ["icicles", 4.5, 9],
+  mossBog: ["frogChorus", 6, 11],
+  starHall: ["shimmer", 5, 10],
+  emberHill: ["fumarole", 4.5, 9],
+  sunDunes: ["crystals", 5, 10],
 };
 const RELIC_VOICE = {
   lantern: "galleryChime",
   rime: "iceTink",
   puffball: "drip",
-  prism: "shimmer",
+  iceCrystal: "shimmer",
   crucible: "emberPop",
   sunglass: "glassPing",
 };
@@ -195,7 +195,7 @@ function nearestProp(arena, player) {
       }
     }
   }
-  if (biome === "courtyard") {
+  if (biome === "lanternYard") {
     // The tall lamps in biome-props occur on every third section of the exterior sill.
     for (const alongX of [true, false]) {
       const length = alongX ? arena.W : arena.H;
@@ -239,7 +239,7 @@ function placeTick(e, world, dt) {
       return out;
     };
   // vents announce their warning once when the charge or heat begins to build
-  const isCourtyard = arena.biome.id === "courtyard";
+  const isCourtyard = arena.biome.id === "lanternYard";
   for (const vent of arena.vents) {
     const state = fight ? arena.ventState(vent, world.waveT) : "idle",
       last = st.vents.get(vent);
@@ -280,7 +280,7 @@ function placeTick(e, world, dt) {
     const portal = arena.portals[Math.floor(Math.random() * arena.portals.length)];
     play("portalWhisper", at(portal.ax, portal.ay, 0.5));
   }
-  // nearby props: the lanterns along the edges of Lantern Courtyard, the anvil blocks of the Ashfall
+  // nearby props: the lanterns along the edges of Lantern Yard, the anvil blocks of the Ashfall
   // Caldera, the obelisks of the Shattered Core (all where the renderer draws them), the nearest one within PROP_HEAR
   const prop = nearestProp(arena, player);
   if (prop && due("prop:" + prop.id, prop.lo, prop.hi)) {

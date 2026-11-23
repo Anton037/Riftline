@@ -36,7 +36,7 @@ const Input = class {
     this.aim = newStick();
     this.keys = new Set();
     this.mouse = { x: 0, y: 0, down: false };
-    this.pending = { dash: 0, nova: 0, gadget: 0, fire: 0 };
+    this.pending = { dash: 0, fireBurst: 0, gravityBell: 0, fire: 0 };
     this.pads = new Set();
     this.padButtons = [];
     this.padMove = [0, 0];
@@ -306,11 +306,11 @@ const Input = class {
           this.press("dash");
         }
         if (name === "e" || name === "q" || name === "f") {
-          this.press("nova");
+          this.press("fireBurst");
           ev.preventDefault();
         }
         if (name === "g") {
-          this.press("gadget");
+          this.press("gravityBell");
           ev.preventDefault();
         }
       }
@@ -381,8 +381,8 @@ const Input = class {
         this.onPause?.();
       } else if (playing) {
         if (pressed(0) || pressed(4)) this.press("dash");
-        if (pressed(1) || pressed(5)) this.press("nova");
-        if (pressed(3) || pressed(6)) this.press("gadget");
+        if (pressed(1) || pressed(5)) this.press("fireBurst");
+        if (pressed(3) || pressed(6)) this.press("gravityBell");
         if (pressed(7)) this.press("fire");
       } else if (RL_INPUT.gamepad) {
         if (pressed(1)) {
@@ -440,7 +440,7 @@ const Input = class {
   }
   // Drop one-shot actions during a boss camera pan, but keep held sticks and keys.
   settle() {
-    this.pending.dash = this.pending.nova = this.pending.gadget = this.pending.fire = 0;
+    this.pending.dash = this.pending.fireBurst = this.pending.gravityBell = this.pending.fire = 0;
   }
   /* the radius of the sticks in px: a share of the screen, times the stick size of the player (scale: another size) */
   radius(scale = this.stickScale) {
@@ -451,8 +451,8 @@ const Input = class {
       player = world.player,
       fighting = world.state === "fight";
     const dash = this.consume("dash", player.dashT <= 0 && (player.dashN > 0 || player.dashCdT <= dt), now);
-    const nova = this.consume("nova", fighting && player.nova >= 100, now);
-    const gadget = this.consume("gadget", fighting && (player.gadgetN > 0 || player.gadgetT <= dt), now);
+    const fireBurst = this.consume("fireBurst", fighting && player.fireBurst >= 100, now);
+    const gravityBell = this.consume("gravityBell", fighting && (player.gadgetN > 0 || player.gadgetT <= dt), now);
     const bufferedFire = this.consume("fire", player.fireT <= dt, now);
     let radius = (this.R = this.radius()),
       mx = 0,
@@ -494,6 +494,7 @@ const Input = class {
     let ax = 0,
       ay = 0,
       aim = false,
+      aimDistance = 0,
       fire = false;
     if (this.aim.active) {
       let dx = this.aim.x - this.aim.ox,
@@ -535,6 +536,7 @@ const Input = class {
           if (!aim && (this.mouse.down || bufferedFire)) {
             ax = lookX;
             ay = lookY;
+            aimDistance = dist;
             aim = true;
             this.usedAim = true;
           }
@@ -551,6 +553,7 @@ const Input = class {
       ax,
       ay,
       aim,
+      aimDistance,
       fire,
       aimOnly: RL_INPUT.gamepad && !fire,
       lookX,
@@ -559,8 +562,8 @@ const Input = class {
       auto: settings.autoFire !== false,
       assist: settings.assist !== false,
       dash,
-      nova,
-      gadget,
+      fireBurst,
+      gravityBell,
     };
   }
 };
@@ -570,13 +573,13 @@ function chooseKey(code, key) {
   if (match) {
     const card = getById("cards").querySelectorAll("[data-pick]")[+match[1] - 1];
     if (card && !getById("cards").classList.contains("locked")) {
-      if (getById("cards").classList.contains("banishing")) game.banish(card.dataset.pick);
+      if (getById("cards").classList.contains("banishing")) game.seal(card.dataset.pick);
       else game.choose(card.dataset.pick);
     }
     return true;
   }
   if (key === "b") {
-    const btn = getById("banishBtn");
+    const btn = getById("sealBtn");
     if (btn && !btn.hidden && !btn.disabled) btn.click();
     return true;
   }

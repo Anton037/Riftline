@@ -31,7 +31,7 @@ const times = {
   glacier: 1.2,
   iceshards: 1.7,
   cross: 1.5,
-  sealgrid: 1.6,
+  bellCage: 1.6,
   whiteout: 1.6,
   plague: 1.8,
   collapse: 1.6,
@@ -39,19 +39,19 @@ const times = {
   rise: 1.4,
   shards: 1.3,
   sunlance: 1.4,
-  mirage: 1.7,
+  sandstorm: 1.7,
   noon: 1.6,
 };
 const specs = [];
 for (const weapon of Object.keys(WEAPON_EFFECTS))
-  specs.push({ kind: "weapon", weapon, biome: "courtyard", time: weapon === "rail" ? 0.06 : 0.12 });
+  specs.push({ kind: "weapon", weapon, biome: "lanternYard", time: weapon === "starSpear" ? 0.06 : 0.12 });
 specs.push(
-  { kind: "weapon", weapon: "tesla", biome: "courtyard", time: 0.28, extra: "chain" },
-  { kind: "weapon", weapon: "disc", biome: "courtyard", time: 0.82, extra: "return" },
-  { kind: "weapon", weapon: "flame", biome: "courtyard", time: 0.38, extra: "stream" },
+  { kind: "weapon", weapon: "sparkWand", biome: "lanternYard", time: 0.28, extra: "chain" },
+  { kind: "weapon", weapon: "ringBlade", biome: "lanternYard", time: 0.82, extra: "return" },
+  { kind: "weapon", weapon: "fireBellows", biome: "lanternYard", time: 0.38, extra: "stream" },
 );
 for (const [boss, attacks] of Object.entries(bossPatterns)) {
-  const biome = Object.keys(bossByBiome).find((id) => bossByBiome[id] === boss) || "caldera";
+  const biome = Object.keys(bossByBiome).find((id) => bossByBiome[id] === boss) || "emberHill";
   for (const attack of new Set([...attacks, OVERDRIVE[boss]]))
     specs.push({
       kind: "boss",
@@ -60,27 +60,27 @@ for (const [boss, attacks] of Object.entries(bossPatterns)) {
       biome,
       time: times[attack] || 1.4,
       enraged: attack === OVERDRIVE[boss],
-      phase: boss === "core" && attack === "cross" ? 2 : undefined,
+      phase: boss === "starHeart" && attack === "cross" ? 2 : undefined,
     });
 }
 for (const [biome, skin] of Object.entries(SENTINEL_BEAMS)) specs.push({ kind: "beam", biome, skin, time: 1.3 });
 for (const [biome, skin, fam] of [
-  ["caldera", "magma", "beam"],
-  ["caldera", "embermine", "mine"],
-  ["caldera", "pyro", "floor"],
-  ["flats", "glassmine", "mine"],
-  ["flats", "sunspike", "floor"],
+  ["emberHill", "magma", "beam"],
+  ["emberHill", "embermine", "mine"],
+  ["emberHill", "pyro", "floor"],
+  ["sunDunes", "glassmine", "mine"],
+  ["sunDunes", "sunspike", "floor"],
 ])
   for (const phase of ["warn", "fire"]) specs.push({ kind: "trap", biome, skin, fam, phase, time: 0.1 });
 // Close views check material detail and silhouette on every boss, plus the Tyrant's magma lob.
 specs.push(
-  { kind: "boss", boss: "bellkeeper", biome: "courtyard", attack: "ring", time: 1.45, close: true },
-  { kind: "boss", boss: "queen", biome: "marsh", attack: "spiral", time: 1.8, close: true },
-  { kind: "boss", boss: "prism", biome: "shelf", attack: "icelances", time: 1.3, close: true },
-  { kind: "boss", boss: "core", biome: "core", attack: "spiral", time: 1.8, close: true },
-  { kind: "boss", boss: "wyrm", biome: "flats", attack: "shards", time: 1.3, close: true },
-  { kind: "boss", boss: "tyrant", biome: "caldera", attack: "barrage", time: 1.15, close: true },
-  { kind: "boss", boss: "tyrant", biome: "caldera", attack: "rain", time: 0.85, close: true },
+  { kind: "boss", boss: "bellKeeper", biome: "lanternYard", attack: "ring", time: 1.45, close: true },
+  { kind: "boss", boss: "mossQueen", biome: "mossBog", attack: "spiral", time: 1.8, close: true },
+  { kind: "boss", boss: "iceCrystal", biome: "snowRidge", attack: "icelances", time: 1.3, close: true },
+  { kind: "boss", boss: "starHeart", biome: "starHall", attack: "spiral", time: 1.8, close: true },
+  { kind: "boss", boss: "sandDragon", biome: "sunDunes", attack: "shards", time: 1.3, close: true },
+  { kind: "boss", boss: "emberKing", biome: "emberHill", attack: "barrage", time: 1.15, close: true },
+  { kind: "boss", boss: "emberKing", biome: "emberHill", attack: "rain", time: 0.85, close: true },
 );
 const browser = await chromium.launch(launchOptions());
 try {
@@ -135,7 +135,7 @@ try {
     const row = await page.evaluate((spec) => {
       const T = window.__riftTest,
         r = T.renderer,
-        w = new T.World({ seed: 731, weapon: spec.weapon || "pulse", threat: 0, ws: {} }),
+        w = new T.World({ seed: 731, weapon: spec.weapon || "lanternGun", threat: 0, ws: {} }),
         input = { mx: 0, my: 0, auto: false, fire: false, dash: false };
       T.game.world = w;
       T.game.paused = true;
@@ -200,13 +200,13 @@ try {
           [9, 4],
           [5, 5],
         ]) {
-          const e = w.spawnEnemy("grunt", x, y, { noVariant: true });
+          const e = w.spawnEnemy("kettleGuard", x, y, { noVariant: true });
           e.spawnT = 0;
           e.hp = e.maxHp = 1e6;
           e.t = 1e6;
         }
       } else if (spec.kind === "beam") {
-        w.beam({ x: -5, y: 0, a: 0.12, len: 16, w: 1.1, warn: 0.8, dur: 3, skin: spec.skin, src: "sentinel" });
+        w.beam({ x: -5, y: 0, a: 0.12, len: 16, w: 1.1, warn: 0.8, dur: 3, skin: spec.skin, src: "crystalTower" });
       } else if (spec.kind === "trap") {
         w.traps = [
           {
@@ -296,8 +296,8 @@ try {
     if (spec.kind === "boss")
       for (const kind of row.shots)
         assert.equal(kind, BOSS_EFFECTS[spec.boss].projectile, `${spec.boss}/${spec.attack}`);
-    if (spec.kind === "weapon" && spec.weapon === "tesla" && !spec.extra) assert.ok(row.arcSegments > 0);
-    if (spec.kind === "weapon" && spec.weapon === "flame") assert.ok(row.flameRibbons > 0);
+    if (spec.kind === "weapon" && spec.weapon === "sparkWand" && !spec.extra) assert.ok(row.arcSegments > 0);
+    if (spec.kind === "weapon" && spec.weapon === "fireBellows") assert.ok(row.flameRibbons > 0);
     const name =
       spec.kind === "boss"
         ? `${spec.boss}-${spec.attack}${spec.close ? "-close" : ""}`

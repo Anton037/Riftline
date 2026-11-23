@@ -29,7 +29,7 @@ const PROP_COLORS = {
   lantern: { glow: new Color(0xffd27d), burst: new Color(0xffe4a0), spark: new Color(0x7af4e4) },
   rime: { glow: new Color(0x9eeaff), burst: new Color(0xdff8ff), spark: new Color(0x74d8ff) },
   puffball: { glow: new Color(0x88f4ba), burst: new Color(0xc8ffe0), spark: new Color(0xf8cf78) },
-  prism: { glow: new Color(0xd6a6ff), burst: new Color(0xf2d8ff), spark: new Color(0xffe094) },
+  iceCrystal: { glow: new Color(0xd6a6ff), burst: new Color(0xf2d8ff), spark: new Color(0xffe094) },
   crucible: { glow: new Color(0xff8e3c), burst: new Color(0xffc970), spark: new Color(0xff6428) },
   sunglass: { glow: new Color(0x64f2de), burst: new Color(0xffe89c), spark: new Color(0x52e8d4) },
 };
@@ -110,7 +110,7 @@ function buildPropKit(kind) {
       );
     }
     glow.push(meshPart(torus(0.14, 0.026, 5, 12), 0xb8ffe0, { y: 0.62, rx: Math.PI / 2, anim: [4, 0.34, 0, -1.0] }));
-  } else if (kind === "prism") {
+  } else if (kind === "iceCrystal") {
     // Harmonic Tuning Prism: burnished brass astrolabe base + twin amethyst tuning prongs + levitating core crystal
     body.push(
       meshPart(cylinder(0.44, 0.5, 0.11, 8), 0x221a38, { y: 0.055 }),
@@ -162,7 +162,7 @@ const PROP_SURFACE = {
   lantern: "metal",
   rime: "crystal",
   puffball: "organic",
-  prism: "crystal",
+  iceCrystal: "crystal",
   crucible: "basalt",
   sunglass: "crystal",
 };
@@ -251,7 +251,7 @@ export class BiomePropsView {
         arming ? 1 : ready ? 0.35 : 0,
       );
 
-      const pulse = ready
+      const lanternGun = ready
         ? 0.85 + 0.22 * Math.sin(time * 3.4 + prop.id * 2)
         : arming
           ? 1.35 + 0.6 * armK
@@ -267,9 +267,9 @@ export class BiomePropsView {
         0,
         0,
         packedPhase,
-        gCol.r * pulse,
-        gCol.g * pulse,
-        gCol.b * pulse,
+        gCol.r * lanternGun,
+        gCol.g * lanternGun,
+        gCol.b * lanternGun,
         0,
         arming ? 1 : ready ? 0.35 : 0,
       );

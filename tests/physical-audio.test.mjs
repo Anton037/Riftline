@@ -31,13 +31,13 @@ test("recorded source regions fit the shipped PCM bank and contain real signal",
 test("physical voices produce finite, faded material bodies and bound their cache", () => {
   const bank = new PhysicalVoices(ctx, { decode: false });
   for (const id of [
-    "pulse",
-    "scatter",
-    "tesla",
-    "rail",
-    "rocket",
-    "disc",
-    "flame",
+    "lanternGun",
+    "brassShotgun",
+    "sparkWand",
+    "starSpear",
+    "emberLauncher",
+    "ringBlade",
+    "fireBellows",
     "hit",
     "dArmor",
     "dSquelch",
@@ -91,17 +91,17 @@ test("ambient weather, wildlife and machinery stay independent of weapon and imp
 
 test("hits and critical hits use the target material; only crystal targets use glass", () => {
   const families = {
-    grunt: "hitArmor",
-    sniper: "hitArmor",
-    beacon: "hitArmor",
-    swarmer: "hitOrganic",
-    mender: "hitOrganic",
-    carrier: "hitOrganic",
-    core: "hitStone",
-    tyrant: "hitStone",
-    prism: "hitCrystal",
-    wyrm: "hitCrystal",
-    phantom: "hitEnergy",
+    kettleGuard: "hitArmor",
+    longshot: "hitArmor",
+    healingStone: "hitArmor",
+    smallBug: "hitOrganic",
+    mossHealer: "hitOrganic",
+    supplyKite: "hitOrganic",
+    starHeart: "hitStone",
+    emberKing: "hitStone",
+    iceCrystal: "hitCrystal",
+    sandDragon: "hitCrystal",
+    starGhost: "hitEnergy",
   };
   for (const [type, family] of Object.entries(families)) {
     const hit = physicalProfile("hit", { type }),
@@ -111,12 +111,12 @@ test("hits and critical hits use the target material; only crystal targets use g
     assert.equal(hit.sample === "glass", family === "hitCrystal", type);
     assert.ok(crit.gain > hit.gain && hit.dur <= 0.17, type);
   }
-  assert.equal(physicalProfile("hit", { type: "grunt", shield: true }).family, "hitEnergy");
+  assert.equal(physicalProfile("hit", { type: "kettleGuard", shield: true }).family, "hitEnergy");
 });
 
 test("physical voice cache distinguishes filters and excitation without changing procedural weather", () => {
   const voices = new PhysicalVoices(ctx, { decode: false }),
-    base = physicalProfile("pulse"),
+    base = physicalProfile("lanternGun"),
     filtered = { ...base, lowpass: 900 },
     crackle = { ...base, recordGain: 0, arc: 0.6 };
   const a = voices.buffer(base, 1),
@@ -144,12 +144,12 @@ test("prefix and place rules map movement, desert/volcanic cues and place accent
   }
 });
 
-test("Lantern Courtyard ambience uses resonators and leaves illumination to the arena", () => {
-  const courtyard = SCAPE.courtyard;
-  for (const { id } of courtyard.far) assert.ok(PLACE_IDS.includes(id));
+test("Lantern Yard ambience uses resonators and leaves illumination to the arena", () => {
+  const lanternYard = SCAPE.lanternYard;
+  for (const { id } of lanternYard.far) assert.ok(PLACE_IDS.includes(id));
   assert.equal(physicalProfile("galleryChime", null, true).model, "ceramic");
   assert.equal(physicalProfile("kilnResonance", null, true).model, "ceramic");
-  assert.ok(courtyard.far.every((cue) => !("light" in cue)));
+  assert.ok(lanternYard.far.every((cue) => !("light" in cue)));
 });
 
 test("all 18 biome trap sounds and 6 mine arming voices synthesize finite non-silent buffers", async () => {
@@ -206,17 +206,21 @@ test("overhauled SFX profiles separate impacts, warnings, shields, and weapons w
     ...impactSet,
     ...warnSet,
     ...shieldSet,
-    "pulse",
-    "scatter",
-    "tesla",
-    "rail",
-    "rocket",
-    "disc",
-    "flame",
+    "lanternGun",
+    "brassShotgun",
+    "sparkWand",
+    "starSpear",
+    "emberLauncher",
+    "ringBlade",
+    "fireBellows",
   ]) {
     const p = physicalProfile(id);
     const data = bank.buffer(p, 0).getChannelData(0);
     assert.ok(data.every(Number.isFinite) && data.some((v) => Math.abs(v) > 0.005), `${id}: invalid buffer`);
   }
-  assert.equal(physicalProfile("flame").weaponStage, "flame", "flame should use smooth cross-faded grain synthesis");
+  assert.equal(
+    physicalProfile("fireBellows").weaponStage,
+    "fireBellows",
+    "flame should use smooth cross-faded grain synthesis",
+  );
 });

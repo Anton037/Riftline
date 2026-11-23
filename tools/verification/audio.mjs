@@ -72,7 +72,7 @@ assert.deepEqual(
   names,
   "Every catalog sound must be rendered exactly once",
 );
-for (const biome of ["courtyard", "shelf", "marsh", "core", "caldera", "flats"]) {
+for (const biome of ["lanternYard", "snowRidge", "mossBog", "starHall", "emberHill", "sunDunes"]) {
   const part = await withAudioPage(
     url,
     async (biome) => {
@@ -142,8 +142,8 @@ for (const biome of ["courtyard", "shelf", "marsh", "core", "caldera", "flats"])
           fail.push(`${biome}/${kind}: invalid, silent, clipping or missing music`);
       }
       // Real regression: old music and its delay must stop when a track is changed.
-      if (["courtyard", "core", "shelf"].includes(biome)) {
-        const music = biome === "shelf" ? "boss" : "fight";
+      if (["lanternYard", "starHall", "snowRidge"].includes(biome)) {
+        const music = biome === "snowRidge" ? "boss" : "fight";
         const spec = { music, biome, intensity: 0.9, heat: 0.5, wav: true, seed: 5, musicEnd: 6, noBed: true };
         const kept = (await E.renderOffline(spec, 10)).samples;
         const cut = (await E.renderOffline({ ...spec, quietAt: 6 }, 10)).samples;
@@ -178,12 +178,16 @@ result.continuity = await withAudioPage(url, async () => {
     });
     if (!(r.lastAudible > 1.2)) fail.push(`long noise at rate ${rate} is cut off`);
   }
-  const flame = await E.renderOffline({ burst: { id: "flame", n: 26, interval: 1 / 15 }, wav: true, seed: 7 });
+  const fireBellows = await E.renderOffline({
+    burst: { id: "fireBellows", n: 26, interval: 1 / 15 },
+    wav: true,
+    seed: 7,
+  });
   const levels = [],
     win = 1764;
   for (let t = Math.round(0.5 * 44100); t + win <= Math.round(1.5 * 44100); t += win) {
     let sum = 0;
-    for (let i = 0; i < win; i++) sum += flame.samples[t + i] ** 2;
+    for (let i = 0; i < win; i++) sum += fireBellows.samples[t + i] ** 2;
     levels.push(Math.sqrt(sum / win));
   }
   const mean = levels.reduce((a, b) => a + b, 0) / levels.length;

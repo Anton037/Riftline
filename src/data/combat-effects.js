@@ -1,6 +1,6 @@
 // Presentation identities: shared by the simulation, rendering and audio. No random draws or balance values.
 export const BOSS_EFFECTS = {
-  bellkeeper: {
+  bellKeeper: {
     projectile: "brass-seal",
     shot: "eshotKeeper",
     height: 2.15,
@@ -8,9 +8,9 @@ export const BOSS_EFFECTS = {
     color: 0xd78e67,
     accent: 0xf4cf95,
     surface: "armor",
-    summon: "courtyard",
+    summon: "lanternYard",
   },
-  queen: {
+  mossQueen: {
     projectile: "spore",
     shot: "eshotQueen",
     height: 1.8,
@@ -18,9 +18,9 @@ export const BOSS_EFFECTS = {
     color: 0x8ebc88,
     accent: 0xcbe3a9,
     surface: "organic",
-    summon: "brood",
+    summon: "mossHelpers",
   },
-  prism: {
+  iceCrystal: {
     projectile: "shard",
     shot: "eshotPrism",
     height: 1.9,
@@ -30,7 +30,7 @@ export const BOSS_EFFECTS = {
     surface: "ice",
     summon: "frost",
   },
-  core: {
+  starHeart: {
     projectile: "riftorb",
     shot: "eshotCore",
     height: 2.4,
@@ -40,7 +40,7 @@ export const BOSS_EFFECTS = {
     surface: "stone",
     summon: "rift",
   },
-  tyrant: {
+  emberKing: {
     projectile: "cinder",
     shot: "eshotTyrant",
     height: 1.8,
@@ -50,7 +50,7 @@ export const BOSS_EFFECTS = {
     surface: "basalt",
     summon: "ember",
   },
-  wyrm: {
+  sandDragon: {
     projectile: "glass",
     shot: "eshotWyrm",
     height: 1.25,
@@ -64,65 +64,65 @@ export const BOSS_EFFECTS = {
 
 // Melee/support actors deliberately have no projectile. Every ranged actor has an explicit identity.
 export const ENEMY_EFFECTS = {
-  swarmer: { motion: "scuttle" },
-  grunt: { motion: "tread" },
-  gunner: { projectile: "bolt", shot: "eshotGunner", height: 1.0 },
-  bomber: { motion: "fuse" },
-  splitter: { motion: "brood" },
-  mite: { motion: "scuttle" },
-  brute: { motion: "heavy" },
-  sniper: { projectile: "fast", shot: "snipe", height: 1.0 },
-  hive: { motion: "brood" },
-  bulwark: { motion: "shield" },
-  striker: { motion: "blink" },
-  mortar: { motion: "shell" },
-  mender: { motion: "heal" },
-  leaper: { motion: "leap" },
-  turret: { projectile: "turret", shot: "eshotTurret", height: 1.3 },
-  charger: { motion: "ram" },
-  minebot: { motion: "mine" },
-  sapper: { motion: "charge" },
-  phantom: { motion: "phase" },
-  sentinel: { motion: "beam" },
-  carrier: { projectile: "carrier", shot: "eshotCarrier", height: 1.45 },
-  drone: { projectile: "drone", shot: "eshotDrone", height: 1.15 },
-  driller: { motion: "drill" },
-  beacon: { motion: "heal" },
-  weaver: { projectile: "weaver", shot: "eshotWeaver", height: 1.2 },
+  smallBug: { motion: "scuttle" },
+  kettleGuard: { motion: "tread" },
+  brassGuard: { projectile: "bolt", shot: "eshotGunner", height: 1.0 },
+  firePot: { motion: "fuse" },
+  sporePod: { motion: "mossHelpers" },
+  littlePod: { motion: "scuttle" },
+  ironGolem: { motion: "heavy" },
+  longshot: { projectile: "fast", shot: "snipe", height: 1.0 },
+  mushroomNest: { motion: "mossHelpers" },
+  shieldGuard: { motion: "shield" },
+  blinkBlade: { motion: "blink" },
+  bellCannon: { motion: "shell" },
+  mossHealer: { motion: "heal" },
+  bogHopper: { motion: "leap" },
+  watchTower: { projectile: "watchTower", shot: "eshotTurret", height: 1.3 },
+  wildBoar: { motion: "ram" },
+  mineCart: { motion: "mine" },
+  bombMaker: { motion: "charge" },
+  starGhost: { motion: "phase" },
+  crystalTower: { motion: "beam" },
+  supplyKite: { projectile: "supplyKite", shot: "eshotCarrier", height: 1.45 },
+  dartSprite: { projectile: "dartSprite", shot: "eshotDrone", height: 1.15 },
+  burrowMole: { motion: "drill" },
+  healingStone: { motion: "heal" },
+  starSpider: { projectile: "starSpider", shot: "eshotWeaver", height: 1.2 },
 };
 export const BEAM_EFFECTS = {
   magma: { warning: "bwFlame" },
   laser: { warning: "bwLaser" },
-  cryo: { warning: "bwCryo" },
+  iceShot: { warning: "bwCryo" },
   acid: { warning: "bwAcid" },
-  flame: { warning: "bwFlame" },
+  fireBellows: { warning: "bwFlame" },
   rift: { warning: "bwRift" },
   sun: { warning: "bwFlare" },
 };
 export const SENTINEL_BEAMS = {
-  courtyard: "laser",
-  shelf: "cryo",
-  marsh: "acid",
-  core: "rift",
-  caldera: "flame",
-  flats: "sun",
+  lanternYard: "laser",
+  snowRidge: "iceShot",
+  mossBog: "acid",
+  starHeart: "rift",
+  emberHill: "fireBellows",
+  sunDunes: "sun",
 };
 export const BIOME_TRAP_EFFECTS = {
-  courtyard: { floor: "plate", beam: "laser", mine: "mine" },
-  shelf: { floor: "icespike", beam: "cryo", mine: "frost" },
-  marsh: { floor: "geyser", beam: "acid", mine: "spore" },
-  core: { floor: "riftburst", beam: "rift", mine: "riftmine" },
-  caldera: { floor: "pyro", beam: "magma", mine: "embermine" },
-  flats: { floor: "sunspike", beam: "sun", mine: "glassmine" },
+  lanternYard: { floor: "plate", beam: "laser", mine: "mine" },
+  snowRidge: { floor: "icespike", beam: "iceShot", mine: "frost" },
+  mossBog: { floor: "geyser", beam: "acid", mine: "spore" },
+  starHall: { floor: "riftburst", beam: "rift", mine: "riftmine" },
+  emberHill: { floor: "pyro", beam: "magma", mine: "embermine" },
+  sunDunes: { floor: "sunspike", beam: "sun", mine: "glassmine" },
 };
 export const WEAPON_EFFECTS = {
-  pulse: { projectile: "pulse-bolt", muzzle: "pulse", shot: "pulse" },
-  scatter: { projectile: "shot-tracer", muzzle: "combustion", shot: "scatter" },
-  tesla: { projectile: "arc-inlay", muzzle: "arc", shot: "tesla" },
-  rail: { projectile: "rail-lance", muzzle: "rail", shot: "rail" },
-  rocket: { projectile: "exhaust-rocket", muzzle: "backblast", shot: "rocket" },
-  disc: { projectile: "returning-blade", muzzle: "mechanical", shot: "disc" },
-  flame: { projectile: "flame-tongue", muzzle: "fire", shot: "flame" },
+  lanternGun: { projectile: "pulse-bolt", muzzle: "lanternGun", shot: "lanternGun" },
+  brassShotgun: { projectile: "shot-tracer", muzzle: "combustion", shot: "brassShotgun" },
+  sparkWand: { projectile: "arc-inlay", muzzle: "arc", shot: "sparkWand" },
+  starSpear: { projectile: "rail-lance", muzzle: "starSpear", shot: "starSpear" },
+  emberLauncher: { projectile: "exhaust-rocket", muzzle: "backblast", shot: "emberLauncher" },
+  ringBlade: { projectile: "returning-blade", muzzle: "mechanical", shot: "ringBlade" },
+  fireBellows: { projectile: "flame-tongue", muzzle: "fire", shot: "fireBellows" },
 };
 export const projectileFor = (source) => BOSS_EFFECTS[source]?.projectile || ENEMY_EFFECTS[source]?.projectile || "orb";
 export const shotVoiceFor = (event) =>
@@ -131,15 +131,16 @@ export const shotVoiceFor = (event) =>
 export function attackSurface(kind, source, biome, chill) {
   if (chill || kind === "frost" || kind === "glacier") return "frost";
   if (kind === "stomp") {
-    if (source === "tyrant") return "lavaCrack";
-    if (source === "wyrm") return "glass";
+    if (source === "emberKing") return "lavaCrack";
+    if (source === "sandDragon") return "glass";
     return "crack";
   }
   if (kind === "drill" || kind === "shorted" || kind === "brimlit") return "crack";
   if (kind === "fire" || kind === "volatile") return "burn";
   if (kind === "rain") {
-    const who = source || { marsh: "queen", core: "core", caldera: "tyrant", flats: "wyrm" }[biome];
-    return { queen: "acid", core: "rift", tyrant: "molten", wyrm: "glass" }[who] || "target";
+    const who =
+      source || { mossBog: "mossQueen", starHall: "starHeart", emberHill: "emberKing", sunDunes: "sandDragon" }[biome];
+    return { mossQueen: "acid", starHeart: "rift", emberKing: "molten", sandDragon: "glass" }[who] || "target";
   }
   return "target";
 }

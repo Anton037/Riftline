@@ -5,27 +5,27 @@ import { clamp, TAU, angleDiff, turnToward } from "./util.js";
 import { updateEnemy, ENEMY_HANDLERS } from "./enemy-ai.js";
 
 const bossPatterns = {
-  bellkeeper: ["charge", "ring", "carillon", "stomp", "charge", "ring"],
-  queen: ["summon", "spiral", "burst", "eggs", "spiral", "burst"],
-  prism: ["frostbeam", "teleport", "frostnova", "icelances", "glacier", "teleport", "iceshards"],
-  core: ["spiral", "summon", "ring", "cross", "burst", "rain"],
-  tyrant: ["barrage", "charge", "summon", "ring", "barrage", "rain"],
-  wyrm: ["rise", "shards", "sunlance", "mirage"],
+  bellKeeper: ["charge", "ring", "carillon", "stomp", "charge", "ring"],
+  mossQueen: ["summon", "spiral", "burst", "eggs", "spiral", "burst"],
+  iceCrystal: ["frostbeam", "teleport", "frostnova", "icelances", "glacier", "teleport", "iceshards"],
+  starHeart: ["spiral", "summon", "ring", "cross", "burst", "rain"],
+  emberKing: ["barrage", "charge", "summon", "ring", "barrage", "rain"],
+  sandDragon: ["rise", "shards", "sunlance", "sandstorm"],
 };
 
 const PRISM_ICE = 12578815;
 const WYRM_SUN = 0xffd98a;
 
 const CRESCENDO = {
-    bellkeeper: "sealgrid",
-    prism: "whiteout",
-    queen: "plague",
-    core: "collapse",
-    tyrant: "firestorm",
-    wyrm: "noon",
+    bellKeeper: "bellCage",
+    iceCrystal: "whiteout",
+    mossQueen: "plague",
+    starHeart: "collapse",
+    emberKing: "firestorm",
+    sandDragon: "noon",
   },
   OVERDRIVE = CRESCENDO,
-  REINFORCE = { bellkeeper: true, prism: true, tyrant: true };
+  REINFORCE = { bellKeeper: true, iceCrystal: true, emberKing: true };
 
 function initBoss(game, boss) {
   boss.st = "walk";
@@ -65,20 +65,20 @@ function endBossAttack(boss, delay, opening = true) {
 function shiftBossArenaHazards(game, boss) {
   const arena = game.arena;
   if (!arena) return;
-  if (boss.type === "bellkeeper" || boss.type === "tyrant") {
+  if (boss.type === "bellKeeper" || boss.type === "emberKing") {
     for (const v of arena.vents || []) {
       v.phase = (v.phase + v.period * 0.5) % Math.max(1, v.period);
     }
-  } else if (boss.type === "wyrm") {
+  } else if (boss.type === "sandDragon") {
     for (const d of arena.devils || []) {
       d.a = (d.a || 0) + Math.PI * 0.5;
       d.calmT = 0;
     }
-  } else if (boss.type === "queen") {
+  } else if (boss.type === "mossQueen") {
     for (const p of arena.acid || []) {
       if (p.life == null) p.r = Math.min(2.8, p.r + 0.25);
     }
-  } else if (boss.type === "prism") {
+  } else if (boss.type === "iceCrystal") {
     for (const p of arena.ice || []) {
       p.r = Math.min(3.3, p.r + 0.25);
     }
@@ -100,7 +100,7 @@ function triggerPhaseTransition(game, boss, nextPhase) {
   if (typeof game.triggerHitstop === "function") game.triggerHitstop(0.032);
   else game.hitstopT = Math.max(game.hitstopT || 0, 0.032);
   game.emit("phase", { n: nextPhase, x: boss.x, y: boss.y, src: boss.type });
-  if (boss.type !== "core") {
+  if (boss.type !== "starHeart") {
     game.emit("enrage", { id: boss.type, x: boss.x, y: boss.y, src: boss.type });
     if (REINFORCE[boss.type]) bossReinforce(game, boss);
   }
@@ -130,7 +130,7 @@ function updateBoss(game, boss, dt) {
     shotDmg = boss.dmg * 0.7;
 
   // Unified HP-gated phase transitions across all 6 Guardians
-  if (boss.type === "core") {
+  if (boss.type === "starHeart") {
     const phase = hpFrac > 0.66 ? 1 : hpFrac > 0.33 ? 2 : 3;
     boss.enraged = phase >= 2;
     if (phase !== boss.phaseN) {
@@ -147,8 +147,8 @@ function updateBoss(game, boss, dt) {
     boss.shielded = boss.shieldT > 0;
   }
 
-  // Rotate Star-Vault portal mouths slowly during Shattered Heart Phase 3
-  if (boss.type === "core" && boss.phaseN >= 3 && game.arena?.portals?.length) {
+  // Rotate Star Hall portal mouths slowly during Star Heart Phase 3
+  if (boss.type === "starHeart" && boss.phaseN >= 3 && game.arena?.portals?.length) {
     const maxR = Math.min(game.arena.W, game.arena.H) - 3.8;
     for (const p of game.arena.portals) {
       const aA = Math.atan2(p.ay, p.ax) + dt * 0.28,
@@ -165,7 +165,7 @@ function updateBoss(game, boss, dt) {
   const rage = boss.enraged ? 1 : 0;
   boss.spin += dt;
 
-  if (boss.type === "wyrm" && boss.st === "walk") {
+  if (boss.type === "sandDragon" && boss.st === "walk") {
     if (boss.diveT > 0) {
       boss.diveT = Math.max(0, boss.diveT - dt);
       boss.ghost = boss.diveT > 0;
@@ -191,7 +191,7 @@ function updateBoss(game, boss, dt) {
   }
 
   switch (boss.type) {
-    case "bellkeeper": {
+    case "bellKeeper": {
       if (boss.st === "charge") {
         // Belfry Rush: telegraphed rush leaving 2 delayed brass chime-inlays in its wake
         const charges = 2 + rage;
@@ -201,7 +201,7 @@ function updateBoss(game, boss, dt) {
           boss.sub = 0;
           boss.subT = 0;
           boss.wakeN = 0;
-          game.emit("charge", { x: boss.x, y: boss.y, type: "bellkeeper", src: "bellkeeper" });
+          game.emit("charge", { x: boss.x, y: boss.y, type: "bellKeeper", src: "bellKeeper" });
         }
         boss.subT += dt;
         if (boss.sub === 0) {
@@ -228,14 +228,14 @@ function updateBoss(game, boss, dt) {
               delay: 0.95,
               dmg: boss.dmg * 0.72,
               kind: "stomp",
-              src: "bellkeeper",
+              src: "bellKeeper",
             });
           }
           if ((boss.hitWall && boss.subT > 0.1) || boss.subT > 0.8) {
             boss.charging = false;
             if (boss.hitWall) {
-              game.emit("thud", { x: boss.x, y: boss.y, big: true, src: "bellkeeper" });
-              game.explode(boss.x, boss.y, 2.4, 0, { kind: "stomp", src: "bellkeeper" });
+              game.emit("thud", { x: boss.x, y: boss.y, big: true, src: "bellKeeper" });
+              game.explode(boss.x, boss.y, 2.4, 0, { kind: "stomp", src: "bellKeeper" });
               if (rage) shootRing(game, boss, 10, 7.5, shotDmg, boss.spin);
             }
             boss.sub = 2;
@@ -252,7 +252,7 @@ function updateBoss(game, boss, dt) {
               boss.sub = 0;
               boss.subT = 0;
               boss.ta = aim;
-              game.emit("charge", { x: boss.x, y: boss.y, type: "bellkeeper", src: "bellkeeper" });
+              game.emit("charge", { x: boss.x, y: boss.y, type: "bellKeeper", src: "bellKeeper" });
             }
           }
         }
@@ -283,7 +283,7 @@ function updateBoss(game, boss, dt) {
         boss.vy = 0;
         if (boss.n === 0) {
           boss.n = 1;
-          game.emit("charge", { x: boss.x, y: boss.y, type: "bellkeeper", src: "bellkeeper" });
+          game.emit("charge", { x: boss.x, y: boss.y, type: "bellKeeper", src: "bellKeeper" });
           const vents = game.arena.vents || [];
           for (const v of vents) {
             v.bossTollT = 1.15;
@@ -299,7 +299,7 @@ function updateBoss(game, boss, dt) {
                 delay: 1.0,
                 dmg: boss.dmg * 0.8,
                 kind: "stomp",
-                src: "bellkeeper",
+                src: "bellKeeper",
               });
             }
           }
@@ -316,12 +316,12 @@ function updateBoss(game, boss, dt) {
                 delay: 0.45,
                 dmg: boss.dmg * 0.82,
                 kind: "stomp",
-                src: "bellkeeper",
+                src: "bellKeeper",
               });
             }
           }
           shootRing(game, boss, 12 + rage * 4, 8.0, shotDmg, aim);
-          game.emit("thud", { x: boss.x, y: boss.y, big: true, src: "bellkeeper" });
+          game.emit("thud", { x: boss.x, y: boss.y, big: true, src: "bellKeeper" });
         }
         if (boss.t > 1.7) {
           endBossAttack(boss, 1.9 - rage * 0.35);
@@ -334,8 +334,8 @@ function updateBoss(game, boss, dt) {
         boss.vy = 0;
         if (boss.n === 0) {
           boss.n = 1;
-          game.hazard({ x: boss.x, y: boss.y, r: 4.2, delay: 0.95, dmg: boss.dmg, kind: "stomp", src: "bellkeeper" });
-          game.emit("charge", { x: boss.x, y: boss.y, type: "bellkeeper", src: "bellkeeper" });
+          game.hazard({ x: boss.x, y: boss.y, r: 4.2, delay: 0.95, dmg: boss.dmg, kind: "stomp", src: "bellKeeper" });
+          game.emit("charge", { x: boss.x, y: boss.y, type: "bellKeeper", src: "bellKeeper" });
         }
         if (boss.n === 1 && boss.t >= 0.42) {
           boss.n = 2;
@@ -345,13 +345,13 @@ function updateBoss(game, boss, dt) {
             const angle = base + (k / pads) * TAU,
               px = clamp(boss.x + Math.cos(angle) * 5.6, -game.arena.W + 1.4, game.arena.W - 1.4),
               py = clamp(boss.y + Math.sin(angle) * 5.6, -game.arena.H + 1.4, game.arena.H - 1.4);
-            game.hazard({ x: px, y: py, r: 2.05, delay: 1.05, dmg: boss.dmg * 0.8, kind: "stomp", src: "bellkeeper" });
+            game.hazard({ x: px, y: py, r: 2.05, delay: 1.05, dmg: boss.dmg * 0.8, kind: "stomp", src: "bellKeeper" });
           }
         }
         if (boss.n === 2 && boss.t > 1.0) {
           boss.n = 3;
           shootRing(game, boss, 14 + rage * 4, 8.4, shotDmg, aim);
-          game.emit("thud", { x: boss.x, y: boss.y, big: true, src: "bellkeeper" });
+          game.emit("thud", { x: boss.x, y: boss.y, big: true, src: "bellKeeper" });
         }
         if (boss.t > 1.75) {
           endBossAttack(boss, 1.95 - rage * 0.35);
@@ -360,17 +360,25 @@ function updateBoss(game, boss, dt) {
       }
       break;
     }
-    case "queen": {
+    case "mossQueen": {
       moveBoss(game, boss, dt, aim, dist, 0.4);
       if (boss.st === "summon") {
         if (boss.n === 0) {
           boss.n = 1;
-          game.hazard({ x: boss.x, y: boss.y, r: 3.4, delay: 0.85, dmg: boss.dmg * 0.72, kind: "rain", src: "queen" });
+          game.hazard({
+            x: boss.x,
+            y: boss.y,
+            r: 3.4,
+            delay: 0.85,
+            dmg: boss.dmg * 0.72,
+            kind: "rain",
+            src: "mossQueen",
+          });
           const count = game.enemies.length > 70 ? 0 : 4 + rage * 2;
           for (let k = 0; k < count; k++) {
             const angle = (k / count) * TAU + boss.spin,
               kid = game.spawnEnemy(
-                k % 2 ? "mite" : "swarmer",
+                k % 2 ? "littlePod" : "smallBug",
                 boss.x + Math.cos(angle) * 2.4,
                 boss.y + Math.sin(angle) * 2.4,
                 { hpF: 1 },
@@ -380,7 +388,7 @@ function updateBoss(game, boss, dt) {
             kid.kx = Math.cos(angle) * 5.5;
             kid.ky = Math.sin(angle) * 5.5;
           }
-          game.emit("hatch", { x: boss.x, y: boss.y, big: true, src: "queen" });
+          game.emit("hatch", { x: boss.x, y: boss.y, big: true, src: "mossQueen" });
         }
         if (boss.t > 1.1) endBossAttack(boss, 1.4);
         return;
@@ -413,8 +421,8 @@ function updateBoss(game, boss, dt) {
               r: 1.75,
               delay: 1.15,
               dmg: boss.dmg * 0.7,
-              kind: "mortar",
-              src: "queen",
+              kind: "bellCannon",
+              src: "mossQueen",
               sx: boss.x,
               sy: boss.y,
             });
@@ -423,7 +431,7 @@ function updateBoss(game, boss, dt) {
         if (boss.t >= 0.35 + boss.n * 0.44 && boss.n < 3 + rage) {
           for (let k = 0; k < 5; k++) game.shoot(boss.x, boss.y, aim + (k - 2) * 0.15, 9.2, shotDmg);
           boss.n++;
-          game.emit("eshot", { x: boss.x, y: boss.y, type: "boss", boss: boss.type, src: "queen" });
+          game.emit("eshot", { x: boss.x, y: boss.y, type: "boss", boss: boss.type, src: "mossQueen" });
         }
         if (boss.t > 2.1) endBossAttack(boss, 1.3);
         return;
@@ -435,9 +443,9 @@ function updateBoss(game, boss, dt) {
             count = Math.min(room, 2 + rage);
           for (let k = 0; k < count; k++) {
             const angle = aim + (k - (count - 1) / 2) * 0.65,
-              kind = k % 2 === 0 ? "splitter" : "mite",
+              kind = k % 2 === 0 ? "sporePod" : "littlePod",
               egg = game.spawnEnemy(kind, boss.x + Math.cos(angle) * 2.1, boss.y + Math.sin(angle) * 2.1, {
-                hpF: kind === "splitter" ? 0.65 : 1,
+                hpF: kind === "sporePod" ? 0.65 : 1,
               });
             egg.spawnT = 0.3;
             egg.kx = Math.cos(angle) * 8.5;
@@ -461,20 +469,20 @@ function updateBoss(game, boss, dt) {
               r: 1.75,
               delay: 1.05 + k * 0.25,
               dmg: boss.dmg * 0.72,
-              kind: "mortar",
-              src: "queen",
+              kind: "bellCannon",
+              src: "mossQueen",
               sx: boss.x,
               sy: boss.y,
             });
           }
-          game.emit("hatch", { x: boss.x, y: boss.y, big: true, src: "queen" });
+          game.emit("hatch", { x: boss.x, y: boss.y, big: true, src: "mossQueen" });
         }
         if (boss.t > 1.35) endBossAttack(boss, 1.55);
         return;
       }
       break;
     }
-    case "prism": {
+    case "iceCrystal": {
       if (boss.st === "frostbeam") {
         boss.vx *= 0.8;
         boss.vy *= 0.8;
@@ -494,11 +502,11 @@ function updateBoss(game, boss, dt) {
               follow: boss,
               len: 34,
               color: PRISM_ICE,
-              skin: "cryo",
+              skin: "iceShot",
             };
           game.beam({ ...beam, a: angle });
           if (rage) game.beam({ ...beam, a: angle + Math.PI });
-          game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, skin: "cryo", src: "prism" });
+          game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, skin: "iceShot", src: "iceCrystal" });
         }
         if (boss.t > 3.4) endBossAttack(boss, 1.2);
         return;
@@ -510,7 +518,7 @@ function updateBoss(game, boss, dt) {
           boss.n = 1;
           boss.ghost = true;
           shootRing(game, boss, 8, 5.2, shotDmg * 0.85, boss.spin, "shard");
-          game.emit("blink", { x: boss.x, y: boss.y, src: "prism" });
+          game.emit("blink", { x: boss.x, y: boss.y, src: "iceCrystal" });
         }
         if (boss.n === 1 && boss.t > 0.45) {
           boss.n = 2;
@@ -531,7 +539,7 @@ function updateBoss(game, boss, dt) {
           boss.y = boss.ty;
           boss.ghost = false;
           shootRing(game, boss, 12 + rage * 4, 6.5, shotDmg, boss.spin, "shard");
-          game.emit("blink", { x: boss.x, y: boss.y, in: true, src: "prism" });
+          game.emit("blink", { x: boss.x, y: boss.y, in: true, src: "iceCrystal" });
         }
         if (boss.t > 1.6) endBossAttack(boss, 0.9);
         return;
@@ -564,10 +572,10 @@ function updateBoss(game, boss, dt) {
             dmg: boss.dmg,
             len: 34,
             color: PRISM_ICE,
-            skin: "cryo",
+            skin: "iceShot",
           });
           boss.n++;
-          game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, small: true, skin: "cryo", src: "prism" });
+          game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, small: true, skin: "iceShot", src: "iceCrystal" });
         }
         if (boss.t > 0.2 + count * 0.45 + 0.8) endBossAttack(boss, 1.2);
         return;
@@ -586,9 +594,9 @@ function updateBoss(game, boss, dt) {
             dmg: boss.dmg * 0.8,
             kind: "frost",
             chill: true,
-            src: "prism",
+            src: "iceCrystal",
           });
-          game.emit("charge", { x: boss.x, y: boss.y, type: "prism", src: "prism" });
+          game.emit("charge", { x: boss.x, y: boss.y, type: "iceCrystal", src: "iceCrystal" });
         }
         if (boss.n >= 1 && boss.n <= rings && boss.t >= 0.9 + (boss.n - 1) * 0.45) {
           const shots = 14 + rage * 2;
@@ -602,7 +610,7 @@ function updateBoss(game, boss, dt) {
             "shard",
           );
           boss.n++;
-          game.emit("eshot", { x: boss.x, y: boss.y, type: "boss", boss: boss.type, src: "prism" });
+          game.emit("eshot", { x: boss.x, y: boss.y, type: "boss", boss: boss.type, src: "iceCrystal" });
         }
         if (boss.t > 0.9 + rings * 0.45 + 0.5) endBossAttack(boss, 1.3);
         return;
@@ -611,7 +619,7 @@ function updateBoss(game, boss, dt) {
         moveBoss(game, boss, dt, aim, dist, 0.5);
         if (boss.n === 0) {
           boss.n = 1;
-          game.emit("charge", { x: boss.x, y: boss.y, type: "prism", src: "prism" });
+          game.emit("charge", { x: boss.x, y: boss.y, type: "iceCrystal", src: "iceCrystal" });
           const steps = 4 + rage,
             dir = aim;
           for (let k = 0; k < steps; k++) {
@@ -625,7 +633,7 @@ function updateBoss(game, boss, dt) {
               delay: 0.95 + k * 0.16,
               dmg: boss.dmg * 0.58,
               kind: "glacier",
-              src: "prism",
+              src: "iceCrystal",
             });
           }
           if (rage) {
@@ -638,7 +646,7 @@ function updateBoss(game, boss, dt) {
                 delay: 1.35,
                 dmg: boss.dmg * 0.55,
                 kind: "glacier",
-                src: "prism",
+                src: "iceCrystal",
               });
             }
           }
@@ -648,7 +656,7 @@ function updateBoss(game, boss, dt) {
       }
       break;
     }
-    case "core": {
+    case "starHeart": {
       const phase = boss.phaseN;
       moveBoss(game, boss, dt, aim, dist, 0.2);
       if (boss.st === "spiral") {
@@ -685,17 +693,17 @@ function updateBoss(game, boss, dt) {
           boss.n = 1;
           let types =
             phase === 1
-              ? ["striker", "drone", "striker", "drone"]
+              ? ["blinkBlade", "dartSprite", "blinkBlade", "dartSprite"]
               : phase === 2
-                ? ["phantom", "striker", "drone", "phantom"]
-                : ["weaver", "phantom", "striker", "weaver"];
+                ? ["starGhost", "blinkBlade", "dartSprite", "starGhost"]
+                : ["starSpider", "starGhost", "blinkBlade", "starSpider"];
           const room = Math.max(0, 74 - game.enemies.length - game.markers.length);
           types = types.slice(0, room);
           for (const type of types) {
             const spot = game.arena.freePoint(game.rng, player.x, player.y, 7, 1);
             game.markers.push({ x: spot.x, y: spot.y, t: 0, dur: 1, type, elite: false, done: false, boss: boss.type });
           }
-          game.emit("portal", { x: boss.x, y: boss.y, n: types.length, src: "core" });
+          game.emit("portal", { x: boss.x, y: boss.y, n: types.length, src: "starHeart" });
         }
         if (boss.t > 1) endBossAttack(boss, 1.2);
         return;
@@ -740,7 +748,7 @@ function updateBoss(game, boss, dt) {
               skin: "rift",
             });
           }
-          game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, skin: "rift", src: "core" });
+          game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, skin: "rift", src: "starHeart" });
         }
         if (phase === 3) boss.t2 += dt;
         if (phase === 3 && boss.t2 > 0.72) {
@@ -783,7 +791,7 @@ function updateBoss(game, boss, dt) {
               });
             }
           }
-          game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, small: true, skin: "rift", src: "core" });
+          game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, small: true, skin: "rift", src: "starHeart" });
         }
         if (boss.t >= 0.3 + boss.n * 0.42 && boss.n < 3 + phase) {
           const swing = (boss.n % 2 ? 1 : -1) * 0.08;
@@ -800,7 +808,7 @@ function updateBoss(game, boss, dt) {
             }
           }
           boss.n++;
-          game.emit("eshot", { x: boss.x, y: boss.y, type: "boss", boss: boss.type, src: "core" });
+          game.emit("eshot", { x: boss.x, y: boss.y, type: "boss", boss: boss.type, src: "starHeart" });
         }
         if (boss.t > 0.3 + (3 + phase) * 0.42 + 0.4) endBossAttack(boss, 1.2);
         return;
@@ -817,7 +825,7 @@ function updateBoss(game, boss, dt) {
             delay: 1.05,
             dmg: boss.dmg * 0.8,
             kind: "rain",
-            src: "core",
+            src: "starHeart",
           });
           for (let k = 0; k < pts; k++) {
             const a = rot0 + (k / pts) * TAU,
@@ -830,7 +838,7 @@ function updateBoss(game, boss, dt) {
               delay: 1.15 + k * 0.11,
               dmg: boss.dmg * 0.8,
               kind: "rain",
-              src: "core",
+              src: "starHeart",
             });
           }
         }
@@ -839,10 +847,10 @@ function updateBoss(game, boss, dt) {
       }
       break;
     }
-    case "wyrm":
+    case "sandDragon":
       if (updateGlasswyrm(game, boss, dt, aim, dist, shotDmg, rage)) return;
       break;
-    case "tyrant": {
+    case "emberKing": {
       if (boss.st === "barrage") {
         // Bellows Draught & Anvil Trench: draws air inward for 0.8s, then slams a glowing 3-way molten slag trench
         // that burns for 3.5s alongside cinder-slug fans.
@@ -852,7 +860,7 @@ function updateBoss(game, boss, dt) {
           if (boss.n === 0) {
             boss.n = 1;
             boss.ta = aim;
-            game.emit("charge", { x: boss.x, y: boss.y, type: "tyrant", src: "tyrant" });
+            game.emit("charge", { x: boss.x, y: boss.y, type: "emberKing", src: "emberKing" });
           }
           boss.ta = turnToward(boss.ta, aim, 2.2 * dt);
           boss.face = boss.ta;
@@ -880,7 +888,7 @@ function updateBoss(game, boss, dt) {
                 delay: 0.35 + step * 0.12,
                 dmg: boss.dmg * 0.78,
                 kind: "stomp",
-                src: "tyrant",
+                src: "emberKing",
               });
               if (game.burnPools && game.burnPools.length < 14) {
                 game.burnPools.push({
@@ -891,7 +899,7 @@ function updateBoss(game, boss, dt) {
                   dps: 14,
                   hostile: true,
                   playerDps: 14,
-                  src: "tyrant",
+                  src: "emberKing",
                 });
               }
             }
@@ -900,7 +908,7 @@ function updateBoss(game, boss, dt) {
             game.shoot(boss.x, boss.y, boss.ta + (k - (4 + rage * 2) / 2) * 0.16, 10.2, shotDmg);
           }
           bossVolley(game, boss, 0.25);
-          game.emit("thud", { x: boss.x, y: boss.y, big: true, src: "tyrant" });
+          game.emit("thud", { x: boss.x, y: boss.y, big: true, src: "emberKing" });
         }
         if (boss.t > 1.75) endBossAttack(boss, 1.7 - rage * 0.35);
         return;
@@ -912,7 +920,7 @@ function updateBoss(game, boss, dt) {
           boss.ta = aim;
           boss.sub = 0;
           boss.subT = 0;
-          game.emit("charge", { x: boss.x, y: boss.y, type: "tyrant", src: "tyrant" });
+          game.emit("charge", { x: boss.x, y: boss.y, type: "emberKing", src: "emberKing" });
         }
         boss.subT += dt;
         if (boss.sub === 0) {
@@ -931,7 +939,7 @@ function updateBoss(game, boss, dt) {
           boss.charging = true;
           if ((boss.hitWall && boss.subT > 0.1) || boss.subT > 0.42) {
             boss.charging = false;
-            game.emit("thud", { x: boss.x, y: boss.y, big: true, src: "tyrant" });
+            game.emit("thud", { x: boss.x, y: boss.y, big: true, src: "emberKing" });
             for (let k = 0; k < 3 + rage; k++) {
               const reach = 2.6 + k * 2.5,
                 fx = clamp(boss.x + Math.cos(boss.ta) * reach, -game.arena.W + 1.2, game.arena.W - 1.2),
@@ -943,7 +951,7 @@ function updateBoss(game, boss, dt) {
                 delay: 0.62 + k * 0.14,
                 dmg: boss.dmg * 0.82,
                 kind: "stomp",
-                src: "tyrant",
+                src: "emberKing",
               });
             }
             if (rage) shootRing(game, boss, 10, 7.8, shotDmg, boss.ta);
@@ -960,7 +968,7 @@ function updateBoss(game, boss, dt) {
               boss.sub = 0;
               boss.subT = 0;
               boss.ta = aim;
-              game.emit("charge", { x: boss.x, y: boss.y, type: "tyrant", src: "tyrant" });
+              game.emit("charge", { x: boss.x, y: boss.y, type: "emberKing", src: "emberKing" });
             }
           }
         }
@@ -984,7 +992,7 @@ function updateBoss(game, boss, dt) {
               delay: 1.4,
               dmg: boss.dmg * 0.85,
               kind: "rain",
-              src: "tyrant",
+              src: "emberKing",
               sx: boss.x,
               sy: boss.y,
               shootable: true,
@@ -996,7 +1004,7 @@ function updateBoss(game, boss, dt) {
             game.shoot(boss.x, boss.y, aim + k * 0.22, 9.2, shotDmg);
           }
           bossVolley(game, boss, 0.25);
-          game.emit("lob", { x: boss.x, y: boss.y, src: "tyrant" });
+          game.emit("lob", { x: boss.x, y: boss.y, src: "emberKing" });
         }
         if (boss.t > 1.25) endBossAttack(boss, 1.5);
         return;
@@ -1021,16 +1029,16 @@ function updateBoss(game, boss, dt) {
                 delay: 0.85 + step * 0.22,
                 dmg: boss.dmg * 0.8,
                 kind: "stomp",
-                src: "tyrant",
+                src: "emberKing",
               });
             }
           }
-          game.emit("charge", { x: boss.x, y: boss.y, type: "tyrant", src: "tyrant" });
+          game.emit("charge", { x: boss.x, y: boss.y, type: "emberKing", src: "emberKing" });
         }
         if (boss.n === 1 && boss.t >= 0.95) {
           boss.n = 2;
           shootRing(game, boss, 14 + rage * 6, 8.2 + rage * 0.6, shotDmg, aim);
-          game.emit("thud", { x: boss.x, y: boss.y, big: true, src: "tyrant" });
+          game.emit("thud", { x: boss.x, y: boss.y, big: true, src: "emberKing" });
         }
         if (boss.t > 1.9) endBossAttack(boss, 2.0 - rage * 0.5);
         return;
@@ -1048,7 +1056,7 @@ function updateBoss(game, boss, dt) {
             delay: 1.1,
             dmg: boss.dmg * 0.75,
             kind: "rain",
-            src: "tyrant",
+            src: "emberKing",
             sx: boss.x,
             sy: boss.y,
           });
@@ -1083,7 +1091,7 @@ function updateCrescendo(game, boss, dt, aim, dist, shotDmg) {
     W = arena.W,
     H = arena.H;
   switch (boss.st) {
-    case "sealgrid": {
+    case "bellCage": {
       // Carillon Chime: paired golden lantern corridors clamped to the arena boundary intersection
       // so every corridor beam spans the arena with cur > 0 and deals real damage!
       boss.vx = 0;
@@ -1137,25 +1145,25 @@ function updateCrescendo(game, boss, dt, aim, dist, shotDmg) {
         boss.n = 1;
         corridorPair(0, 1.25);
         corridorPair(Math.PI / 2, 1.25);
-        game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, skin: "laser", src: "bellkeeper" });
-        game.emit("charge", { x: boss.x, y: boss.y, type: "bellkeeper", src: "bellkeeper" });
+        game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, skin: "laser", src: "bellKeeper" });
+        game.emit("charge", { x: boss.x, y: boss.y, type: "bellKeeper", src: "bellKeeper" });
       }
       if (boss.n === 1 && boss.t > 2.35) {
         boss.n = 2;
         corridorPair(Math.PI / 4, 1.1);
         corridorPair((3 * Math.PI) / 4, 1.1);
-        game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, skin: "laser", src: "bellkeeper" });
+        game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, skin: "laser", src: "bellKeeper" });
         for (let k = 0; k < 4; k++) {
           const a = (k / 4) * TAU + Math.PI / 4,
             cx = clamp(boss.x + Math.cos(a) * 6.8, -W + 1.8, W - 1.8),
             cy = clamp(boss.y + Math.sin(a) * 6.8, -H + 1.8, H - 1.8);
-          game.hazard({ x: cx, y: cy, r: 2.0, delay: 1.05, dmg: boss.dmg * 0.78, kind: "stomp", src: "bellkeeper" });
+          game.hazard({ x: cx, y: cy, r: 2.0, delay: 1.05, dmg: boss.dmg * 0.78, kind: "stomp", src: "bellKeeper" });
         }
       }
       if (boss.n === 2 && boss.t > 4.0) {
         boss.n = 3;
         shootRing(game, boss, 20, 7.6, shotDmg, boss.spin);
-        game.emit("thud", { x: boss.x, y: boss.y, big: true, src: "bellkeeper" });
+        game.emit("thud", { x: boss.x, y: boss.y, big: true, src: "bellKeeper" });
       }
       if (boss.t > 4.65) endBossAttack(boss, 1.8);
       return;
@@ -1179,10 +1187,10 @@ function updateCrescendo(game, boss, dt, aim, dist, shotDmg) {
             follow: boss,
             len: 34,
             color: PRISM_ICE,
-            skin: "cryo",
+            skin: "iceShot",
           });
         }
-        game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, skin: "cryo", src: "prism" });
+        game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, skin: "iceShot", src: "iceCrystal" });
       }
       if (boss.t >= 1.4 + (boss.n - 1) * 0.5 && boss.n <= 6) {
         game.shoot(boss.x, boss.y, aim + (boss.n - 3.5) * 0.5, 5.5, shotDmg, {
@@ -1213,7 +1221,7 @@ function updateCrescendo(game, boss, dt, aim, dist, shotDmg) {
             delay: 0.85 + k * 0.14,
             dmg: boss.dmg * 0.62,
             kind: "rain",
-            src: "queen",
+            src: "mossQueen",
             sx: boss.x,
             sy: boss.y,
           });
@@ -1222,13 +1230,13 @@ function updateCrescendo(game, boss, dt, aim, dist, shotDmg) {
         }
         for (let k = 0; k < 2; k++) {
           const angle = aim + (k ? 0.75 : -0.75),
-            egg = game.spawnEnemy("splitter", boss.x + Math.cos(angle) * 2.1, boss.y + Math.sin(angle) * 2.1, {});
+            egg = game.spawnEnemy("sporePod", boss.x + Math.cos(angle) * 2.1, boss.y + Math.sin(angle) * 2.1, {});
           egg.spawnT = 0.3;
           egg.noDrop = true;
           egg.kx = Math.cos(angle) * 8.5;
           egg.ky = Math.sin(angle) * 8.5;
         }
-        game.emit("hatch", { x: boss.x, y: boss.y, big: true, src: "queen" });
+        game.emit("hatch", { x: boss.x, y: boss.y, big: true, src: "mossQueen" });
       }
       if (boss.t > 1.15)
         for (boss.t2 += dt; boss.t2 > 0.13;) {
@@ -1284,10 +1292,10 @@ function updateCrescendo(game, boss, dt, aim, dist, shotDmg) {
             delay: 1.05 + k * 0.24,
             dmg: boss.dmg * 0.78,
             kind: "rain",
-            src: "core",
+            src: "starHeart",
           });
         }
-        game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, skin: "rift", src: "core" });
+        game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, skin: "rift", src: "starHeart" });
       }
       if (boss.n === 1 && boss.t >= 3.2) {
         boss.n = 2;
@@ -1319,7 +1327,7 @@ function updateCrescendo(game, boss, dt, aim, dist, shotDmg) {
             skin: "sun",
           });
         }
-        game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, skin: "sun", src: "wyrm" });
+        game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, skin: "sun", src: "sandDragon" });
         for (let ring = 0; ring < 2; ring++) {
           const radius = 4 + ring * 4.4,
             count = Math.ceil((TAU * radius) / 2.6),
@@ -1331,7 +1339,15 @@ function updateCrescendo(game, boss, dt, aim, dist, shotDmg) {
             const x = boss.x + Math.cos(angle) * radius,
               y = boss.y + Math.sin(angle) * radius;
             if (arena.outside(x, y, 0.5)) continue;
-            game.hazard({ x, y, r: 1.4, delay: 1 + ring * 0.5, dmg: boss.dmg * 0.75, kind: "stomp", src: "wyrm" });
+            game.hazard({
+              x,
+              y,
+              r: 1.4,
+              delay: 1 + ring * 0.5,
+              dmg: boss.dmg * 0.75,
+              kind: "stomp",
+              src: "sandDragon",
+            });
           }
         }
       }
@@ -1350,7 +1366,7 @@ function updateCrescendo(game, boss, dt, aim, dist, shotDmg) {
         boss.n = 1;
         const activeAdds = game.enemies.filter((e) => !e.dead && !e.boss).length + game.markers.length;
         const count = activeAdds >= 4 ? 0 : Math.min(2, 4 - activeAdds),
-          crew = ["gunner", "bomber"];
+          crew = ["brassGuard", "firePot"];
         for (let k = 0; k < count; k++) {
           const angle = (k / Math.max(1, count)) * TAU + boss.spin,
             kid = game.spawnEnemy(crew[k % 2], boss.x + Math.cos(angle) * 2.6, boss.y + Math.sin(angle) * 2.6, {});
@@ -1371,7 +1387,7 @@ function updateCrescendo(game, boss, dt, aim, dist, shotDmg) {
             delay: 1.25,
             dmg: boss.dmg * 0.72,
             kind: "rain",
-            src: "tyrant",
+            src: "emberKing",
             sx: boss.x,
             sy: boss.y,
           });
@@ -1392,8 +1408,8 @@ function updateCrescendo(game, boss, dt, aim, dist, shotDmg) {
             skin: "magma",
           });
         }
-        game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, skin: "magma", src: "tyrant" });
-        game.emit("hatch", { x: boss.x, y: boss.y, big: true, src: "tyrant" });
+        game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, skin: "magma", src: "emberKing" });
+        game.emit("hatch", { x: boss.x, y: boss.y, big: true, src: "emberKing" });
       }
       if (boss.t >= 1.3 + (boss.n - 1) * 0.65 && boss.n <= 4) {
         boss.n++;
@@ -1413,8 +1429,8 @@ function moveBoss(game, boss, dt, aim, dist, speedMul = 1) {
   const slowMul = boss.cageSlowT > 0 ? 0.7 : 1,
     speed = boss.speed * (boss.enraged ? 1.3 : 1) * speedMul * slowMul;
   if (boss.cageSlowT > 0) boss.cageSlowT = Math.max(0, boss.cageSlowT - dt);
-  if (boss.type === "queen" || boss.type === "prism") {
-    const orbit = boss.type === "queen" ? 8 : 9,
+  if (boss.type === "mossQueen" || boss.type === "iceCrystal") {
+    const orbit = boss.type === "mossQueen" ? 8 : 9,
       approach = dist > orbit + 1 ? 1 : dist < orbit - 1 ? -1 : 0,
       player = game.player,
       nx = (player.x - boss.x) / dist,
@@ -1423,7 +1439,7 @@ function moveBoss(game, boss, dt, aim, dist, speedMul = 1) {
     boss.vy = (ny * approach + nx * 0.7) * speed * 1.4;
     return;
   }
-  if (boss.type === "core") {
+  if (boss.type === "starHeart") {
     const player = game.player,
       dx = player.x * 0.25 - boss.x,
       dy = player.y * 0.25 - boss.y,
@@ -1493,7 +1509,7 @@ function spawnSunglassSpires(game, boss) {
   }
 }
 
-/* THE GLASSWYRM, Guardian of the Glass Flats */
+/* Sand Dragon, Guardian of the Sun Dunes */
 function updateGlasswyrm(game, boss, dt, aim, dist, shotDmg, rage) {
   const player = game.player,
     arena = game.arena,
@@ -1526,7 +1542,7 @@ function updateGlasswyrm(game, boss, dt, aim, dist, shotDmg, rage) {
         delay: wind * (0.25 + (0.75 * k) / 5),
         dmg: boss.dmg * 0.75,
         kind: "stomp",
-        src: "wyrm",
+        src: "sandDragon",
       });
     }
     return spots;
@@ -1535,10 +1551,10 @@ function updateGlasswyrm(game, boss, dt, aim, dist, shotDmg, rage) {
     boss.diveT = 0;
     boss.ghost = false;
     arena.resolve(boss, boss.r);
-    game.explode(boss.x, boss.y, 2.4, 0, { kind: "stomp", src: "wyrm" });
+    game.explode(boss.x, boss.y, 2.4, 0, { kind: "stomp", src: "sandDragon" });
     shootRing(game, boss, 13 + rage * 3, 6.8, shotDmg, ringSpin);
-    game.emit("blink", { x: boss.x, y: boss.y, src: "wyrm" });
-    game.emit("thud", { x: boss.x, y: boss.y, big: true, src: "wyrm" });
+    game.emit("blink", { x: boss.x, y: boss.y, src: "sandDragon" });
+    game.emit("thud", { x: boss.x, y: boss.y, big: true, src: "sandDragon" });
   };
   switch (boss.st) {
     case "rise": {
@@ -1557,7 +1573,7 @@ function updateGlasswyrm(game, boss, dt, aim, dist, shotDmg, rage) {
           const spots = chain(aim + off, wind);
           boss.fx.push(spots.length ? spots[spots.length - 1] : [boss.x, boss.y]);
         }
-        game.emit("blinkWarn", { x: boss.x, y: boss.y, src: "wyrm" });
+        game.emit("blinkWarn", { x: boss.x, y: boss.y, src: "sandDragon" });
       }
       boss.face = turnToward(boss.face, boss.ta, 4 * dt);
       if (boss.n === 1 && boss.t >= wind) {
@@ -1569,7 +1585,7 @@ function updateGlasswyrm(game, boss, dt, aim, dist, shotDmg, rage) {
         boss.x = sx;
         boss.y = sy;
         surface(boss.spin);
-        // Leave behind 2 brittle Sunglass Spires (temporary cover for 6s) that shatter when swept by sunlance
+        // Leave behind 2 brittle Glass Pillars (temporary cover for 6s) that shatter when swept by sunlance
         spawnSunglassSpires(game, boss);
       }
       if (boss.t > wind + 0.9) end(2 - rage * 0.5);
@@ -1637,12 +1653,12 @@ function updateGlasswyrm(game, boss, dt, aim, dist, shotDmg, rage) {
             skin: "sun",
           });
         }
-        game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, skin: "sun", src: "wyrm" });
+        game.emit("beamWarn", { boss: true, x: boss.x, y: boss.y, skin: "sun", src: "sandDragon" });
       }
       if (boss.t > 3.9) end(1.8 - rage * 0.4);
       return true;
     }
-    case "mirage": {
+    case "sandstorm": {
       moveBoss(game, boss, dt, aim, dist, 0.2);
       if (boss.n === 0) {
         boss.n = 1;
@@ -1651,15 +1667,15 @@ function updateGlasswyrm(game, boss, dt, aim, dist, shotDmg, rage) {
         boss.charging = true;
         boss.ta = aim + Math.PI + (game.rng.chance(0.5) ? 0.8 : -0.8);
         chain(boss.ta, 0.5);
-        game.emit("blinkWarn", { x: boss.x, y: boss.y, src: "wyrm" });
+        game.emit("blinkWarn", { x: boss.x, y: boss.y, src: "sandDragon" });
       }
       // Emit a 0.55s warning ring at the emergence spot before surfacing
       if (boss.n === 1 && boss.t >= 0.95) {
         boss.n = 2;
         boss.tx = clamp(player.x + Math.cos(boss.ta) * 6.5, -arena.W + boss.r + 0.5, arena.W - boss.r - 0.5);
         boss.ty = clamp(player.y + Math.sin(boss.ta) * 6.5, -arena.H + boss.r + 0.5, arena.H - boss.r - 0.5);
-        game.hazard({ x: boss.tx, y: boss.ty, r: 2.2, delay: 0.55, dmg: 0, kind: "stomp", src: "wyrm" });
-        game.emit("blinkWarn", { x: boss.tx, y: boss.ty, src: "wyrm" });
+        game.hazard({ x: boss.tx, y: boss.ty, r: 2.2, delay: 0.55, dmg: 0, kind: "stomp", src: "sandDragon" });
+        game.emit("blinkWarn", { x: boss.tx, y: boss.ty, src: "sandDragon" });
       }
       if (boss.n === 2 && boss.t >= 1.5) {
         boss.n = 3;
@@ -1677,8 +1693,8 @@ function updateGlasswyrm(game, boss, dt, aim, dist, shotDmg, rage) {
         boss.n = 4;
         boss.tx = clamp(player.x + Math.cos(boss.ta) * 6, -arena.W + boss.r + 0.5, arena.W - boss.r - 0.5);
         boss.ty = clamp(player.y + Math.sin(boss.ta) * 6, -arena.H + boss.r + 0.5, arena.H - boss.r - 0.5);
-        game.hazard({ x: boss.tx, y: boss.ty, r: 2.2, delay: 0.55, dmg: 0, kind: "stomp", src: "wyrm" });
-        game.emit("blinkWarn", { x: boss.tx, y: boss.ty, src: "wyrm" });
+        game.hazard({ x: boss.tx, y: boss.ty, r: 2.2, delay: 0.55, dmg: 0, kind: "stomp", src: "sandDragon" });
+        game.emit("blinkWarn", { x: boss.tx, y: boss.ty, src: "sandDragon" });
       }
       if (boss.n === 4 && rage && boss.t >= 2.9) {
         boss.n = 5;

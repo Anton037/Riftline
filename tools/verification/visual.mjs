@@ -107,27 +107,36 @@ try {
             w.boss.spawnT = 0;
           }
           if (!boss)
-            ["grunt", "brute", "gunner", "bulwark", "striker", "splitter", "sniper", "bomber"].forEach((t, i) => {
+            [
+              "kettleGuard",
+              "ironGolem",
+              "brassGuard",
+              "shieldGuard",
+              "blinkBlade",
+              "sporePod",
+              "longshot",
+              "firePot",
+            ].forEach((t, i) => {
               const a = (i / 8) * Math.PI * 2;
               const e = w.spawnEnemy(t, Math.cos(a) * 5, 2 + Math.sin(a) * 4, {});
               if (e) e.spawnT = 0;
             });
           if (scene === "warnings") {
             const source = {
-                courtyard: "bellkeeper",
-                shelf: "prism",
-                marsh: "queen",
-                core: "core",
-                caldera: "tyrant",
-                flats: "wyrm",
+                lanternYard: "bellKeeper",
+                snowRidge: "iceCrystal",
+                mossBog: "mossQueen",
+                starHall: "starHeart",
+                emberHill: "emberKing",
+                sunDunes: "sandDragon",
               }[id],
               kinds = {
-                courtyard: ["stomp", "stomp", "mortar", "mine", "sapper", "shorted"],
-                shelf: ["frost", "glacier", "mortar", "frost", "glacier", "mortar"],
-                marsh: Array(6).fill("rain"),
-                core: Array(6).fill("rain"),
-                caldera: ["stomp", "rain", "fire", "stomp", "rain", "fire"],
-                flats: Array(6).fill("stomp"),
+                lanternYard: ["stomp", "stomp", "bellCannon", "mine", "bombMaker", "shorted"],
+                snowRidge: ["frost", "glacier", "bellCannon", "frost", "glacier", "bellCannon"],
+                mossBog: Array(6).fill("rain"),
+                starHall: Array(6).fill("rain"),
+                emberHill: ["stomp", "rain", "fire", "stomp", "rain", "fire"],
+                sunDunes: Array(6).fill("stomp"),
               }[id];
             kinds.forEach((kind, i) => {
               const h = w.hazard({
@@ -135,8 +144,8 @@ try {
                 y: Math.floor(i / 3) * 4 - 2,
                 r: 1.6,
                 kind,
-                src: kind === "mortar" ? "mortar" : source,
-                chill: id === "shelf" && kind === "mortar",
+                src: kind === "bellCannon" ? "bellCannon" : source,
+                chill: id === "snowRidge" && kind === "bellCannon",
                 delay: 2,
                 dmg: 10,
               });
@@ -151,12 +160,12 @@ try {
               warn: 2,
               src: source,
               skin: {
-                courtyard: "laser",
-                shelf: "cryo",
-                marsh: "acid",
-                core: "rift",
-                caldera: "flame",
-                flats: "sun",
+                lanternYard: "laser",
+                snowRidge: "iceShot",
+                mossBog: "acid",
+                starHall: "rift",
+                emberHill: "fireBellows",
+                sunDunes: "sun",
               }[id],
             });
             beam.t = 1;
@@ -165,7 +174,7 @@ try {
           }
           if (scene === "telegraphs") {
             for (const e of w.enemies) {
-              if (e.type === "sniper" || e.type === "brute") {
+              if (e.type === "longshot" || e.type === "ironGolem") {
                 e.st = 1;
                 e.t2 = 0.2;
                 e.ta = Math.atan2(w.player.y - e.y, w.player.x - e.x);

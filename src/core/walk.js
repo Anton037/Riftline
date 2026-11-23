@@ -10,12 +10,12 @@ const STEP_LEN = 1,
 
 // the ground under the drone: the sheets of ice and the pools of acid of the arena, else the floor of the biome
 const FLOOR = {
-  courtyard: "flagstone",
-  shelf: "frost",
-  marsh: "mud",
-  core: "glass",
-  caldera: "crust",
-  flats: "sandglass",
+  lanternYard: "flagstone",
+  snowRidge: "frost",
+  mossBog: "mud",
+  starHall: "glass",
+  emberHill: "crust",
+  sunDunes: "sandglass",
 };
 function groundOf(world) {
   const player = world.player;

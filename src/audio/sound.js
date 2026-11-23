@@ -74,7 +74,7 @@ const SoundEngine = class {
     this.placeSt = null;
     this.last = Object.create(null);
     this.mode = "off";
-    this.biome = "courtyard";
+    this.biome = "lanternYard";
     this.step = 0;
     this.nextT = 0;
     this.timer = null;
@@ -117,7 +117,7 @@ const SoundEngine = class {
     // 3.1.0: the music tracks: what plays now, the boss heat (0 calm, 1 after a phase change,
     // 2 enraged), the stage buses and the counters of the voice budget
     this.playKind = "off";
-    this.playBiome = "courtyard";
+    this.playBiome = "lanternYard";
     this.heat = 0;
     this.jump = false;
     this.fade = null;
@@ -285,7 +285,7 @@ const SoundEngine = class {
       let sfxVerb = ctx.createConvolver();
       sfxVerb.buffer = roomImpulse(ctx, 1.4);
       this.sfxVerbOut = ctx.createGain();
-      this.sfxVerbOut.gain.value = SFX_ROOM_BIOME.courtyard;
+      this.sfxVerbOut.gain.value = SFX_ROOM_BIOME.lanternYard;
       this.sfxVerbIn.connect(sfxVerb);
       sfxVerb.connect(this.sfxVerbOut);
       this.sfxVerbOut.connect(this.sfx);
@@ -790,7 +790,7 @@ const SoundEngine = class {
       id === "pick" ||
       id === "evolve" ||
       id === "reroll" ||
-      id === "banish" ||
+      id === "seal" ||
       id === "buy" ||
       id === "milestone" ||
       id === "equip" ||
@@ -804,7 +804,7 @@ const SoundEngine = class {
     try {
       this._play(id, arg);
       const dramatic =
-        id === "nova" ||
+        id === "fireBurst" ||
         id === "inlayRelease" ||
         id === "bOverdrive" ||
         id === "bossIntro" ||
@@ -836,7 +836,7 @@ const SoundEngine = class {
     try {
       if (bus === "sfx") {
         if (this.uiBus) this.curBus = this.uiBus;
-        this.play(weapon || "pulse");
+        this.play(weapon || "lanternGun");
       } else if (bus === "music") musicImpact(this, this.wantBiome(), 0);
       else if (bus === "ambience") this.placePlay(AMB_PREVIEW[this.wantBiome()] || "sparks", { g: 1, pan: 0 });
     } catch (err) {
@@ -846,7 +846,7 @@ const SoundEngine = class {
     }
   }
   /* Sidechain ducking: light 80ms dip on routine hits, and -3 dB (~0.29 depth) for 0.35s on
-     boss callouts, Bell-Censer tolls, and Hearthburst so major cues command the mix cleanly. */
+     boss callouts, Bell-Censer tolls, and Fire Burst so major cues command the mix cleanly. */
   duck(depth, holdSec = 0.08) {
     let gain = this.duckGain;
     if (!gain) return;
@@ -953,7 +953,7 @@ const SoundEngine = class {
         }
         break;
       case "bounty":
-      case "tribute":
+      case "forgeGift":
         // Descending gilded coin cascade panning across the stereo field
         if (this.gate("chime:bounty", 0.12)) {
           const coins = [m(6, 24), m(4, 24), m(2, 24), m(0, 24)];
@@ -1110,25 +1110,25 @@ const SoundEngine = class {
           }
           break;
         case "boom":
-          if (ev.kind === "trap" || ev.kind === "surge" || ev.kind === "nova") break;
+          if (ev.kind === "trap" || ev.kind === "surge" || ev.kind === "fireBurst") break;
           if (attackVoice(ev.kind, ev.src, this.biome, ev.chill)) {
             this.play(attackVoice(ev.kind, ev.src, this.biome, ev.chill), ev.r);
             break;
           }
-          if (ev.kind === "brood") {
+          if (ev.kind === "mossHelpers") {
             this.play("bcBurst");
             break;
           }
           this.play(
-            ev.kind === "singularity"
+            ev.kind === "gravityBell"
               ? "singCollapse"
-              : ev.kind === "payload" || ev.kind === "pop"
+              : ev.kind === "blastShot" || ev.kind === "pop"
                 ? "smallboom"
                 : "boom",
           );
           break;
-        case "nova":
-          this.play("nova");
+        case "fireBurst":
+          this.play("fireBurst");
           break;
         case "novaReady":
           this.play("novaReady");
@@ -1173,7 +1173,7 @@ const SoundEngine = class {
           this.play(BEAM_VOICE[ev.skin] || (ev.small ? "beamSmall" : "beam"), ev.small ? 0.6 : 1, ev.boss === true);
           break;
         case "aim":
-          this.play(ev.type === "turret" ? "servo" : "lock");
+          this.play(ev.type === "watchTower" ? "servo" : "lock");
           break;
         case "charge":
           this.play(RL_CHARGE_VOICE[ev.type] || "windHeavy", ev.type);
@@ -1216,7 +1216,7 @@ const SoundEngine = class {
           this.play("thud", ev.src);
           break;
         case "revive":
-          this.play("nova");
+          this.play("fireBurst");
           break;
         case "pick":
           if (this.muffleState) {
@@ -1226,10 +1226,10 @@ const SoundEngine = class {
           if (ev.evo) this.play("evolve");
           else this.play("pick", (upgradesById[ev.id] && upgradesById[ev.id].rarity) || 1);
           break;
-        case "banish":
-          this.play("banish");
+        case "seal":
+          this.play("seal");
           break;
-        case "sealgrid":
+        case "bellCage":
           this.play("bcCage");
           break;
         case "lockOn":
@@ -1242,7 +1242,7 @@ const SoundEngine = class {
           this.play("gadgetReady");
           break;
         case "splinterHit":
-          if (!this.gate || this.gate("sfx:splinter", 0.04)) this.play("hit", { type: "prism" });
+          if (!this.gate || this.gate("sfx:splinter", 0.04)) this.play("hit", { type: "iceCrystal" });
           break;
         case "broodHatch":
           this.play("bcHatch");
@@ -1266,7 +1266,7 @@ const SoundEngine = class {
         case "maxed":
           this.play("heal");
           break;
-        case "singularity":
+        case "gravityBell":
           this.play("singThrow");
           break;
         case "singOpen":
@@ -1316,7 +1316,7 @@ const SoundEngine = class {
           this.play(ev.leap ? "leap" : "blink", ev.src);
           break;
         case "erupt":
-          this.play(this.biome === "courtyard" ? "inlayRelease" : "erupt");
+          this.play(this.biome === "lanternYard" ? "inlayRelease" : "erupt");
           break;
         case "devilNear":
           this.play("devilNear");
@@ -1335,7 +1335,7 @@ const SoundEngine = class {
           this.play("shortFizz");
           break;
         case "singe":
-          this.play("flame");
+          this.play("fireBellows");
           break;
         case "glare":
           this.play("bcShatter");
@@ -1352,8 +1352,8 @@ const SoundEngine = class {
         case "spawn":
           if (!this.gate || this.gate("sfx:spawn", 0.07)) this.play("spawn");
           break;
-        case "tribute":
-          this.play("tribute");
+        case "forgeGift":
+          this.play("forgeGift");
           break;
         case "stun":
           this.play("stun", ev.skin);
@@ -1475,7 +1475,7 @@ const SoundEngine = class {
     return this.mode;
   }
   wantBiome() {
-    return scoreBiomes.includes(this.biome) ? this.biome : "courtyard";
+    return scoreBiomes.includes(this.biome) ? this.biome : "lanternYard";
   }
   /* Called when the wanted track changes: restarts the step counter on the spot, cuts the notes that were
      already scheduled for the old track and plays the transition. */
@@ -1869,7 +1869,7 @@ const SoundEngine = class {
           lfo.connect(depthGain);
           depthGain.connect(param);
         };
-      const [air, q, pace, low, high] = ROOM_TONE_RECIPES[name] || ROOM_TONE_RECIPES.courtyard;
+      const [air, q, pace, low, high] = ROOM_TONE_RECIPES[name] || ROOM_TONE_RECIPES.lanternYard;
       const wash = filter("bandpass", air, q, loop(0.68, "pink"));
       drift(wash.frequency, pace, air * 0.34);
       const washGain = amp(wash, 0.43);

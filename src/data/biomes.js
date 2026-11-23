@@ -3,21 +3,21 @@
 // Each biome owns a consistent hazard family.
 const RL_BIOME_HAZARD = {
   // Courtyard vent positions hold charged inlays.
-  courtyard: "vents",
-  shelf: "ice",
-  core: "portals",
-  marsh: "acid",
-  // 3.49.0: the Ashfall Caldera: fumaroles - vents with a molten skin (they jet white-hot rock
+  lanternYard: "vents",
+  snowRidge: "ice",
+  starHall: "portals",
+  mossBog: "acid",
+  // 3.49.0: the Ember Hill: fumaroles - vents with a molten skin (they jet white-hot rock
   // between the spires). The id stays "caldera" for saves and records, like the Courtyard.
-  caldera: "vents",
-  // 3.53.0: the Glass Flats: dust devils - the first hazard that moves (they wander the glass)
-  flats: "devils",
+  emberHill: "vents",
+  // 3.53.0: the Sun Dunes: dust devils - the first hazard that moves (they wander the glass)
+  sunDunes: "devils",
 };
 const biomeList = [
   {
     // Teal glaze, brass tile seams and the gallery’s amber lamps.
-    id: "courtyard",
-    name: "Lantern Courtyard",
+    id: "lanternYard",
+    name: "Lantern Yard",
     W: 18,
     H: 18,
     floor: 0x0c0d10,
@@ -36,8 +36,8 @@ const biomeList = [
   },
   {
     // Indigo snowfields and fractured ice beneath a breathing aurora blizzard.
-    id: "shelf",
-    name: "The Aurora Shelf",
+    id: "snowRidge",
+    name: "Snow Ridge",
     W: 18,
     H: 18,
     // 2.3.3: the palette that keeps every biome recognisable at a glance (grid ΔE ≥ 30 to any other biome, checked
@@ -58,8 +58,8 @@ const biomeList = [
   },
   {
     // Broken rift strata and floating astrolabes pulse on the Heart's cadence.
-    id: "core",
-    name: "The Star-Vault",
+    id: "starHall",
+    name: "Star Hall",
     W: 17,
     H: 17,
     floor: 854040,
@@ -78,8 +78,8 @@ const biomeList = [
   },
   {
     // Cooled basalt, ash and molten fumaroles beneath the volcano.
-    id: "caldera",
-    name: "Ashfall Caldera",
+    id: "emberHill",
+    name: "Ember Hill",
     W: 18,
     H: 18,
     // the base is neutral charcoal so the only warm thing on the field is the molten light itself
@@ -100,8 +100,8 @@ const biomeList = [
   },
   {
     // Dark peat, black water, reeds and mint bioluminescent colonies.
-    id: "marsh",
-    name: "The Glowmarsh",
+    id: "mossBog",
+    name: "Moss Bog",
     W: 18,
     H: 17,
     floor: 0x071310,
@@ -119,8 +119,8 @@ const biomeList = [
     ],
   },
   {
-    id: "flats",
-    name: "The Glass Flats",
+    id: "sunDunes",
+    name: "Sun Dunes",
     W: 18,
     H: 17,
     // 2.3.3: the palette rule (grid dE >= 30 to every other grid, checked by rlBiomeDistinct)
@@ -140,65 +140,73 @@ const biomeList = [
   },
 ];
 const biomesById = Object.fromEntries(biomeList.map((biome) => [biome.id, biome]));
-// 2.4.6: The Shattered Core is always the fourth biome (waves 16–20), so the Rift Core stays the final
-// boss. The Aurora Shelf, the Glowmarsh, the Ashfall Caldera and the Glass Flats are shuffled: two
+// 2.4.6: Star Hall is always the fourth biome (waves 16–20), so the Rift Core stays the final
+// boss. Snow Ridge, the Moss Bog, the Ember Hill and the Sun Dunes are shuffled: two
 // of them in waves 6–15, the third from wave 21 and the fourth from wave 26 in Endless (3.53.0).
 function planBiomeRoute(rng) {
   let ids = biomeList
     .slice(1)
     .map((biome) => biome.id)
-    .filter((id) => id !== "core");
+    .filter((id) => id !== "starHall");
   for (let i = ids.length - 1; i > 0; i--) {
     let j = Math.floor(rng.next() * (i + 1));
     [ids[i], ids[j]] = [ids[j], ids[i]];
   }
-  return ["courtyard", ids[0], ids[1], "core", ...ids.slice(2)];
+  return ["lanternYard", ids[0], ids[1], "starHall", ...ids.slice(2)];
 }
 
 // Enemy mixes and the mechanics that distinguish each biome.
 const RL_BIOME_INFO = {
-  courtyard: { tag: "Bell-censers", mix: { gunner: 2.2, bomber: 1.8, grunt: 1.5, swarmer: 0.6 } },
-  shelf: {
+  lanternYard: { tag: "Bell-censers", mix: { brassGuard: 2.2, firePot: 1.8, kettleGuard: 1.5, smallBug: 0.6 } },
+  snowRidge: {
     tag: "Glacier drift",
     grip: 6.5,
-    mix: { bulwark: 2.2, sniper: 2, gunner: 1.8, turret: 2, sentinel: 1.8, swarmer: 0.6, splitter: 0.6 },
+    mix: {
+      shieldGuard: 2.2,
+      longshot: 2,
+      brassGuard: 1.8,
+      watchTower: 2,
+      crystalTower: 1.8,
+      smallBug: 0.6,
+      sporePod: 0.6,
+    },
   },
-  marsh: {
+  mossBog: {
     tag: "Firefly tide",
     grip: 24,
     mud: 0.92,
     mix: {
-      swarmer: 1.6,
-      splitter: 2.2,
-      leaper: 1.8,
-      hive: 2.1,
-      mender: 1.8,
-      sapper: 1.6,
-      carrier: 1.4,
-      gunner: 0.6,
-      beacon: 1.2,
+      smallBug: 1.6,
+      sporePod: 2.2,
+      bogHopper: 1.8,
+      mushroomNest: 2.1,
+      mossHealer: 1.8,
+      bombMaker: 1.6,
+      supplyKite: 1.4,
+      brassGuard: 0.6,
+      healingStone: 1.2,
     },
   },
-  core: {
+  starHall: {
     tag: "Astral portals",
-    mix: { striker: 2.2, phantom: 2.4, weaver: 2.2, sentinel: 1.8, drone: 1.8, sniper: 0.6 },
+    mix: { blinkBlade: 2.2, starGhost: 2.4, starSpider: 2.2, crystalTower: 1.8, dartSprite: 1.8, longshot: 0.6 },
   },
-  flats: {
+  sunDunes: {
     tag: "Sunglass whirls",
-    mix: { gunner: 2, charger: 2, driller: 1.6, mortar: 1.4, sniper: 1.4, brute: 1.2, swarmer: 0.6 },
+    mix: { brassGuard: 2, wildBoar: 2, burrowMole: 1.6, bellCannon: 1.4, longshot: 1.4, ironGolem: 1.2, smallBug: 0.6 },
   },
-  caldera: {
+  emberHill: {
     tag: "Forge vents",
     mix: {
-      gunner: 2.2,
-      brute: 2,
-      bomber: 1.8,
-      charger: 1.4,
-      mortar: 1.6,
-      minebot: 1.4,
-      driller: 1.2,
-      sapper: 1.2,
-      swarmer: 0.6,
+      brassGuard: 2.2,
+      ironGolem: 2,
+      firePot: 1.8,
+      wildBoar: 1.4,
+      bellCannon: 1.6,
+      mineCart: 1.4,
+      burrowMole: 1.2,
+      bombMaker: 1.2,
+      smallBug: 0.6,
     },
   },
 };
@@ -208,7 +216,7 @@ for (const [id, info] of Object.entries(RL_BIOME_INFO)) {
     if (info.grip) {
       biomesById[id].grip = info.grip;
     }
-    // 3.50.0: the Glowmarsh's mud drags (a speed multiplier, see World.step)
+    // 3.50.0: the Moss Bog's mud drags (a speed multiplier, see World.step)
     if (info.mud) {
       biomesById[id].mud = info.mud;
     }

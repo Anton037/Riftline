@@ -1,83 +1,83 @@
 // Enemy and boss tables, spawn weights, enemy tips and champion data.
 
 const spawnWeights = {
-    swarmer: 5,
-    grunt: 4,
-    gunner: 3,
-    bomber: 2.4,
-    splitter: 2,
-    brute: 1.3,
-    sniper: 1.5,
-    hive: 0.6,
-    bulwark: 1.3,
-    striker: 1.6,
-    mortar: 1.1,
-    mender: 1,
-    leaper: 1.5,
-    turret: 0.9,
-    charger: 1.45,
-    minebot: 0.8,
-    sapper: 1.05,
-    phantom: 0.9,
-    sentinel: 0.72,
-    carrier: 0.66,
-    drone: 0.95,
-    driller: 0.62,
-    beacon: 0.5,
-    weaver: 0.72,
+    smallBug: 5,
+    kettleGuard: 4,
+    brassGuard: 3,
+    firePot: 2.4,
+    sporePod: 2,
+    ironGolem: 1.3,
+    longshot: 1.5,
+    mushroomNest: 0.6,
+    shieldGuard: 1.3,
+    blinkBlade: 1.6,
+    bellCannon: 1.1,
+    mossHealer: 1,
+    bogHopper: 1.5,
+    watchTower: 0.9,
+    wildBoar: 1.45,
+    mineCart: 0.8,
+    bombMaker: 1.05,
+    starGhost: 0.9,
+    crystalTower: 0.72,
+    supplyKite: 0.66,
+    dartSprite: 0.95,
+    burrowMole: 0.62,
+    healingStone: 0.5,
+    starSpider: 0.72,
   },
   heavyEnemies = {
-    brute: 1,
-    hive: 1,
-    sniper: 1,
-    bulwark: 1,
-    mortar: 1,
-    mender: 1,
-    turret: 1,
-    charger: 2,
-    minebot: 3,
-    sapper: 1,
-    phantom: 1,
-    sentinel: 1,
-    carrier: 1,
-    drone: 1,
-    driller: 2,
-    beacon: 3,
-    weaver: 1,
+    ironGolem: 1,
+    mushroomNest: 1,
+    longshot: 1,
+    shieldGuard: 1,
+    bellCannon: 1,
+    mossHealer: 1,
+    watchTower: 1,
+    wildBoar: 2,
+    mineCart: 3,
+    bombMaker: 1,
+    starGhost: 1,
+    crystalTower: 1,
+    supplyKite: 1,
+    dartSprite: 1,
+    burrowMole: 2,
+    healingStone: 3,
+    starSpider: 1,
   };
 
 /* ---- enemy intros: one short hint the first time each enemy type appears ---- */
 const RL_ENEMY_TIPS = {
-  swarmer: "Skitter-Mites rush in groups. Keep moving and clear them with splash or pierce.",
-  grunt: "Kettle-Guards walk straight at you. Keep your distance while shooting.",
-  gunner: "Brass Musketeers glow right before firing a burst — step sideways when they light up.",
-  bomber: "Cinder-Pots explode up close. Shoot them early or dash away before they blow up.",
-  splitter: "Spore-Pods split into three smaller enemies when killed.",
-  brute: "Iron Golems line up and charge forward. Dodge sideways — hitting a pillar stuns them.",
-  sniper: "Long-Glass Marksmen show an aim line before shooting. Move behind cover or dash.",
-  hive: "Toadstool Mounds keep spawning mites until you destroy them.",
-  bulwark: "Pavise Wardens block shots from the front. Circle behind them or break their shield.",
-  striker: "Blink-Blades teleport near you — watch the ring showing where they will land.",
-  mortar: "Bell-Mortars fire bombs where you are walking. Change direction often.",
-  mender: "Moss-Menders heal nearby enemies. Take them out first.",
-  leaper: "Bog-Hoppers jump over obstacles and splash acid when they land.",
-  turret: "Watch-Belfries lock in place to fire twin shots and a close shockwave.",
-  charger: "Battering Boars charge across the arena and bounce off the first wall they hit.",
-  minebot: "Cinder-Sowers drop bombs on the floor — shoot the bombs to blow up nearby enemies.",
-  sapper: "Powder-Tinkers throw timed bombs to your side. Keep moving.",
-  phantom: "Star-Wraiths turn ghostly and flank you quickly before attacking.",
-  sentinel: "Prism Obelisks sweep a wide prism beam across the arena. Move behind them.",
-  carrier: "Galleon-Kites launch swooping paper-skiffs and fire heavy brass broadsides.",
-  drone: "Needle-Sprites fly fast and fire homing needles. Keep moving.",
-  driller: "Burrow-Moles dig underground where shots miss, then pop out of a warning ring.",
-  beacon: "Mending Cairns project golden beams that shield and heal nearby enemies.",
-  weaver: "Astral Weavers leave glowing beams along their teleport path that slow you if touched.",
+  smallBug: "Small Bugs rush in groups. Keep moving and clear them with splash or pierce.",
+  kettleGuard: "Kettle Guards walk straight at you. Keep your distance while shooting.",
+  brassGuard: "Brass Guards glow right before firing a burst — step sideways when they light up.",
+  firePot: "Fire Pots explode up close. Shoot them early or dash away before they blow up.",
+  sporePod: "Spore Pods split into three smaller enemies when killed.",
+  ironGolem: "Iron Golems line up and charge forward. Dodge sideways — hitting a pillar stuns them.",
+  longshot: "Long-Glass Marksmen show an aim line before shooting. Move behind cover or dash.",
+  mushroomNest: "Mushroom Nests keep spawning mites until you destroy them.",
+  shieldGuard: "Shield Guards block shots from the front. Circle behind them or break their shield.",
+  blinkBlade: "Blink Blades teleport near you — watch the ring showing where they will land.",
+  bellCannon: "Bell Cannons fire bombs where you are walking. Change direction often.",
+  mossHealer: "Moss Healers heal nearby enemies. Take them out first.",
+  bogHopper: "Bog Hoppers jump over obstacles and splash acid when they land.",
+  watchTower: "Watch-Belfries lock in place to fire twin shots and a close shockwave.",
+  wildBoar: "Wild Boars charge across the arena and bounce off the first wall they hit.",
+  mineCart: "Mine Carts drop bombs on the floor — shoot the bombs to blow up nearby enemies.",
+  bombMaker: "Bomb Makers throw timed bombs to your side. Keep moving.",
+  starGhost: "Star Ghosts turn ghostly and flank you quickly before attacking.",
+  crystalTower: "Crystal Towers sweep a wide prism beam across the arena. Move behind them.",
+  supplyKite: "Supply Kites launch swooping paper-skiffs and fire heavy brass broadsides.",
+  dartSprite: "Dart Sprites fly fast and fire homing needles. Keep moving.",
+  burrowMole: "Burrow Moles dig underground where shots miss, then pop out of a warning ring.",
+  healingStone: "Healing Stones project golden beams that shield and heal nearby enemies.",
+  starSpider: "Star Spiders leave glowing beams along their teleport path that slow you if touched.",
 };
 
 const enemyDefs = {
-  swarmer: {
-    id: "swarmer",
-    name: "Skitter-Mite",
+  smallBug: {
+    id: "smallBug",
+    name: "Small Bug",
     hp: 8,
     speed: 5.6,
     r: 0.42,
@@ -88,9 +88,9 @@ const enemyDefs = {
     from: 1,
     color: 16727423,
   },
-  grunt: {
-    id: "grunt",
-    name: "Kettle-Guard",
+  kettleGuard: {
+    id: "kettleGuard",
+    name: "Kettle Guard",
     hp: 24,
     speed: 3.3,
     r: 0.62,
@@ -101,9 +101,9 @@ const enemyDefs = {
     from: 1,
     color: 16734794,
   },
-  gunner: {
-    id: "gunner",
-    name: "Brass Musketeer",
+  brassGuard: {
+    id: "brassGuard",
+    name: "Brass Guard",
     hp: 20,
     speed: 2.9,
     r: 0.55,
@@ -114,9 +114,9 @@ const enemyDefs = {
     from: 2,
     color: 16752957,
   },
-  bomber: {
-    id: "bomber",
-    name: "Cinder-Pot",
+  firePot: {
+    id: "firePot",
+    name: "Fire Pot",
     hp: 14,
     speed: 4.5,
     r: 0.5,
@@ -127,9 +127,9 @@ const enemyDefs = {
     from: 3,
     color: 16769354,
   },
-  splitter: {
-    id: "splitter",
-    name: "Spore-Pod",
+  sporePod: {
+    id: "sporePod",
+    name: "Spore Pod",
     hp: 44,
     speed: 2.6,
     r: 0.8,
@@ -140,9 +140,9 @@ const enemyDefs = {
     from: 4,
     color: 4063156,
   },
-  mite: {
-    id: "mite",
-    name: "Podling",
+  littlePod: {
+    id: "littlePod",
+    name: "Little Pod",
     hp: 7,
     speed: 5.8,
     r: 0.32,
@@ -153,8 +153,8 @@ const enemyDefs = {
     from: 99,
     color: 4063156,
   },
-  brute: {
-    id: "brute",
+  ironGolem: {
+    id: "ironGolem",
     name: "Iron Golem",
     hp: 100,
     speed: 2.1,
@@ -166,9 +166,9 @@ const enemyDefs = {
     from: 6,
     color: 16723797,
   },
-  sniper: {
-    id: "sniper",
-    name: "Long-Glass Marksman",
+  longshot: {
+    id: "longshot",
+    name: "Longshot",
     hp: 26,
     speed: 2.3,
     r: 0.55,
@@ -179,9 +179,9 @@ const enemyDefs = {
     from: 7,
     color: 16730080,
   },
-  hive: {
-    id: "hive",
-    name: "Toadstool Mound",
+  mushroomNest: {
+    id: "mushroomNest",
+    name: "Mushroom Nest",
     hp: 140,
     speed: 0.7,
     r: 1.2,
@@ -192,9 +192,9 @@ const enemyDefs = {
     from: 9,
     color: 0x54ffc8,
   },
-  bulwark: {
-    id: "bulwark",
-    name: "Pavise Warden",
+  shieldGuard: {
+    id: "shieldGuard",
+    name: "Shield Guard",
     hp: 80,
     speed: 2,
     r: 0.85,
@@ -205,9 +205,9 @@ const enemyDefs = {
     from: 8,
     color: 5941503,
   },
-  striker: {
-    id: "striker",
-    name: "Blink-Blade",
+  blinkBlade: {
+    id: "blinkBlade",
+    name: "Blink Blade",
     hp: 30,
     speed: 3.4,
     r: 0.5,
@@ -218,9 +218,9 @@ const enemyDefs = {
     from: 11,
     color: 9207295,
   },
-  mortar: {
-    id: "mortar",
-    name: "Bell-Mortar",
+  bellCannon: {
+    id: "bellCannon",
+    name: "Bell Cannon",
     hp: 46,
     speed: 1.6,
     r: 0.75,
@@ -231,9 +231,9 @@ const enemyDefs = {
     from: 12,
     color: 14256701,
   },
-  mender: {
-    id: "mender",
-    name: "Moss-Mender",
+  mossHealer: {
+    id: "mossHealer",
+    name: "Moss Healer",
     hp: 40,
     speed: 2.4,
     r: 0.6,
@@ -244,9 +244,9 @@ const enemyDefs = {
     from: 13,
     color: 7208904,
   },
-  leaper: {
-    id: "leaper",
-    name: "Bog-Hopper",
+  bogHopper: {
+    id: "bogHopper",
+    name: "Bog Hopper",
     hp: 42,
     speed: 4.1,
     r: 0.6,
@@ -257,9 +257,9 @@ const enemyDefs = {
     from: 10,
     color: 12562687,
   },
-  turret: {
-    id: "turret",
-    name: "Watch-Belfry",
+  watchTower: {
+    id: "watchTower",
+    name: "Watch Tower",
     hp: 52,
     speed: 1.1,
     r: 0.68,
@@ -270,9 +270,9 @@ const enemyDefs = {
     from: 13,
     color: 3535103,
   },
-  charger: {
-    id: "charger",
-    name: "Battering Boar",
+  wildBoar: {
+    id: "wildBoar",
+    name: "Wild Boar",
     hp: 50,
     speed: 4.5,
     r: 0.62,
@@ -283,9 +283,9 @@ const enemyDefs = {
     from: 11,
     color: 16698368,
   },
-  minebot: {
-    id: "minebot",
-    name: "Cinder-Sower",
+  mineCart: {
+    id: "mineCart",
+    name: "Mine Cart",
     hp: 62,
     speed: 2.05,
     r: 0.7,
@@ -296,9 +296,9 @@ const enemyDefs = {
     from: 13,
     color: 11646976,
   },
-  sapper: {
-    id: "sapper",
-    name: "Powder-Tinker",
+  bombMaker: {
+    id: "bombMaker",
+    name: "Bomb Maker",
     hp: 54,
     speed: 2.8,
     r: 0.62,
@@ -309,9 +309,9 @@ const enemyDefs = {
     from: 14,
     color: 16734720,
   },
-  phantom: {
-    id: "phantom",
-    name: "Star-Wraith",
+  starGhost: {
+    id: "starGhost",
+    name: "Star Ghost",
     hp: 38,
     speed: 4,
     r: 0.56,
@@ -322,9 +322,9 @@ const enemyDefs = {
     from: 12,
     color: 10973306,
   },
-  sentinel: {
-    id: "sentinel",
-    name: "Prism Obelisk",
+  crystalTower: {
+    id: "crystalTower",
+    name: "Crystal Tower",
     hp: 68,
     speed: 1.2,
     r: 0.78,
@@ -335,9 +335,9 @@ const enemyDefs = {
     from: 13,
     color: 0xe8e8ff,
   },
-  carrier: {
-    id: "carrier",
-    name: "Galleon-Kite",
+  supplyKite: {
+    id: "supplyKite",
+    name: "Supply Kite",
     hp: 72,
     speed: 2.2,
     r: 0.82,
@@ -348,9 +348,9 @@ const enemyDefs = {
     from: 14,
     color: 37119,
   },
-  drone: {
-    id: "drone",
-    name: "Needle-Sprite",
+  dartSprite: {
+    id: "dartSprite",
+    name: "Dart Sprite",
     hp: 34,
     speed: 3.0,
     r: 0.48,
@@ -361,9 +361,9 @@ const enemyDefs = {
     from: 14,
     color: 6809343,
   },
-  driller: {
-    id: "driller",
-    name: "Burrow-Mole",
+  burrowMole: {
+    id: "burrowMole",
+    name: "Burrow Mole",
     hp: 90,
     speed: 2.3,
     r: 0.78,
@@ -374,9 +374,9 @@ const enemyDefs = {
     from: 15,
     color: 16728644,
   },
-  beacon: {
-    id: "beacon",
-    name: "Mending Cairn",
+  healingStone: {
+    id: "healingStone",
+    name: "Healing Stone",
     hp: 75,
     speed: 1.5,
     r: 0.72,
@@ -387,9 +387,9 @@ const enemyDefs = {
     from: 16,
     color: 0x5ae8a8,
   },
-  weaver: {
-    id: "weaver",
-    name: "Astral Weaver",
+  starSpider: {
+    id: "starSpider",
+    name: "Star Spider",
     hp: 48,
     speed: 3.7,
     r: 0.58,
@@ -403,92 +403,92 @@ const enemyDefs = {
 };
 
 const enemyOrder = [
-  "swarmer",
-  "grunt",
-  "gunner",
-  "bomber",
-  "splitter",
-  "brute",
-  "sniper",
-  "hive",
-  "bulwark",
-  "striker",
-  "mortar",
-  "mender",
-  "leaper",
-  "turret",
-  "charger",
-  "minebot",
-  "sapper",
-  "phantom",
-  "sentinel",
-  "carrier",
-  "drone",
-  "driller",
-  "beacon",
-  "weaver",
+  "smallBug",
+  "kettleGuard",
+  "brassGuard",
+  "firePot",
+  "sporePod",
+  "ironGolem",
+  "longshot",
+  "mushroomNest",
+  "shieldGuard",
+  "blinkBlade",
+  "bellCannon",
+  "mossHealer",
+  "bogHopper",
+  "watchTower",
+  "wildBoar",
+  "mineCart",
+  "bombMaker",
+  "starGhost",
+  "crystalTower",
+  "supplyKite",
+  "dartSprite",
+  "burrowMole",
+  "healingStone",
+  "starSpider",
 ];
 
 const biomeVariants = {
-  courtyard: {
+  lanternYard: {
     id: "shorted",
-    name: "Brim-Lit",
-    types: ["grunt", "gunner", "bomber"],
+    name: "Sparked",
+    types: ["kettleGuard", "brassGuard", "firePot"],
     color: 0xf6c46e,
     desc: "Brims with spilled lantern oil. Where one falls, a warm brass-gold flame ring flares a moment later — step clear, or lure others in.",
   },
-  shelf: {
+  snowRidge: {
     id: "frost",
     name: "Frost",
-    types: ["gunner", "sniper", "mortar"],
+    types: ["brassGuard", "longshot", "bellCannon"],
     color: 11462911,
     desc: "Its icy shots and shells slow you for a moment.",
   },
-  core: {
+  starHall: {
     id: "phase",
-    name: "Star-Stepping",
-    types: ["swarmer", "grunt", "gunner"],
+    name: "Ghost Step",
+    types: ["smallBug", "kettleGuard", "brassGuard"],
     color: 16732120,
     desc: "Steps through starlight a few paces closer every couple of seconds.",
   },
-  marsh: {
+  mossBog: {
     id: "bloomed",
-    name: "Bloomed",
-    types: ["grunt", "splitter", "swarmer", "bomber"],
+    name: "Spore-covered",
+    types: ["kettleGuard", "sporePod", "smallBug", "firePot"],
     color: 0x46ffc0,
     desc: "Ripe with glowing spores: bursts into a shining bog pool on defeat.",
   },
-  flats: {
+  sunDunes: {
     id: "sunstruck",
-    name: "Sunstruck",
-    types: ["grunt", "gunner", "charger", "driller"],
+    name: "Sunlit",
+    types: ["kettleGuard", "brassGuard", "wildBoar", "burrowMole"],
     color: 0xffd27a,
     desc: "Gleams and sprints — a short solar burst every few seconds.",
   },
-  caldera: {
+  emberHill: {
     id: "flareheart",
-    name: "Flareheart",
-    types: ["gunner", "brute", "bomber"],
+    name: "Fire Core",
+    types: ["brassGuard", "ironGolem", "firePot"],
     color: 0xffb520,
     desc: "Goes out in a hearth-flare: a molten fumarole jets where it falls and leaves a searing slag pool.",
   },
 };
 
 const eliteAffixes = {
-  shielded: { name: "Ward-Bound", color: 7325951, desc: "A glass ward soaks initial strikes. Elites from wave 10." },
-  hasted: { name: "Wind-Spurred", color: 16773754, desc: "Strides a third faster. Elites from wave 10." },
+  shielded: { name: "Shielded", color: 7325951, desc: "A glass ward soaks initial strikes. Elites from wave 10." },
+  hasted: { name: "Fast", color: 16773754, desc: "Strides a third faster. Elites from wave 10." },
   volatile: {
-    name: "Ember-Burst",
+    name: "Bursting",
     color: 16734778,
     desc: "Erupts in a cinder ring on defeat: keep clear. Elites from wave 10.",
   },
 };
 
 const bossDefs = {
-  bellkeeper: {
-    id: "bellkeeper",
-    name: "THE BELLKEEPER",
-    title: "Guardian of the Lantern Courtyard",
+  bellKeeper: {
+    id: "bellKeeper",
+    name: "Bell Keeper",
+    title: "Boss of Lantern Yard",
     hp: 1500,
     r: 2,
     speed: 2.4,
@@ -496,10 +496,10 @@ const bossDefs = {
     shards: 60,
     color: 16727386,
   },
-  queen: {
-    id: "queen",
-    name: "THE BROOD-EMPRESS",
-    title: "Sovereign of the Glowmarsh",
+  mossQueen: {
+    id: "mossQueen",
+    name: "Moss Queen",
+    title: "Boss of Moss Bog",
     hp: 3000,
     r: 1.9,
     speed: 2,
@@ -507,10 +507,10 @@ const bossDefs = {
     shards: 100,
     color: 0x54ffc8,
   },
-  prism: {
-    id: "prism",
-    name: "THE FROST PRISM",
-    title: "Heart of the Aurora Shelf",
+  iceCrystal: {
+    id: "iceCrystal",
+    name: "Ice Crystal",
+    title: "Boss of Snow Ridge",
     hp: 4400,
     r: 1.6,
     speed: 3,
@@ -518,10 +518,10 @@ const bossDefs = {
     shards: 150,
     color: 9431295,
   },
-  core: {
-    id: "core",
-    name: "THE SHATTERED HEART",
-    title: "Keeper of the Star-Vault",
+  starHeart: {
+    id: "starHeart",
+    name: "Star Heart",
+    title: "Boss of Star Hall",
     hp: 7600,
     r: 2.4,
     speed: 1.2,
@@ -529,10 +529,10 @@ const bossDefs = {
     shards: 250,
     color: 11758591,
   },
-  tyrant: {
-    id: "tyrant",
-    name: "THE ASH TYRANT",
-    title: "Forge-Lord of the Caldera",
+  emberKing: {
+    id: "emberKing",
+    name: "Ember King",
+    title: "Boss of Ember Hill",
     hp: 1500,
     r: 2,
     speed: 2.2,
@@ -540,10 +540,10 @@ const bossDefs = {
     shards: 60,
     color: 0xff8c2e,
   },
-  wyrm: {
-    id: "wyrm",
-    name: "THE GLASSWYRM",
-    title: "Leviathan of the Glass Flats",
+  sandDragon: {
+    id: "sandDragon",
+    name: "Sand Dragon",
+    title: "Boss of Sun Dunes",
     hp: 3700,
     r: 2.1,
     speed: 2.6,
@@ -554,16 +554,16 @@ const bossDefs = {
 };
 
 const bossByBiome = {
-  courtyard: "bellkeeper",
-  shelf: "prism",
-  marsh: "queen",
-  core: "core",
-  caldera: "tyrant",
-  flats: "wyrm",
+  lanternYard: "bellKeeper",
+  snowRidge: "iceCrystal",
+  mossBog: "mossQueen",
+  starHall: "starHeart",
+  emberHill: "emberKing",
+  sunDunes: "sandDragon",
 };
 
 const BOSS_SLOT_HP = [1500, 3000, 4400, 7600];
-const bossOrder = ["bellkeeper", "queen", "prism", "tyrant", "core", "wyrm"];
+const bossOrder = ["bellKeeper", "mossQueen", "iceCrystal", "emberKing", "starHeart", "sandDragon"];
 
 export {
   enemyDefs,

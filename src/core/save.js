@@ -215,8 +215,8 @@ function newSave() {
     created: Date.now(),
     savedAt: 0,
     shards: 0,
-    weapon: "pulse",
-    weapons: { pulse: true },
+    weapon: "lanternGun",
+    weapons: { lanternGun: true },
     threat: 0,
     threatMax: 0,
     workshop: {},
@@ -282,11 +282,11 @@ function cleanRun(raw) {
     kills: Math.floor(cleanNumber(raw.kills, 0, 0, 1e9)),
     time: cleanNumber(raw.time, 0, 0, 1e8),
     rerolls: Math.floor(cleanNumber(raw.rerolls, 0, 0, 99)),
-    // 3.25.0: Banish Protocol: the upgrades banished in this run and the banishes left
+    // 3.25.0: Seal Cards: the upgrades banished in this run and the banishes left
     banished: [],
     banishes: Math.floor(cleanNumber(raw.banishes, 0, 0, 9)),
     revived: !!raw.revived,
-    nova: Math.floor(cleanNumber(raw.nova, 0, 0, 100)),
+    fireBurst: Math.floor(cleanNumber(raw.fireBurst, 0, 0, 100)),
     bossKills: [],
     flawless: Math.floor(cleanNumber(raw.flawless, 0, 0, 1e6)),
     legendaries: Math.floor(cleanNumber(raw.legendaries, 0, 0, 1e6)),
@@ -370,8 +370,8 @@ function cleanSave(input, recordNote = true, notesOut = null) {
       save.weapons[id] = true;
     }
   }
-  save.weapons.pulse = true;
-  save.weapon = own(weaponDefs, raw.weapon) && save.weapons[raw.weapon] ? raw.weapon : "pulse";
+  save.weapons.lanternGun = true;
+  save.weapon = own(weaponDefs, raw.weapon) && save.weapons[raw.weapon] ? raw.weapon : "lanternGun";
   save.threatMax = Math.floor(cleanNumber(raw.threatMax, 0, 0, 5));
   save.threat = Math.floor(cleanNumber(raw.threat, 0, 0, save.threatMax));
   for (let mod of workshopModules) {

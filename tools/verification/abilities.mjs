@@ -8,20 +8,20 @@ const phone = layout === "land" || layout === "phone";
 const out = `verification-output/${tag}-abilities-${phone ? "phone" : "tablet"}`;
 fs.mkdirSync(out, { recursive: true });
 const specs = [
-  ...[0.07, 0.22, 0.5, 0.85].map((time) => ({ kind: "nova", biome: "courtyard", time })),
-  ...[0.15, 0.55].map((time) => ({ kind: "collapse", biome: "courtyard", time })),
-  { kind: "surge", biome: "courtyard", time: 0.16 },
-  ...[0.12, 0.45, 1, 1.65, 2.05, 2.8].map((time) => ({ kind: "singularity", biome: "courtyard", time })),
-  { kind: "searing", biome: "courtyard", time: 2.4 },
-  { kind: "shield", biome: "courtyard", time: 0.15 },
-  ...[0.08, 0.32].map((time) => ({ kind: "block", biome: "courtyard", time })),
-  { kind: "portal", biome: "core", time: 0.4 },
+  ...[0.07, 0.22, 0.5, 0.85].map((time) => ({ kind: "fireBurst", biome: "lanternYard", time })),
+  ...[0.15, 0.55].map((time) => ({ kind: "collapse", biome: "lanternYard", time })),
+  { kind: "surge", biome: "lanternYard", time: 0.16 },
+  ...[0.12, 0.45, 1, 1.65, 2.05, 2.8].map((time) => ({ kind: "gravityBell", biome: "lanternYard", time })),
+  { kind: "searing", biome: "lanternYard", time: 2.4 },
+  { kind: "shield", biome: "lanternYard", time: 0.15 },
+  ...[0.08, 0.32].map((time) => ({ kind: "block", biome: "lanternYard", time })),
+  { kind: "portal", biome: "starHall", time: 0.4 },
   ...["centre", "north", "south", "east", "west", "northwest", "northeast", "southwest", "southeast"].map(
-    (position) => ({ kind: "sky", biome: "shelf", position, time: 0.2 }),
+    (position) => ({ kind: "sky", biome: "snowRidge", position, time: 0.2 }),
   ),
-  ...["shelf", "marsh", "core", "caldera", "flats"].flatMap((biome) => [
-    { kind: "nova", biome, time: 0.22 },
-    { kind: "singularity", biome, time: 1 },
+  ...["snowRidge", "mossBog", "starHall", "emberHill", "sunDunes"].flatMap((biome) => [
+    { kind: "fireBurst", biome, time: 0.22 },
+    { kind: "gravityBell", biome, time: 1 },
   ]),
 ];
 const selected = specs.filter(
@@ -29,8 +29,8 @@ const selected = specs.filter(
     filter === "all" ||
     s.kind === filter ||
     (filter === "before" &&
-      ((s.biome === "courtyard" &&
-        ["nova", "singularity", "shield"].includes(s.kind) &&
+      ((s.biome === "lanternYard" &&
+        ["fireBurst", "gravityBell", "shield"].includes(s.kind) &&
         [0.22, 1, 0.15].includes(s.time)) ||
         s.kind === "portal" ||
         (s.kind === "sky" && ["centre", "north", "east", "south"].includes(s.position)))),
@@ -75,7 +75,7 @@ try {
     const row = await page.evaluate((spec) => {
       const T = window.__riftTest,
         r = T.renderer,
-        w = new T.World({ seed: 731, weapon: "pulse", threat: 0, ws: {} });
+        w = new T.World({ seed: 731, weapon: "lanternGun", threat: 0, ws: {} });
       T.game.world = w;
       T.game.intro = null;
       T.game.paused = true;
@@ -118,7 +118,7 @@ try {
           [4, 2],
           [4, -2],
         ]) {
-          const e = w.spawnEnemy("grunt", x, y, { noVariant: true });
+          const e = w.spawnEnemy("kettleGuard", x, y, { noVariant: true });
           Object.assign(e, { spawnT: 0, hp: 1e6, maxHp: 1e6, speed: 0 });
         }
       r.resetCamera();
@@ -151,11 +151,11 @@ try {
       try {
         for (let frame = 0; frame < 12; frame++) r.frame(1 / 60, w);
         w.hash.build(w.enemies);
-        if (spec.kind === "nova" || spec.kind === "collapse") {
+        if (spec.kind === "fireBurst" || spec.kind === "collapse") {
           if (spec.kind === "collapse") w.stats.collapse = true;
-          w.player.nova = 100;
-          w.nova();
-        } else if (["singularity", "searing"].includes(spec.kind)) {
+          w.player.fireBurst = 100;
+          w.fireBurst();
+        } else if (["gravityBell", "searing"].includes(spec.kind)) {
           w.stats.gadgetFire = spec.kind === "searing";
           w.useGadget({ aim: false });
         } else if (spec.kind === "surge") w.emit("surge", { x: w.player.x, y: w.player.y, r: 4, n: 20 });
@@ -165,7 +165,7 @@ try {
           if (spec.kind === "block") {
             w.player.iT = 0;
             w.god = false;
-            w.hurtPlayer(10, 1, 0, "grunt");
+            w.hurtPlayer(10, 1, 0, "kettleGuard");
             w.god = true;
           }
         }
@@ -204,7 +204,7 @@ try {
     assert.equal(row.borrowedBeams, 0, "player powers must leave hostile beams available");
     assert.equal(row.screenFlash, 0, "player powers must not wash out the screen");
     assert.ok(row.abilityPools.every((p) => p.n <= p.max));
-    if ((spec.kind === "nova" && spec.time === 0.85) || (spec.kind === "singularity" && spec.time === 2.8))
+    if ((spec.kind === "fireBurst" && spec.time === 0.85) || (spec.kind === "gravityBell" && spec.time === 2.8))
       assert.ok(
         row.abilityPools.every((p) => p.n === 0),
         "expired powers must release every instance",

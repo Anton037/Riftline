@@ -42,31 +42,31 @@ test("current names preserve boss progress, medals, records and repeated run kil
   raw.run = {
     v: 1,
     seed: 731,
-    weapon: "pulse",
+    weapon: "lanternGun",
     wave: 19,
     hp: 100,
     bossKills: ["colossus", "forge", "colossus"],
     takenBy: { colossus: 12 },
     hitLog: [{ src: "colossus", dmg: 12 }],
   };
-  raw.history = [{ weapon: "pulse", killer: "colossus", wave: 19 }];
+  raw.history = [{ weapon: "lanternGun", killer: "colossus", wave: 19 }];
   reset(JSON.stringify(raw));
   const store = new SaveStore();
-  assert.deepEqual(store.data.stats.bosses, { tyrant: 4, wyrm: 2 });
-  assert.equal(store.data.stats.medals.tyrant.medal, 3);
-  assert.equal(store.data.milestones.tyrant, true);
+  assert.deepEqual(store.data.stats.bosses, { emberKing: 4, sandDragon: 2 });
+  assert.equal(store.data.stats.medals.emberKing.medal, 3);
+  assert.equal(store.data.milestones.emberKing, true);
   assert.deepEqual(store.data.seen, {}, "Codex discoveries are discarded");
-  assert.deepEqual(store.data.run.bossKills, ["tyrant", "wyrm", "tyrant"]);
-  assert.equal(store.data.run.hitLog[0].src, "tyrant");
-  assert.equal(store.data.run.takenBy.tyrant, 12);
-  assert.equal(store.data.history[0].killer, "tyrant");
+  assert.deepEqual(store.data.run.bossKills, ["emberKing", "sandDragon", "emberKing"]);
+  assert.equal(store.data.run.hitLog[0].src, "emberKing");
+  assert.equal(store.data.run.takenBy.emberKing, 12);
+  assert.equal(store.data.history[0].killer, "emberKing");
   assert.deepEqual(cleanRun(raw.run).bossKills, store.data.run.bossKills);
-  store.data.stats.bosses.tyrant++;
+  store.data.stats.bosses.emberKing++;
   store.save("test");
   const written = JSON.parse(entries.get(SAVE_KEY));
-  assert.equal(written.stats.bosses.tyrant, 5, "new saves persist current IDs");
-  assert.deepEqual(written.run.bossKills, ["tyrant", "wyrm", "tyrant"]);
-  assert.equal(written.history[0].killer, "tyrant");
+  assert.equal(written.stats.bosses.emberKing, 5, "new saves persist current IDs");
+  assert.deepEqual(written.run.bossKills, ["emberKing", "sandDragon", "emberKing"]);
+  assert.equal(written.history[0].killer, "emberKing");
   assert.deepEqual(new SaveStore().data, store.data, "reload is idempotent and keeps all progress");
 });
 
@@ -74,58 +74,58 @@ test("mixed alias imports combine counts and keep the best medal without mutatin
   reset();
   const store = new SaveStore(),
     raw = newSave();
-  raw.stats.bosses = { colossus: 2, tyrant: 3 };
-  raw.stats.medals = { colossus: { medal: 3, secs: 52, damage: 0 }, tyrant: { medal: 2, secs: 30, damage: 15 } };
+  raw.stats.bosses = { colossus: 2, emberKing: 3 };
+  raw.stats.medals = { colossus: { medal: 3, secs: 52, damage: 0 }, emberKing: { medal: 2, secs: 30, damage: 15 } };
   const text = JSON.stringify(raw),
     parsed = store.parse(text);
   assert.ok(parsed.ok);
-  assert.equal(parsed.data.stats.bosses.tyrant, 5);
-  assert.equal(parsed.data.stats.medals.tyrant.medal, 3);
+  assert.equal(parsed.data.stats.bosses.emberKing, 5);
+  assert.equal(parsed.data.stats.medals.emberKing.medal, 3);
   assert.equal(JSON.stringify(raw), text);
   assert.ok(store.restore(parsed));
-  assert.equal(new SaveStore().data.stats.bosses.tyrant, 5);
+  assert.equal(new SaveStore().data.stats.bosses.emberKing, 5);
 });
 
 test("removed content converts once without retaining old definitions or losing purchased progress", () => {
   const raw = newSave();
   raw.shards = 100;
-  raw.weapons = { pulse: true, tesla: true, ion: true };
-  raw.workshop = { nova: 2, riftBattery: 2, reactorCore: 1, routeScanner: 1 };
-  raw.stats.bosses = { forge: 2, crucible: 1, wyrm: 4 };
-  raw.stats.medals = { forge: { medal: 3, secs: 40, damage: 0 }, wyrm: { medal: 2, secs: 35, damage: 9 } };
+  raw.weapons = { lanternGun: true, sparkWand: true, ion: true };
+  raw.workshop = { fireBurst: 2, riftBattery: 2, reactorCore: 1, routeScanner: 1 };
+  raw.stats.bosses = { forge: 2, crucible: 1, sandDragon: 4 };
+  raw.stats.medals = { forge: { medal: 3, secs: 40, damage: 0 }, sandDragon: { medal: 2, secs: 35, damage: 9 } };
   raw.milestones = { forge: true };
   raw.seen = { up_hammer: true };
   raw.run = {
     v: 1,
     seed: 731,
-    weapon: "pulse",
+    weapon: "lanternGun",
     wave: 10,
     hp: 100,
     up: { hammer: 1 },
     dmgSrc: { hammer: 75 },
     banished: ["caliber"],
-    bossKills: ["forge", "crucible", "wyrm"],
+    bossKills: ["forge", "crucible", "sandDragon"],
   };
   raw.history = [{ weapon: "ion", killer: "forge", build: ["hammer", "kinetic"], wave: 10 }];
   reset(JSON.stringify(raw));
   const store = new SaveStore();
   assert.equal(store.data.shards, 100 + 1250 + 260 + 540 + 1600 + 1800);
-  assert.deepEqual(store.data.workshop, { nova: 2 });
-  assert.deepEqual(store.data.stats.bosses, { wyrm: 7 });
-  assert.equal(store.data.stats.medals.wyrm.medal, 3);
-  assert.equal(store.data.milestones.wyrm, true);
-  assert.deepEqual(store.data.run.bossKills, ["wyrm", "wyrm", "wyrm"]);
-  assert.deepEqual(store.data.run.up, { shockdash: 2 });
+  assert.deepEqual(store.data.workshop, { fireBurst: 2 });
+  assert.deepEqual(store.data.stats.bosses, { sandDragon: 7 });
+  assert.equal(store.data.stats.medals.sandDragon.medal, 3);
+  assert.equal(store.data.milestones.sandDragon, true);
+  assert.deepEqual(store.data.run.bossKills, ["sandDragon", "sandDragon", "sandDragon"]);
+  assert.deepEqual(store.data.run.up, { shockDash: 2 });
   assert.deepEqual(store.data.seen, {});
-  assert.deepEqual(store.data.run.dmgSrc, { shockdash: 75 });
+  assert.deepEqual(store.data.run.dmgSrc, { shockDash: 75 });
   assert.deepEqual(store.data.run.banished, ["dmg"]);
-  assert.equal(store.data.history[0].weapon, "tesla");
-  assert.equal(store.data.history[0].killer, "wyrm");
-  assert.deepEqual(store.data.history[0].build, ["shockdash", "dmg"]);
+  assert.equal(store.data.history[0].weapon, "sparkWand");
+  assert.equal(store.data.history[0].killer, "sandDragon");
+  assert.deepEqual(store.data.history[0].build, ["shockDash", "dmg"]);
   assert.doesNotMatch(store.text(), /"(?:forge|crucible|hammer|ion|riftBattery|reactorCore|routeScanner)"/);
   store.save("test");
   assert.deepEqual(new SaveStore().data, store.data, "conversion must never refund twice");
-  assert.deepEqual(cleanRun({ ...raw.run, up: {}, offer: ["hammer"] }).offer, ["shockdash"]);
+  assert.deepEqual(cleanRun({ ...raw.run, up: {}, offer: ["hammer"] }).offer, ["shockDash"]);
   assert.deepEqual(cleanRun({ ...raw.run, up: {} }).banished, ["dmg"]);
 });
 
@@ -146,8 +146,8 @@ test("progress and settings survive a store round-trip and settings reset", () =
 test("old saves migrate and unsupported settings are discarded", () => {
   reset(fs.readFileSync(new URL("fixtures/old-save.json", import.meta.url), "utf8"));
   const store = new SaveStore();
-  assert.ok(store.data.weapons.tesla);
-  assert.equal(store.data.weapon, "tesla");
+  assert.ok(store.data.weapons.sparkWand);
+  assert.equal(store.data.weapon, "sparkWand");
   for (const key of ["zoom", "contrast", "shake", "timer", "fps", "quality"]) assert.ok(!(key in store.data.settings));
   assert.ok(store.data.shards > 0);
   assert.ok(store.data.run);
@@ -241,7 +241,7 @@ test("removed modes and discovery tracking leave a playable normal checkpoint", 
   raw.run = {
     v: 1,
     seed: 731,
-    weapon: "pulse",
+    weapon: "lanternGun",
     wave: 8,
     hp: 90,
     up: { dmg: 2 },
@@ -252,10 +252,66 @@ test("removed modes and discovery tracking leave a playable normal checkpoint", 
   };
   reset(JSON.stringify(raw));
   const store = new SaveStore();
-  assert.deepEqual(store.data.seen, { tutorial: true, tip_enemy_grunt: true, tip_dash: true, "news_4.1.1": true });
+  assert.deepEqual(store.data.seen, {
+    tutorial: true,
+    tip_enemy_kettleGuard: true,
+    tip_dash: true,
+    "news_4.1.1": true,
+  });
   assert.equal(store.data.run.wave, 8);
   assert.deepEqual(store.data.run.up, { dmg: 2 });
   assert.doesNotMatch(store.text(), /"(?:daily|weekly|pacts|startMods|boss_bellkeeper|up_dmg|ev_duskfall)"/);
   store.save("test");
   assert.deepEqual(new SaveStore().data, store.data);
+});
+
+test("5.1 saves keep equipment, choices, boss records, forge purchases, and button positions under the new names", () => {
+  const raw = newSave();
+  raw.ver = "5.1.1";
+  raw.weapon = "tesla";
+  raw.weapons = { pulse: true, tesla: true };
+  raw.workshop = { hull: 2, nova: 1, banish: 1 };
+  raw.stats.bosses = { prism: 3, core: 1 };
+  raw.stats.clearsBy = { tesla: 3, sparkWand: 2 };
+  raw.stats.bestBy = { tesla: 40, sparkWand: 32 };
+  raw.milestones = { prism: true };
+  raw.seen = { tip_enemy_grunt: true, tip_nova: true };
+  raw.history = [{ weapon: "tesla", killer: "core", build: ["cryo", "multishot"], wave: 20 }];
+  const point = { x: 0.4, y: 0.5, s: 1 };
+  raw.settings.hudLayout = { landscape: { dash: point, nova: point, gadget: point, pause: point } };
+  raw.run = {
+    v: 1,
+    seed: 731,
+    wave: 5,
+    hp: 57,
+    weapon: "tesla",
+    nova: 80,
+    up: { cryo: 1, multishot: 2 },
+    offer: ["cryo", "arc"],
+    banished: ["payload"],
+    anvil: ["ward", "shuffle"],
+    bossKills: ["bellkeeper"],
+  };
+  reset(JSON.stringify(raw));
+  const store = new SaveStore();
+  const { data } = store;
+  assert.equal(data.weapon, "sparkWand");
+  assert.deepEqual(data.workshop, { healthCoat: 2, fireBurst: 1, seal: 1 });
+  assert.deepEqual(data.stats.bosses, { iceCrystal: 3, starHeart: 1 });
+  assert.deepEqual(data.stats.clearsBy, { sparkWand: 5 });
+  assert.deepEqual(data.stats.bestBy, { sparkWand: 40 });
+  assert.deepEqual(data.milestones, { iceCrystal: true });
+  assert.deepEqual(data.seen, { tip_enemy_kettleGuard: true, tip_fireBurst: true });
+  assert.equal(data.history[0].killer, "starHeart");
+  assert.deepEqual(data.history[0].build, ["iceShot", "extraShots"]);
+  assert.deepEqual(data.settings.hudLayout.landscape.gravityBell, point);
+  assert.deepEqual(data.settings.hudLayout.landscape.fireBurst, point);
+  assert.equal(data.run.fireBurst, 80);
+  assert.deepEqual(data.run.up, { iceShot: 1, extraShots: 2 });
+  assert.deepEqual(data.run.offer, ["iceShot", "sparkChain"]);
+  assert.deepEqual(data.run.banished, ["blastShot"]);
+  assert.deepEqual(data.run.anvil, ["repair", "extraReroll"]);
+  assert.deepEqual(data.run.bossKills, ["bellKeeper"]);
+  assert.equal(store.save("test"), true);
+  assert.deepEqual(new SaveStore().data, data);
 });

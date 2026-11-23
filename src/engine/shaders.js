@@ -573,7 +573,7 @@ void main() {
   const needCrack = fixedStyle !== 5;
 
   const block5 = `
-    // LANTERN COURTYARD: rain-glazed slate flagstones with specular amber lamp puddles, brass tile inlays & wake ripples
+    // LANTERN YARD: rain-glazed slate flagstones with specular amber lamp puddles, brass tile inlays & wake ripples
     float puddle = smoothstep(0.56, 0.70, n1 + (n2 - 0.5) * 0.20) * mix(1.0, 0.56, centerCalm);
     float stoneVar = hash21(floor(p * 0.25 + 0.5));
     albedo *= 0.92 + stoneVar * 0.13 * detailAmt;
@@ -621,7 +621,7 @@ void main() {
     }`;
 
   const block2 = `
-    // AURORA SHELF: powder snowfield with crisp persistent snow footprints, dash snow-plows & sapphire glacier cracks
+    // SNOW RIDGE: powder snowfield with crisp persistent snow footprints, dash snow-plows & sapphire glacier cracks
     float icePatch = smoothstep(0.52, 0.68, n1) * mix(1.0, 0.54, centerCalm);
     float drift = smoothstep(0.34, 0.76, fbm(p * 0.19 + vec2(0.4, -0.2)));
     albedo = mix(albedo * 0.94, vec3(0.22, 0.34, 0.46), drift * 0.24 * detailAmt);
@@ -654,7 +654,7 @@ void main() {
     }`;
 
   const block3 = `
-    // GLOWMARSH: mossy peat turf, dark reflective bog shallows, pulsing mycelium veins & glowing water ripples
+    // MOSS BOG: mossy peat turf, dark reflective bog shallows, pulsing mycelium veins & glowing water ripples
     float bogWater = smoothstep(0.56, 0.70, n1) * mix(1.0, 0.54, centerCalm);
     float mossTuft = smoothstep(0.38, 0.72, n2);
     float mycoEdge = sharedCrack;
@@ -722,7 +722,7 @@ void main() {
     }`;
 
   const block6 = `
-    // ASHFALL CALDERA: dwarven basalt flagstones, glowing pahoehoe magma seams & ember-glowing soot footprints
+    // EMBER HILL: dwarven basalt flagstones, glowing pahoehoe magma seams & ember-glowing soot footprints
     float slab = hash21(floor(p * 0.25 + 0.5));
     albedo *= 0.90 + slab * 0.14 * detailAmt;
     albedo = mix(albedo, albedo * 0.68, gridLine * 0.26 * inside);
@@ -752,7 +752,7 @@ void main() {
     }`;
 
   const block1 = `
-    // GLASS FLATS: wind-rippled golden sand footprints & dash wakes blending into turquoise fused-glass sheets
+    // SUN DUNES: wind-rippled golden sand footprints & dash wakes blending into turquoise fused-glass sheets
     float glass = smoothstep(0.52, 0.68, n1) * mix(1.0, 0.54, centerCalm);
     float ripple = sin(p.y * 1.4 + p.x * 0.35 + n2 * 3.5) * 0.5 + 0.5;
     albedo = mix(albedo * (0.92 + ripple * 0.10 * detailAmt), vec3(0.048, 0.20, 0.22), glass * 0.56 * inside);
@@ -1037,7 +1037,7 @@ void main() {
   return { vs, fs };
 }
 
-// 5. Stylized Painterly Aurora Curtains (Aurora Shelf exterior sky)
+// 5. Stylized Painterly Aurora Curtains (Snow Ridge exterior sky)
 export function auroraProgram() {
   const vs = `${HEADER}
 layout(location=0) in vec3 aPos;

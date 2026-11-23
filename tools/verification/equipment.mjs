@@ -79,7 +79,7 @@ try {
       w.player.x = 0;
       w.player.y = 2;
       w.enemies.length = 0;
-      ["grunt", "swarmer", "splitter", "bulwark"].forEach((id, i) => {
+      ["kettleGuard", "smallBug", "sporePod", "shieldGuard"].forEach((id, i) => {
         const e = w.spawnEnemy(id, (i % 2 ? 1 : -1) * 3, Math.floor(i / 2) * 5, {});
         e.spawnT = 0;
       });
@@ -119,7 +119,7 @@ try {
     }, weapon);
     assert.equal(row.actual, weapon);
     assert.ok(row.smoke > 0, `${weapon}: death/weapon smoke missing`);
-    if (weapon === "rocket") assert.ok(row.rockets > 0);
+    if (weapon === "emberLauncher") assert.ok(row.rockets > 0);
     assert.deepEqual(errors, [], `${weapon}: browser/shader errors`);
     metrics.push(row);
     await page.screenshot({ path: `${out}/${weapon}.png`, animations: "disabled" });
@@ -159,9 +159,29 @@ try {
     await page.screenshot({ path: `${out}/player-turn-${turn}.png`, animations: "disabled" });
   }
   const groups = {
-    machines: ["grunt", "gunner", "bomber", "sniper", "bulwark", "mortar", "turret", "charger", "sapper", "driller"],
-    organics: ["swarmer", "mite", "splitter", "hive", "leaper", "mender", "carrier"],
-    others: ["brute", "striker", "phantom", "sentinel", "minebot", "drone", "beacon", "weaver"],
+    machines: [
+      "kettleGuard",
+      "brassGuard",
+      "firePot",
+      "longshot",
+      "shieldGuard",
+      "bellCannon",
+      "watchTower",
+      "wildBoar",
+      "bombMaker",
+      "burrowMole",
+    ],
+    organics: ["smallBug", "littlePod", "sporePod", "mushroomNest", "bogHopper", "mossHealer", "supplyKite"],
+    others: [
+      "ironGolem",
+      "blinkBlade",
+      "starGhost",
+      "crystalTower",
+      "mineCart",
+      "dartSprite",
+      "healingStone",
+      "starSpider",
+    ],
   };
   for (const [group, ids] of Object.entries(groups)) {
     await page.evaluate((ids) => {

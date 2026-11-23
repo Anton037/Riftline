@@ -59,7 +59,7 @@ function pointToSegDistSq(px, py, ax, ay, bx, by) {
   return cx * cx + cy * cy;
 }
 
-// Bellows Vent ('heatsink'): triggers only on active hazard/prop interaction (2.5s internal CD)
+// Hot Bellows ('heatsink'): triggers only on active hazard/prop interaction (2.5s internal CD)
 function triggerHeatSink(world) {
   const lv = world.stats.heatSink || 0,
     player = world.player;
@@ -109,7 +109,7 @@ function rlNearActiveHazard(world) {
   return false;
 }
 
-// Check if dashing near an erupting fumarole, active dust devil, or live trap triggers Bellows Vent
+// Check if dashing near an erupting fumarole, active dust devil, or live trap triggers Hot Bellows
 function checkDashHeatSink(world) {
   if (!world.stats.heatSink || world.player.dashT <= 0 || (world.player.heatSinkCd || 0) > 0) return;
   const arena = world.arena,
@@ -171,7 +171,7 @@ function starfallHarvest(world, dt) {
   });
 }
 
-// Gilded Caravan: golden Treasure Automaton marches across the arena dropping shards;
+// Gold Cart: golden Treasure Automaton marches across the arena dropping shards;
 // defeating it before exit bursts a 15-shard jackpot + healing globe.
 function updateCaravan(world, dt) {
   const c = world.caravan;
@@ -206,11 +206,11 @@ function ringCourtyardBell(world, vent, cycleId, friendly) {
   vent.rungCycle = cycleId;
   vent.rungT = 1.4;
   vent.st = "idle";
-  // Resonant Carillon counterplay: ringing a Bellkeeper-charged censer reflects a stun wave onto The Bellkeeper!
+  // Resonant Carillon counterplay: ringing a Bellkeeper-charged censer reflects a stun wave onto Bell Keeper!
   if (friendly && vent.bossTollT > 0) {
     vent.bossTollT = 0;
     const boss = world.boss;
-    if (boss && !boss.dead && boss.type === "bellkeeper") {
+    if (boss && !boss.dead && boss.type === "bellKeeper") {
       boss.stunT = Math.max(boss.stunT || 0, 1.6);
       world.hurtEnemy(boss, 65 * (world.stats.dmgMul || 1), boss.x - vent.x, boss.y - vent.y, 0, false, "shock");
       world.emit("chain", { pts: [vent.x, vent.y, boss.x, boss.y], arc: true });
@@ -281,7 +281,7 @@ function overpressureFumarole(world, vent, cycleId) {
 }
 
 function updateFeatures(world, dt) {
-  // Expire temporary Glasswyrm Sunglass Spires cleanly
+  // Expire temporary Glasswyrm Glass Pillars cleanly
   if (world.arena?.obs?.length) {
     let spireExpired = false;
     for (const ob of world.arena.obs) {
@@ -366,7 +366,7 @@ function updateFeatures(world, dt) {
       player.inAcid = false;
     }
 
-    // Glass Flats Dust Devils (and Mirage Winds Endless Omen)
+    // Sun Dunes Dust Devils (and Sand Winds Endless Omen)
     if (arena.devils && arena.devils.length && world.state === "fight") {
       for (const devil of arena.devils) {
         if (devil.calmT > 0) devil.calmT = Math.max(0, devil.calmT - dt);
@@ -408,7 +408,7 @@ function updateFeatures(world, dt) {
         if (!(devil.calmT > 0)) {
           const rCurve = devil.r + 0.65;
           world.hash.query(devil.x, devil.y, devil.r + 0.5, (enemy) => {
-            if (enemy.dead || (enemy.type !== "swarmer" && enemy.type !== "mite")) return;
+            if (enemy.dead || (enemy.type !== "smallBug" && enemy.type !== "littlePod")) return;
             const ex = enemy.x - devil.x,
               ey = enemy.y - devil.y,
               ed = Math.hypot(ex, ey);
@@ -453,8 +453,8 @@ function updateFeatures(world, dt) {
     } else player.inDevil = false;
 
     // Courtyard Bell-Censers & Caldera Interactive Fumaroles
-    const courtyardBell = arena.biome.id === "courtyard",
-      calderaFumarole = arena.biome.id === "caldera";
+    const courtyardBell = arena.biome.id === "lanternYard",
+      calderaFumarole = arena.biome.id === "emberHill";
     if (arena.vents.length && world.state === "fight") {
       for (const vent of arena.vents) {
         if (vent.rungT > 0) vent.rungT = Math.max(0, vent.rungT - dt);
@@ -506,12 +506,12 @@ function updateFeatures(world, dt) {
       }
     }
 
-    // Star-Vault Portals (player, bullets, AND non-boss enemies warp; shots empowered +20% natively / +35% in harmonic)
+    // Star Hall Portals (player, bullets, AND non-boss enemies warp; shots empowered +20% natively / +35% in harmonic)
     if (arena.portals.length) {
       if (player.portalT > 0) player.portalT -= dt;
       for (const portal of arena.portals) {
         // Astral Convergence Leyline Ribbon between portal mouths
-        if (world.event === "harmonic" && world.state === "fight") {
+        if (world.event === "starPaths" && world.state === "fight") {
           if (player.alive && pointToSegDistSq(player.x, player.y, portal.ax, portal.ay, portal.bx, portal.by) < 1.44) {
             player.leylineT = Math.max(player.leylineT || 0, 0.25);
           }
@@ -538,7 +538,7 @@ function updateFeatures(world, dt) {
             player.y = toY + dirY * 1.2;
             world.arena.resolve(player, player.r);
             player.portalT = 0.9;
-            if (world.event === "harmonic") player.festT = Math.max(player.festT || 0, 3.0);
+            if (world.event === "starPaths") player.festT = Math.max(player.festT || 0, 3.0);
           }
           // Non-boss enemies warp through portals (2.5s per-enemy CD with 0.4s arrival shimmer)
           if (world.state === "fight") {
@@ -575,10 +575,10 @@ function updateFeatures(world, dt) {
                 bullet.y = toY + (bullet.vy / speed) * 0.9;
                 bullet.warpT = world.time + 0.35;
                 if (list === world.pb && !bullet.portalBoost) {
-                  const boostMul = world.event === "harmonic" ? 1.35 : 1.2;
+                  const boostMul = world.event === "starPaths" ? 1.35 : 1.2;
                   bullet.dmg *= boostMul;
                   bullet.portalBoost = true;
-                  if (world.event === "harmonic") bullet.harmonicBoost = true;
+                  if (world.event === "starPaths") bullet.harmonicBoost = true;
                 }
                 if (bullet.boom) bullet.back = true;
                 world.warpFx = (world.warpFx || 0) + 1;
@@ -679,7 +679,7 @@ function fireBiomeProp(world, prop) {
       }
     });
     world.emit("biomeProp", { kind: "puffball", state: "fire", x, y, r });
-  } else if (prop.kind === "prism") {
+  } else if (prop.kind === "iceCrystal") {
     prop.auraT = 3.0;
     const r = 4.5,
       near = [];
@@ -694,7 +694,7 @@ function fireBiomeProp(world, prop) {
       world.hurtEnemy(enemy, 38 * dmgMul, enemy.x - x, enemy.y - y, 1.6, false, "prop");
       world.emit("chain", { pts: [x, y, enemy.x, enemy.y], arc: false });
     }
-    world.emit("biomeProp", { kind: "prism", state: "fire", x, y, r });
+    world.emit("biomeProp", { kind: "iceCrystal", state: "fire", x, y, r });
   } else if (prop.kind === "crucible") {
     const r = 4.2;
     world.hash.query(x, y, r, (enemy) => {
@@ -747,7 +747,7 @@ function fireBiomeProp(world, prop) {
         pierce: 2,
         bounce: 0,
         hits: [],
-        w: "rail",
+        w: "starSpear",
         age: 0,
         homing: 0,
       });
@@ -791,7 +791,7 @@ function updateHazards(world, dt) {
   }
   for (const hazard of world.hazards) {
     hazard.t += dt;
-    // Astral Weaver's 3.0s Star-Silk Tether between (ax, ay) and (bx, by)
+    // Star Spider's 3.0s Star-Silk Tether between (ax, ay) and (bx, by)
     if (hazard.kind === "tether" && !hazard.done) {
       if (
         player.alive &&
@@ -799,11 +799,11 @@ function updateHazards(world, dt) {
         pointToSegDistSq(player.x, player.y, hazard.ax, hazard.ay, hazard.bx, hazard.by) < (0.55 + player.r) ** 2
       ) {
         if (player.dashT > 0) {
-          // Dashing through snaps the tether with a bonus spark and Hearthburst charge
+          // Dashing through snaps the tether with a bonus spark and Fire Burst charge
           hazard.done = true;
           hazard.t = hazard.delay;
           world.addNova(8, true);
-          world.emit("spark", { x: player.x, y: player.y, w: "tesla" });
+          world.emit("spark", { x: player.x, y: player.y, w: "sparkWand" });
           continue;
         } else {
           if (1.1 >= player.slowT) player.slowKind = "shock";
@@ -823,7 +823,7 @@ function updateHazards(world, dt) {
         world.explode(hazard.x, hazard.y, hazard.r, hazard.dmg, {
           enemies: true,
           knock: 3.6,
-          kind: "payload",
+          kind: "blastShot",
           src: "starfall",
         });
         const count = 3 + Math.floor(world.rng.next() * 3);
@@ -831,7 +831,7 @@ function updateHazards(world, dt) {
         continue;
       }
       if (hazard.shotByPlayer) {
-        // Player-detonated Cinder-Sower Ember-Pot or Ash Tyrant Crucible Bomb: blasts enemies (and Boss!) with 0 friendly fire
+        // Player-detonated Mine Cart Ember-Pot or Ash Tyrant Crucible Bomb: blasts enemies (and Boss!) with 0 friendly fire
         const blastDmg = hazard.crucibleBomb ? 140 * (world.stats.dmgMul || 1) : 65 * (world.stats.dmgMul || 1);
         world.explode(hazard.x, hazard.y, hazard.r * 1.35, blastDmg, {
           enemies: true,
@@ -915,7 +915,7 @@ function startBiomeEvent(world, id, wave) {
       }
     };
   arena.rlEvent = id;
-  if (id === "mirage") {
+  if (id === "sandstorm") {
     add("devils", 3);
     world.bioEv = { id, t: 0 };
   } else if (id === "festival") {
@@ -928,7 +928,7 @@ function startBiomeEvent(world, id, wave) {
       vent.st = "idle";
     });
     world.bioEv = { id, t: 0 };
-  } else if (id === "forgewind") {
+  } else if (id === "hotWind") {
     add("vents", 3);
     const period = RL_FORGEWIND_PERIOD;
     for (const vent of arena.vents) {
@@ -937,10 +937,10 @@ function startBiomeEvent(world, id, wave) {
       vent.st = "idle";
     }
     world.bioEv = { id, t: 0 };
-  } else if (id === "aurora") {
+  } else if (id === "snowWind") {
     add("ice", 3, [1.7, 2.5]);
     world.bioEv = { id, t: 0 };
-  } else if (id === "nectar") {
+  } else if (id === "fireflies") {
     for (const pool of arena.acid) {
       if (pool.life == null) {
         pool.grow = {
@@ -953,7 +953,7 @@ function startBiomeEvent(world, id, wave) {
       }
     }
     world.bioEv = { id, t: 0, next: RL_NECTAR_EVERY, n: 0, rng };
-  } else if (id === "harmonic") {
+  } else if (id === "starPaths") {
     world.bioEv = { id, t: 0, next: RL_HARMONIC_EVERY, rng };
   }
 }
@@ -969,7 +969,7 @@ function tickBiomeEvent(world, event, dt) {
         break;
       }
     }
-  } else if (event.id === "forgewind") {
+  } else if (event.id === "hotWind") {
     world.addNova(2.0 * dt);
     for (const vent of arena.vents) {
       if (vent.st === "warn" || vent.st === "erupt") {
@@ -981,7 +981,7 @@ function tickBiomeEvent(world, event, dt) {
         });
       }
     }
-  } else if (event.id === "mirage" && player.dashT > 0 && arena.devils) {
+  } else if (event.id === "sandstorm" && player.dashT > 0 && arena.devils) {
     for (const devil of arena.devils) {
       if ((devil.calmT || 0) <= 0 && Math.hypot(player.x - devil.x, player.y - devil.y) < devil.r + 1.8) {
         devil.calmT = 5.0;
@@ -989,7 +989,7 @@ function tickBiomeEvent(world, event, dt) {
         world.emit("bountyPulse", { x: devil.x, y: devil.y, amount: 3 });
       }
     }
-  } else if (event.id === "nectar") {
+  } else if (event.id === "fireflies") {
     for (const pool of arena.acid) {
       if (pool.grow) {
         const g = pool.grow;
@@ -1028,7 +1028,7 @@ function tickBiomeEvent(world, event, dt) {
         }
       }
     }
-  } else if (event.id === "harmonic" && arena.portals.length) {
+  } else if (event.id === "starPaths" && arena.portals.length) {
     for (const portal of arena.portals) {
       for (const [mx, my] of [
         [portal.ax, portal.ay],

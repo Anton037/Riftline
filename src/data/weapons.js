@@ -1,9 +1,10 @@
 // Player weapons table.
 
 const weaponDefs = {
-  pulse: {
-    id: "pulse",
-    name: "Lantern Repeater",
+  lanternGun: {
+    id: "lanternGun",
+    muzzle: [0.9, 0.035],
+    name: "Lantern Gun",
     cost: 0,
     color: 0x91c9b4,
     blurb: "Steady lantern bolts. Every fourth shot burns brighter.",
@@ -19,9 +20,10 @@ const weaponDefs = {
     pierce: 0,
     shake: 0.03,
   },
-  scatter: {
-    id: "scatter",
-    name: "Brass Blunderbuss",
+  brassShotgun: {
+    id: "brassShotgun",
+    muzzle: [0.88, 0.04],
+    name: "Brass Shotgun",
     cost: 120,
     color: 0xe5b878,
     blurb: "Six piercing brass pellets that hit harder up close.",
@@ -38,12 +40,13 @@ const weaponDefs = {
     pierce: 1,
     shake: 0.12,
   },
-  tesla: {
-    id: "tesla",
-    name: "Stormcoil Wand",
+  sparkWand: {
+    id: "sparkWand",
+    muzzle: [0.94, 0.03],
+    name: "Spark Wand",
     cost: 300,
     color: 0xc98860,
-    blurb: "Arcs leap to nearby foes or jolt a lone foe twice.",
+    blurb: "Arcs leap to nearby enemies or jolt a lone enemy twice.",
     dmg: 13,
     rate: 5.5,
     speed: 34,
@@ -57,12 +60,13 @@ const weaponDefs = {
     chain: 2,
     shake: 0.03,
   },
-  rail: {
-    id: "rail",
-    name: "Starlight Lance",
+  starSpear: {
+    id: "starSpear",
+    muzzle: [1.24, 0.02],
+    name: "Star Spear",
     cost: 450,
     color: 0xc0a6db,
-    blurb: "Heavy lances grow stronger as they pierce foes.",
+    blurb: "Heavy lances grow stronger as they pierce enemies.",
     dmg: 72,
     rate: 1.1,
     speed: 95,
@@ -74,11 +78,12 @@ const weaponDefs = {
     knock: 4.5,
     pierce: 4,
     shake: 0.18,
-    rail: true,
+    starSpear: true,
   },
-  rocket: {
-    id: "rocket",
-    name: "Cinder Mortar",
+  emberLauncher: {
+    id: "emberLauncher",
+    muzzle: [0.84, 0.06],
+    name: "Ember Launcher",
     cost: 650,
     color: 0xe08c6c,
     blurb: "Seeking ember shells hit hardest at the heart of the blast.",
@@ -97,9 +102,10 @@ const weaponDefs = {
     homing: 2.4,
     shake: 0.1,
   },
-  disc: {
-    id: "disc",
-    name: "Sunwheel Chakram",
+  ringBlade: {
+    id: "ringBlade",
+    muzzle: [0.82, 0.02],
+    name: "Ring Blade",
     cost: 800,
     color: 0xaac6b7,
     blurb: "Spinning brass blades carve deeper on their way back.",
@@ -116,12 +122,13 @@ const weaponDefs = {
     boomerang: true,
     shake: 0.05,
   },
-  flame: {
-    id: "flame",
-    name: "Hearth Bellows",
+  fireBellows: {
+    id: "fireBellows",
+    muzzle: [0.88, 0.02],
+    name: "Fire Bellows",
     cost: 1e3,
     color: 0xe9a672,
-    blurb: "Hearth-fire ignites foes and deals Thermal Shatter to chilled targets.",
+    blurb: "Hearth-fire ignites enemies and deals Heat Shatter to chilled targets.",
     dmg: 5.1,
     rate: 15,
     speed: 23,
@@ -139,8 +146,28 @@ const weaponDefs = {
   },
 };
 // The carousel follows unlock price; Node and the browser share the same order.
-const weaponOrder = ["pulse", "scatter", "tesla", "rail", "rocket", "disc", "flame"].sort(
-  (a, b) => weaponDefs[a].cost - weaponDefs[b].cost,
-);
+const weaponOrder = [
+  "lanternGun",
+  "brassShotgun",
+  "sparkWand",
+  "starSpear",
+  "emberLauncher",
+  "ringBlade",
+  "fireBellows",
+].sort((a, b) => weaponDefs[a].cost - weaponDefs[b].cost);
 
-export { weaponOrder, weaponDefs };
+// Model-space dimensions shared by the hero rig, ballistics and the aim guide.
+const weaponMount = { bearingX: 0.02, bearingHeight: 1.16, forward: 0.32, side: 0.36, height: -0.15 };
+
+function muzzlePoint(weapon, x, y, angle) {
+  const cos = Math.cos(angle),
+    sin = Math.sin(angle),
+    forward = weaponMount.bearingX + weaponMount.forward + weapon.muzzle[0];
+  return {
+    x: x + cos * forward - sin * weaponMount.side,
+    y: y + sin * forward + cos * weaponMount.side,
+    height: weaponMount.bearingHeight + weaponMount.height + weapon.muzzle[1],
+  };
+}
+
+export { weaponOrder, weaponDefs, weaponMount, muzzlePoint };

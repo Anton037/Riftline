@@ -22,7 +22,7 @@ const { World } = await import("../src/core/world.js"),
   { attackVoice, RL_TRAP_SOUND, SoundEngine } = await import("../src/audio/sound.js"),
   { WeaponEffectsView } = await import("../src/render/weapon-effects-view.js"),
   { ActorEffectsView } = await import("../src/render/actor-effects-view.js");
-const world = (weapon = "pulse") => new World({ seed: 731, weapon, threat: 0, ws: {} });
+const world = (weapon = "lanternGun") => new World({ seed: 731, weapon, threat: 0, ws: {} });
 const keys = (o) => Object.keys(o).sort();
 
 test("every current actor, weapon and biome has a complete effects identity", () => {
@@ -51,11 +51,11 @@ test("all boss patterns and Overdrives retain their source through shots, zones,
     shots = 0;
   for (const [type, attacks] of Object.entries(bossPatterns)) {
     let bossShots = 0;
-    for (const phase of type === "core" ? [1, 2, 3] : [1, 3])
+    for (const phase of type === "starHeart" ? [1, 2, 3] : [1, 3])
       for (const attack of new Set([...attacks, OVERDRIVE[type]])) {
         const enraged = phase === 3;
         const w = world(),
-          biome = Object.keys(bossByBiome).find((id) => bossByBiome[id] === type) || "caldera";
+          biome = Object.keys(bossByBiome).find((id) => bossByBiome[id] === type) || "emberHill";
         w.route = [biome];
         w.startWave(5);
         w.arena.obs = [];
@@ -137,25 +137,25 @@ test("every ranged enemy uses its own projectile and shot voice in actual AI", (
 
 test("explicit attack sources override ambient context and matching surfaces drive both sound and look", () => {
   const w = world();
-  w._src = "bellkeeper";
+  w._src = "bellKeeper";
   w.fx = [];
-  assert.equal(w.hazard({ x: 0, y: 0, r: 1, src: "tyrant" }).src, "tyrant");
-  assert.equal(w.beam({ x: 0, y: 0, a: 0, src: "wyrm", skin: "sun" }).src, "wyrm");
-  w.explode(0, 0, 1, 0, { kind: "stomp", src: "tyrant" });
-  assert.equal(w.fx.at(-1).src, "tyrant");
+  assert.equal(w.hazard({ x: 0, y: 0, r: 1, src: "emberKing" }).src, "emberKing");
+  assert.equal(w.beam({ x: 0, y: 0, a: 0, src: "sandDragon", skin: "sun" }).src, "sandDragon");
+  w.explode(0, 0, 1, 0, { kind: "stomp", src: "emberKing" });
+  assert.equal(w.fx.at(-1).src, "emberKing");
   const cases = [
-    ["stomp", "tyrant", "lavaCrack", "aLava"],
-    ["stomp", "bellkeeper", "crack", "aQuake"],
-    ["stomp", "wyrm", "glass", "aGlass"],
-    ["rain", "queen", "acid", "aAcid"],
-    ["rain", "core", "rift", "aRift"],
+    ["stomp", "emberKing", "lavaCrack", "aLava"],
+    ["stomp", "bellKeeper", "crack", "aQuake"],
+    ["stomp", "sandDragon", "glass", "aGlass"],
+    ["rain", "mossQueen", "acid", "aAcid"],
+    ["rain", "starHeart", "rift", "aRift"],
   ];
   for (const [kind, source, surface, voice] of cases) {
-    assert.equal(attackSurface(kind, source, "courtyard"), surface);
-    assert.equal(attackVoice(kind, source, "courtyard"), voice);
+    assert.equal(attackSurface(kind, source, "lanternYard"), surface);
+    assert.equal(attackVoice(kind, source, "lanternYard"), voice);
   }
-  assert.equal(attackSurface("mortar", "mortar", "shelf", true), "frost");
-  assert.equal(attackVoice("mortar", "mortar", "shelf", true), "aIce");
+  assert.equal(attackSurface("bellCannon", "bellCannon", "snowRidge", true), "frost");
+  assert.equal(attackVoice("bellCannon", "bellCannon", "snowRidge", true), "aIce");
 });
 
 class Pool {
@@ -195,11 +195,11 @@ test("all seven real player shots reach their distinct render path without mutat
     const view = new WeaponEffectsView(r, Pool);
     view.draw(1 / 60, w);
     assert.equal(JSON.stringify(w.pb), before, `${weapon}: rendering changed a live shot`);
-    if (weapon === "tesla") assert.ok(view.segmentsPool.n >= 18, "Arc Caster must draw an inlaid trace");
-    else if (weapon === "flame")
+    if (weapon === "sparkWand") assert.ok(view.segmentsPool.n >= 18, "Arc Caster must draw an inlaid trace");
+    else if (weapon === "fireBellows")
       assert.equal(view.flamePool.n, w.pb.length * 2, "Ember Jet must draw crossed flame ribbons");
-    else if (weapon === "disc") assert.ok(r.discPool.n > 0);
-    else if (weapon === "rocket") assert.ok(r.rocketBodies.n > 0 && view.flamePool.n > 0);
+    else if (weapon === "ringBlade") assert.ok(r.discPool.n > 0);
+    else if (weapon === "emberLauncher") assert.ok(r.rocketBodies.n > 0 && view.flamePool.n > 0);
     else assert.ok(view.segmentsPool.n > 0, weapon);
     for (const p of view.list) {
       p.mesh.geometry.dispose();
@@ -209,7 +209,7 @@ test("all seven real player shots reach their distinct render path without mutat
 });
 
 test("every Arc Caster shot remains visible at the simulation projectile cap", () => {
-  const w = world("tesla");
+  const w = world("sparkWand");
   w.fire(0);
   const shot = w.pb[0];
   w.pb = Array.from({ length: 420 }, (_, i) => ({
@@ -263,25 +263,31 @@ test("motion and summon effects no longer borrow unrelated actor palettes", () =
       smokeView: { emit() {} },
     };
   const view = new ActorEffectsView(r);
-  view.consume({ k: "hatch", src: "tyrant", x: 0, y: 0, big: true }, 1);
-  assert.ok(bursts.some((b) => b[5].getHex() === BOSS_EFFECTS.tyrant.color));
-  assert.ok(!bursts.some((b) => b[5].getHex() === BOSS_EFFECTS.queen.color));
+  view.consume({ k: "hatch", src: "emberKing", x: 0, y: 0, big: true }, 1);
+  assert.ok(bursts.some((b) => b[5].getHex() === BOSS_EFFECTS.emberKing.color));
+  assert.ok(!bursts.some((b) => b[5].getHex() === BOSS_EFFECTS.mossQueen.color));
   bursts.length = rings.length = 0;
-  view.consume({ k: "blink", src: "leaper", leap: true, x: 0, y: 0 }, 1);
+  view.consume({ k: "blink", src: "bogHopper", leap: true, x: 0, y: 0 }, 1);
   assert.equal(rings.length, 0, "a physical leap must not open a teleport ring");
-  view.consume({ k: "blink", src: "wyrm", x: 0, y: 0 }, 1);
-  assert.ok(!bursts.some((b) => b[5].getHex() === BOSS_EFFECTS.prism.color));
+  view.consume({ k: "blink", src: "sandDragon", x: 0, y: 0 }, 1);
+  assert.ok(!bursts.some((b) => b[5].getHex() === BOSS_EFFECTS.iceCrystal.color));
 });
 
 test("sound consumption preserves source-aware summons, beam warnings and the Glasswyrm shot", () => {
   const played = [],
-    engine = { live: () => true, play: (...args) => played.push(args), bossPush() {}, bossEnd() {}, biome: "caldera" };
+    engine = {
+      live: () => true,
+      play: (...args) => played.push(args),
+      bossPush() {},
+      bossEnd() {},
+      biome: "emberHill",
+    };
   SoundEngine.prototype.consume.call(
     engine,
     [
-      { k: "eshot", type: "boss", boss: "wyrm" },
-      { k: "hatch", src: "tyrant", big: true },
-      { k: "blink", src: "leaper", leap: true },
+      { k: "eshot", type: "boss", boss: "sandDragon" },
+      { k: "hatch", src: "emberKing", big: true },
+      { k: "blink", src: "bogHopper", leap: true },
       { k: "beamWarn", skin: "rift" },
     ],
     null,
@@ -290,17 +296,18 @@ test("sound consumption preserves source-aware summons, beam warnings and the Gl
     played.map((p) => p[0]),
     ["eshotWyrm", "hatch", "leap", "bwRift"],
   );
-  assert.equal(played[1][1].src, "tyrant");
+  assert.equal(played[1][1].src, "emberKing");
   assert.notEqual(
-    physicalProfile("hatch", { src: "tyrant" }).sample,
-    physicalProfile("hatch", { src: "queen" }).sample,
+    physicalProfile("hatch", { src: "emberKing" }).sample,
+    physicalProfile("hatch", { src: "mossQueen" }).sample,
   );
 });
 
-test("canonical biome names preserve pre-update seeded routes and map geometry", () => {
+test("current area names preserve pre-update seeded routes and map geometry", async () => {
+  const { currentBiomeId, currentEventId } = await import("../src/data/content-ids.js");
   const fixture = JSON.parse(fs.readFileSync(new URL("fixtures/pre-4.2-layouts.json", import.meta.url)));
   for (const row of fixture.layouts) {
-    const { key, ...layout } = buildLayout(biomesById[row.biome], row.seed, row.wave, false);
+    const { key, ...layout } = buildLayout(biomesById[currentBiomeId(row.biome)], row.seed, row.wave, false);
     assert.equal(
       createHash("sha256").update(JSON.stringify(layout)).digest("hex"),
       row.digest,
@@ -308,15 +315,15 @@ test("canonical biome names preserve pre-update seeded routes and map geometry",
     );
   }
   for (const row of fixture.routes)
-    assert.deepEqual(planBiomeRoute(makeRng(hashString(row.seed + ":route"))), row.route);
+    assert.deepEqual(planBiomeRoute(makeRng(hashString(row.seed + ":route"))), row.route.map(currentBiomeId));
   for (const row of fixture.events) {
-    const w = new World({ seed: row.seed, weapon: "pulse", threat: 0, ws: {} });
-    w.route = ["caldera"];
+    const w = new World({ seed: row.seed, weapon: "lanternGun", threat: 0, ws: {} });
+    w.route = ["emberHill"];
     w.endless = true;
     w.startWave(row.wave);
     const a = w.arena,
       features = { obs: a.obs, vents: a.vents, ice: a.ice, acid: a.acid, portals: a.portals, devils: a.devils };
-    assert.equal(w.event, row.event);
+    assert.equal(w.event, currentEventId(row.event));
     assert.equal(
       createHash("sha256").update(JSON.stringify(features)).digest("hex"),
       row.digest,

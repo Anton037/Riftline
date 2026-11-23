@@ -19,9 +19,9 @@ const MENU_THEME = {
 };
 
 const THEMES = {
-  // 1. Lantern Courtyard: Rainy twilight courtyard groove — 88 BPM D Dorian kalimba, warm ceramic Rhodes, walking cello
-  courtyard: {
-    id: "courtyard",
+  // 1. Lantern Yard: Rainy twilight courtyard groove — 88 BPM D Dorian kalimba, warm ceramic Rhodes, walking cello
+  lanternYard: {
+    id: "lanternYard",
     roots: [50, 53, 48, 45],
     bridgeRoots: [55, 53, 52, 45],
     mode: [0, 2, 3, 5, 7, 9],
@@ -36,9 +36,9 @@ const THEMES = {
     octave: 12,
     bed: [196, 0.18, 0.065],
   },
-  // 2. Aurora Shelf: Sparkling alpine wonder — 78 BPM F Lydian celesta & harp arpeggios, shimmering glass harmonics
-  shelf: {
-    id: "shelf",
+  // 2. Snow Ridge: Sparkling alpine wonder — 78 BPM F Lydian celesta & harp arpeggios, shimmering glass harmonics
+  snowRidge: {
+    id: "snowRidge",
     roots: [53, 57, 50, 55],
     bridgeRoots: [58, 55, 57, 53],
     mode: [0, 2, 4, 6, 7, 9],
@@ -53,9 +53,9 @@ const THEMES = {
     octave: 12,
     bed: [262, 0.24, 0.048],
   },
-  // 3. Glowmarsh: Whimsical bog village bounce — 93 BPM G Mixolydian wooden marimba, breathy ocarina reed & log-drum
-  marsh: {
-    id: "marsh",
+  // 3. Moss Bog: Whimsical bog village bounce — 93 BPM G Mixolydian wooden marimba, breathy ocarina reed & log-drum
+  mossBog: {
+    id: "mossBog",
     roots: [43, 48, 45, 50],
     bridgeRoots: [48, 50, 45, 43],
     mode: [0, 2, 4, 7, 9, 10],
@@ -70,9 +70,9 @@ const THEMES = {
     octave: 12,
     bed: [196, 0.2, 0.075],
   },
-  // 4. Star-Vault (core): Velvet astral observatory — 83 BPM E Aeolian add9 harp & celesta ostinato, fifths & choir swells
-  core: {
-    id: "core",
+  // 4. Star Hall (core): Velvet astral observatory — 83 BPM E Aeolian add9 harp & celesta ostinato, fifths & choir swells
+  starHall: {
+    id: "starHall",
     roots: [52, 48, 55, 50],
     bridgeRoots: [48, 50, 55, 54],
     mode: [0, 2, 3, 7, 9, 10],
@@ -87,9 +87,9 @@ const THEMES = {
     octave: 12,
     bed: [330, 0.26, 0.088],
   },
-  // 5. Ashfall Caldera: Dwarven forge-hearth — 98 BPM A Phrygian Dominant (Hijaz) French horn, warm marimba & anvil chime
-  caldera: {
-    id: "caldera",
+  // 5. Ember Hill: Dwarven forge-hearth — 98 BPM A Phrygian Dominant (Hijaz) French horn, warm marimba & anvil chime
+  emberHill: {
+    id: "emberHill",
     roots: [45, 46, 43, 45],
     bridgeRoots: [50, 48, 46, 45],
     mode: [0, 1, 4, 5, 7, 8],
@@ -104,9 +104,9 @@ const THEMES = {
     octave: 12,
     bed: [147, 0.16, 0.058],
   },
-  // 6. Glass Flats: Sunlit desert oasis — 104 BPM E Major add9 plucked acoustic harp/lute, airy reed flute & sand-brush pulse
-  flats: {
-    id: "flats",
+  // 6. Sun Dunes: Sunlit desert oasis — 104 BPM E Major add9 plucked acoustic harp/lute, airy reed flute & sand-brush pulse
+  sunDunes: {
+    id: "sunDunes",
     roots: [52, 56, 49, 54],
     bridgeRoots: [57, 54, 56, 52],
     mode: [0, 2, 4, 7, 9, 11],
@@ -124,7 +124,7 @@ const THEMES = {
 };
 
 const freq = (midi) => 440 * 2 ** ((midi - 69) / 12);
-const themeFor = (biome) => (biome === "menu" ? MENU_THEME : THEMES[biome] || THEMES.courtyard);
+const themeFor = (biome) => (biome === "menu" ? MENU_THEME : THEMES[biome] || THEMES.lanternYard);
 
 export const scoreBiomes = Object.keys(THEMES);
 export const scoreOrigin = (biome) => freq(themeFor(biome).roots[0]);
@@ -146,7 +146,7 @@ export function musicTrack(kind, biome) {
   return {
     bpm: themeFor(biome).bpm[boss ? 1 : 0],
     bars: boss ? 24 : 16,
-    gain: boss ? 1.06 : { courtyard: 1.2, marsh: 1.5, flats: 1.5 }[biome] || 1,
+    gain: boss ? 1.06 : { lanternYard: 1.2, mossBog: 1.5, sunDunes: 1.5 }[biome] || 1,
   };
 }
 
@@ -178,7 +178,7 @@ export function playScore(engine, kind, biome, step, at) {
     engine.tone(freq(midi), dur, wave, vol, { at, dest: engine.mus, ...opts });
 
   // 1. Harmonic Foundation & Bass Movement (distinct per biome!)
-  if (id === "courtyard" && !menu) {
+  if (id === "lanternYard" && !menu) {
     // Courtyard: Walking pizzicato/bowed cello bassline + warm ceramic Rhodes 9th chords
     if (beat === 0 || (active && beat === 8) || (hot && !isSectionA && (beat === 4 || beat === 12))) {
       const walkDeg = beat === 0 ? 0 : beat === 8 ? 4 : beat === 4 ? 2 : 5;
@@ -199,7 +199,7 @@ export function playScore(engine, kind, biome, step, at) {
         dest: engine.pump,
       });
     }
-  } else if (id === "shelf") {
+  } else if (id === "snowRidge") {
     // Shelf: Warm swelling alpine strings + high shimmering glass harmonics
     if (beat === 0 || (boss && beat === 8)) {
       const long = Math.min(1.08, seconds * (boss ? 0.68 : 0.96));
@@ -227,7 +227,7 @@ export function playScore(engine, kind, biome, step, at) {
         dest: engine.delay,
       });
     }
-  } else if (id === "marsh") {
+  } else if (id === "mossBog") {
     // Marsh: Bouncy woody root-fifth bass & playful bog village rhythm
     if (beat === 0 || beat === 6 || (active && !isSectionA && beat === 12)) {
       const bassDeg = beat === 0 ? 0 : beat === 6 ? 3 : 4;
@@ -247,8 +247,8 @@ export function playScore(engine, kind, biome, step, at) {
         dest: engine.delay,
       });
     }
-  } else if (id === "core") {
-    // Star-Vault (core): Deep resonant astral fifths + ethereal choir/pad swell on beat 4
+  } else if (id === "starHall") {
+    // Star Hall (core): Deep resonant astral fifths + ethereal choir/pad swell on beat 4
     if (beat === 0 || (boss && beat === 8)) {
       const long = Math.min(1.08, seconds * (boss ? 0.68 : 0.96));
       tone(root - 12, long, "bow", boss ? 0.095 : 0.06, {
@@ -275,7 +275,7 @@ export function playScore(engine, kind, biome, step, at) {
         dest: engine.pump,
       });
     }
-  } else if (id === "caldera") {
+  } else if (id === "emberHill") {
     // Caldera: Dwarven forge-hearth Phrygian drone + felted frame-drum + distant bronze anvil chime
     if (beat === 0 || (boss && beat === 8)) {
       const long = Math.min(1.02, seconds * (boss ? 0.66 : 0.92));
@@ -298,7 +298,7 @@ export function playScore(engine, kind, biome, step, at) {
         dest: engine.delay,
       });
     }
-  } else if (id === "flats") {
+  } else if (id === "sunDunes") {
     // Flats: Sunlit oasis acoustic lute/harp bass + airy desert reed flute phrases
     if (beat === 0 || beat === 6 || (active && !isSectionA && beat === 10)) {
       const luteDeg = beat === 0 ? 0 : beat === 6 ? 3 : 4;
@@ -407,7 +407,7 @@ export function playScore(engine, kind, biome, step, at) {
       engine.noise(0.1, vol * 0.34, { at, f: 420, to: 140, q: 1.0, color: "pink", dest: engine.mus });
       engine.pumpDip?.(at, 0.26);
     };
-    if (id === "courtyard") {
+    if (id === "lanternYard") {
       // Bellkeeper: 6/8 carillon toll (tripled-feel bell swings & bronze fifths, seamless across 384 steps)
       const tollBeat = step % 6;
       if (tollBeat === 0) {
@@ -429,7 +429,7 @@ export function playScore(engine, kind, biome, step, at) {
           dest: engine.pump,
         });
       }
-    } else if (id === "shelf") {
+    } else if (id === "snowRidge") {
       // Frost Prism: shimmering 16th glass arpeggios + crisp crystalline rim accents
       const arpNote = note(phrase[(step + section) % phrase.length]) + (beat % 4 === 0 ? 24 : 12);
       tone(arpNote, 0.16, "celesta", 0.048 + (beat % 4 === 0 ? 0.02 : 0), {
@@ -443,7 +443,7 @@ export function playScore(engine, kind, biome, step, at) {
       if (beat === 4 || beat === 12) {
         engine.noise(0.09, 0.065 * energy, { at, f: 3800, type: "bandpass", q: 1.6, color: "pink", dest: engine.mus });
       }
-    } else if (id === "marsh") {
+    } else if (id === "mossBog") {
       // Brood-Empress: syncopated log-drum bog polyrhythm + breathy reed turns
       if (beat === 0 || beat === 5 || beat === 10) kick(86, 0.26, 0.25);
       if (beat === 3 || beat === 8 || beat === 14 || (engine.heat >= 1 && beat === 11)) {
@@ -463,8 +463,8 @@ export function playScore(engine, kind, biome, step, at) {
           rev: 0.16,
         });
       }
-    } else if (id === "core") {
-      // Shattered Heart: 3/4 astral waltz (12-step waltz cycle, seamless across 384 steps!)
+    } else if (id === "starHall") {
+      // Star Heart: 3/4 astral waltz (12-step waltz cycle, seamless across 384 steps!)
       const waltz = step % 12;
       if (waltz === 0) {
         kick(88, 0.25, 0.3);
@@ -489,7 +489,7 @@ export function playScore(engine, kind, biome, step, at) {
       } else if (waltz % 2 === 0 && engine.heat >= 1) {
         tone(note(phrase[step % phrase.length]) + 12, 0.16, "harp", 0.042, { lp: 2400, dest: engine.pump });
       }
-    } else if (id === "caldera") {
+    } else if (id === "emberHill") {
       // Ash Tyrant: half-time forge-anvil stomp (crushing sub on 0, heavy bronze anvil smash on 8 & 14)
       if (beat === 0 || (engine.heat >= 1 && beat === 10)) kick(76, 0.3, 0.32);
       if (beat === 8 || beat === 14) {
@@ -551,7 +551,7 @@ export function playScore(engine, kind, biome, step, at) {
       });
     }
   } else if (!menu && active) {
-    if (id === "courtyard" && (beat === 4 || beat === 12)) {
+    if (id === "lanternYard" && (beat === 4 || beat === 12)) {
       engine.noise(0.09, 0.026 * (0.7 + energy * 0.6), {
         at,
         f: 2650,
@@ -560,13 +560,13 @@ export function playScore(engine, kind, biome, step, at) {
         color: "pink",
         dest: engine.mus,
       });
-    } else if (id === "marsh" && (beat === 4 || beat === 10 || (hot && beat === 14))) {
+    } else if (id === "mossBog" && (beat === 4 || beat === 10 || (hot && beat === 14))) {
       tone(note((bar + beat) % 5), 0.16, "kalimba", 0.024 * (1 + energy * 0.7), {
         attack: 0.006,
         lp: 1450,
         pan: beat === 4 ? -0.18 : 0.18,
       });
-    } else if (id === "flats" && (beat === 2 || beat === 6 || beat === 10 || beat === 14)) {
+    } else if (id === "sunDunes" && (beat === 2 || beat === 6 || beat === 10 || beat === 14)) {
       engine.noise(0.075, 0.011 * (0.6 + energy * 0.7), {
         at,
         f: 3300,
@@ -575,8 +575,8 @@ export function playScore(engine, kind, biome, step, at) {
         color: "pink",
         dest: engine.mus,
       });
-    } else if ((id === "caldera" || id === "shelf" || id === "core") && (beat === 4 || beat === 12)) {
-      const pulseWave = id === "core" ? "harp" : "marimba";
+    } else if ((id === "emberHill" || id === "snowRidge" || id === "starHall") && (beat === 4 || beat === 12)) {
+      const pulseWave = id === "starHall" ? "harp" : "marimba";
       tone(note((bar + (beat >> 2)) % 5), 0.21, pulseWave, 0.024 * (1 + energy * 0.8), {
         attack: 0.008,
         lp: 1650,
@@ -591,7 +591,7 @@ export function scoreBed({ osc, loop, filt, lfo, level, root, barRate, boss }, b
   const breath = filt("bandpass", air, 2.1, loop(0.7, "pink"));
   lfo(motion, air * 0.22, breath.frequency);
   // Keep the Flats' sandy bed below the plucked lead and brush percussion.
-  level(biome === "flats" && !boss ? filt("lowpass", 440, 0.707, breath) : breath, 0.15);
+  level(biome === "sunDunes" && !boss ? filt("lowpass", 440, 0.707, breath) : breath, 0.15);
   const floor = level(osc("sine", root * 0.5), boss ? 0.04 : 0.028);
   lfo(boss ? barRate * 2 : drift, 0.012, floor.gain);
   const fifth = level(osc("sine", root * 1.498), 0.018);

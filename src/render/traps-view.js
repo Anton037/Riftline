@@ -21,7 +21,7 @@ const LOOK = {
   laser: { main: hex(0xf6be58), alt: hex(0xfff1c4), dust: hex(0x9fb4c8) },
   magma: { main: hex(0xff7a1f), alt: hex(0xffd27a), dust: hex(0x746957) },
   rift: { main: hex(0xae7cff), alt: hex(0xf4d29a), dust: hex(0x2a1650) },
-  cryo: { main: hex(FINISH.glacier), alt: hex(0xe8fbff), dust: hex(0xdff6ff) },
+  iceShot: { main: hex(FINISH.glacier), alt: hex(0xe8fbff), dust: hex(0xdff6ff) },
   acid: { main: hex(FINISH.jade), alt: hex(0xd6f5e2), dust: hex(0x1c4a3c) },
   mine: { main: hex(0xf4a842), alt: hex(0xffe6a8), dust: hex(0x6e5b48), wick: hex(0xffbc58) },
   frost: { main: hex(FINISH.glacier), alt: hex(FINISH.ivory), dust: hex(0xdff6ff), wick: hex(0xc8f6ff) },
@@ -93,13 +93,13 @@ const MODELS = {
       stone(0.09, 0xb87634, { y: 0.45 }),
     ],
   }),
-  // Aurora Shelf: snow-crusted glacier rock fissure + erupting sapphire rime spires
+  // Snow Ridge: snow-crusted glacier rock fissure + erupting sapphire rime spires
   icespike: () => ({
     body: [...stoneRing(9, 0.84, 0x3c6c94, 0x6ba2cc, 0.48), disk(0.76, 0.05, 0x274c6e, 0.028, 7)],
     glow: [bezel(0.56, 0.028, 0x9ce2ff, 0.07, 14)],
     mover: crystalBloom(0x6ec4ee, 0xc8f0ff, 5, 0.34),
   }),
-  // Glowmarsh: mossy bog-root collar + bulbous botanical pitcher-plant spout
+  // Moss Bog: mossy bog-root collar + bulbous botanical pitcher-plant spout
   geyser: () => ({
     body: [
       ...stoneRing(8, 0.8, 0x244834, 0x326444, 0.46),
@@ -109,7 +109,7 @@ const MODELS = {
     glow: [bezel(0.42, 0.032, 0x96f6a6, 0.28, 14)],
     mover: [stone(0.48, 0x62d888, { y: 0.34, sy: 0.72 })],
   }),
-  // Star-Vault: carved obsidian astrolabe well + spinning gilded star-ring
+  // Star Hall: carved obsidian astrolabe well + spinning gilded star-ring
   riftburst: () => ({
     body: [...stoneRing(6, 0.86, 0x1e1538, 0x352560, 0.58), bezel(0.74, 0.034, 0xc89a5c, 0.1, 16)],
     glow: [bezel(0.54, 0.025, 0xc896f8, 0.11, 16)],
@@ -118,13 +118,13 @@ const MODELS = {
       meshPart(torus(0.52, 0.034, 5, 16), 0xe8bc6c, { rx: 0.65, rz: 0.4 }),
     ],
   }),
-  // Ashfall Caldera: jagged charred basalt anvil-fissure + swelling molten slag crest
+  // Ember Hill: jagged charred basalt anvil-fissure + swelling molten slag crest
   pyro: () => ({
     body: [...stoneRing(10, 0.84, 0x2a1b1c, 0x4b2820, 0.54), disk(0.74, 0.05, 0x361a16, 0.028, 7)],
     glow: [bezel(0.62, 0.034, 0xf48c36, 0.075, 16)],
     mover: [stone(0.5, 0xf27028, { y: 0.3, sy: 0.65 })],
   }),
-  // Glass Flats: sun-baked sandstone basin + blooming turquoise-gold desert glass-rose petals
+  // Sun Dunes: sun-baked sandstone basin + blooming turquoise-gold desert glass-rose petals
   sunspike: () => ({
     body: [...stoneRing(8, 0.84, 0x764f2c, 0xa87c4a, 0.46), bezel(0.72, 0.032, 0x2ca89a, 0.085, 16)],
     glow: [bezel(0.54, 0.025, 0xf4c868, 0.095, 16)],
@@ -148,8 +148,8 @@ const MODELS = {
     ],
     moverGlow: [stone(0.18, 0xffe8a4, { x: 0.18 }), gem(0.12, 0xfff6d2, { x: 0.32, sx: 0.45 })],
   }),
-  // Aurora Shelf: Aurora Curtain — frost crystal prism projector on snow-rimmed glacier pedestal
-  cryo: () => ({
+  // Snow Ridge: Aurora Curtain — frost crystal prism projector on snow-rimmed glacier pedestal
+  iceShot: () => ({
     body: [
       ...stoneRing(7, 0.62, 0x3b6d94, 0x7ab4dc, 0.58),
       cone(0.34, 0.48, 0.62, 0x4a82ac, 0.36, 7),
@@ -163,7 +163,7 @@ const MODELS = {
     ],
     moverGlow: [gem(0.2, 0xb8f0ff, { x: 0.16, sy: 1.1 }), gem(0.12, 0xeefcff, { x: 0.42, sx: 0.7 })],
   }),
-  // Glowmarsh: Pitcher Spout — carved bog-reed spout with bulbous botanical nozzle
+  // Moss Bog: Pitcher Spout — carved bog-reed spout with bulbous botanical nozzle
   acid: () => ({
     body: [
       ...stoneRing(7, 0.62, 0x224632, 0x346848, 0.54),
@@ -182,7 +182,7 @@ const MODELS = {
     ],
     moverGlow: [stone(0.17, 0x9ef8b4, { x: 0.38, sx: 0.68 })],
   }),
-  // Glass Flats: Heliostat Mirror — gilded brass sun-mirror dish on carved sandstone sundial plinth
+  // Sun Dunes: Heliostat Mirror — gilded brass sun-mirror dish on carved sandstone sundial plinth
   sun: () => ({
     body: [
       disk(0.62, 0.16, 0x8a5e34, 0.08, 8),
@@ -205,7 +205,7 @@ const MODELS = {
       gem(0.13, 0xfff4cc, { x: 0.36, sx: 0.75 }),
     ],
   }),
-  // Ashfall Caldera: squat forged-iron dragon-kiln chimney & brass bellows nozzle
+  // Ember Hill: squat forged-iron dragon-kiln chimney & brass bellows nozzle
   magma: () => ({
     body: [
       ...stoneRing(6, 0.58, 0x2c1b1a, 0x4c2820, 0.72),
@@ -221,7 +221,7 @@ const MODELS = {
     ],
     moverGlow: [stone(0.18, 0xff9a38, { x: 0.44, sx: 0.6 })],
   }),
-  // Star-Vault: carved obsidian dais with hovering gilded brass-and-amethyst armillary sphere
+  // Star Hall: carved obsidian dais with hovering gilded brass-and-amethyst armillary sphere
   rift: () => ({
     body: [
       disk(0.58, 0.16, 0x1d1438, 0.08, 6),
@@ -247,7 +247,7 @@ const MODELS = {
     ],
     glow: [gem(0.14, 0xffffff, { y: 0.54, sy: 1.4 }), bezel(0.25, 0.022, 0xffffff, 0.24, 14)],
   }),
-  // Aurora Shelf: faceted frost-glass bauble perched on a snow cushion
+  // Snow Ridge: faceted frost-glass bauble perched on a snow cushion
   frost: () => ({
     body: [
       disk(0.34, 0.09, 0x9ecae4, 0.045, 8),
@@ -257,7 +257,7 @@ const MODELS = {
     glow: [gem(0.16, 0xffffff, { y: 0.28 }), bezel(0.22, 0.018, 0xffffff, 0.42, 12)],
     mover: [gem(0.14, 0x88d4f4, { y: 0.52, sy: 1.45 })],
   }),
-  // Glowmarsh: plump speckled puff-cap toadstool on a mossy stem
+  // Moss Bog: plump speckled puff-cap toadstool on a mossy stem
   spore: () => ({
     body: [cone(0.14, 0.18, 0.24, 0x486e4c, 0.12, 7), stone(0.34, 0x3a8458, { y: 0.34, sy: 0.62 })],
     glow: [
@@ -266,13 +266,13 @@ const MODELS = {
     ],
     mover: [bezel(0.28, 0.024, 0x72e89c, 0.22, 14)],
   }),
-  // Star-Vault: levitating gilded star-snare urn ringed by an orbit hoop
+  // Star Hall: levitating gilded star-snare urn ringed by an orbit hoop
   riftmine: () => ({
     body: [disk(0.24, 0.07, 0x22173e, 0.035, 6), gem(0.28, 0x5c3e92, { y: 0.34, sy: 1.15 })],
     glow: [gem(0.15, 0xffffff, { y: 0.36 }), bezel(0.28, 0.018, 0xffffff, 0.34, 14)],
     mover: [meshPart(torus(0.35, 0.026, 5, 14), 0xe2b668, { y: 0.34, rx: 0.85 })],
   }),
-  // Ashfall Caldera: iron-banded terracotta furnace slag keg
+  // Ember Hill: iron-banded terracotta furnace slag keg
   embermine: () => ({
     body: [
       cone(0.26, 0.3, 0.38, 0x6e3022, 0.2, 8),
@@ -281,7 +281,7 @@ const MODELS = {
     ],
     glow: [stone(0.16, 0xffffff, { y: 0.42, sy: 0.72 }), bezel(0.24, 0.02, 0xffffff, 0.24, 12)],
   }),
-  // Glass Flats: handcrafted sandstone desert amphora crowned with a turquoise glass prism
+  // Sun Dunes: handcrafted sandstone desert amphora crowned with a turquoise glass prism
   glassmine: () => ({
     body: [
       cone(0.22, 0.16, 0.18, 0x9e7040, 0.09, 8),
@@ -323,7 +323,7 @@ export class TrapView {
                 ? "wood"
                 : ["pyro", "magma", "embermine"].includes(name)
                   ? "basalt"
-                  : name === "icespike" || name === "frost" || name === "cryo"
+                  : name === "icespike" || name === "frost" || name === "iceShot"
                     ? "ice"
                     : "stone",
           });
@@ -555,7 +555,7 @@ export class TrapView {
         ? 0.56
         : trap.skin === "acid"
           ? 0.78
-          : trap.skin === "cryo"
+          : trap.skin === "iceShot"
             ? 1.08 + Math.sin(time * 2.2 + trap.id) * 0.06
             : trap.skin === "sun"
               ? 1.12
@@ -609,13 +609,13 @@ export class TrapView {
   }
   drawBeam(beam, ex, ez, len, time, dt) {
     const r = this.r;
-    const look = LOOK[beam.skin === "flame" ? "magma" : beam.skin];
+    const look = LOOK[beam.skin === "fireBellows" ? "magma" : beam.skin];
     if (!beam.live || !look) return false;
     const ca = Math.cos(beam.a),
       sa = Math.sin(beam.a);
     const b = r.beams;
     const sheen = 0.95 + Math.sin(time * 5) * 0.04;
-    if (beam.skin === "flame" || beam.skin === "magma") {
+    if (beam.skin === "fireBellows" || beam.skin === "magma") {
       r.weaponView.flameBeam(beam, len);
       b.colC(b.seg(beam.x, beam.y, ex, ez, 0.08, beam.w * 0.9, 0.03), look.main, 0.24);
       if (Math.random() < dt * 14) {
@@ -635,7 +635,7 @@ export class TrapView {
         pz = qz;
       }
       b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.26, beam.w * 0.26), WHITE, 0.82);
-    } else if (beam.skin === "cryo") {
+    } else if (beam.skin === "iceShot") {
       b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * (0.9 + sheen * 0.06), beam.w * 0.6), look.main, 0.56);
       b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.38, beam.w * 0.32), look.alt, 0.66);
       b.colC(b.seg(beam.x, beam.y, ex, ez, 1, beam.w * 0.16, beam.w * 0.16), WHITE, 0.82);

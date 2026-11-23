@@ -5,7 +5,7 @@ import { enemyDefs, bossOrder, biomeVariants, bossDefs, bossByBiome, BOSS_SLOT_H
 import { clamp, TAU, turnToward, hashString, angleDiff, makeRng, dampFactor, own } from "./util.js";
 import { updateEnemy, updateBoss, initBoss } from "./ai.js";
 import { RL_BIOME_INFO, biomesById, planBiomeRoute, biomeList } from "../data/biomes.js";
-import { weaponDefs } from "../data/weapons.js";
+import { muzzlePoint, weaponDefs, weaponMount } from "../data/weapons.js";
 import { projectileFor } from "../data/combat-effects.js";
 import {
   waveEvents,
@@ -120,24 +120,24 @@ const comboRewards = [
   [150, 95],
   [250, 175],
 ];
-const RL_RUSHERS = new Set(["bomber", "charger", "striker", "leaper", "sapper"]);
+const RL_RUSHERS = new Set(["firePot", "wildBoar", "blinkBlade", "bogHopper", "bombMaker"]);
 const rlStep = 1 / 60,
   PLAYER_RADIUS = 0.55,
   MAX_PLAYER_BULLETS = 420,
   MAX_ENEMY_BULLETS = 360,
   blastSources = {
-    nova: "nova",
-    inferno: "inferno",
+    fireBurst: "fireBurst",
+    wildfire: "wildfire",
     pop: "pop",
-    bomber: "pop",
-    payload: "payload",
-    rocket: "weapon",
-    singularity: "grenade",
-    brood: "brood",
-    overload: "overload",
-    reactive: "reactive",
+    firePot: "pop",
+    blastShot: "blastShot",
+    emberLauncher: "weapon",
+    gravityBell: "grenade",
+    mossHelpers: "mossHelpers",
+    fireWave: "fireWave",
+    shieldPulse: "shieldPulse",
     surge: "surge",
-    tribute: "tribute",
+    forgeGift: "forgeGift",
   },
   SING_DAMAGE = 90,
   SING_PULL_TIME = 1.5,
@@ -147,7 +147,11 @@ const rlStep = 1 / 60,
     constructor(opts) {
       let snap = opts.snap || null;
       this.seed = (snap ? snap.seed : opts.seed) >>> 0;
-      this.weapon = own(weaponDefs, snap ? snap.weapon : opts.weapon) ? (snap ? snap.weapon : opts.weapon) : "pulse";
+      this.weapon = own(weaponDefs, snap ? snap.weapon : opts.weapon)
+        ? snap
+          ? snap.weapon
+          : opts.weapon
+        : "lanternGun";
       this.threat = clamp((snap ? snap.threat : opts.threat) | 0, 0, 5);
       this.tm = threatMods(this.threat);
       this.ws = { ...(opts.ws || {}) };
@@ -162,7 +166,7 @@ const rlStep = 1 / 60,
       // 3.25.0: the upgrades banished in this run (never offered again) and the banishes that are left
       this.banished =
         snap && Array.isArray(snap.banished) ? snap.banished.filter((id) => typeof id === "string").slice(0, 6) : [];
-      this.banishes = snap && snap.banishes != null ? snap.banishes | 0 : 2 * (this.ws.banish || 0);
+      this.banishes = snap && snap.banishes != null ? snap.banishes | 0 : 2 * (this.ws.seal || 0);
       this.revived = snap ? !!snap.revived : false;
       this.bossKills = snap ? [...(snap.bossKills || [])] : [];
       this.flawless = (snap && snap.flawless) || 0;
@@ -237,7 +241,7 @@ const rlStep = 1 / 60,
         iT: 0,
         shieldT: 0,
         shield: false,
-        nova: 0,
+        fireBurst: 0,
         alive: true,
         moving: false,
         firing: false,
@@ -258,7 +262,7 @@ const rlStep = 1 / 60,
         acidT: 0,
         inAcid: false,
         chipAcc: 0,
-        brood: [],
+        mossHelpers: [],
         stride: 0,
         air: false,
         tractionT: 0,
@@ -286,7 +290,7 @@ const rlStep = 1 / 60,
       this.state = "fight";
       this.stateT = 0;
       const atAnvil = Array.isArray(snap?.anvil) && this.hasAnvilAhead();
-      this.startWave(this.wave, snap ? snap.nova : null, !!snap && !atAnvil && !Array.isArray(snap.offer));
+      this.startWave(this.wave, snap ? snap.fireBurst : null, !!snap && !atAnvil && !Array.isArray(snap.offer));
       if (atAnvil) {
         this.fx.length = 0;
         this.plan = [];
@@ -321,7 +325,7 @@ const rlStep = 1 / 60,
     }
     // `nova`: the saved charge of a resumed run (null for a new wave); `resumed`: the wave is rebuilt
     // from a snapshot of its start, so it gets the same caches and bonus group as the first time
-    startWave(wave, nova, resumed = false) {
+    startWave(wave, fireBurst, resumed = false) {
       // 2.5.0 C: an arena changed by a biome event is never reused (startWave of the same wave again)
       if (this.arena && this.arena.rlEvent) {
         this.arena.key += ":used";
@@ -331,7 +335,7 @@ const rlStep = 1 / 60,
       // Kit before the first wave is set up, so shield or HP upgrades from the kit count from the start
       const kit = (this.ws.starterKit || 0) | 0;
       let given = null;
-      if (kit > 0 && wave === 1 && nova == null && !this.kitGiven && !Object.keys(this.up).length) {
+      if (kit > 0 && wave === 1 && fireBurst == null && !this.kitGiven && !Object.keys(this.up).length) {
         given = rlStarterKit(this, Math.min(3, kit));
         for (const id of given) this.up[id] = (this.up[id] || 0) + 1;
         this.stats = computeStats(this.weapon, this.up, this.ws);
@@ -406,8 +410,8 @@ const rlStep = 1 / 60,
         player.bossHits = 0;
         this.caravan = null;
         this.starfallN = 0;
-        let novaFloor = 25 * (this.ws.nova || 0);
-        player.nova = nova ?? Math.max(player.nova, novaFloor);
+        let novaFloor = 25 * (this.ws.fireBurst || 0);
+        player.fireBurst = fireBurst ?? Math.max(player.fireBurst, novaFloor);
         this.waveT = 0;
         this.waveDmg = 0;
         // 3.3.0: the Endless mutators of this wave (see mutators.js)
@@ -418,7 +422,7 @@ const rlStep = 1 / 60,
         this.shotMul = 1;
         this.stragglerT = 0;
         let boss = this.bossFor(wave);
-        // Mirage Winds Endless Omen: spawns wandering sunlit dust devils scaled by omen level on non-boss waves
+        // Sand Winds Endless Omen: spawns wandering sunlit dust devils scaled by omen level on non-boss waves
         if (this.mods.barrage && !boss && this.arena) {
           if (!this.arena.devils) this.arena.devils = [];
           const devilRng = makeRng(hashString(this.seed + ":mirage-omen:" + wave));
@@ -439,7 +443,7 @@ const rlStep = 1 / 60,
             ? this.championType(biome.id, wave, champRng)
             : null;
         this.plan =
-          boss === "wyrm"
+          boss === "sandDragon"
             ? []
             : planWave(this.rng, wave, this.tm, !!boss, this.event ? waveEvents[this.event].plan : {});
         this.planIdx = 0;
@@ -457,7 +461,7 @@ const rlStep = 1 / 60,
           mode = director?.mode || "standard";
         this.waveMode = mode;
         this.waveIntensity = director?.intensity || 0;
-        const fresh = nova == null || resumed;
+        const fresh = fireBurst == null || resumed;
         if (fresh && !this.bossPending && !this.boss && wave >= 2) {
           const count = wave % 6 === 0 ? 2 : 1;
           for (let i = 0; i < count; i++) {
@@ -498,18 +502,18 @@ const rlStep = 1 / 60,
           }
           const bonusPool =
             {
-              barricade: ["charger", "brute"],
-              crossfire: ["sentinel", "turret", "drone"],
-              "cache-run": ["carrier", "mender", "beacon"],
-              riftwalk: ["phantom", "striker", "weaver"],
-              gauntlet: ["carrier", "leaper", "driller"],
-              shatter: ["phantom", "splitter", "driller"],
-              deadzone: ["sapper", "brute", "beacon"],
-              minefield: ["sapper", "drone"],
-              zigzag: ["weaver", "striker"],
-              salvage: ["carrier", "beacon"],
-              turbulence: ["sentinel", "drone", "weaver"],
-              fortress: ["driller", "bulwark", "beacon"],
+              barricade: ["wildBoar", "ironGolem"],
+              crossfire: ["crystalTower", "watchTower", "dartSprite"],
+              "cache-run": ["supplyKite", "mossHealer", "healingStone"],
+              riftwalk: ["starGhost", "blinkBlade", "starSpider"],
+              gauntlet: ["supplyKite", "bogHopper", "burrowMole"],
+              shatter: ["starGhost", "sporePod", "burrowMole"],
+              deadzone: ["bombMaker", "ironGolem", "healingStone"],
+              minefield: ["bombMaker", "dartSprite"],
+              zigzag: ["starSpider", "blinkBlade"],
+              salvage: ["supplyKite", "healingStone"],
+              turbulence: ["crystalTower", "dartSprite", "starSpider"],
+              fortress: ["burrowMole", "shieldGuard", "healingStone"],
             }[mode] || [];
           const avail = bonusPool.filter((id) => enemyDefs[id] && rlEnemyFrom(id, biome.id, wave) <= wave);
           if (wave >= 12 && avail.length) {
@@ -543,15 +547,15 @@ const rlStep = 1 / 60,
     }
     championType(biome, wave, rng) {
       // 2.4.0: the pack biomes are gone; the five biomes also draw champions from the later enemies
-      // Lantern Courtyard has its own clockwork garrison pool for Endless returns
+      // Lantern Yard has its own clockwork garrison pool for Endless returns
       const special = {
-        courtyard: ["gunner", "bomber", "brute", "sniper", "sentinel"],
-        shelf: ["bulwark", "gunner", "sentinel", "turret"],
-        core: ["striker", "brute", "phantom", "weaver"],
-        marsh: ["splitter", "brute", "sapper", "carrier"],
+        lanternYard: ["brassGuard", "firePot", "ironGolem", "longshot", "crystalTower"],
+        snowRidge: ["shieldGuard", "brassGuard", "crystalTower", "watchTower"],
+        starHall: ["blinkBlade", "ironGolem", "starGhost", "starSpider"],
+        mossBog: ["sporePod", "ironGolem", "bombMaker", "supplyKite"],
         // 3.49.0: the Caldera's champions: the burning dead the Tyrant calls up
-        caldera: ["gunner", "brute", "bomber", "sapper", "charger"],
-        flats: ["gunner", "charger", "driller", "mortar", "sniper", "brute"],
+        emberHill: ["brassGuard", "ironGolem", "firePot", "bombMaker", "wildBoar"],
+        sunDunes: ["brassGuard", "wildBoar", "burrowMole", "bellCannon", "longshot", "ironGolem"],
       }[biome];
       if (special) {
         const valid = special.filter((id) => enemyDefs[id] && enemyDefs[id].from <= wave);
@@ -559,15 +563,15 @@ const rlStep = 1 / 60,
       }
       let pool = (
         {
-          courtyard: ["grunt", "gunner"],
-          shelf: ["bulwark", "gunner"],
-          core: ["striker", "brute"],
-          marsh: ["splitter", "brute"],
-          caldera: ["grunt", "gunner"],
-          flats: ["gunner", "charger"],
-        }[biome] || ["grunt"]
+          lanternYard: ["kettleGuard", "brassGuard"],
+          snowRidge: ["shieldGuard", "brassGuard"],
+          starHall: ["blinkBlade", "ironGolem"],
+          mossBog: ["sporePod", "ironGolem"],
+          emberHill: ["kettleGuard", "brassGuard"],
+          sunDunes: ["brassGuard", "wildBoar"],
+        }[biome] || ["kettleGuard"]
       ).filter((type) => enemyDefs[type].from <= wave);
-      return pool.length ? rng.pick(pool) : "grunt";
+      return pool.length ? rng.pick(pool) : "kettleGuard";
     }
     eventFor(wave) {
       // 2.5.0 C: a hazard biome's visit gets its biome event, and no other event right next to it
@@ -584,7 +588,7 @@ const rlStep = 1 / 60,
         return null;
       let rng = eventRng(wave);
       rng.next();
-      return ["gilded", "starfall"][Math.floor(rng.next() * 2)];
+      return ["goldCart", "starfall"][Math.floor(rng.next() * 2)];
     }
     /* 3.22.0: what the next wave brings (a look ahead for the upgrade choice; it changes nothing): the biome and whether
        it is a new one, the boss, the wave event, the mutator that joins in Endless, and whether traps are on the floor */
@@ -646,7 +650,7 @@ const rlStep = 1 / 60,
         banished: [...this.banished],
         banishes: this.banishes,
         revived: this.revived,
-        nova: Math.round(this.player.nova),
+        fireBurst: Math.round(this.player.fireBurst),
         bossKills: [...this.bossKills],
         flawless: this.flawless,
         legendaries: this.legendaries,
@@ -753,9 +757,9 @@ const rlStep = 1 / 60,
       this.emit("reroll");
       return true;
     }
-    /* 3.25.0: banishes a card of the offer for the rest of the run (Banish Protocol): it is replaced by another card and the
+    /* 3.25.0: banishes a card of the offer for the rest of the run (Seal Cards): it is replaced by another card and the
        upgrade is never offered again. Not the boss card, not the last card of an offer. */
-    banish(id) {
+    seal(id) {
       const offer = this.offer;
       if (this.state !== "choose" || this.banishes <= 0 || !offer || !offer.includes(id)) return false;
       if (offer.length < 2 || (this.offerBoss && id === this.offerExclusive) || !upgradesById[id]) return false;
@@ -765,12 +769,12 @@ const rlStep = 1 / 60,
         fresh = this.makeOffer([...offer]).find((card) => !offer.includes(card));
       if (fresh) offer[at] = fresh;
       else offer.splice(at, 1);
-      this.emit("banish", { id });
+      this.emit("seal", { id });
       return true;
     }
     makeOffer(exclude = []) {
-      let count = 3 + ((this.ws.insight || 0) > 0 ? 1 : 0);
-      // Boss Waves grant a guaranteed Guardian Relic as a dedicated bonus slot (4th, or 5th with Insight)
+      let count = 3 + ((this.ws.extraChoice || 0) > 0 ? 1 : 0);
+      // Boss Waves grant a guaranteed Boss Relic as a dedicated bonus slot (4th, or 5th with Insight)
       // so the Relic never crowds out normal upgrade progression!
       const exclusive = this.offerBoss ? this.offerExclusive : null;
       const picks = rollUpgradeOffer(
@@ -906,7 +910,7 @@ const rlStep = 1 / 60,
         stats.dmgMul *= 1.35;
         stats.rateMul *= 1.35;
       }
-      // Bellows Vent ('heatsink'): +25% / +45% fire rate while stoked
+      // Hot Bellows ('heatsink'): +25% / +45% fire rate while stoked
       if (player.heatT > 0 && this.state === "fight" && stats.heatSink) {
         stats.rateMul *= 1 + (stats.heatSink > 1 ? 0.45 : 0.25);
       }
@@ -939,7 +943,7 @@ const rlStep = 1 / 60,
           }
           if (this.player.alive) {
             this.updatePlayer(dt, input);
-            // Delayed deterministic Echo-Bell volleys (0.10s after main shot)
+            // Delayed deterministic Echo Shot volleys (0.10s after main shot)
             if (player.echoQueue && player.echoQueue.length && this.state === "fight") {
               let ew = 0;
               for (let i = 0; i < player.echoQueue.length; i++) {
@@ -996,7 +1000,7 @@ const rlStep = 1 / 60,
           updateBossCards(this, dt);
           this.updatePBullets(dt);
           this.updateBiomeProps(dt);
-          // 3.31.0: Chrono Dash slows the enemies' world, not the player's own Lodestone Chime
+          // 3.31.0: Chrono Dash slows the enemies' world, not the player's own Gravity Bell
           this.updateSingularities(dt);
           this.updateEBullets(slowDt);
           this.updateBeams(slowDt);
@@ -1035,7 +1039,7 @@ const rlStep = 1 / 60,
       }
       enemy.vt = (enemy.vt || 0) - dt;
       if (enemy.variant === "sunstruck" && enemy.vt <= 0) {
-        // 3.53.0: the Glass Flats' variant: it gleams, then sprints - a short solar burst toward
+        // 3.53.0: the Sun Dunes' variant: it gleams, then sprints - a short solar burst toward
         // its aim (the ai reads enemy.sunT for the speed)
         enemy.vt = 2.6 + this.rng.next();
         enemy.sunT = 0.6;
@@ -1165,7 +1169,7 @@ const rlStep = 1 / 60,
         this.runStats.dashes++;
         player.iT = Math.max(player.iT, 0.24);
         // Chrono Dash: 1.1s slow to 55% with 4.0s internal cooldown
-        if (stats.chrono && (player.chronoCd || 0) <= 0) {
+        if (stats.timeDash && (player.chronoCd || 0) <= 0) {
           this.chronoT = 1.1;
           player.chronoCd = 4.0;
         }
@@ -1178,8 +1182,8 @@ const rlStep = 1 / 60,
         if (stats.shockDash) {
           this.dashHits();
         }
-        // Mirror Ward ('reactive') dash graze-parry: dashing within 1.4m of an enemy bullet emits a chime wave (2.5s CD)
-        if (stats.reactive && (player.reactiveGrazeCd || 0) <= 0 && this.eb.length) {
+        // Mirror Shield ('reactive') dash graze-parry: dashing within 1.4m of an enemy bullet emits a chime wave (2.5s CD)
+        if (stats.shieldPulse && (player.reactiveGrazeCd || 0) <= 0 && this.eb.length) {
           for (const b of this.eb) {
             if (b.life > 0 && (b.x - player.x) ** 2 + (b.y - player.y) ** 2 < 1.96) {
               player.reactiveGrazeCd = 2.5;
@@ -1204,12 +1208,12 @@ const rlStep = 1 / 60,
           player.slowT -= dt;
         }
         let baseGrip = onIce ? 2.4 : this.arena.biome.grip || 16;
-        if (onIce && this.event === "aurora") {
+        if (onIce && this.event === "snowWind") {
           player.tractionT = Math.max(player.tractionT || 0, 1.8);
           if (player.dashCdT > 0) player.dashCdT = Math.max(0, player.dashCdT - 0.45 * dt);
         }
-        if (!onIce && this.arena.biome.id === "shelf") {
-          const auroraBoost = this.bioEv && this.bioEv.id === "aurora" ? RL_THAW_AURORA : 1;
+        if (!onIce && this.arena.biome.id === "snowRidge") {
+          const auroraBoost = this.bioEv && this.bioEv.id === "snowWind" ? RL_THAW_AURORA : 1;
           baseGrip *= 1 + RL_THAW_K * auroraBoost * (0.5 - 0.5 * Math.cos((this.time / RL_THAW_PERIOD) * Math.PI * 2));
         }
         if (player.tractionT > 0) baseGrip = Math.max(baseGrip, 18);
@@ -1239,12 +1243,17 @@ const rlStep = 1 / 60,
         if (input.assist !== false) {
           aim = this.assistAim(aim);
         }
+        if (input.aimDistance > 1.7) aim -= Math.asin(weaponMount.side / input.aimDistance);
         player.target = null;
       } else {
         let target = this.pickTarget();
         player.target = target;
         if (target) {
-          aim = Math.atan2(target.y - player.y, target.x - player.x);
+          const dx = target.x - player.x,
+            dy = target.y - player.y,
+            distance = Math.hypot(dx, dy);
+          aim = Math.atan2(dy, dx);
+          if (distance > 1.7) aim -= Math.asin(weaponMount.side / distance);
         }
       }
       let firing =
@@ -1252,7 +1261,7 @@ const rlStep = 1 / 60,
         (!!input.fire && aim != null) ||
         (!!input.auto && aim != null && player.target != null);
       if (aim != null) {
-        player.aim = turnToward(player.aim, aim, 30 * dt);
+        player.aim = firing || manual ? aim : turnToward(player.aim, aim, 30 * dt);
       } else if (input.hasLook) {
         player.aim = turnToward(player.aim, Math.atan2(input.lookY, input.lookX), 22 * dt);
       } else if (player.moving) {
@@ -1272,14 +1281,14 @@ const rlStep = 1 / 60,
       let rate =
         stats.weapon.rate *
         stats.rateMul *
-        (1 + (stats.bloodrush ? 0.04 * player.rushN : 0)) *
+        (1 + (stats.killStreak ? 0.04 * player.rushN : 0)) *
         (player.gildT > 0 ? 1.2 : 1) *
         (player.festT > 0 ? 1.25 : lanternWarm ? 1.15 : 1);
       player.fireT -= dt;
       if (firing && aim != null) {
         let shots = 0;
         for (; player.fireT <= 0 && shots < 3;) {
-          this.fire(aim);
+          this.fire(player.aim);
           player.fireT += 1 / rate;
           shots++;
         }
@@ -1291,16 +1300,16 @@ const rlStep = 1 / 60,
           player.fireT = 0;
         }
       }
-      if (input.nova) {
-        this.nova();
+      if (input.fireBurst) {
+        this.fireBurst();
       }
-      if (input.gadget) {
+      if (input.gravityBell) {
         this.useGadget(input);
       }
     }
     // 2.8.0: shots stop at walls (only the Lance slug flies through), so nothing behind a wall is a target
     shotsCrossWalls() {
-      return !!(this.stats.lance && this.stats.weapon.rail);
+      return !!(this.stats.starLance && this.stats.weapon.starSpear);
     }
     canSee(enemy) {
       return this.shotsCrossWalls() || this.arena.los(this.player.x, this.player.y, enemy.x, enemy.y, 0.15);
@@ -1351,6 +1360,22 @@ const rlStep = 1 / 60,
       }
       return best && (cross || this.canSee(best)) ? best : null;
     }
+    shotOrigin(angle) {
+      const { player, arena } = this;
+      const mouth = muzzlePoint(this.stats.weapon, player.x, player.y, angle);
+      if (this.shotsCrossWalls() && !arena.outside(mouth.x, mouth.y)) return mouth;
+      const dx = mouth.x - player.x,
+        dy = mouth.y - player.y,
+        distance = Math.hypot(dx, dy),
+        clear = arena.rayLen(player.x, player.y, Math.atan2(dy, dx), distance);
+      if (clear >= distance) return mouth;
+      return {
+        x: player.x + (dx * clear) / distance,
+        y: player.y + (dy * clear) / distance,
+        height: mouth.height,
+        blocked: true,
+      };
+    }
     fire(angle, echoMul = 1, isEcho = false) {
       const stats = this.stats,
         player = this.player,
@@ -1361,15 +1386,13 @@ const rlStep = 1 / 60,
       if (slipBoost) stats.dmgMul = dmgBefore * slipMul;
       try {
         const count = weapon.count + (weapon.cone ? stats.extra * 2 : stats.extra),
-          muzzle = 0.75,
-          originX = player.x + Math.cos(angle) * muzzle,
-          originY = player.y + Math.sin(angle) * muzzle;
-        // Echo shots count toward weapon cadences (Solar Repeater, Kiln Surge)
+          mouth = this.shotOrigin(angle);
+        // Echo shots count toward weapon cadences (Sun Gun, Fire Wave)
         player.shotN = (player.shotN || 0) + 1;
         const fourthShot = player.shotN % 4 === 0,
           heavy = !!(stats.overdrive && fourthShot),
-          lantern = weapon.id === "pulse" && fourthShot,
-          twinDisc = !!(stats.twinsaw && weapon.id === "disc"),
+          lantern = weapon.id === "lanternGun" && fourthShot,
+          twinDisc = !!(stats.twinRings && weapon.id === "ringBlade"),
           shoot = (dir, mul) => {
             if (this.pb.length >= MAX_PLAYER_BULLETS) return;
             const spread = (this.rng.next() - 0.5) * 2 * weapon.spread,
@@ -1378,8 +1401,9 @@ const rlStep = 1 / 60,
               effMul = mul * echoMul,
               bullet = {
                 id: this.nextId++,
-                x: originX,
-                y: originY,
+                x: mul === 1 ? mouth.x : player.x + Math.cos(dir) * 0.75,
+                y: mul === 1 ? mouth.y : player.y + Math.sin(dir) * 0.75,
+                heroShot: mul === 1,
                 vx: Math.cos(heading) * speed,
                 vy: Math.sin(heading) * speed,
                 a: heading,
@@ -1387,13 +1411,13 @@ const rlStep = 1 / 60,
                 dmg: weapon.dmg * stats.dmgMul * effMul * (twinDisc ? 1.35 : 1) * (lantern ? 1.3 : 1),
                 baseDmg: weapon.dmg * effMul,
                 life: weapon.life * (weapon.cone ? 0.85 + this.rng.next() * 0.3 : 1),
-                pierce: stats.lance && weapon.rail ? 999 : stats.pierce,
+                pierce: stats.starLance && weapon.starSpear ? 999 : stats.pierce,
                 bounce: weapon.boomerang ? 0 : stats.bounce,
                 hits: [],
                 w: weapon.id,
                 age: 0,
                 homing: stats.homing,
-                slipstream: slipBoost,
+                dashBoost: slipBoost,
                 pierceCount: 0,
               };
             if (effMul !== 1) bullet.mul = effMul;
@@ -1418,8 +1442,13 @@ const rlStep = 1 / 60,
               bullet.drag = weapon.drag;
               bullet.grow = weapon.grow;
             }
+            if (mul === 1 && mouth.blocked) {
+              if (weapon.explode || stats.payloadR) this.bulletBurst(bullet, null);
+              return;
+            }
             this.pb.push(bullet);
           };
+        if (mouth.blocked) this.emit("spark", { x: mouth.x, y: mouth.y, w: weapon.id });
         if (weapon.cone) {
           let arc = weapon.cone + stats.extra * 0.08;
           for (let i = 0; i < count; i++) shoot(angle - arc / 2 + (arc * (i + 0.5)) / count, 1);
@@ -1442,8 +1471,16 @@ const rlStep = 1 / 60,
             shoot(angle - Math.PI / 2 + off, 0.75);
           }
         }
-        this.emit("shot", { w: weapon.id, x: originX, y: originY, a: angle, heavy });
-        // Deterministic Echo-Bell ('echo'): Lv 1 every 4th shot (0.80x), Lv 2 every 3rd shot (0.95x) after 0.10s
+        this.emit("shot", {
+          w: weapon.id,
+          x: mouth.x,
+          y: mouth.y,
+          height: mouth.height,
+          blocked: mouth.blocked,
+          a: angle,
+          heavy,
+        });
+        // Deterministic Echo Shot ('echo'): Lv 1 every 4th shot (0.80x), Lv 2 every 3rd shot (0.95x) after 0.10s
         if (!isEcho && stats.echo > 0 && this.state === "fight" && player.alive) {
           const every = stats.echo > 1 ? 3 : 4;
           if (player.shotN % every === 0) {
@@ -1515,11 +1552,15 @@ const rlStep = 1 / 60,
         return false;
       }
       const target = this.singularityTarget(input),
-        dur = 0.16 + target.dist * 0.022;
+        dur = 0.16 + target.dist * 0.022,
+        forwardX = Math.cos(player.aim),
+        forwardY = Math.sin(player.aim),
+        fx = player.x + forwardX * 0.35 + forwardY * 0.46,
+        fy = player.y + forwardY * 0.35 - forwardX * 0.46;
       player.gadgetN--;
       if (player.gadgetT <= 0) player.gadgetT = stats.gadgetCd;
-      this.singularities.push({ fx: player.x, fy: player.y, tx: target.x, ty: target.y, t: 0, dur, pullT: -1 });
-      this.emit("singularity", { x: player.x, y: player.y, tx: target.x, ty: target.y, dur });
+      this.singularities.push({ fx, fy, tx: target.x, ty: target.y, t: 0, dur, pullT: -1, launchHeight: 1.05 });
+      this.emit("gravityBell", { x: fx, y: fy, tx: target.x, ty: target.y, dur, handCast: true });
       return true;
     }
     updateSingularities(dt) {
@@ -1544,9 +1585,9 @@ const rlStep = 1 / 60,
               dy = sing.ty - enemy.y,
               d = Math.hypot(dx, dy);
             if (d > pullR + enemy.r) return;
-            // Resonance Well ('gsyphon'): mark enemies inside the chime pull field
-            if (stats.gsyphon) enemy.inChimeT = Math.max(enemy.inChimeT || 0, 0.25);
-            // Hearthfire Chime ('gfire'): marks pulled enemies (+25% dmg taken for 3.5s) and tugs bosses at 35% strength
+            // Bell Boost ('gsyphon'): mark enemies inside the chime pull field
+            if (stats.bellBoost) enemy.inChimeT = Math.max(enemy.inChimeT || 0, 0.25);
+            // Fire Bell ('gfire'): marks pulled enemies (+25% dmg taken for 3.5s) and tugs bosses at 35% strength
             if (stats.gadgetFire) enemy.chimeVulnT = Math.max(enemy.chimeVulnT || 0, 3.5);
             if (enemy.boss && !stats.gadgetFire) return;
             if (d < 0.35) return;
@@ -1565,7 +1606,7 @@ const rlStep = 1 / 60,
         this.explode(sing.tx, sing.ty, radius, dmg, {
           enemies: true,
           knock: 2.5,
-          kind: "singularity",
+          kind: "gravityBell",
           burn: stats.gadgetFire ? dmg * 0.25 : 0,
         });
         if (stats.gadgetFire)
@@ -1579,7 +1620,7 @@ const rlStep = 1 / 60,
             hostile: false,
           });
         // Event Horizon ('blackstar'): collapsing Chimes fire 8 primary weapon bolts outward
-        if (stats.blackstar && this.pb.length < MAX_PLAYER_BULLETS - 8) {
+        if (stats.fireWell && this.pb.length < MAX_PLAYER_BULLETS - 8) {
           const weapon = stats.weapon,
             speed = weapon.speed * stats.velMul;
           for (let i = 0; i < 8; i++) {
@@ -1595,7 +1636,7 @@ const rlStep = 1 / 60,
               dmg: weapon.dmg * stats.dmgMul,
               baseDmg: weapon.dmg,
               life: Math.min(1.1, weapon.life),
-              pierce: stats.lance ? 999 : stats.pierce,
+              pierce: stats.starLance ? 999 : stats.pierce,
               bounce: weapon.boomerang ? 0 : stats.bounce,
               hits: [],
               w: weapon.id,
@@ -1632,18 +1673,18 @@ const rlStep = 1 / 60,
       }
       this.singularities = this.singularities.filter((sing) => !sing.done);
     }
-    nova() {
+    fireBurst() {
       let player = this.player,
         stats = this.stats;
-      if (player.nova < 100 || !player.alive || this.state !== "fight") return;
-      player.nova = 0;
+      if (player.fireBurst < 100 || !player.alive || this.state !== "fight") return;
+      player.fireBurst = 0;
       player.iT = Math.max(player.iT, 0.5);
       this.triggerHitstop(0.065);
-      // Event Horizon ('blackstar'): Hearthburst drops a free Lodestone Chime at target/cursor
-      if (stats.blackstar) {
+      // Event Horizon ('blackstar'): Fire Burst drops a free Gravity Bell at target/cursor
+      if (stats.fireWell) {
         const target = this.singularityTarget({});
         this.singularities.push({ fx: player.x, fy: player.y, tx: target.x, ty: target.y, t: 0, dur: 0.14, pullT: -1 });
-        this.emit("singularity", { x: player.x, y: player.y, tx: target.x, ty: target.y, dur: 0.14 });
+        this.emit("gravityBell", { x: player.x, y: player.y, tx: target.x, ty: target.y, dur: 0.14 });
       }
       // 3.15.0: with Event Collapse the blast comes after the pull (boss-cards.js)
       if (bossCardNova(this, stats.novaR)) return;
@@ -1652,9 +1693,9 @@ const rlStep = 1 / 60,
     // 2.8.0: raw charge (Overcharge per-kill bonus) is not scaled by the charge rate, so the card text holds
     addNova(amount, raw = false) {
       let player = this.player,
-        before = player.nova;
-      player.nova = Math.min(100, player.nova + amount * (raw ? 1 : this.stats.novaMul));
-      if (before < 100 && player.nova >= 100) {
+        before = player.fireBurst;
+      player.fireBurst = Math.min(100, player.fireBurst + amount * (raw ? 1 : this.stats.novaMul));
+      if (before < 100 && player.fireBurst >= 100) {
         this.emit("novaReady");
       }
     }
@@ -1677,15 +1718,15 @@ const rlStep = 1 / 60,
     triggerReactivePulse() {
       const stats = this.stats,
         player = this.player;
-      if (!stats.reactive || this._rlReacting) return;
-      const radius = stats.reactive > 1 ? 4.2 : 3.5,
-        dmg = (stats.reactive > 1 ? 85 : 55) * stats.dmgMul;
+      if (!stats.shieldPulse || this._rlReacting) return;
+      const radius = stats.shieldPulse > 1 ? 4.2 : 3.5,
+        dmg = (stats.shieldPulse > 1 ? 85 : 55) * stats.dmgMul;
       this._rlReacting = true;
       try {
         this.explode(player.x, player.y, radius, dmg, {
           enemies: true,
           knock: 10,
-          kind: "reactive",
+          kind: "shieldPulse",
         });
       } finally {
         this._rlReacting = false;
@@ -1702,7 +1743,7 @@ const rlStep = 1 / 60,
       if (this.barrierT > 0 && this.player.alive && this.state === "fight") return false;
       const stats = this.stats,
         player = this.player;
-      // 2.3.5: Filigree Mail ('armorCore') absorbs enemy hits (hazardResist handles hazard ticks separately)
+      // 2.3.5: Light Armor ('armorCore') absorbs enemy hits (hazardResist handles hazard ticks separately)
       const armor = Math.min(0.5, stats.armor || 0);
       if (armor > 0 && !RL_HAZARD_SRC.has(src)) dmg = dmg * (1 - armor);
       if (contact && stats.meleeResist > 0) dmg = dmg * (1 - stats.meleeResist);
@@ -1748,8 +1789,8 @@ const rlStep = 1 / 60,
             this.revived = true;
             player.hp = Math.round(this.stats.maxHp * 0.5);
             player.iT = 2.2;
-            player.nova = 100;
-            this.nova();
+            player.fireBurst = 100;
+            this.fireBurst();
             this.emit("revive", { x: player.x, y: player.y });
           } else {
             player.hp = 0;
@@ -1761,16 +1802,16 @@ const rlStep = 1 / 60,
         }
         hit = true;
       }
-      if (shieldBlocked && player.alive && stats.reactive) {
+      if (shieldBlocked && player.alive && stats.shieldPulse) {
         this.triggerReactivePulse();
       }
       if (hit && player.alive) {
-        // Bellows Vent ('heatsink'): triggers on active hazard damage
+        // Hot Bellows ('heatsink'): triggers on active hazard damage
         if (stats.heatSink && RL_HAZARD_SRC.has(src)) {
           triggerHeatSink(this);
         }
-        // Mirror Ward ('reactive'): emits chime pulse on real hit
-        if (stats.reactive && !chip) {
+        // Mirror Shield ('reactive'): emits chime pulse on real hit
+        if (stats.shieldPulse && !chip) {
           this.triggerReactivePulse();
         }
       }
@@ -1865,12 +1906,12 @@ const rlStep = 1 / 60,
       ) {
         enemy.variant = variant.id;
       }
-      if (type === "bulwark") {
+      if (type === "shieldGuard") {
         enemy.guard = enemy.guardMax = enemy.hp * 0.9;
         enemy.guardDown = 0;
         enemy.guardFlash = 0;
       }
-      if (elite && this.wave >= 10 && type !== "mite" && !opts.champion) {
+      if (elite && this.wave >= 10 && type !== "littlePod" && !opts.champion) {
         enemy.affix = this.rng.pick(["shielded", "hasted", "volatile"]);
         if (enemy.affix === "shielded") {
           enemy.shield = enemy.shieldMax = hp * 0.45;
@@ -1881,9 +1922,9 @@ const rlStep = 1 / 60,
       }
       // 3.3.0: the Endless mutators (a hash of the enemy decides, so the wave's random stream stays the same)
       const mods = this.mods;
-      if (mods && type !== "mite" && !opts.champion) {
+      if (mods && type !== "littlePod" && !opts.champion) {
         const roll = (salt) => hashString(this.seed + ":" + salt + ":" + enemy.id) / 4294967296;
-        if (!enemy.affix && mods.volatile && roll("vol") < 0.2 * mods.volatile) enemy.affix = "volatile";
+        if (!enemy.affix && mods.fireBurstFoes && roll("vol") < 0.2 * mods.fireBurstFoes) enemy.affix = "volatile";
         if (!enemy.affix && mods.shielded && roll("shd") < 0.15 * mods.shielded) {
           enemy.affix = "shielded";
           enemy.shield = enemy.shieldMax = hp * 0.45;
@@ -2037,8 +2078,8 @@ const rlStep = 1 / 60,
           (enemy.corrode && !enemy.boss ? 1.25 : 1) *
           (enemy.glazeT > 0 ? 1 + (enemy.boss ? glazeBossMul : glazeMul) : 1) *
           (enemy.chimeVulnT > 0 ? 1.25 : 1) *
-          (enemy.inChimeT > 0 && stats.gsyphon ? 1 + (stats.gsyphon > 1 ? 0.45 : 0.25) : 1) *
-          (stats.inferno ? 1.2 : 1) *
+          (enemy.inChimeT > 0 && stats.bellBoost ? 1 + (stats.bellBoost > 1 ? 0.45 : 0.25) : 1) *
+          (stats.wildfire ? 1.2 : 1) *
           (enemy.wardedT > 0 ? 0.7 : 1);
         if (enemy.shield > 0) {
           const shieldScale = stats.hunter ? 2 : 1;
@@ -2111,7 +2152,7 @@ const rlStep = 1 / 60,
       let damp = dampFactor(7, dt);
       enemy.kx -= enemy.kx * damp;
       enemy.ky -= enemy.ky * damp;
-      // Airborne Bog-Hopper leaps over obstacles & floor hazards (only clamped to outer arena bounds)
+      // Airborne Bog Hopper leaps over obstacles & floor hazards (only clamped to outer arena bounds)
       if (enemy.leaping) {
         const limX = this.arena.W - enemy.r - 0.15,
           limY = this.arena.H - enemy.r - 0.15;
@@ -2170,11 +2211,11 @@ const rlStep = 1 / 60,
           enemy.y += (dy / dist) * (minDist - dist);
           this.arena.resolve(enemy, enemy.r);
         }
-        if (enemy.type === "bomber") return;
+        if (enemy.type === "firePot") return;
         let dmg = enemy.boss
           ? enemy.dmg
-          : (enemy.st === 2 && (enemy.type === "brute" || enemy.type === "charger")) ||
-              (enemy.st === 3 && enemy.type === "striker")
+          : (enemy.st === 2 && (enemy.type === "ironGolem" || enemy.type === "wildBoar")) ||
+              (enemy.st === 3 && enemy.type === "blinkBlade")
             ? enemy.dmg * 1.4
             : enemy.dmg;
         this.hurtPlayer(dmg, enemy.x, enemy.y, enemy.type, false, true);
@@ -2219,17 +2260,17 @@ const rlStep = 1 / 60,
         if (enemy.chimeVulnT > 0) {
           dmg *= 1.25;
         }
-        if (enemy.inChimeT > 0 && stats.gsyphon) {
-          dmg *= 1 + (stats.gsyphon > 1 ? 0.45 : 0.25);
+        if (enemy.inChimeT > 0 && stats.bellBoost) {
+          dmg *= 1 + (stats.bellBoost > 1 ? 0.45 : 0.25);
         }
-        if (stats.inferno && enemy.burnT > 0) {
+        if (stats.wildfire && enemy.burnT > 0) {
           dmg *= 1.2;
         }
         if (enemy.wardedT > 0) {
           dmg *= 0.7;
         }
         // 3.0.0: burst cap (see core/difficulty.js); the Nova and bosses are exempt
-        if (!enemy.boss && src !== "nova") {
+        if (!enemy.boss && src !== "fireBurst") {
           const taken = this.burstCap(enemy, dmg);
           if (taken <= 0) {
             enemy.flash = Math.max(enemy.flash, 0.35);
@@ -2279,7 +2320,7 @@ const rlStep = 1 / 60,
         }
         if (enemy.boss) {
           this.addNova(dmg * 0.045);
-          if (src === "weapon" || src === "wingman" || src === "payload" || src === "arc") {
+          if (src === "weapon" || src === "helperWisps" || src === "blastShot" || src === "arc") {
             bossCardBossHit(this, enemy);
             this.player.bossHits = (this.player.bossHits || 0) + 1;
             if (stats.surge && this.player.bossHits % 18 === 0 && !this._rlSurging) {
@@ -2333,7 +2374,7 @@ const rlStep = 1 / 60,
     // Unified HP-gated phase cap across all 6 Guardians so burst DPS cannot skip Phase 2/3 transitions
     capPhase(enemy, dmg) {
       if (!enemy.boss) return dmg;
-      const marks = enemy.type === "core" ? [0.66, 0.33] : [0.5],
+      const marks = enemy.type === "starHeart" ? [0.66, 0.33] : [0.5],
         mark = enemy.maxHp * (marks[(enemy.phaseN || 1) - 1] || 0);
       if (mark <= 0) return dmg;
       if (enemy.hp <= mark) return 0;
@@ -2376,8 +2417,8 @@ const rlStep = 1 / 60,
         if (!enemy.noDrop) bossCardKill(this, enemy);
         let stats = this.stats,
           player = this.player;
-        // Resonance Well ('gsyphon'): kills inside a Lodestone Chime refund 15% of Chime cooldown
-        if (stats.gsyphon && enemy.inChimeT > 0 && player.gadgetN < stats.gadgetMax) {
+        // Bell Boost ('gsyphon'): kills inside a Gravity Bell refund 15% of Chime cooldown
+        if (stats.bellBoost && enemy.inChimeT > 0 && player.gadgetN < stats.gadgetMax) {
           player.gadgetT = Math.max(0, player.gadgetT - stats.gadgetCd * 0.15);
           if (player.gadgetT <= 0) {
             player.gadgetN++;
@@ -2390,7 +2431,7 @@ const rlStep = 1 / 60,
           player.hp = Math.min(stats.maxHp, player.hp + heal);
           this.emit("heal", { x: player.x, y: player.y, v: heal });
         }
-        if (stats.bloodrush) {
+        if (stats.killStreak) {
           player.rushN = Math.min(10, player.rushN + 1);
           player.rushT = 4;
         }
@@ -2404,7 +2445,7 @@ const rlStep = 1 / 60,
           }
         }
       }
-      // Gilded Caravan Treasure Automaton jackpot
+      // Gold Cart Treasure Automaton jackpot
       if (enemy.caravan && alive) {
         this.dropShards(enemy.x, enemy.y, 15);
         this.pickups.push(this.mkPickup("heal", enemy.x, enemy.y, 25));
@@ -2429,20 +2470,20 @@ const rlStep = 1 / 60,
         boss: enemy.boss,
         r: enemy.r,
       });
-      if (enemy.type === "splitter")
+      if (enemy.type === "sporePod")
         for (let i = 0; i < 3; i++) {
           let angle = (i / 3) * TAU + this.rng.next(),
-            mite = this.spawnEnemy("mite", enemy.x + Math.cos(angle) * 0.6, enemy.y + Math.sin(angle) * 0.6, {
+            littlePod = this.spawnEnemy("littlePod", enemy.x + Math.cos(angle) * 0.6, enemy.y + Math.sin(angle) * 0.6, {
               elite: false,
               noDrop: false,
             });
-          if (enemy.elite) mite.maxHp = mite.hp = mite.hp * 2;
-          mite.spawnT = 0;
-          mite.kx = Math.cos(angle) * 6;
-          mite.ky = Math.sin(angle) * 6;
+          if (enemy.elite) littlePod.maxHp = littlePod.hp = littlePod.hp * 2;
+          littlePod.spawnT = 0;
+          littlePod.kx = Math.cos(angle) * 6;
+          littlePod.ky = Math.sin(angle) * 6;
         }
       // Wildfire ('inferno'): 2.8m hearth-blast dealing min(140*dmgMul, 30*dmgMul + 25% maxHp) + spreads 100% burn
-      if (this.stats.inferno && enemy.burnT > 0 && !enemy.boss) {
+      if (this.stats.wildfire && enemy.burnT > 0 && !enemy.boss) {
         let burnDps = Math.max(8 * this.stats.dmgMul, enemy.burnDps);
         this.hash.query(enemy.x, enemy.y, 2.8, (other) => {
           if (!(other.dead || other === enemy || Math.hypot(other.x - enemy.x, other.y - enemy.y) > 2.8 + other.r)) {
@@ -2453,7 +2494,7 @@ const rlStep = 1 / 60,
           }
         });
         const blastDmg = Math.min(140 * this.stats.dmgMul, 30 * this.stats.dmgMul + 0.25 * enemy.maxHp);
-        this.explode(enemy.x, enemy.y, 2.8, blastDmg, { enemies: true, knock: 2.5, kind: "inferno" });
+        this.explode(enemy.x, enemy.y, 2.8, blastDmg, { enemies: true, knock: 2.5, kind: "wildfire" });
       }
       if (enemy.variant === "bloomed") {
         this.arena.acid.push({ x: enemy.x, y: enemy.y, r: 1.4, life: 5 });
@@ -2482,7 +2523,7 @@ const rlStep = 1 / 60,
         });
         this.emit("championDown", { x: enemy.x, y: enemy.y, type: enemy.type });
       }
-      if (this.event === "gilded" && enemy.elite) {
+      if (this.event === "goldCart" && enemy.elite) {
         this.player.gildT = Math.max(this.player.gildT || 0, 3.2);
         this.dropShards(enemy.x, enemy.y, 2);
         this.emit("bountyPulse", { x: enemy.x, y: enemy.y, amount: 2 });
@@ -2493,7 +2534,7 @@ const rlStep = 1 / 60,
         this.hazard({ x: enemy.x, y: enemy.y, r: 2.3, delay: 0.75, dmg: enemy.dmg * 1.1, kind: "volatile" });
         this._src = src;
       }
-      if (enemy.type === "bomber" && enemy.st !== 3) {
+      if (enemy.type === "firePot" && enemy.st !== 3) {
         this.explode(enemy.x, enemy.y, 2.3, 30 * this.stats.dmgMul, { enemies: true, kind: "pop" });
       }
       if (enemy.parent) {
@@ -2530,7 +2571,7 @@ const rlStep = 1 / 60,
         });
       }
       if (enemy.boss || this.kills <= kills0 || !this.player.alive) return;
-      if (enemy.type === "carrier" && this.state === "fight" && this.rng.chance(0.55)) {
+      if (enemy.type === "supplyKite" && this.state === "fight" && this.rng.chance(0.55)) {
         const value = rlCacheShards(this, 5 + 3 * (this.stats.cacheBonus || 0)),
           pickup = this.mkPickup("shard", enemy.x, enemy.y, value);
         pickup.vx = 0;
@@ -2551,7 +2592,7 @@ const rlStep = 1 / 60,
           this.emit("combo", { n: at, bonus: bonus });
         }
       }
-      // Bell-Chime Cadence ('surge'): longer combos, and every 15th (12th) kill detonates a chime wave at the defeated enemy!
+      // Bell Wave ('surge'): longer combos, and every 15th (12th) kill detonates a chime wave at the defeated enemy!
       const level = this.stats.surge || 0;
       if (!level) return;
       this.comboT += 0.5 * level;
@@ -2613,7 +2654,7 @@ const rlStep = 1 / 60,
         this.hash.query(x, y, radius, (enemy) => {
           const distance = Math.hypot(enemy.x - x, enemy.y - y);
           if (enemy.dead || distance > radius + enemy.r) return;
-          const center = opts.kind === "rocket" && distance <= radius * 0.5;
+          const center = opts.kind === "emberLauncher" && distance <= radius * 0.5;
           this.hurtEnemy(
             enemy,
             center ? dmg * 1.2 : dmg,
@@ -2674,8 +2715,8 @@ const rlStep = 1 / 60,
         this.hurtEnemy(target, dmg, target.x - cur.x, target.y - cur.y, 0.5, false, src);
         cur = target;
       }
-      // Thunderhead ('tempest'): if fewer than 2 secondary targets are in range, remaining arcs strike back into primary target at 45% dmg
-      if (this.stats.tempest && chained < 2 && !from.dead && !from.ghost) {
+      // Spark Storm ('tempest'): if fewer than 2 secondary targets are in range, remaining arcs strike back into primary target at 45% dmg
+      if (this.stats.stormWand && chained < 2 && !from.dead && !from.ghost) {
         const extraArcs = Math.max(0, jumps - chained);
         for (let i = 0; i < extraArcs && !from.dead; i++) {
           this.hurtEnemy(from, dmg * 0.45, 0, 0, 0.25, false, src);
@@ -2692,20 +2733,29 @@ const rlStep = 1 / 60,
       let stats = this.stats,
         arena = this.arena,
         player = this.player;
+      let catchPoint;
       for (let bullet of this.pb) {
         if (bullet.life <= 0) continue;
         bullet.life -= dt;
         bullet.age += dt;
+        if (bullet.heroShot && bullet.age === dt) {
+          const rail = !!weaponDefs[bullet.w].starSpear;
+          this.hash.query(bullet.x, bullet.y, bullet.r + 0.8, (enemy) =>
+            this.probeHit(bullet, enemy, bullet.x, bullet.y, rail),
+          );
+          if (bullet.life <= 0) continue;
+        }
         if (bullet.boom) {
           if (!bullet.back && bullet.age >= bullet.turn) {
             bullet.back = true;
             bullet.hits.length = 0;
           }
           if (bullet.back) {
-            let dx = player.x - bullet.x,
-              dy = player.y - bullet.y,
+            catchPoint ??= muzzlePoint(stats.weapon, player.x, player.y, player.aim);
+            let dx = catchPoint.x - bullet.x,
+              dy = catchPoint.y - bullet.y,
               dist = Math.hypot(dx, dy) || 0.001;
-            if (dist < 0.9 || !player.alive || bullet.age > 4) {
+            if (dist < 0.62 || !player.alive || bullet.age > 4) {
               bullet.life = 0;
               continue;
             }
@@ -2737,7 +2787,7 @@ const rlStep = 1 / 60,
           wallFrac = 1,
           travel = Math.hypot(bullet.vx, bullet.vy) * dt,
           steps = travel > 0.4 ? Math.ceil(travel / 0.4) : 1,
-          pierceWalls = stats.lance && bullet.w === "rail";
+          pierceWalls = stats.starLance && bullet.w === "starSpear";
         for (let i = 1; i <= steps; i++) {
           let frac = i / steps,
             sx = prevX + (bullet.x - prevX) * frac,
@@ -2757,7 +2807,7 @@ const rlStep = 1 / 60,
             wallFrac = frac;
             break;
           }
-          // Astral Lance: track each pierced monolith/obstacle for +22% damage per pierce
+          // Bright Spear: track each pierced monolith/obstacle for +22% damage per pierce
           if (pierceWalls) {
             if (inWall && !bullet.inWall) {
               bullet.inWall = true;
@@ -2769,7 +2819,7 @@ const rlStep = 1 / 60,
         }
         let reach = Math.hypot(bullet.vx, bullet.vy) * dt * wallFrac,
           probes = Math.max(hitWall ? 2 : 1, reach > 0.5 ? Math.ceil(reach / 0.5) : 1),
-          rail = !!weaponDefs[bullet.w].rail,
+          starSpear = !!weaponDefs[bullet.w].starSpear,
           bounces = bullet.bounce,
           back = bullet.back;
         if (
@@ -2789,10 +2839,10 @@ const rlStep = 1 / 60,
           this.state === "fight" &&
           bullet.life > 0 &&
           !bullet.bellHit &&
-          (arena.biome.id === "courtyard" || arena.biome.id === "caldera") &&
+          (arena.biome.id === "lanternYard" || arena.biome.id === "emberHill") &&
           arena.vents.length
         ) {
-          const isCourtyard = arena.biome.id === "courtyard",
+          const isCourtyard = arena.biome.id === "lanternYard",
             segDx = bullet.x - prevX,
             segDy = bullet.y - prevY,
             segLen2 = segDx * segDx + segDy * segDy;
@@ -2818,11 +2868,11 @@ const rlStep = 1 / 60,
           let frac = probes > 1 ? ((i + 1) / probes - 1) * wallFrac : 0,
             sx = bullet.x + bullet.vx * dt * frac,
             sy = bullet.y + bullet.vy * dt * frac;
-          this.hash.query(sx, sy, bullet.r + 0.8, (enemy) => this.probeHit(bullet, enemy, sx, sy, rail));
+          this.hash.query(sx, sy, bullet.r + 0.8, (enemy) => this.probeHit(bullet, enemy, sx, sy, starSpear));
         }
         if (this.state === "fight" && !bullet.prismBoost && arena.props && arena.props.length) {
           for (const prop of arena.props) {
-            if (prop.kind === "prism" && prop.auraT > 0) {
+            if (prop.kind === "iceCrystal" && prop.auraT > 0) {
               const dx = bullet.x - prop.x,
                 dy = bullet.y - prop.y;
               if (dx * dx + dy * dy <= 20.25) {
@@ -2864,7 +2914,7 @@ const rlStep = 1 / 60,
           bullet.life = 0;
           if (
             bullet.bomblet ||
-            bullet.w === "rocket" ||
+            bullet.w === "emberLauncher" ||
             weaponDefs[bullet.w]?.explode ||
             (stats.payloadR && !bullet.drag)
           ) {
@@ -2878,13 +2928,13 @@ const rlStep = 1 / 60,
       }
     }
     // one enemy near a sample point of a player shot: the bulwark's shield or a hit (returns true to stop the query)
-    probeHit(bullet, enemy, sx, sy, rail) {
+    probeHit(bullet, enemy, sx, sy, starSpear) {
       const stats = this.stats;
       if (bullet.life <= 0) return true;
       if (enemy.dead || enemy.spawnT > 0.15 || enemy.ghost) return;
       let dx = enemy.x - sx,
         dy = enemy.y - sy;
-      if (enemy.type === "bulwark" && !rail && enemy.guardDown <= 0 && !bullet.hits.includes(enemy.id)) {
+      if (enemy.type === "shieldGuard" && !starSpear && enemy.guardDown <= 0 && !bullet.hits.includes(enemy.id)) {
         let dist = Math.hypot(dx, dy),
           guardR = enemy.r + 0.75 + bullet.r;
         if (dist < guardR && Math.abs(angleDiff(enemy.face, Math.atan2(-dy, -dx))) < 1.15) {
@@ -2901,7 +2951,7 @@ const rlStep = 1 / 60,
               }
             } else {
               bullet.life = 0;
-              if (bullet.w === "rocket" || bullet.bomblet || weaponDefs[bullet.w]?.explode || stats.payloadR) {
+              if (bullet.w === "emberLauncher" || bullet.bomblet || weaponDefs[bullet.w]?.explode || stats.payloadR) {
                 bullet.x = gx;
                 bullet.y = gy;
                 this.bulletBurst(bullet, null);
@@ -2958,7 +3008,7 @@ const rlStep = 1 / 60,
         weapon = weaponDefs[bullet.w],
         procMul = bullet.procMul ?? 1;
       bullet.hits.push(enemy.id);
-      // Firefly Volley sparks ('bomblet') detonate directly via AoE — no double-hit on impact!
+      // Firefly Shots sparks ('bomblet') detonate directly via AoE — no double-hit on impact!
       if (bullet.bomblet) {
         bullet.life = 0;
         this.bulletBurst(bullet, enemy);
@@ -2966,35 +3016,35 @@ const rlStep = 1 / 60,
       }
       let baseHit = bullet.dmg;
       const native = !bullet.wing && bullet.w === this.weapon;
-      if (native && bullet.w === "scatter" && bullet.age <= 0.16) baseHit *= 1.25;
-      if (native && bullet.w === "rail") baseHit *= 1 + 0.12 * Math.min(4, bullet.pierceCount || 0);
-      if (native && bullet.w === "disc" && bullet.back) baseHit *= 1.25;
+      if (native && bullet.w === "brassShotgun" && bullet.age <= 0.16) baseHit *= 1.25;
+      if (native && bullet.w === "starSpear") baseHit *= 1 + 0.12 * Math.min(4, bullet.pierceCount || 0);
+      if (native && bullet.w === "ringBlade" && bullet.back) baseHit *= 1.25;
       const thermal =
         native &&
-        bullet.w === "flame" &&
+        bullet.w === "fireBellows" &&
         this.time >= (enemy.thawAt ?? 0) &&
         (enemy.frostT > 0 || (this.arena.ice.length && this.arena.onIce(enemy.x, enemy.y)));
       if (thermal) baseHit += 13 * stats.dmgMul;
       // Point-Blank Barrel ('pointblank'): +16% * lv damage to foes within 5.5m
-      if (stats.pointblank > 0 && Math.hypot(enemy.x - this.player.x, enemy.y - this.player.y) <= 5.5) {
-        baseHit *= 1 + 0.16 * stats.pointblank;
+      if (stats.closeShot > 0 && Math.hypot(enemy.x - this.player.x, enemy.y - this.player.y) <= 5.5) {
+        baseHit *= 1 + 0.16 * stats.closeShot;
       }
-      // Astral Lance ('lance'): +22% damage per pierced foe or monolith
-      if (stats.lance && bullet.w === "rail" && (bullet.pierceCount || 0) > 0) {
+      // Bright Spear ('lance'): +22% damage per pierced foe or monolith
+      if (stats.starLance && bullet.w === "starSpear" && (bullet.pierceCount || 0) > 0) {
         baseHit *= 1 + 0.22 * bullet.pierceCount;
       }
-      // Cinder-Bellows ('stoke'): +18% / +32% damage to burning foes + instant 0.35s burn detonation
+      // Hot Shot ('stoke'): +18% / +32% damage to burning foes + instant 0.35s burn detonation
       let immune = enemy.shielded || enemy.ghost;
-      if (stats.stoke > 0 && enemy.burnT > 0 && !immune) {
-        baseHit *= 1 + (stats.stoke > 1 ? 0.32 : 0.18);
+      if (stats.hotShot > 0 && enemy.burnT > 0 && !immune) {
+        baseHit *= 1 + (stats.hotShot > 1 ? 0.32 : 0.18);
       }
       let crit = this.rng.chance(stats.crit),
         superCrit = false,
-        effCritMul = stats.critMul + (stats.lance && bullet.w === "rail" && enemy.boss ? 0.3 : 0),
+        effCritMul = stats.critMul + (stats.starLance && bullet.w === "starSpear" && enemy.boss ? 0.3 : 0),
         dmg = baseHit * (crit ? effCritMul : 1);
       // Prismatic Refraction ('overcrit'): crits can Super-Crit (3.0x) and arc a prismatic ray
-      if (crit && stats.overcrit > 0) {
-        const superCh = Math.min(1, 0.3 * stats.overcrit + Math.max(0, stats.crit - 0.6));
+      if (crit && stats.superCrit > 0) {
+        const superCh = Math.min(1, 0.3 * stats.superCrit + Math.max(0, stats.crit - 0.6));
         if (this.rng.chance(superCh)) {
           superCrit = true;
           dmg = baseHit * 3.0;
@@ -3008,7 +3058,7 @@ const rlStep = 1 / 60,
         bullet.vy,
         weapon.knock,
         crit,
-        bullet.wing ? "wingman" : "weapon",
+        bullet.wing ? "helperWisps" : "weapon",
         superCrit ? { superCrit: true } : null,
       );
       if (thermal && landed) {
@@ -3031,48 +3081,48 @@ const rlStep = 1 / 60,
         });
         if (near) {
           this.hurtEnemy(near, dmg * 0.5, near.x - enemy.x, near.y - enemy.y, 1, true, "weapon", { superCrit: true });
-          this.emit("chain", { pts: [enemy.x, enemy.y, near.x, near.y], prism: true });
+          this.emit("chain", { pts: [enemy.x, enemy.y, near.x, near.y], iceCrystal: true });
         }
       }
-      // Cinder-Bellows instant 0.35s burn burst
-      if (stats.stoke > 0 && enemy.burnT > 0 && !enemy.dead && !immune && enemy.burnDps > 0) {
+      // Hot Shot instant 0.35s burn burst
+      if (stats.hotShot > 0 && enemy.burnT > 0 && !enemy.dead && !immune && enemy.burnDps > 0) {
         this.hurtEnemy(enemy, enemy.burnDps * 0.35, bullet.vx, bullet.vy, 0, false, "burn");
       }
-      // Solar Repeater ('overdrive') 1.8m radiant splash
+      // Sun Gun ('overdrive') 1.8m radiant splash
       if (bullet.solarSplash) {
         this.explode(enemy.x, enemy.y, bullet.solarSplash, dmg * 0.65, {
           enemies: true,
           knock: 2.2,
-          kind: "overload",
+          kind: "fireWave",
           crit,
         });
       }
-      // Kiln Surge ('overload'): every 120 base weapon damage dealt fires a directional 5.5m kiln-flare cone
-      if (stats.overload > 0 && !bullet.wing) {
+      // Fire Wave ('overload'): every 120 base weapon damage dealt fires a directional 5.5m kiln-flare cone
+      if (stats.fireWave > 0 && !bullet.wing) {
         this.player.kilnAcc = (this.player.kilnAcc || 0) + (bullet.baseDmg || weapon.dmg);
         if (this.player.kilnAcc >= 120) {
           this.player.kilnAcc -= 120;
           const coneA = bullet.a,
-            coneDmg = (55 + 25 * stats.overload) * stats.dmgMul;
+            coneDmg = (55 + 25 * stats.fireWave) * stats.dmgMul;
           this.hash.query(this.player.x + Math.cos(coneA) * 2.8, this.player.y + Math.sin(coneA) * 2.8, 3.4, (foe) => {
             if (foe.dead || foe.ghost) return;
             const fx = foe.x - this.player.x,
               fy = foe.y - this.player.y,
               fd = Math.hypot(fx, fy);
             if (fd <= 5.5 + foe.r && Math.abs(angleDiff(coneA, Math.atan2(fy, fx))) <= 0.58) {
-              this.hurtEnemy(foe, coneDmg, fx, fy, 4.5, false, "overload");
+              this.hurtEnemy(foe, coneDmg, fx, fy, 4.5, false, "fireWave");
             }
           });
           this.emit("boom", {
             x: this.player.x + Math.cos(coneA) * 2.2,
             y: this.player.y + Math.sin(coneA) * 2.2,
             r: 2.6,
-            kind: "overload",
+            kind: "fireWave",
           });
         }
       }
       let bounced = false;
-      if (stats.cryo && !immune && this.rng.chance(stats.cryo * procMul)) {
+      if (stats.iceShot && !immune && this.rng.chance(stats.iceShot * procMul)) {
         enemy.slowT = Math.max(enemy.slowT, 2);
         enemy.frostT = 2;
         this.emit("freeze", { x: enemy.x, y: enemy.y });
@@ -3080,23 +3130,23 @@ const rlStep = 1 / 60,
       // Stackable Embers ('thermite'): up to 5 stacks capped at 2.2 * hitDmg * weapon.rate over 3s
       if (bullet.drag && stats.burn && !enemy.dead && !immune) {
         let burn = enemy.burnT > 0 ? enemy.burnDps : 0;
-        enemy.burnT = Math.max(enemy.burnT, stats.thermite ? 3 : 2.5);
-        enemy.burnDps = Math.max(burn, stats.burn * stats.burnMul * stats.dmgMul * (1 + (stats.thermite || 0)));
+        enemy.burnT = Math.max(enemy.burnT, stats.burningShot ? 3 : 2.5);
+        enemy.burnDps = Math.max(burn, stats.burn * stats.burnMul * stats.dmgMul * (1 + (stats.burningShot || 0)));
         enemy.burnSrc = "burn";
-      } else if (stats.thermite && !enemy.dead && !immune) {
+      } else if (stats.burningShot && !enemy.dead && !immune) {
         const cap = 2.2 * dmg * Math.max(1, weapon.rate || 1);
         enemy.burnT = 3;
         if ((enemy.burnStacks || 0) < 5) {
           enemy.burnStacks = (enemy.burnStacks || 0) + 1;
-          enemy.burnDps = Math.min(cap, (enemy.burnDps || 0) + dmg * stats.thermite);
+          enemy.burnDps = Math.min(cap, (enemy.burnDps || 0) + dmg * stats.burningShot);
         } else {
-          enemy.burnDps = Math.min(cap, Math.max(enemy.burnDps || 0, dmg * stats.thermite));
+          enemy.burnDps = Math.min(cap, Math.max(enemy.burnDps || 0, dmg * stats.burningShot));
         }
         enemy.burnSrc = "burn";
       }
       if (stats.chain) {
         const jumps = this.chainFrom(enemy, stats.chain, dmg * stats.chainF, bullet.hits);
-        if (!jumps && native && bullet.w === "tesla" && !stats.tempest && landed && !enemy.dead) {
+        if (!jumps && native && bullet.w === "sparkWand" && !stats.stormWand && landed && !enemy.dead) {
           this.hurtEnemy(enemy, dmg * 0.2, bullet.vx, bullet.vy, 0, false, "arc");
           this.emit("chain", { pts: [enemy.x, enemy.y, enemy.x + enemy.r, enemy.y - 0.35] });
         }
@@ -3105,7 +3155,7 @@ const rlStep = 1 / 60,
         this.chainFrom(enemy, stats.arcJumps, dmg * 0.6, bullet.hits, "arc");
       }
       if (
-        bullet.w === "rocket" ||
+        bullet.w === "emberLauncher" ||
         weaponDefs[bullet.w]?.explode ||
         (stats.payloadR && (!bullet.drag || this.rng.chance(0.2 * procMul)))
       ) {
@@ -3153,7 +3203,7 @@ const rlStep = 1 / 60,
           bullet.life = 0;
         }
       }
-      // Spore-Dew Glaze ('acidcoat'): applies 3.5s Vitriol Glaze (+18%/+30%, works on Guardians!) + trailing pools
+      // Acid Coat ('acidcoat'): applies 3.5s Vitriol Glaze (+18%/+30%, works on Guardians!) + trailing pools
       if (stats.acidCoat > 0 && this.state === "fight" && !enemy.dead && !immune) {
         const glazeCh = (stats.acidCoat > 1 ? 0.6 : 0.35) * procMul * (bullet.drag ? 0.45 : 1);
         if (this.rng.chance(glazeCh)) {
@@ -3173,22 +3223,22 @@ const rlStep = 1 / 60,
         crit = enemy ? !!bullet.crit : this.rng.chance(stats.crit);
       const critMul = crit ? stats.critMul : 1;
       if (bullet.bomblet) {
-        this.explode(x, y, 1.5, bullet.dmg, { enemies: true, knock: 1.5, kind: "payload", glaze });
+        this.explode(x, y, 1.5, bullet.dmg, { enemies: true, knock: 1.5, kind: "blastShot", glaze });
         return;
       }
-      if (weapon?.explode && bullet.w !== "rocket" && !bullet.wing) {
+      if (weapon?.explode && bullet.w !== "emberLauncher" && !bullet.wing) {
         let dmg = Number.isFinite(weapon.explodeDmg) ? weapon.explodeDmg * power * critMul : bullet.dmg,
           size = stats.sizeMul > 1 ? 1.15 : 1;
         this.explode(x, y, weapon.explode * size, dmg, { enemies: true, knock: 3, kind: bullet.w, crit, glaze });
       }
-      if (bullet.w === "rocket" && !bullet.wing) {
-        let hellfire = stats.hellfire,
+      if (bullet.w === "emberLauncher" && !bullet.wing) {
+        let wideBlast = stats.wideBlast,
           blast = weapon.explodeDmg * power;
-        this.explode(x, y, weapon.explode * (stats.sizeMul > 1 ? 1.25 : 1) * (hellfire ? 1.35 : 1), blast * critMul, {
+        this.explode(x, y, weapon.explode * (stats.sizeMul > 1 ? 1.25 : 1) * (wideBlast ? 1.35 : 1), blast * critMul, {
           enemies: true,
           knock: 4,
-          kind: "rocket",
-          burn: hellfire ? blast * 0.35 : 0,
+          kind: "emberLauncher",
+          burn: wideBlast ? blast * 0.35 : 0,
           crit,
           glaze,
         });
@@ -3197,10 +3247,10 @@ const rlStep = 1 / 60,
         this.explode(x, y, stats.payloadR, bullet.dmg * stats.payloadF, {
           enemies: true,
           knock: 1.5,
-          kind: "payload",
+          kind: "blastShot",
           glaze,
         });
-        if (stats.cluster && !bullet.bomblet && !bullet.clustered) {
+        if (stats.fireflyShots && !bullet.bomblet && !bullet.clustered) {
           bullet.clustered = true;
           this.bomblets(x, y, bullet.dmg * 0.38);
         }
@@ -3223,7 +3273,7 @@ const rlStep = 1 / 60,
           pierce: 0,
           bounce: 0,
           hits: [],
-          w: "rocket",
+          w: "emberLauncher",
           age: 0,
           homing: 6,
           bomblet: true,
@@ -3255,7 +3305,7 @@ const rlStep = 1 / 60,
           let bDt = dt;
           if (props && props.length) {
             for (const prop of props) {
-              if (prop.kind === "prism" && prop.auraT > 0) {
+              if (prop.kind === "iceCrystal" && prop.auraT > 0) {
                 const dx = bullet.x - prop.x,
                   dy = bullet.y - prop.y;
                 if (dx * dx + dy * dy <= 20.25) {
@@ -3404,7 +3454,7 @@ const rlStep = 1 / 60,
           }
         }
         if (!target) continue;
-        wing.t = this.stats.wingCycle || (this.stats.wingman > 1 ? 0.3 : 0.5);
+        wing.t = this.stats.wingCycle || (this.stats.helperWisps > 1 ? 0.3 : 0.5);
         let angle = Math.atan2(target.y - wing.y, target.x - wing.x),
           spread = this.stats.wingSpread;
         for (let j = 0; j < spread && !(this.pb.length >= MAX_PLAYER_BULLETS); j++) {
@@ -3422,7 +3472,7 @@ const rlStep = 1 / 60,
             pierce: 0,
             bounce: 0,
             hits: [],
-            w: "pulse",
+            w: "lanternGun",
             age: 0,
             homing: 0,
             wing: true,
@@ -3495,8 +3545,8 @@ const rlStep = 1 / 60,
               this.arena.los(beam.x, beam.y, player.x, player.y)
             ) {
               if (this.hurtPlayer(beam.dmg, cx, cy, beam.src)) {
-                const sp = beam.special || (beam.skin === "cryo" ? "chill" : null);
-                if (sp === "chill" || sp === "cryo") {
+                const sp = beam.special || (beam.skin === "iceShot" ? "chill" : null);
+                if (sp === "chill" || sp === "iceShot") {
                   player.slowT = Math.max(player.slowT, 1.5);
                   player.slowKind = "chill";
                   this.emit("chill", { x: player.x, y: player.y });
@@ -3521,9 +3571,9 @@ const rlStep = 1 / 60,
               }
             }
           }
-          // Glasswyrm Sunglass Spire shatter: sweeping a solar beam through a temporary spire bursts 6 radial splinters
+          // Glasswyrm Glass Pillar shatter: sweeping a solar beam through a temporary spire bursts 6 radial splinters
           if (
-            (beam.special === "sun" || beam.skin === "sun" || beam.src === "wyrm") &&
+            (beam.special === "sun" || beam.skin === "sun" || beam.src === "sandDragon") &&
             lenSq > 0 &&
             this.arena.obs.length
           ) {
@@ -3541,9 +3591,9 @@ const rlStep = 1 / 60,
                 shattered = true;
                 for (let k = 0; k < 6; k++) {
                   const sa = (k / 6) * TAU + beam.a;
-                  this.shoot(ob.x, ob.y, sa, 11.5, beam.dmg * 0.65, { r: 0.22, src: "wyrm", kind: "glass" });
+                  this.shoot(ob.x, ob.y, sa, 11.5, beam.dmg * 0.65, { r: 0.22, src: "sandDragon", kind: "glass" });
                 }
-                this.emit("boom", { x: ob.x, y: ob.y, r: 2.0, kind: "pop", src: "wyrm" });
+                this.emit("boom", { x: ob.x, y: ob.y, r: 2.0, kind: "pop", src: "sandDragon" });
               }
             }
             if (shattered) {
@@ -3564,12 +3614,12 @@ const rlStep = 1 / 60,
                   this.hurtEnemy(enemy, enemy.trapBeamAcc, enemy.x - cx, enemy.y - cy, 0.8, false, "trap");
                   enemy.trapBeamAcc = 0;
                 }
-                const sp = beam.special || (beam.skin === "cryo" ? "chill" : null);
+                const sp = beam.special || (beam.skin === "iceShot" ? "chill" : null);
                 if ((sp === "burn" || sp === "sun") && !enemy.dead && !enemy.shielded) {
                   enemy.burnT = Math.max(enemy.burnT || 0, 1.8);
                   enemy.burnDps = Math.max(enemy.burnDps || 0, enemy.maxHp * 0.06);
                   enemy.burnSrc = "trap";
-                } else if ((sp === "shock" || sp === "cryo" || sp === "chill") && !enemy.dead && !enemy.shielded) {
+                } else if ((sp === "shock" || sp === "iceShot" || sp === "chill") && !enemy.dead && !enemy.shielded) {
                   enemy.slowT = Math.max(enemy.slowT || 0, sp === "shock" ? 0.8 : 2.0);
                 } else if (sp === "acid" && !enemy.dead && !enemy.shielded) {
                   enemy.corrodeT = Math.max(enemy.corrodeT || 0, 3.0);
@@ -3706,7 +3756,7 @@ const rlStep = 1 / 60,
           } else if (pickup.kind === "heal") {
             let before = player.hp;
             player.hp = Math.min(stats.maxHp, player.hp + pickup.v);
-            if (pickup.nectar || this.event === "nectar") player.hopT = Math.max(player.hopT || 0, 2.6);
+            if (pickup.nectar || this.event === "fireflies") player.hopT = Math.max(player.hopT || 0, 2.6);
             this.emit("heal", { x: player.x, y: player.y, v: Math.round(player.hp - before) });
           }
         }
@@ -3751,16 +3801,16 @@ const rlStep = 1 / 60,
         this.bossPending = null;
         this.spawnBoss(id);
       }
-      // Gilded Caravan: spawns a marching Treasure Automaton once per gilded wave
-      if (this.event === "gilded" && !this.caravan && !this.bossPending && !this.boss && this.waveT >= 2.0) {
+      // Gold Cart: spawns a marching Treasure Automaton once per gilded wave
+      if (this.event === "goldCart" && !this.caravan && !this.bossPending && !this.boss && this.waveT >= 2.0) {
         const dir = this.rng.chance(0.5) ? 1 : -1,
           cx = -dir * (this.arena.W - 2.2),
           cy = this.rng.range(-this.arena.H * 0.4, this.arena.H * 0.4),
-          auto = this.spawnEnemy("carrier", cx, cy, { elite: true, hpF: 0.7, noVariant: true });
+          auto = this.spawnEnemy("supplyKite", cx, cy, { elite: true, hpF: 0.7, noVariant: true });
         auto.caravan = true;
         auto.spawnT = 0.4;
         this.caravan = { enemy: auto, dir, dropT: 0.9, done: false };
-        this.emit("spawn", { x: cx, y: cy, type: "carrier", elite: true });
+        this.emit("spawn", { x: cx, y: cy, type: "supplyKite", elite: true });
       }
       if (this.championPending && this.waveT > 5 && !this.hold) {
         let spot = this.arena.freePoint(this.rng, this.player.x, this.player.y, 9, 1.6);

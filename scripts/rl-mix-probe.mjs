@@ -71,16 +71,16 @@ const result = await page.evaluate(async (secs) => {
 
   // --- music: the renderOffline scheduling (seeded), at the real volumes ---
   for (const [label, spec] of [
-    ["music-fight-courtyard-09", { music: "fight", biome: "courtyard", intensity: 0.9 }],
-    ["music-fight-courtyard-05", { music: "fight", biome: "courtyard", intensity: 0.5 }],
-    ["music-fight-core-09", { music: "fight", biome: "core", intensity: 0.9 }],
+    ["music-fight-courtyard-09", { music: "fight", biome: "lanternYard", intensity: 0.9 }],
+    ["music-fight-courtyard-05", { music: "fight", biome: "lanternYard", intensity: 0.5 }],
+    ["music-fight-core-09", { music: "fight", biome: "starHall", intensity: 0.9 }],
 
-    ["music-fight-shelf-09", { music: "fight", biome: "shelf", intensity: 0.9 }],
-    ["music-fight-marsh-09", { music: "fight", biome: "marsh", intensity: 0.9 }],
-    ["music-fight-caldera-09", { music: "fight", biome: "caldera", intensity: 0.9 }],
-    ["music-fight-flats-09", { music: "fight", biome: "flats", intensity: 0.9 }],
-    ["music-boss-courtyard", { music: "boss", biome: "courtyard", heat: 0.5 }],
-    ["music-boss-core", { music: "boss", biome: "core", heat: 0.5 }],
+    ["music-fight-shelf-09", { music: "fight", biome: "snowRidge", intensity: 0.9 }],
+    ["music-fight-marsh-09", { music: "fight", biome: "mossBog", intensity: 0.9 }],
+    ["music-fight-caldera-09", { music: "fight", biome: "emberHill", intensity: 0.9 }],
+    ["music-fight-flats-09", { music: "fight", biome: "sunDunes", intensity: 0.9 }],
+    ["music-boss-courtyard", { music: "boss", biome: "lanternYard", heat: 0.5 }],
+    ["music-boss-core", { music: "boss", biome: "starHall", heat: 0.5 }],
   ]) {
     const r = await E.renderOffline({ ...spec, wav: true, room: false, seed: 5, vol: VOL }, secs);
     out[label] = { rms: r.rms, peak: r.peak };
@@ -95,12 +95,12 @@ const result = await page.evaluate(async (secs) => {
   // pulse shot every 0.2 s, hit every 1 s, crit 4 s, boom 6 s, kill 7 s, rocket 10 s
   const combat = (engine, t) => {
     const s = Math.round(t * 10);
-    if (s % 2 === 0) engine.play("pulse");
+    if (s % 2 === 0) engine.play("lanternGun");
     if (s % 10 === 0) engine.play("hit");
     if (s % 40 === 0) engine.play("crit");
     if (s % 60 === 0) engine.play("boom");
     if (s % 70 === 0) engine.play("kill", 1.8);
-    if (s % 100 === 0) engine.play("rocket");
+    if (s % 100 === 0) engine.play("emberLauncher");
   };
 
   // --- sfx stream alone ---
@@ -114,7 +114,7 @@ const result = await page.evaluate(async (secs) => {
 
   // --- the six biome ambiences (a real wave drives engine.place; the room tone of the
   // biome is on, like in the game; three takes averaged - the far sounds and hazards are random) ---
-  for (const biome of ["courtyard", "shelf", "marsh", "core", "caldera", "flats"]) {
+  for (const biome of ["lanternYard", "snowRidge", "mossBog", "starHall", "emberHill", "sunDunes"]) {
     const acc = { rms: 0, peak: 0, p95: 0 };
     let takes = 0;
     for (let take = 0; take < 3; take++) {
@@ -123,7 +123,7 @@ const result = await page.evaluate(async (secs) => {
         engine.live = () => true;
         engine.startTone(biome);
         engine.stopTone(biome, secs);
-        const world = new T.World({ seed: 0x3160 + take * 7919, weapon: "pulse", threat: 0, ws: {} });
+        const world = new T.World({ seed: 0x3160 + take * 7919, weapon: "lanternGun", threat: 0, ws: {} });
         const index = world.route.indexOf(biome);
         if (index < 0) throw new Error(`Missing biome in probe route: ${biome}`);
         world.startWave(2 + 5 * index);
@@ -149,24 +149,24 @@ const result = await page.evaluate(async (secs) => {
 
   // --- the full courtyard mix: fight music + its bed + the place + the combat stream ---
   await render("mix-fight-courtyard", async (ctx, engine) => {
-    const info = E.trackInfo("fight", "courtyard"),
+    const info = E.trackInfo("fight", "lanternYard"),
       len = 60 / info.bpm / 4;
     engine.mode = "fight";
-    engine.biome = "courtyard";
+    engine.biome = "lanternYard";
     engine.playKind = "fight";
-    engine.playBiome = "courtyard";
+    engine.playBiome = "lanternYard";
     engine.intensity = 0.9;
     engine.heat = 0;
     // courtyard fight track gain = 1
     engine.fade.gain.value = 1;
     engine.mixFor("fight");
-    engine.startMusicBed("fight", "courtyard", 0.05);
+    engine.startMusicBed("fight", "lanternYard", 0.05);
     engine.live = () => true;
-    engine.startTone("courtyard");
-    engine.stopTone("courtyard", secs);
-    const world = new T.World({ seed: 0x3160, weapon: "pulse", threat: 0, ws: {} });
+    engine.startTone("lanternYard");
+    engine.stopTone("lanternYard", secs);
+    const world = new T.World({ seed: 0x3160, weapon: "lanternGun", threat: 0, ws: {} });
     world.startWave(2);
-    if (world.arena.biome.id !== "courtyard") throw new Error("Full mix must use the courtyard arena");
+    if (world.arena.biome.id !== "lanternYard") throw new Error("Full mix must use the courtyard arena");
     world.state = "fight";
     let n = 0;
     for (let t = 0.1; t < secs; t += 0.1)

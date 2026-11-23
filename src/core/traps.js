@@ -8,7 +8,7 @@ import { BIOME_TRAP_EFFECTS as BIOME_TRAPS } from "../data/combat-effects.js";
 const TRAP_SKINS = {
   // Sweeping beacons, curtains, spouts & bellows (all 6 realms)
   laser: { fam: "beam", dmg: 16, w: 0.9, len: 26, warn: 1.1, dur: 2.1, rot: 0.52, cd: 3.6, special: "shock" },
-  cryo: {
+  iceShot: {
     fam: "beam",
     dmg: 16,
     w: 1.15,
@@ -106,7 +106,7 @@ const TRAP_SKINS = {
   },
 };
 
-// First wave of each family, unlocked in World 1 so Lantern Courtyard mechanisms appear in standard waves
+// First wave of each family, unlocked in World 1 so Lantern Yard mechanisms appear in standard waves
 const TRAP_FROM = { floor: 2, mine: 4, beam: 7 };
 
 function trapCount(fam, wave) {
@@ -142,7 +142,7 @@ function rlPlanTraps(world, wave, boss) {
     }
     return null;
   };
-  const storm = (world.mods && world.mods.trapstorm) || 0;
+  const storm = (world.mods && world.mods.extraTraps) || 0;
   for (const fam of boss ? ["floor"] : ["floor", "beam", "mine"]) {
     const skinName = skins[fam];
     if (!skinName) continue;
@@ -268,7 +268,7 @@ function trapStrike(world, trap, skin, radius, enemyMul = 1, shotDetonated = fal
       enemy.slowT = Math.max(enemy.slowT, 2.0);
     }
   });
-  // Glowmarsh bog spout / spore vessel leaves a corrosive bog pool
+  // Moss Bog bog spout / spore vessel leaves a corrosive bog pool
   if (
     skin.special === "acid" &&
     !world.markers.some((marker) => Math.hypot(marker.x - trap.x, marker.y - trap.y) < radius * 0.85 + 0.8)
@@ -276,7 +276,7 @@ function trapStrike(world, trap, skin, radius, enemyMul = 1, shotDetonated = fal
     const scale = skin.poolScale || 0.85;
     world.arena.acid.push({ x: trap.x, y: trap.y, r: radius * scale, life: trap.fam === "mine" ? 8.5 : 7 });
   }
-  // Aurora Shelf frost vessel leaves a temporary ice patch
+  // Snow Ridge frost vessel leaves a temporary ice patch
   if (skin.icePatch && world.arena.ice && world.arena.ice.length < 8) {
     world.arena.ice.push({ x: trap.x, y: trap.y, r: radius * 0.72, life: 5.5 });
   }
@@ -292,14 +292,14 @@ function trapStrike(world, trap, skin, radius, enemyMul = 1, shotDetonated = fal
       playerDps: 14,
     });
   }
-  // Glass Flats sun-rose / glass amphora calms nearby dust devils on burst
+  // Sun Dunes sun-rose / glass amphora calms nearby dust devils on burst
   if (skin.special === "glass" && world.arena.devils && world.arena.devils.length) {
     for (const devil of world.arena.devils) {
       const d = Math.hypot(devil.x - trap.x, devil.y - trap.y);
       if (d <= radius + devil.r + 1.8) devil.calmT = Math.max(devil.calmT || 0, 4.0);
     }
   }
-  // Shot-detonated Glass Flats vessel launches 4 radial sunglass splinters
+  // Shot-detonated Sun Dunes vessel launches 4 radial sunglass splinters
   if (shotDetonated && skin.splinters && world.lances) {
     const dmg = 28 * (world.stats.dmgMul || 1);
     for (let i = 0; i < skin.splinters; i++) {
@@ -345,7 +345,7 @@ function rlShootTrap(world, bullet, prevX, prevY) {
       return true;
     }
   }
-  // Shootable enemy hazards: Cinder-Sower Ember-Pots & Ash Tyrant Crucible Bombs
+  // Shootable enemy hazards: Mine Cart Ember-Pots & Ash Tyrant Crucible Bombs
   if (world.hazards && world.hazards.length) {
     for (const h of world.hazards) {
       if (!h.shootable || h.t >= h.delay) continue;
@@ -365,7 +365,7 @@ function rlShootTrap(world, bullet, prevX, prevY) {
 
 function rlUpdateTraps(world, dt) {
   if (!world.traps.length || world.state !== "fight") return;
-  const p = pace(world.wave, (world.mods && world.mods.trapstorm) || 0),
+  const p = pace(world.wave, (world.mods && world.mods.extraTraps) || 0),
     player = world.player;
   for (const trap of world.traps) {
     const skin = TRAP_SKINS[trap.skin];

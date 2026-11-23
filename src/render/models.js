@@ -1,5 +1,5 @@
 // Ground-up Tactile Cozy Diorama 3D models for Riftline v5:
-// Cloaked Lantern-Artificer Hero + 7 handcrafted artificer arms, 25 enemies across 5 instant-read storybook
+// Cloaked Lantern Keeper Hero + 7 handcrafted artificer arms, 25 enemies across 5 instant-read storybook
 // role families (<= 810 tris each), 6 monumental biome bosses (<= 3500 tris each), and combat props.
 
 import {
@@ -21,6 +21,7 @@ import {
 import { MeshNode, Node, mergeStaticNodes } from "../engine/scene.js";
 import { worldMaterial, emissiveMaterial, aegisMaterial, enemySurface } from "./materials.js";
 import { FINISH } from "./palette.js";
+import { weaponDefs, weaponMount as mount } from "../data/weapons.js";
 import { enemyDefs } from "../data/enemies.js";
 import { TAU, angleDiff, dampFactor } from "../core/util.js";
 
@@ -149,7 +150,7 @@ function addMesh(parent, geo, mat, p = {}) {
 }
 
 // ============================================================================
-// THE HERO — CLOAKED STORYBOOK RIFT-ARTIFICER + 7 HANDCRAFTED MAGITECH WEAPONS
+// THE HERO — CLOAKED STORYBOOK RIFT-KEEPER + 7 HANDCRAFTED MAGITECH WEAPONS
 // ============================================================================
 
 function buildWeaponRig(weapon, accentHex) {
@@ -160,11 +161,9 @@ function buildWeaponRig(weapon, accentHex) {
   const moverGlow = [];
   let moverPivot = [0.5, 0.03, 0];
   let moverKind = "chamber";
-  let muzzleX = 0.88;
-  let muzzleY = 0.04;
 
   switch (weapon) {
-    case "scatter":
+    case "brassShotgun":
       // Bell-Blunderbuss: wide flared brass bell muzzle, twin burnished copper side barrels, reciprocating breach & ejection port
       bodyParts.push(
         part(G_BEV, LEATHER, { x: 0.04, y: 0.0, sx: 0.44, sy: 0.21, sz: 0.24 }),
@@ -183,10 +182,9 @@ function buildWeaponRig(weapon, accentHex) {
         part(G_CYL8, accentHex, { x: 0.86, y: 0.04, rz: Math.PI / 2, sx: 0.34, sy: 0.06, sz: 0.34 }),
         part(G_OCT, accentHex, { x: 0.24, y: 0.26, sx: 0.11, sy: 0.13, sz: 0.11 }),
       );
-      muzzleX = 0.88;
-      muzzleY = 0.04;
+
       break;
-    case "tesla":
+    case "sparkWand":
       // Tuning-Fork Storm Staff / Arc Caster: crackling curved copper prongs & actively spinning induction coil ring
       bodyParts.push(
         part(G_CYL6, LEATHER, { x: 0.1, y: 0.03, rz: Math.PI / 2, sx: 0.14, sy: 0.56, sz: 0.14 }),
@@ -207,10 +205,9 @@ function buildWeaponRig(weapon, accentHex) {
       );
       moverGlow.push(part(G_TOR_SM, accentHex, { rx: 0.5, ry: Math.PI / 2, sx: 0.3, sy: 0.3, sz: 0.3 }));
       glowParts.push(part(G_OCT, CREAM, { x: 0.8, y: 0.03, sx: 0.18, sy: 0.18, sz: 0.18 }));
-      muzzleX = 0.94;
-      muzzleY = 0.03;
+
       break;
-    case "rail":
+    case "starSpear":
       // Sun-Lance / Astral Railgun: split porcelain lance + expanding magnetic accelerator fins on charge/fire
       bodyParts.push(
         part(G_BEV, IRON, { x: 0.14, y: 0.02, sx: 0.48, sy: 0.22, sz: 0.24 }),
@@ -234,10 +231,9 @@ function buildWeaponRig(weapon, accentHex) {
         part(G_BOX, accentHex, { x: 0.76, y: 0.02, sx: 0.94, sy: 0.065, sz: 0.09 }),
         part(G_OCT, CREAM, { x: 1.22, y: 0.02, sx: 0.14, sy: 0.14, sz: 0.14 }),
       );
-      muzzleX = 1.24;
-      muzzleY = 0.02;
+
       break;
-    case "rocket":
+    case "emberLauncher":
       // Salvo Rocket: multi-tube revolving brass drum + flared copper bell muzzle & iron backblast vent
       bodyParts.push(
         part(G_BEV, IRON, { x: -0.04, y: 0.04, sx: 0.36, sy: 0.22, sz: 0.26 }),
@@ -265,10 +261,9 @@ function buildWeaponRig(weapon, accentHex) {
         part(G_CYL6, accentHex, { x: 0.8, y: 0.06, rz: Math.PI / 2, sx: 0.28, sy: 0.06, sz: 0.28 }),
         part(G_OCT, accentHex, { x: -0.28, y: 0.06, sx: 0.14, sy: 0.14, sz: 0.14 }),
       );
-      muzzleX = 0.84;
-      muzzleY = 0.06;
+
       break;
-    case "disc":
+    case "ringBlade":
       // Crescent Chakram Loom cradling an actively spinning luminous star-glaive saw-disc
       bodyParts.push(
         part(G_BEV, LEATHER, { x: 0.1, y: 0.02, sx: 0.38, sy: 0.18, sz: 0.28 }),
@@ -285,10 +280,9 @@ function buildWeaponRig(weapon, accentHex) {
         part(G_OCT, CREAM, { sx: 0.38, sy: 0.05, sz: 0.12 }),
         part(G_OCT, CREAM, { sx: 0.12, sy: 0.05, sz: 0.38 }),
       );
-      muzzleX = 0.82;
-      muzzleY = 0.02;
+
       break;
-    case "flame":
+    case "fireBellows":
       // Thermal Projector: sloshing twin copper oil canisters & flickering pilot flame at the nozzle
       bodyParts.push(
         part(G_BEV, IRON, { x: 0.16, y: 0.02, sx: 0.48, sy: 0.2, sz: 0.22 }),
@@ -308,8 +302,7 @@ function buildWeaponRig(weapon, accentHex) {
         part(G_BOX, accentHex, { x: 0.06, y: 0.11, z: -0.2, sx: 0.22, sy: 0.05, sz: 0.06 }),
         part(G_BOX, accentHex, { x: 0.06, y: 0.11, z: 0.2, sx: 0.22, sy: 0.05, sz: 0.06 }),
       );
-      muzzleX = 0.88;
-      muzzleY = 0.02;
+
       break;
     default:
       // Pulse Carbine: ornate ivory-and-brass carbine with cycling crystal energy chamber & brass bolt
@@ -325,8 +318,7 @@ function buildWeaponRig(weapon, accentHex) {
       moverBody.push(part(G_BEV, BRASS, { x: -0.18, y: 0.09, sx: 0.14, sy: 0.05, sz: 0.16 }));
       moverGlow.push(part(G_OCT, accentHex, { sx: 0.32, sy: 0.12, sz: 0.13 }));
       glowParts.push(part(G_OCT, CREAM, { x: 0.88, y: 0.035, sx: 0.1, sy: 0.1, sz: 0.1 }));
-      muzzleX = 0.9;
-      muzzleY = 0.035;
+
       break;
   }
 
@@ -350,6 +342,7 @@ function buildWeaponRig(weapon, accentHex) {
   gun.add(mover);
 
   const muzzle = new Node();
+  const [muzzleX, muzzleY] = (weaponDefs[weapon] || weaponDefs.lanternGun).muzzle;
   muzzle.position.set(muzzleX, muzzleY, 0);
   gun.add(muzzle);
 
@@ -386,7 +379,7 @@ function buildWeaponRig(weapon, accentHex) {
   };
 }
 
-export function buildPlayerModel(weapon = "pulse", weaponColor = 0x5ce8ff) {
+export function buildPlayerModel(weapon = "lanternGun", weaponColor = 0x5ce8ff) {
   const group = new Node();
   const base = new Node();
   base.rotation.order = "YZX";
@@ -531,7 +524,7 @@ export function buildPlayerModel(weapon = "pulse", weaponColor = 0x5ce8ff) {
 
   // Weapon bearing pivot on torso at natural chest/shoulder height (cleanly below hat brim!)
   const weaponMount = new Node();
-  weaponMount.position.set(0.02, 1.16, 0);
+  weaponMount.position.set(mount.bearingX, mount.bearingHeight, 0);
   base.add(weaponMount);
 
   // Batch static sub-meshes on `base` (torso + hat/hood + left arm -> 1 draw call!) while preserving all moving nodes
@@ -549,13 +542,13 @@ export function buildPlayerModel(weapon = "pulse", weaponColor = 0x5ce8ff) {
   ]);
   mergeStaticNodes(base, keepStatic);
 
-  const turret = new Node();
-  turret.position.set(0.02, 1.16, 0);
-  group.add(turret);
+  const weaponBearing = new Node();
+  weaponBearing.position.set(mount.bearingX, mount.bearingHeight, 0);
+  group.add(weaponBearing);
 
   const rig = buildWeaponRig(weapon, weaponColor);
-  rig.gun.position.set(0.32, -0.15, 0.36);
-  turret.add(rig.gun);
+  rig.gun.position.set(mount.forward, mount.height, mount.side);
+  weaponBearing.add(rig.gun);
   const rightArm = rig.gun;
 
   // Protective Aegis energy sphere
@@ -586,7 +579,7 @@ export function buildPlayerModel(weapon = "pulse", weaponColor = 0x5ce8ff) {
     eyes,
     visorMat,
     weaponMount,
-    turret,
+    weaponBearing,
     rightArm,
     gun: rig.gun,
     rig,
@@ -614,8 +607,8 @@ export function buildPlayerModel(weapon = "pulse", weaponColor = 0x5ce8ff) {
       this.castT = 0;
       this.throwT = 0;
       this.hurtFlinchT = 0;
-      turret.rotation.set(0, 0, 0);
-      turret.scale.set(1, 1, 1);
+      weaponBearing.rotation.set(0, 0, 0);
+      weaponBearing.scale.set(1, 1, 1);
       lantern.position.set(0.35, 0.89, -0.46);
       lantern.rotation.set(0, 0, 0);
       lanternGlow.scale.setScalar(1);
@@ -669,13 +662,13 @@ export function buildPlayerModel(weapon = "pulse", weaponColor = 0x5ce8ff) {
       const mx = weaponMount.position.x,
         my = weaponMount.position.y,
         mz = weaponMount.position.z;
-      turret.position.set(
+      weaponBearing.position.set(
         e[0] * mx + e[4] * my + e[8] * mz + e[12],
         Math.max(0.24, e[1] * mx + e[5] * my + e[9] * mz + e[13] - 0.12 * slump),
         e[2] * mx + e[6] * my + e[10] * mz + e[14],
       );
-      turret.rotation.set(0.28 * slump, this.aimYaw - 0.22 * slump, -0.65 * slump);
-      rig.gun.position.x = 0.32;
+      weaponBearing.rotation.set(0.28 * slump, this.aimYaw - 0.22 * slump, -0.65 * slump);
+      rig.gun.position.x = mount.forward;
       rig.gun.rotation.set(0, 0, -0.32 * slump);
     },
     setStrafeYaw(deltaYaw, dt) {
@@ -700,7 +693,7 @@ export function buildPlayerModel(weapon = "pulse", weaponColor = 0x5ce8ff) {
       const breeze = Math.sin(time * 2.9) * 0.06;
       const runRipple = Math.sin(phase * 2) * 0.09 * amount;
 
-      // 2-stage billowing travel cloak + flaring hem during Dash & Hearthburst cast
+      // 2-stage billowing travel cloak + flaring hem during Dash & Fire Burst cast
       cloak.rotation.z = -0.1 - amount * 0.38 - flare * 0.52 - flinchK * 0.28 + breeze + runRipple;
       cloak.rotation.y = Math.sin(time * 2.1 + phase * 0.5) * (0.06 + amount * 0.08);
       cloakHem.rotation.z =
@@ -714,7 +707,7 @@ export function buildPlayerModel(weapon = "pulse", weaponColor = 0x5ce8ff) {
         -0.1 - amount * 0.34 - flare * 0.48 + Math.sin(time * 5.6 - 0.7) * (0.09 + amount * 0.11 + flare * 0.15);
       scarfTail.scale.set(1 + flare * 0.22, 1, 1 + flare * 0.18);
 
-      // Guiding lantern lifts on Hearthburst cast, swings forward on Gravity Chime throw
+      // Guiding lantern lifts on Fire Burst cast, swings forward on Gravity Bell throw
       lantern.position.set(
         0.35 + throwK * 0.22 + castK * 0.06,
         0.89 + castK * 0.34 + throwK * 0.12 - flinchK * 0.08,
@@ -753,7 +746,7 @@ export function buildPlayerModel(weapon = "pulse", weaponColor = 0x5ce8ff) {
       eyes.position.z = gazeZ;
       visorMat.emissiveIntensity = hurt > 0.1 ? 1.9 : firing ? 1.62 : 1.38;
 
-      // Warm flickering guiding-lantern glow (brightens during dash, cast & Hearthburst ready!)
+      // Warm flickering guiding-lantern glow (brightens during dash, cast & Fire Burst ready!)
       const flicker = 0.94 + 0.08 * Math.sin(time * 9.5) + 0.05 * Math.sin(time * 17.1);
       const boost =
         (dashing ? 0.55 : 0) +
@@ -775,13 +768,13 @@ export function buildPlayerModel(weapon = "pulse", weaponColor = 0x5ce8ff) {
         rig.gun.rotation.set(0, 0, this.recoil * 2.1);
       }
     },
-    aimAt(worldAngle, dt = 0) {
+    aimAt(worldAngle, dt = 0, precise = false) {
       base.updateLocalMatrix();
       const e = base.localMatrix.elements;
       const mx = weaponMount.position.x,
         my = weaponMount.position.y,
         mz = weaponMount.position.z;
-      turret.position.set(
+      weaponBearing.position.set(
         e[0] * mx + e[4] * my + e[8] * mz + e[12],
         e[1] * mx + e[5] * my + e[9] * mz + e[13],
         e[2] * mx + e[6] * my + e[10] * mz + e[14],
@@ -789,14 +782,14 @@ export function buildPlayerModel(weapon = "pulse", weaponColor = 0x5ce8ff) {
       const targetYaw = -worldAngle;
       if (dt > 0) {
         const diff = angleDiff(this.aimYaw, targetYaw);
-        this.aimYaw += diff * dampFactor(24, dt);
+        this.aimYaw = precise ? targetYaw : this.aimYaw + diff * dampFactor(24, dt);
         this.recoil = Math.max(0, this.recoil - dt * 0.65);
         rig.gun.rotation.z = this.recoil * 2.1;
       } else {
         this.aimYaw = targetYaw;
       }
-      turret.rotation.set(0, this.aimYaw, 0);
-      rig.gun.position.x = 0.32 - this.recoil;
+      weaponBearing.rotation.set(0, this.aimYaw, 0);
+      rig.gun.position.x = mount.forward - this.recoil;
     },
   };
   return model;
@@ -807,31 +800,31 @@ export function buildPlayerModel(weapon = "pulse", weaponColor = 0x5ce8ff) {
 // ============================================================================
 
 export const RL_MESH_TYPES = [
-  "swarmer",
-  "grunt",
-  "gunner",
-  "bomber",
-  "splitter",
-  "mite",
-  "brute",
-  "sniper",
-  "hive",
-  "bulwark",
-  "striker",
-  "mortar",
-  "mender",
-  "leaper",
-  "turret",
-  "charger",
-  "minebot",
-  "sapper",
-  "phantom",
-  "sentinel",
-  "carrier",
-  "drone",
-  "driller",
-  "beacon",
-  "weaver",
+  "smallBug",
+  "kettleGuard",
+  "brassGuard",
+  "firePot",
+  "sporePod",
+  "littlePod",
+  "ironGolem",
+  "longshot",
+  "mushroomNest",
+  "shieldGuard",
+  "blinkBlade",
+  "bellCannon",
+  "mossHealer",
+  "bogHopper",
+  "watchTower",
+  "wildBoar",
+  "mineCart",
+  "bombMaker",
+  "starGhost",
+  "crystalTower",
+  "supplyKite",
+  "dartSprite",
+  "burrowMole",
+  "healingStone",
+  "starSpider",
 ];
 
 const enemyGeoCache = new Map();
@@ -844,7 +837,7 @@ function buildEnemyParts(type, accent) {
     // ------------------------------------------------------------------------
     // FAMILY A — WILD RIFT CRITTERS (Organic rounded shells, fluttering wings, antennae, skittering claws)
     // ------------------------------------------------------------------------
-    case "swarmer":
+    case "smallBug":
       // Teardrop jewel-moth / scarab dart with GPU-buzzing gossamer wings, segmented thorax & curled antennae
       body.push(
         part(G_BUG, accent, {
@@ -910,7 +903,7 @@ function buildEnemyParts(type, accent) {
         part(G_OCT, 0xffffff, { x: -0.56, y: 0.44, sx: 0.18, sy: 0.15, sz: 0.18, anim: [4, 0.44, -0.06, -1.0] }),
       );
       break;
-    case "mite":
+    case "littlePod":
       // Plump spotted acorn-beetle with 6 GPU-skittering claws, mossy carapace cap & snapping mandibles
       body.push(
         part(G_DOME, accent, { y: 0.16, sx: 0.78, sy: 0.5, sz: 0.7 }),
@@ -957,7 +950,7 @@ function buildEnemyParts(type, accent) {
         part(G_OCT, 0xffffff, { x: -0.08, y: 0.64, sx: 0.18, sy: 0.1, sz: 0.18 }),
       );
       break;
-    case "splitter":
+    case "sporePod":
       // Organic twin-lobed mitosis toadstool-pod with GPU-throbbing brood sac, skittering rootlets & curled sprouts
       body.push(
         part(G_BUG, CHITIN_MOSS, { y: 0.12, z: -0.32, sx: 0.68, sy: 0.84, sz: 0.58, anim: [4, 0.5, 0, -0.8] }),
@@ -1001,7 +994,7 @@ function buildEnemyParts(type, accent) {
         part(G_SPH, 0xffffff, { y: 0.54, sx: 0.38, sy: 0.34, sz: 0.44, anim: [4, 0.54, 0, -1.6] }),
       );
       break;
-    case "leaper":
+    case "bogHopper":
       // Coiled springy rift-lynx critter with GPU-striding haunches & forepaws, brass collar, tufted ears & sweeping tail
       body.push(
         part(G_BUG, CHITIN_DARK, { x: -0.08, y: 0.6, rz: -1.35, sx: 0.54, sy: 1.12, sz: 0.58 }),
@@ -1065,7 +1058,7 @@ function buildEnemyParts(type, accent) {
         part(G_OCT, 0xffffff, { x: -0.78, y: 1.02, sx: 0.12, sy: 0.12, sz: 0.12, anim: [2, 0.72, -0.45, 1.5] }),
       );
       break;
-    case "hive":
+    case "mushroomNest":
       // Tiered mossy fairy-toadstool brood-nest with gnarled roots, throbbing spore-belly & orbiting spore-crown
       body.push(
         part(G_ROBE, CHITIN_DARK, { y: 0.0, sx: 1.24, sy: 0.66, sz: 1.24, anim: [4, 0.45, 0, -1.2] }),
@@ -1106,7 +1099,7 @@ function buildEnemyParts(type, accent) {
     // ------------------------------------------------------------------------
     // FAMILY B — PORCELAIN & FORGED VANGUARD (Warm porcelain, patinated bronze, wrought iron, marching sabatons)
     // ------------------------------------------------------------------------
-    case "grunt":
+    case "kettleGuard":
       // Porcelain-and-bronze miniature knight-golem with marching sabatons, swinging mace-gauntlets & crested sallet helm
       body.push(
         part(G_DOME, IRON, { x: 0.04, y: 0.0, z: -0.22, sx: 0.34, sy: 0.28, sz: 0.26, anim: [2, 0.34, 0.04, 0.0] }),
@@ -1126,7 +1119,7 @@ function buildEnemyParts(type, accent) {
         part(G_OCT, 0xffffff, { x: -0.34, y: 0.78, sx: 0.16, sy: 0.2, sz: 0.2 }),
       );
       break;
-    case "brute":
+    case "ironGolem":
       // Towering horned porcelain-and-iron juggernaut with stomping sabatons, swinging siege gauntlets & sweeping brass horns
       body.push(
         part(G_DOME, IRON, { x: 0.04, y: 0.0, z: -0.42, sx: 0.56, sy: 0.42, sz: 0.44, anim: [2, 0.48, 0.04, 0.0] }),
@@ -1146,7 +1139,7 @@ function buildEnemyParts(type, accent) {
         part(G_OCT, 0xffffff, { x: 0.68, y: 0.92, sx: 0.26, sy: 0.32, sz: 0.34 }),
       );
       break;
-    case "bulwark":
+    case "shieldGuard":
       // Wide crescent-tower-shield paladin golem with marching greaves & riveted 3-panel porcelain-and-brass tower shield
       body.push(
         part(G_DOME, IRON, { x: -0.1, y: 0.0, z: -0.34, sx: 0.46, sy: 0.34, sz: 0.34, anim: [2, 0.38, -0.1, 0.0] }),
@@ -1182,7 +1175,7 @@ function buildEnemyParts(type, accent) {
         part(G_BOX, 0xffffff, { x: 0.22, y: 1.44, sx: 0.14, sy: 0.12, sz: 0.44 }),
       );
       break;
-    case "charger":
+    case "wildBoar":
       // Low-slung forged-iron & bronze boar-ram chariot with spinning brass drive-wheels, tusks & twin exhaust bells
       body.push(
         part(G_CONE6, IVORY, { x: 0.34, y: 0.52, rz: -Math.PI / 2, sx: 0.92, sy: 1.18, sz: 1.04 }),
@@ -1259,7 +1252,7 @@ function buildEnemyParts(type, accent) {
         part(G_OCT, 0xffffff, { x: 0.58, y: 0.72, sx: 0.24, sy: 0.22, sz: 0.28 }),
       );
       break;
-    case "driller":
+    case "burrowMole":
       // Stout bronze-and-iron mole-engine with GPU-spinning spiral brass auger cone, counter-rotating collar & roller treads
       body.push(
         part(G_POT, BRONZE, { x: -0.56, y: 0.56, rz: -Math.PI / 2, sx: 0.92, sy: 0.86, sz: 0.92 }),
@@ -1305,7 +1298,7 @@ function buildEnemyParts(type, accent) {
         part(G_OCT, 0xffffff, { x: -0.18, y: 1.16, sx: 0.24, sy: 0.18, sz: 0.28 }),
       );
       break;
-    case "striker":
+    case "blinkBlade":
       // Swept-wing porcelain-and-indigo crescent duelist with GPU-fluttering razor V-scythes, dorsal crest & tail fin
       body.push(
         part(G_BUG, IRON, { x: -0.06, y: 0.78, rz: -Math.PI / 2, sx: 0.48, sy: 1.14, sz: 0.52 }),
@@ -1362,7 +1355,7 @@ function buildEnemyParts(type, accent) {
     // ------------------------------------------------------------------------
     // FAMILY C — HOODED MARKSMEN & ARTILLERY (Tall cowls, brass optics, recoiling barrels & spider tripods)
     // ------------------------------------------------------------------------
-    case "gunner":
+    case "brassGuard":
       // Hooded burgundy-plum artificer with marching boots, cloaked bracing arms, brass goggles, copper keg & twin blunderbusses
       body.push(
         part(G_DOME, IRON, { x: 0.04, y: 0.0, z: -0.2, sx: 0.28, sy: 0.22, sz: 0.22, anim: [2, 0.28, 0.04, 0.0] }),
@@ -1403,7 +1396,7 @@ function buildEnemyParts(type, accent) {
         part(G_OCT, 0xffffff, { x: 0.98, y: 0.76, z: 0.38, sx: 0.16, sy: 0.16, sz: 0.16, anim: [4, 0.76, 0.28, 0.0] }),
       );
       break;
-    case "sniper":
+    case "longshot":
       // Tall peaked-cowl mystic marksman on GPU-striding brass tripod stilts with braced arms & recoiling telescope sun-lance
       body.push(
         ...[-1, 0, 1].map((i) => {
@@ -1469,7 +1462,7 @@ function buildEnemyParts(type, accent) {
         part(G_OCT, 0xffffff, { x: 0.78, y: 1.28, sx: 0.11, sy: 0.11, sz: 0.11, anim: [4, 1.28, 0.4, 0.0] }),
       );
       break;
-    case "mortar":
+    case "bellCannon":
       // Squat brass-and-oak spider-howitzer with 4 GPU-striding legs & recoiling flared bell-mortar
       body.push(
         ...Array.from({ length: 4 }, (_, i) => {
@@ -1504,7 +1497,7 @@ function buildEnemyParts(type, accent) {
         part(G_BOX, 0xffffff, { x: 0.48, y: 0.64, sx: 0.1, sy: 0.14, sz: 0.38 }),
       );
       break;
-    case "turret":
+    case "watchTower":
       // Carved stone-and-brass clockwork watchtower with spinning gear-ring & GPU-recoiling twin long cannons
       body.push(
         part(G_ROBE, NAVY_ROBE, { y: 0.0, sx: 1.26, sy: 0.64, sz: 1.26 }),
@@ -1568,7 +1561,7 @@ function buildEnemyParts(type, accent) {
         part(G_OCT, 0xffffff, { y: 1.44, sx: 0.24, sy: 0.28, sz: 0.24, anim: [3, 1.44, 0, -2.0] }),
       );
       break;
-    case "sentinel":
+    case "crystalTower":
       // Tall tri-pillar floating obelisk: towering carved monolith flanked by 3 orbiting obelisk spires & Cyclops prism eye
       body.push(
         part(G_BEV, PLUM_ROBE, { y: 1.18, sx: 0.42, sy: 1.56, sz: 0.42 }),
@@ -1612,7 +1605,7 @@ function buildEnemyParts(type, accent) {
     // ------------------------------------------------------------------------
     // FAMILY D — VOLATILE COPPER KETTLE-KIN (Pot-bellied vessels, spinning wind-up keys, scurrying feet)
     // ------------------------------------------------------------------------
-    case "bomber":
+    case "firePot":
       // Round pot-bellied copper kettle-bomb with throbbing furnace belly, GPU-spinning wind-up key & scurrying feet
       body.push(
         part(G_POT, COPPER, { y: 0.22, sx: 1.02, sy: 0.96, sz: 1.02, anim: [4, 0.68, 0, -1.4] }),
@@ -1638,7 +1631,7 @@ function buildEnemyParts(type, accent) {
         part(G_OCT, 0xffffff, { y: 1.36, sx: 0.34, sy: 0.4, sz: 0.34 }),
       );
       break;
-    case "minebot":
+    case "mineCart":
       // Round copper-and-vermilion clockwork turtle-kettle with pulsing ordnance dome, exhaust chimney & 4 crab legs
       body.push(
         part(G_DOME, VERMILION, { y: 0.18, sx: 1.06, sy: 0.56, sz: 1.06 }),
@@ -1675,7 +1668,7 @@ function buildEnemyParts(type, accent) {
         part(G_BOX, 0xffffff, { x: 0.56, y: 0.42, sx: 0.08, sy: 0.1, sz: 0.24 }),
       );
       break;
-    case "sapper":
+    case "bombMaker":
       // Nimble hooded vermilion-enamel tinker with scurrying boots & throbbing twin copper powder-kegs
       body.push(
         part(G_DOME, IRON, { y: 0.0, z: -0.2, sx: 0.3, sy: 0.22, sz: 0.22, anim: [2, 0.24, 0.0, 0.0] }),
@@ -1704,7 +1697,7 @@ function buildEnemyParts(type, accent) {
     // ------------------------------------------------------------------------
     // FAMILY E — ARCANE LANTERN-SPIRITS & RELAYS (Floating shrines, spinning astrolabe rings & rotors)
     // ------------------------------------------------------------------------
-    case "mender":
+    case "mossHealer":
       // Wide botanical mushroom-parasol & herbal gourd apothecary spirit with spinning healing cross
       body.push(
         part(G_POT, PARCHMENT, { y: 0.34, sx: 0.72, sy: 0.72, sz: 0.72, anim: [4, 0.68, 0, -1.6] }),
@@ -1723,7 +1716,7 @@ function buildEnemyParts(type, accent) {
         part(G_OCT, 0xffffff, { y: 1.14, z: 0.68, sx: 0.14, sy: 0.24, sz: 0.14, anim: [3, 1.14, 0, 1.4] }),
       );
       break;
-    case "phantom":
+    case "starGhost":
       // Crescent moon-sickle wings & multi-ribbon tattered veil wraith
       body.push(
         part(G_HOOD, NAVY_ROBE, { x: -0.06, y: 1.06, rz: 0.38, sx: 0.56, sy: 0.68, sz: 0.54 }),
@@ -1821,7 +1814,7 @@ function buildEnemyParts(type, accent) {
         part(G_TOR_SM, 0xffffff, { y: 0.48, rx: 0.32, sx: 0.9, sy: 0.9, sz: 0.9, anim: [3, 0.48, 0, 2.2] }),
       );
       break;
-    case "carrier":
+    case "supplyKite":
       // Ornate floating wooden-and-brass sky-galleon with 4-blade brass airscrews, bowsprit & pulsing hangar bay
       body.push(
         part(G_DOME, LEATHER, { y: 0.76, rx: Math.PI, sx: 1.24, sy: 0.42, sz: 1.32 }),
@@ -1842,7 +1835,7 @@ function buildEnemyParts(type, accent) {
         part(G_OCT, 0xffffff, { x: -0.06, y: 1.76, sx: 0.3, sy: 0.28, sz: 0.3, anim: [3, 1.76, -0.06, 1.6] }),
       );
       break;
-    case "drone":
+    case "dartSprite":
       // Sleek brass-ringed clockwork dragonfly with tandem filigree wings, segmented tail & spinning gyro ring
       body.push(
         part(G_LANTERN, PARCHMENT, { x: -0.04, y: 0.86, rz: -Math.PI / 2, sx: 0.48, sy: 0.64, sz: 0.48 }),
@@ -1894,7 +1887,7 @@ function buildEnemyParts(type, accent) {
         part(G_OCT, 0xffffff, { x: -0.44, y: 0.88, sx: 0.16, sy: 0.16, sz: 0.16 }),
       );
       break;
-    case "beacon":
+    case "healingStone":
       // Stacked stone dolmen arch (twin standing rune-monoliths + wide stone lintel) with swinging hanging censer
       body.push(
         part(G_BEV, NAVY_ROBE, { y: 0.16, sx: 0.72, sy: 0.26, sz: 1.48 }),
@@ -1914,7 +1907,7 @@ function buildEnemyParts(type, accent) {
         part(G_OCT, 0xffffff, { y: 1.96, sx: 0.32, sy: 0.44, sz: 0.32, anim: [3, 1.96, 0, -2.1] }),
       );
       break;
-    case "weaver":
+    case "starSpider":
       // 6-armed spinning celestial loom wheel framing a slender indigo weaver core
       body.push(
         part(G_ROBE, PLUM_ROBE, { x: 0.12, y: 0.34, sx: 0.52, sy: 0.96, sz: 0.52 }),
@@ -2195,8 +2188,8 @@ export function buildBossModel(type, accentHex = 0xff6644) {
   phase2.visible = false;
   group.add(phase2);
 
-  if (type === "bellkeeper") {
-    // LANTERN COURTYARD — Lantern-Shrine Ironclad Bellkeeper (articulated walking legs + bell-mortar arms + overdrive lantern halo)
+  if (type === "bellKeeper") {
+    // LANTERN YARD — Lantern-Shrine Ironclad Bellkeeper (articulated walking legs + bell-mortar arms + overdrive lantern halo)
     const hull = mergeGeometries([
       part(G_ROBE, 0x223444, { y: 0.62, sx: 2.04, sy: 1.0, sz: 2.32 }),
       part(G_POT, 0x355064, { x: 0.08, y: 1.32, sx: 2.26, sy: 1.46, sz: 2.76 }),
@@ -2295,8 +2288,8 @@ export function buildBossModel(type, accentHex = 0xff6644) {
       );
     }
     phase2.add(new MeshNode(mergeGeometries(p2Parts), overdriveMat));
-  } else if (type === "queen") {
-    // THE GLOWMARSH — Velvet Toadstool Brood-Empress (articulated 6 skittering legs + throbbing brood sac + sculpted crown)
+  } else if (type === "mossQueen") {
+    // MOSS BOG — Velvet Toadstool Brood-Empress (articulated 6 skittering legs + throbbing brood sac + sculpted crown)
     const hull = mergeGeometries([
       part(G_DOME, 0x2d5e48, { x: 0.96, y: 0.94, sx: 1.56, sy: 1.08, sz: 1.66 }),
       part(G_CONE6, BRASS, { x: 1.56, y: 1.96, z: -0.44, rz: -0.62, sx: 0.14, sy: 0.72, sz: 0.14 }),
@@ -2436,8 +2429,8 @@ export function buildBossModel(type, accentHex = 0xff6644) {
       );
     }
     phase2.add(new MeshNode(mergeGeometries(p2Queen), overdriveMat));
-  } else if (type === "prism") {
-    // THE AURORA SHELF — Cathedral Frost-Prism Seraph (articulated sapphire wing-spires + overdrive aurora corona)
+  } else if (type === "iceCrystal") {
+    // SNOW RIDGE — Cathedral Frost-Prism Seraph (articulated sapphire wing-spires + overdrive aurora corona)
     const iceMat = worldMaterial({
       surface: "ice",
       vertexColors: true,
@@ -2518,8 +2511,8 @@ export function buildBossModel(type, accentHex = 0xff6644) {
       );
     }
     phase2.add(new MeshNode(mergeGeometries(p2Prism), overdriveMat));
-  } else if (type === "core") {
-    // THE SHATTERED CORE — Rift Astrolabe Sovereign (synchronized bobbing plinth + sanctuary pylons + astral rings)
+  } else if (type === "starHeart") {
+    // STAR HALL — Rift Astrolabe Sovereign (synchronized bobbing plinth + sanctuary pylons + astral rings)
     const coreBody = new Node();
     coreBody.position.set(0, 2.4, 0);
     const plinth = mergeGeometries([
@@ -2607,8 +2600,8 @@ export function buildBossModel(type, accentHex = 0xff6644) {
         overdriveMat,
       ),
     );
-  } else if (type === "tyrant") {
-    // ASHFALL CALDERA — Hunched Dwarven Furnace-Titan: wide boiler hunchback, twin tall smokestack pipes,
+  } else if (type === "emberKing") {
+    // EMBER HILL — Hunched Dwarven Furnace-Titan: wide boiler hunchback, twin tall smokestack pipes,
     // glowing iron rib-grate chest, articulated walking forge-legs & clearance-safe colossal Anvil Maul!
     const hull = mergeGeometries([
       // Broad hunched lower-slung furnace boiler torso (wider & forward-hunched vs upright bellkeeper)
@@ -2726,7 +2719,7 @@ export function buildBossModel(type, accentHex = 0xff6644) {
       ),
     );
   } else {
-    // THE GLASS FLATS — Vitrified Sun-Glass Leviathan (articulated mandibles + 7-segment dragon tail + sun-halo crest)
+    // SUN DUNES — Vitrified Sun-Glass Leviathan (articulated mandibles + 7-segment dragon tail + sun-halo crest)
     const head = mergeGeometries([
       part(G_DOME, 0x623b24, { x: 0.54, y: 0.62, sx: 1.94, sy: 1.16, sz: 1.58 }),
       part(G_BEV, BRASS, { x: 0.72, y: 1.58, sx: 1.18, sy: 0.24, sz: 1.14 }),
@@ -2825,7 +2818,7 @@ export function buildBossModel(type, accentHex = 0xff6644) {
         phase2.visible = false;
       }
 
-      // Synchronized floating bob for Shattered Heart plinth + Phase 2 halo
+      // Synchronized floating bob for Star Heart plinth + Phase 2 halo
       if (pose.coreBody) {
         const bobY = Math.sin(time * 1.5) * 0.15;
         pose.coreBody.position.y = 2.4 + bobY;
@@ -2835,10 +2828,10 @@ export function buildBossModel(type, accentHex = 0xff6644) {
       // Brood-Empress abdomen heave & pulse on eggs / summon / plague
       if (pose.abdomen) {
         const spawning = st === "eggs" || st === "summon" || st === "plague" || st === "burst";
-        const pulse = spawning
+        const lanternGun = spawning
           ? 1 + Math.sin(time * (winding ? 10 : 16)) * (winding ? 0.11 : 0.16)
           : 1 + Math.sin(time * 2.8) * 0.035;
-        pose.abdomen.scale.set(pulse, 1 / Math.sqrt(pulse), pulse);
+        pose.abdomen.scale.set(lanternGun, 1 / Math.sqrt(lanternGun), lanternGun);
         pose.abdomen.rotation.z = spawning ? (winding ? 0.16 : -0.1) : Math.sin(time * 2.2) * 0.04;
       }
 
@@ -2871,7 +2864,7 @@ export function buildBossModel(type, accentHex = 0xff6644) {
         let pitchR = -pitchL;
         let splayL = 0;
         let splayR = 0;
-        if (st === "stomp" || st === "ring" || st === "sealgrid" || st === "crucible" || st === "trench") {
+        if (st === "stomp" || st === "ring" || st === "bellCage" || st === "crucible" || st === "trench") {
           // Overhead double-arm seismic/anvil slam
           pitchL = pitchR = winding ? 1.12 : active ? -0.78 : 0;
           splayL = winding ? 0.22 : -0.12;

@@ -3,12 +3,18 @@
 
 import { clamp, TAU, hashString, angleDiff, makeRng } from "./util.js";
 import { RL_BIOME_HAZARD } from "../data/biomes.js";
-import { biomeSeedId } from "../data/content-ids.js";
+import { biomeSeedId, layoutBiomeSeedId } from "../data/content-ids.js";
 
 const Arena = class {
   constructor(biome, layout) {
     this.biome = biome;
-    let lay = layout || { key: biome.id + ":classic", W: biome.W, H: biome.H, obstacles: biome.obstacles, deco: 0 };
+    let lay = layout || {
+      key: layoutBiomeSeedId(biome.id) + ":classic",
+      W: biome.W,
+      H: biome.H,
+      obstacles: biome.obstacles,
+      deco: 0,
+    };
     this.key = lay.key;
     this.director = lay.director || null;
     this.deco = lay.deco || 0;
@@ -21,7 +27,7 @@ const Arena = class {
     this.ice = (features.ice || []).map((patch) => ({ ...patch }));
     this.portals = (features.portals || []).map((portal) => ({ ...portal }));
     this.acid = (features.acid || []).map((puddle) => ({ ...puddle }));
-    // 3.53.0: the Glass Flats' dust devils - the first hazards that move (World steps them)
+    // 3.53.0: the Sun Dunes' dust devils - the first hazards that move (World steps them)
     this.devils = (features.devils || []).map((devil) => ({ ...devil }));
     this.flow = new FlowField(this);
     this.props = placeBiomeProps(this);
@@ -166,10 +172,10 @@ const Arena = class {
           oy = y - ob.y,
           c = ox * ox + oy * oy - ob.r * ob.r,
           along = ox * dx + oy * dy,
-          disc = along * along - c;
+          discriminant = along * along - c;
         if (c <= 0) return 0;
-        if (disc < 0) continue;
-        hit = -along - Math.sqrt(disc);
+        if (discriminant < 0) continue;
+        hit = -along - Math.sqrt(discriminant);
       } else {
         hit = rayBoxEntry(x, y, dx, dy, ob.x - ob.w, ob.y - ob.h, ob.x + ob.w, ob.y + ob.h);
       }
@@ -422,7 +428,7 @@ const SpatialHash = class {
 const OBSTACLE_GAP = 2.7,
   spawnZone = { x: 0, y: 2, r: 4.6 },
   obstacleShapes = {
-    courtyard: [
+    lanternYard: [
       [5, (rng) => ({ t: "c", r: rng.range(1, 1.5) })],
       [
         3,
@@ -432,7 +438,7 @@ const OBSTACLE_GAP = 2.7,
         },
       ],
     ],
-    shelf: [
+    snowRidge: [
       [4, (rng) => ({ t: "c", r: rng.range(0.7, 1.1) })],
       [
         3,
@@ -442,7 +448,7 @@ const OBSTACLE_GAP = 2.7,
             : { t: "b", w: rng.range(0.7, 1), h: rng.range(1.4, 2.6) },
       ],
     ],
-    marsh: [
+    mossBog: [
       [4, (rng) => ({ t: "c", r: rng.range(0.9, 1.5) })],
       [
         3,
@@ -452,7 +458,7 @@ const OBSTACLE_GAP = 2.7,
             : { t: "b", w: rng.range(0.7, 1), h: rng.range(1.4, 2.4) },
       ],
     ],
-    core: [
+    starHall: [
       [
         4,
         (rng) =>
@@ -462,8 +468,8 @@ const OBSTACLE_GAP = 2.7,
       ],
       [3, (rng) => ({ t: "c", r: rng.range(0.9, 1.3) })],
     ],
-    // 3.49.0: the Ashfall Caldera: obsidian spires and the charred slabs / lava dykes
-    caldera: [
+    // 3.49.0: the Ember Hill: obsidian spires and the charred slabs / lava dykes
+    emberHill: [
       [4, (rng) => ({ t: "c", r: rng.range(0.9, 1.3) })],
       [
         3,
@@ -473,8 +479,8 @@ const OBSTACLE_GAP = 2.7,
             : { t: "b", w: rng.range(0.6, 0.9), h: rng.range(1.6, 2.8) },
       ],
     ],
-    // 3.53.0: the Glass Flats: fused sandstone mounds and the leaning sheets of sheet glass
-    flats: [
+    // 3.53.0: the Sun Dunes: fused sandstone mounds and the leaning sheets of sheet glass
+    sunDunes: [
       [4, (rng) => ({ t: "c", r: rng.range(1, 1.4) })],
       [
         3,
@@ -486,17 +492,17 @@ const OBSTACLE_GAP = 2.7,
     ],
   },
   mapTemplates = {
-    courtyard: ["scatter", "ring", "rot4", "mirror2"],
-    shelf: ["scatter", "rot2", "ring", "rot4"],
-    core: ["scatter", "ring", "rot2", "mirror4"],
-    marsh: ["scatter", "mirror2", "ring", "rot2"],
-    caldera: ["scatter", "mirror2", "rot2", "ring"],
-    flats: ["scatter", "ring", "mirror2", "rot4"],
+    lanternYard: ["scatter", "ring", "rot4", "mirror2"],
+    snowRidge: ["scatter", "rot2", "ring", "rot4"],
+    starHall: ["scatter", "ring", "rot2", "mirror4"],
+    mossBog: ["scatter", "mirror2", "ring", "rot2"],
+    emberHill: ["scatter", "mirror2", "rot2", "ring"],
+    sunDunes: ["scatter", "ring", "mirror2", "rot4"],
   };
 function bossFeatures(biomeId) {
   const features = { vents: [], ice: [], portals: [], acid: [], devils: [] };
-  if (biomeId === "courtyard") {
-    // 4 corner Bell-Censers for The Bellkeeper
+  if (biomeId === "lanternYard") {
+    // 4 corner Bell-Censers for Bell Keeper
     const pts = [
       [-12.2, -11.5],
       [12.2, -11.5],
@@ -506,8 +512,8 @@ function bossFeatures(biomeId) {
     pts.forEach(([x, y], i) => {
       features.vents.push({ x, y, r: 1.7, period: 7.2, phase: i * 1.8, st: "idle" });
     });
-  } else if (biomeId === "shelf") {
-    // 4 outer Ice Sheets for The Frost Prism
+  } else if (biomeId === "snowRidge") {
+    // 4 outer Ice Sheets for Ice Crystal
     for (const [x, y] of [
       [-10.2, -10.2],
       [10.2, -10.2],
@@ -516,8 +522,8 @@ function bossFeatures(biomeId) {
     ]) {
       features.ice.push({ x, y, r: 2.8 });
     }
-  } else if (biomeId === "marsh") {
-    // 4 outer Bioluminescent Pools for The Brood-Empress
+  } else if (biomeId === "mossBog") {
+    // 4 outer Bioluminescent Pools for Moss Queen
     for (const [x, y] of [
       [-12.2, -11.2],
       [12.2, -11.2],
@@ -526,11 +532,11 @@ function bossFeatures(biomeId) {
     ]) {
       features.acid.push({ x, y, r: 2.2, life: null });
     }
-  } else if (biomeId === "core") {
-    // 2 symmetric Portal Pairs for The Shattered Heart
+  } else if (biomeId === "starHall") {
+    // 2 symmetric Portal Pairs for Star Heart
     features.portals.push({ ax: -11.5, ay: 0, bx: 11.5, by: 0, hue: 0 }, { ax: 0, ay: -11.5, bx: 0, by: 11.5, hue: 1 });
-  } else if (biomeId === "caldera") {
-    // 4 corner Interactive Fumaroles for The Ash Tyrant
+  } else if (biomeId === "emberHill") {
+    // 4 corner Interactive Fumaroles for Ember King
     const pts = [
       [-12.0, -11.5],
       [12.0, -11.5],
@@ -540,8 +546,8 @@ function bossFeatures(biomeId) {
     pts.forEach(([x, y], i) => {
       features.vents.push({ x, y, r: 1.7, period: 6.4, phase: i * 1.6, st: "idle" });
     });
-  } else if (biomeId === "flats") {
-    // 2 outer wandering Dust Devils for The Glasswyrm
+  } else if (biomeId === "sunDunes") {
+    // 2 outer wandering Dust Devils for Sand Dragon
     features.devils.push(
       { x: -11.8, y: -9.8, r: 1.7, a: 0.4, ph: 0, spd: 1.1 },
       { x: 11.8, y: 9.8, r: 1.7, a: 3.54, ph: 2.1, spd: 1.1 },
@@ -551,7 +557,7 @@ function bossFeatures(biomeId) {
 }
 function classicLayout(biome, boss = false) {
   return {
-    key: biome.id + ":classic",
+    key: layoutBiomeSeedId(biome.id) + ":classic",
     W: biome.W,
     H: biome.H,
     obstacles: biome.obstacles.map((ob) => ({ ...ob })),
@@ -617,7 +623,7 @@ function mapLayout(biome, seed, wave, boss) {
   }
   if (!best) return classicLayout(biome);
   return {
-    key: `${biome.id}:${seed}:${wave}`,
+    key: `${layoutBiomeSeedId(biome.id)}:${seed}:${wave}`,
     W: best.W,
     H: best.H,
     obstacles: best.obstacles,
@@ -1078,7 +1084,7 @@ function placeFeatures(rng, biomeId, obs, W, H) {
       }
       return best;
     };
-  if (biomeId === "caldera") {
+  if (biomeId === "emberHill") {
     // Dwarven forge fumaroles spaced around the basalt crater ring
     let count = rng.int(3, 5),
       period = rng.range(6.5, 8);
@@ -1089,7 +1095,7 @@ function placeFeatures(rng, biomeId, obs, W, H) {
         features.vents.push({ x: spot.x, y: spot.y, r: rad, period, phase: (k / count) * period + rng.range(0, 0.8) });
       }
     }
-  } else if (biomeId === "shelf") {
+  } else if (biomeId === "snowRidge") {
     let count = rng.int(3, 5);
     for (let k = 0; k < count; k++) {
       let rad = rng.range(3, 4.4), // 2.4.6: was 2.2–3.4
@@ -1098,7 +1104,7 @@ function placeFeatures(rng, biomeId, obs, W, H) {
         features.ice.push({ x: spot.x, y: spot.y, r: rad });
       }
     }
-  } else if (biomeId === "marsh") {
+  } else if (biomeId === "mossBog") {
     let count = rng.int(3, 4);
     for (let k = 0; k < count; k++) {
       let rad = rng.range(2.4, 3.5), // 2.4.6: was 1.8–2.8
@@ -1107,7 +1113,7 @@ function placeFeatures(rng, biomeId, obs, W, H) {
         features.acid.push({ x: spot.x, y: spot.y, r: rad });
       }
     }
-  } else if (biomeId === "core") {
+  } else if (biomeId === "starHall") {
     let pairs = rng.chance(0.4) ? 2 : 1,
       used = [];
     const portalGap = 4.2,
@@ -1147,16 +1153,16 @@ function placeFeatures(rng, biomeId, obs, W, H) {
 }
 
 const BIOME_PROP_SPEC = {
-  courtyard: { kind: "lantern", maxCd: 7.5 },
-  shelf: { kind: "rime", maxCd: 7.5 },
-  marsh: { kind: "puffball", maxCd: 7.0 },
-  core: { kind: "prism", maxCd: 6.5 },
-  caldera: { kind: "crucible", maxCd: 8.5 },
-  flats: { kind: "sunglass", maxCd: 7.0 },
+  lanternYard: { kind: "lantern", maxCd: 7.5 },
+  snowRidge: { kind: "rime", maxCd: 7.5 },
+  mossBog: { kind: "puffball", maxCd: 7.0 },
+  starHall: { kind: "iceCrystal", maxCd: 6.5 },
+  emberHill: { kind: "crucible", maxCd: 8.5 },
+  sunDunes: { kind: "sunglass", maxCd: 7.0 },
 };
 
 function placeBiomeProps(arena) {
-  const spec = BIOME_PROP_SPEC[arena.biome?.id] || BIOME_PROP_SPEC.courtyard;
+  const spec = BIOME_PROP_SPEC[arena.biome?.id] || BIOME_PROP_SPEC.lanternYard;
   const rng = makeRng(hashString(`${arena.key}:cozy-props`));
   const props = [];
   const rad = 0.56;

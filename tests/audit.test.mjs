@@ -10,20 +10,20 @@ const { cleanRun } = await import("../src/core/save.js");
 const { updateEnemy, updateBoss } = await import("../src/core/ai.js");
 const { computeStats, buildStatRows } = await import("../src/core/stats.js");
 const { rlUpdateTraps, TRAP_SKINS } = await import("../src/core/traps.js");
-const world = () => new World({ seed: 42, weapon: "pulse", threat: 0, ws: {} });
+const world = () => new World({ seed: 42, weapon: "lanternGun", threat: 0, ws: {} });
 
 test("resuming Endless preserves every boss defeat, including repeat bosses", () => {
   const a = world();
   a.endless = true;
-  a.bossKills = ["bellkeeper", "queen", "bellkeeper"];
+  a.bossKills = ["bellKeeper", "mossQueen", "bellKeeper"];
   const b = new World({ snap: cleanRun(JSON.parse(JSON.stringify(a.snapshot()))), ws: {} });
   assert.deepEqual(b.bossKills, a.bossKills);
 });
 
 test("a champion's rally expires on ordinary allies after the champion leaves", () => {
   const w = world();
-  const champion = w.spawnEnemy("grunt", 0, 0, { champion: true, noVariant: true });
-  const ally = w.spawnEnemy("grunt", 2, 0, { noVariant: true });
+  const champion = w.spawnEnemy("kettleGuard", 0, 0, { champion: true, noVariant: true });
+  const ally = w.spawnEnemy("kettleGuard", 2, 0, { noVariant: true });
   champion.spawnT = ally.spawnT = 0;
   w.hash.build(w.enemies);
   w.variantTick(champion, 1 / 60);
@@ -34,7 +34,7 @@ test("a champion's rally expires on ordinary allies after the champion leaves", 
 });
 
 test("Sunstruck boosts and expires for every eligible enemy role", () => {
-  for (const type of ["grunt", "gunner", "charger", "driller"]) {
+  for (const type of ["kettleGuard", "brassGuard", "wildBoar", "burrowMole"]) {
     const w = world();
     w.arena.obs = [];
     const e = w.spawnEnemy(type, 0, -10, { noVariant: true });
@@ -52,10 +52,10 @@ test("Sunstruck boosts and expires for every eligible enemy role", () => {
   }
 });
 
-test("Scattergun DPS includes both extra pellets per Split Chamber level", () => {
-  const up = { multishot: 1 };
-  const s = computeStats("scatter", up, {});
-  const row = buildStatRows("scatter", up, {}, 100).find((r) => r.label === "Damage per second");
+test("Scattergun DPS includes both extra pellets per Extra Shots level", () => {
+  const up = { extraShots: 1 };
+  const s = computeStats("brassShotgun", up, {});
+  const row = buildStatRows("brassShotgun", up, {}, 100).find((r) => r.label === "Damage per second");
   assert.equal(row.now, 10 * 2 * 8 * (1 + s.crit * (s.critMul - 1)));
 });
 
@@ -109,7 +109,7 @@ test("late-wave enemy shots collide along their path and stop at intervening wal
 
 test("Core reinforcements include pending spawns in their crowd limit", () => {
   const w = world();
-  w.spawnBoss("core");
+  w.spawnBoss("starHeart");
   const boss = w.boss;
   boss.spawnT = 0;
   for (let i = 0; i < 100; i++) {

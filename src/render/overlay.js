@@ -5,12 +5,12 @@ import { clamp } from "../core/util.js";
 import { RL_INPUT } from "../ui/input.js";
 
 const BIOME_RETICLE = {
-  courtyard: "rgba(130,244,218,0.92)",
-  shelf: "rgba(38,142,216,0.92)",
-  marsh: "rgba(140,255,176,0.92)",
-  core: "rgba(228,176,255,0.92)",
-  caldera: "rgba(255,196,104,0.94)",
-  flats: "rgba(36,158,154,0.92)",
+  lanternYard: "rgba(130,244,218,0.92)",
+  snowRidge: "rgba(38,142,216,0.92)",
+  mossBog: "rgba(140,255,176,0.92)",
+  starHeart: "rgba(228,176,255,0.92)",
+  emberHill: "rgba(255,196,104,0.94)",
+  sunDunes: "rgba(36,158,154,0.92)",
 };
 
 function fillPill(ctx, x, y, w, h) {
@@ -31,91 +31,91 @@ function fillPill(ctx, x, y, w, h) {
 }
 
 const healthBarTypes = {
-    brute: 1,
-    bomber: 1,
-    hive: 1,
-    splitter: 1,
-    sniper: 1,
-    gunner: 1,
-    bulwark: 1,
-    mortar: 1,
-    striker: 1,
-    mender: 1,
-    leaper: 1,
-    turret: 1,
-    charger: 1,
-    minebot: 1,
-    sapper: 1,
-    phantom: 1,
-    sentinel: 1,
-    carrier: 1,
-    drone: 1,
-    driller: 1,
-    beacon: 1,
-    weaver: 1,
+    ironGolem: 1,
+    firePot: 1,
+    mushroomNest: 1,
+    sporePod: 1,
+    longshot: 1,
+    brassGuard: 1,
+    shieldGuard: 1,
+    bellCannon: 1,
+    blinkBlade: 1,
+    mossHealer: 1,
+    bogHopper: 1,
+    watchTower: 1,
+    wildBoar: 1,
+    mineCart: 1,
+    bombMaker: 1,
+    starGhost: 1,
+    crystalTower: 1,
+    supplyKite: 1,
+    dartSprite: 1,
+    burrowMole: 1,
+    healingStone: 1,
+    starSpider: 1,
   },
   bossAttackNames = {
-    charge: "BELFRY RUSH",
-    ring: "BRASS TOLL",
-    stomp: "CARILLON SLAM",
-    carillon: "CARILLON TOLL",
+    charge: "BELL CHARGE",
+    ring: "RING OF SHOTS",
+    stomp: "BELL SLAM",
+    carillon: "RINGING BELLS",
     summon: "MUSHROOM RING",
-    spiral: "FIREFLY WHIRL",
-    burst: "NECTAR SALVO",
-    eggs: "SPORE CLUTCH",
-    sweep: "AURORA SWEEP",
-    teleport: "PRISM BLINK",
-    shards: "GLASS FAN",
-    lances: "GLACIER LANCES",
-    cross: "ASTRAL LOOM",
-    portalbeam: "ORRERY CONVERGENCE",
-    rain: "CRUCIBLE RAIN",
-    trench: "ANVIL TRENCH",
-    crucible: "CRUCIBLE SLAM",
+    spiral: "FIREFLY SWIRL",
+    burst: "SPORE BURST",
+    eggs: "SPORE EGGS",
+    sweep: "ICE BEAM",
+    teleport: "TELEPORT",
+    shards: "GLASS SHARDS",
+    lances: "ICE SPEARS",
+    cross: "CROSS BEAMS",
+    portalbeam: "PORTAL BEAMS",
+    rain: "FALLING FIRE",
+    trench: "FIRE LINE",
+    crucible: "FORGE SLAM",
     // Enraged Crescendo signatures
-    sealgrid: "CRESCENDO · CARILLON CHIME",
-    whiteout: "CRESCENDO · AURORA GALE",
-    plague: "CRESCENDO · SPORE TIDE",
-    collapse: "CRESCENDO · CELESTIAL CONVERGENCE",
+    bellCage: "BELL CAGE",
+    whiteout: "SNOWSTORM",
+    plague: "SPORE WAVE",
+    collapse: "STAR PULL",
     // Frost Prism
-    frostbeam: "AURORA SWEEP",
-    icelances: "GLACIER LANCES",
-    iceshards: "CRYSTAL FLOCK",
-    frostnova: "RIME BLOOM",
-    glacier: "PERMAFROST",
+    frostbeam: "ICE BEAM",
+    icelances: "ICE SPEARS",
+    iceshards: "ICE SHARDS",
+    frostnova: "ICE BURST",
+    glacier: "FROZEN GROUND",
     // Ash Tyrant
-    barrage: "SLAG FOUNDRY",
-    firestorm: "CRESCENDO · HEARTH-STORM",
+    barrage: "FIRE SHOTS",
+    firestorm: "FIRESTORM",
     // Glasswyrm
-    rise: "DUNE BREACH",
-    sunlance: "SOLAR LANCE",
-    mirage: "DESERT MIRAGE",
-    noon: "CRESCENDO · ZENITH DIAL",
+    rise: "SAND DIVE",
+    sunlance: "SUN BEAM",
+    sandstorm: "SANDSTORM",
+    noon: "SUN CLOCK",
   },
   bossCalloutByBoss = {
-    bellkeeper: {
-      charge: "BELFRY RUSH",
-      ring: "BRASS TOLL",
-      stomp: "CARILLON SLAM",
-      carillon: "CARILLON TOLL",
-      sealgrid: "CRESCENDO · CARILLON CHIME",
+    bellKeeper: {
+      charge: "BELL CHARGE",
+      ring: "RING OF SHOTS",
+      stomp: "BELL SLAM",
+      carillon: "RINGING BELLS",
+      bellCage: "BELL CAGE",
     },
-    tyrant: {
-      charge: "ANVIL CLEAVE",
-      ring: "CALDERA QUAKE",
-      summon: "FORGE-KIN",
-      rain: "CRUCIBLE RAIN",
-      trench: "ANVIL TRENCH",
-      crucible: "CRUCIBLE SLAM",
+    emberKing: {
+      charge: "FORGE CHARGE",
+      ring: "LAVA QUAKE",
+      summon: "FORGE HELPERS",
+      rain: "FALLING FIRE",
+      trench: "FIRE LINE",
+      crucible: "FORGE SLAM",
     },
-    core: {
-      spiral: "ORRERY WALTZ",
-      summon: "ASTRAL CHOIR",
-      ring: "CONSTELLATION",
-      cross: "ASTRAL LOOM",
-      portalbeam: "ORRERY CONVERGENCE",
-      burst: "COMET FAN",
-      rain: "METEOR CHIME",
+    starHeart: {
+      spiral: "STAR SWIRL",
+      summon: "STAR HELPERS",
+      ring: "STAR RING",
+      cross: "CROSS BEAMS",
+      portalbeam: "PORTAL BEAMS",
+      burst: "COMET SPREAD",
+      rain: "FALLING STARS",
     },
   },
   Overlay = class {
@@ -393,10 +393,10 @@ const healthBarTypes = {
         for (const h of world.hazards) {
           if (h.done || !h.shootable || !inView(h.x, 0.45, h.y)) continue;
           const bSize = h.crucibleBomb ? 17 : 13;
-          const pulse = 0.72 + 0.28 * Math.sin(this.time * 10);
+          const lanternGun = 0.72 + 0.28 * Math.sin(this.time * 10);
           ctx.save();
           ctx.translate(pos.x, pos.y);
-          ctx.globalAlpha = 0.85 * pulse;
+          ctx.globalAlpha = 0.85 * lanternGun;
           ctx.strokeStyle = "#a8ffdf";
           ctx.lineWidth = 2;
           ctx.lineCap = "round";
@@ -475,16 +475,16 @@ const healthBarTypes = {
       for (let enemy of world.enemies) {
         let windingUp =
           enemy.st === 1 &&
-          (enemy.type === "sniper" ||
-            enemy.type === "striker" ||
-            enemy.type === "mortar" ||
-            enemy.type === "brute" ||
-            enemy.type === "leaper" ||
-            enemy.type === "turret" ||
-            enemy.type === "charger" ||
-            enemy.type === "driller" ||
-            enemy.type === "sentinel" ||
-            enemy.type === "weaver");
+          (enemy.type === "longshot" ||
+            enemy.type === "blinkBlade" ||
+            enemy.type === "bellCannon" ||
+            enemy.type === "ironGolem" ||
+            enemy.type === "bogHopper" ||
+            enemy.type === "watchTower" ||
+            enemy.type === "wildBoar" ||
+            enemy.type === "burrowMole" ||
+            enemy.type === "crystalTower" ||
+            enemy.type === "starSpider");
         if (
           (!enemy.boss &&
             !enemy.caravan &&

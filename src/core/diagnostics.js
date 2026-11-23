@@ -184,7 +184,7 @@ let RL_REQUIRED_DOM = [
     "banner",
     "bestLine",
     "bossBar",
-    "gadgetBtn",
+    "gravityBellBtn",
     "bossFill",
     "bossLag",
     "bossName",
@@ -221,7 +221,7 @@ let RL_REQUIRED_DOM = [
     "hpNum",
     "hud",
     "msList",
-    "novaBtn",
+    "fireBurstBtn",
     "over",
     "overBest",
     "overCause",
@@ -408,7 +408,7 @@ const RL_EVENT_KINDS = new Set([
   "step",
   "land",
   // 3.15.0: the boss cards
-  "sealgrid",
+  "bellCage",
   "lockOn",
   "shatter",
   "splinterHit",
@@ -459,7 +459,7 @@ const RL_EVENT_KINDS = new Set([
   "maxed",
   "mend",
   "mine",
-  "nova",
+  "fireBurst",
   "novaReady",
   "offer",
   "phase",
@@ -674,13 +674,14 @@ function rlMonSample(world) {
     player = world.player,
     arena = world.arena;
   mon.samples++;
-  if (![player.x, player.y, player.vx, player.vy, player.hp, player.nova].every(finite))
+  if (![player.x, player.y, player.vx, player.vy, player.hp, player.fireBurst].every(finite))
     rlMonIssue("FAIL", "invariants", "player state became non-finite");
   else {
     if (Math.abs(player.x) > arena.W + 0.05 || Math.abs(player.y) > arena.H + 0.05)
       rlMonIssue("FAIL", "invariants", "player left the arena bounds");
     if (player.hp > world.stats.maxHp + 0.5) rlMonIssue("FAIL", "invariants", "player HP above max HP");
-    if (player.nova < 0 || player.nova > 100.01) rlMonIssue("FAIL", "invariants", "nova charge outside 0–100");
+    if (player.fireBurst < 0 || player.fireBurst > 100.01)
+      rlMonIssue("FAIL", "invariants", "nova charge outside 0–100");
   }
   for (const enemy of world.enemies) {
     if (!(enemyDefs[enemy.type] || (enemy.boss && bossDefs[enemy.type]))) {
@@ -825,7 +826,7 @@ function rlMonPreEnd(world) {
     shards: world.shards,
     runKills: world.kills,
     threat: world.threat,
-    salvage: data.workshop.salvage || 0,
+    salvage: data.workshop.extraShards || 0,
     endless: !!world.endless,
     wave: world.wave,
   };
@@ -1388,7 +1389,7 @@ async function rlRunHealthNow({ context = "startup" } = {}) {
     ok(
       "game-data",
       Object.keys(weaponDefs).length === weaponOrder.length &&
-        // 3.53.0: six biomes again (the Glass Flats)
+        // 3.53.0: six biomes again (the Sun Dunes)
         biomeList.length === 6 &&
         Object.keys(bossDefs).length === 6 &&
         Object.keys(enemyDefs).length >= 25,
@@ -1398,21 +1399,32 @@ async function rlRunHealthNow({ context = "startup" } = {}) {
     rlHealthAdd("game-data", "FAIL", err.message);
   }
   try {
-    const reqE = ["leaper", "turret", "charger", "minebot", "drone", "driller", "beacon", "weaver"],
-      reqB = ["courtyard", "shelf", "core", "marsh", "caldera", "flats"],
+    const reqE = [
+        "bogHopper",
+        "watchTower",
+        "wildBoar",
+        "mineCart",
+        "dartSprite",
+        "burrowMole",
+        "healingStone",
+        "starSpider",
+      ],
+      reqB = ["lanternYard", "snowRidge", "starHall", "mossBog", "emberHill", "sunDunes"],
       // 2.5.0/2.6.0: Overclock Matrix, Overbore Caliber, Vector Stabilizer, Salvage Pulse, Capacitor Bank and Bounty Protocol were retired
       reqU = [
-        "overcharge",
+        "extraCharge",
         "hunter",
-        "heatsink",
-        "overcrit",
+        "hotBellows",
+        "superCrit",
         "momentum",
-        "pointblank",
-        "stoke",
-        "gsyphon",
-        "blackstar",
+        "closeShot",
+        "hotShot",
+        "bellBoost",
+        "fireWell",
       ],
-      badE = Object.keys(enemyDefs).filter((id) => !enemyDefs[id] || (!(enemyDefs[id].from >= 1) && id !== "mite")),
+      badE = Object.keys(enemyDefs).filter(
+        (id) => !enemyDefs[id] || (!(enemyDefs[id].from >= 1) && id !== "littlePod"),
+      ),
       badEvo = upgradeList
         .filter((upgrade) => upgrade.evo && Object.keys(upgrade.evo).some((key) => !upgradesById[key]))
         .map((upgrade) => upgrade.id),
@@ -1442,7 +1454,7 @@ async function rlRunHealthNow({ context = "startup" } = {}) {
       noModel = Object.keys(enemyDefs).filter((type) => !RL_MESH_TYPES.includes(type)),
       noSfx = Object.keys(weaponDefs).filter((weapon) => !RL_SFX_VOICES.includes(rlShotSfx(weapon))),
       noMusic = biomeList.filter((biome) => !scoreBiomes.includes(biome.id)).map((biome) => biome.id),
-      noTip = Object.keys(enemyDefs).filter((type) => type !== "mite" && !RL_ENEMY_TIPS[type]),
+      noTip = Object.keys(enemyDefs).filter((type) => type !== "littlePod" && !RL_ENEMY_TIPS[type]),
       miss = [
         ...noPool.map((type) => "mesh pool " + type),
         ...noModel.map((type) => "model " + type),
@@ -1524,20 +1536,20 @@ async function rlRunHealthNow({ context = "startup" } = {}) {
     rlHealthAdd("input-api", "FAIL", err.message);
   }
   try {
-    const rejected = cleanRun({ v: 1, seed: "oops", weapon: "pulse", wave: 12, hp: "oops", up: {} }),
+    const rejected = cleanRun({ v: 1, seed: "oops", weapon: "lanternGun", wave: 12, hp: "oops", up: {} }),
       bad = {
         v: 1,
         seed: 731,
-        weapon: "pulse",
+        weapon: "lanternGun",
         wave: 12,
         hp: 999999,
         up: { dmg: 999999, wat: 7 },
         time: "nan",
         shards: "bad",
         rerolls: 999999,
-        bossKills: ["bellkeeper", "wat", "bellkeeper"],
+        bossKills: ["bellKeeper", "wat", "bellKeeper"],
         runStats: { dmgTaken: "bad", dashes: "bad", critHits: "bad" },
-        dmgSrc: { turret: "bad" },
+        dmgSrc: { watchTower: "bad" },
         offer: ["wat", "dmg", "dmg"],
       },
       cleaned = cleanRun(bad);
@@ -1546,13 +1558,13 @@ async function rlRunHealthNow({ context = "startup" } = {}) {
       !rejected &&
         !!cleaned &&
         cleaned.wave === 12 &&
-        cleaned.weapon === "pulse" &&
+        cleaned.weapon === "lanternGun" &&
         cleaned.hp === 999999 &&
         // 2.5.1: the level is capped at the upgrade's max (12 since 2.5.0, the check still said 8)
         cleaned.up.dmg === upgradesById.dmg.max &&
         // Repeated valid defeats count in Endless; discard only unknown boss names.
         cleaned.bossKills.length === 2 &&
-        cleaned.bossKills.every((id) => id === "bellkeeper") &&
+        cleaned.bossKills.every((id) => id === "bellKeeper") &&
         Number.isFinite(cleaned.time) &&
         Number.isFinite(cleaned.shards) &&
         cleaned.offer.length === 1,
@@ -1770,19 +1782,19 @@ export {
    ========================================================================== */
 RL_EVENT_KINDS.add("kit");
 for (const kind of [
-  "singularity",
+  "gravityBell",
   "singOpen",
   "gadgetReady",
   "gadgetDeny",
   "trapWarn",
   "trapFire",
   "trapArm",
-  "banish",
+  "seal",
   "corrode",
   "singe",
   "glare",
   "plant",
-  "tribute",
+  "forgeGift",
 ])
   RL_EVENT_KINDS.add(kind);
 RL_EVENT_KINDS.add("barrier");

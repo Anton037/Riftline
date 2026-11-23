@@ -3,7 +3,7 @@ const MEDAL_NAMES = ["", "Bronze", "Silver", "Gold"],
   // 3.58.0: the Glasswyrm hunts alone (no escorts, so the fight is the wyrm and nothing else), which puts
   // it just under the Prism's 70 s. It had no entry and fell back to the 70 s default silently, so its
   // silver and gold thresholds were never actually chosen.
-  PAR = { bellkeeper: 60, prism: 70, queen: 75, core: 85, tyrant: 65, wyrm: 68 };
+  PAR = { bellKeeper: 60, iceCrystal: 70, mossQueen: 75, starHeart: 85, emberKing: 65, sandDragon: 68 };
 
 /* 3.39.0: the par time of a boss at the current threat (the end screen shows it with the medal) */
 function bossPar(id, hpMul = 1) {

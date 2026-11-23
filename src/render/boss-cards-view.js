@@ -40,7 +40,7 @@ const MODELS = {
       fac(0xf2fbff, 0.11, { x: 0.08, sx: 2.15, sy: 0.32, sz: 0.28 }),
     ],
   }),
-  lance: () => ({
+  starLance: () => ({
     body: [
       meshPart(sculptedCrystal(0.18, 0.76, 0.16, 17), 0xf2b966, { x: -0.35, rz: -Math.PI / 2 }),
       fac(0xffe6aa, 0.12, { x: 0.1, sx: 2.5, sy: 0.3, sz: 0.54 }),
@@ -59,8 +59,9 @@ export class BossCardView {
     let set = this.pl[name];
     if (set) return set;
     const m = MODELS[name]();
-    const surface = name === "larva" ? "organic" : name === "pylon" ? "metal" : name === "lance" ? "crystal" : "ice";
-    const emissive = name === "splinter" ? 0x264860 : name === "lance" ? 0x483214 : 0;
+    const surface =
+      name === "larva" ? "organic" : name === "pylon" ? "metal" : name === "starLance" ? "crystal" : "ice";
+    const emissive = name === "splinter" ? 0x264860 : name === "starLance" ? 0x483214 : 0;
     const mk = (parts, glow, lit) => {
       const pool = new this.Pool(
         mergeGeometries(parts.flat()),
@@ -75,7 +76,7 @@ export class BossCardView {
       return pool;
     };
     set = this.pl[name] = {
-      body: mk(m.body, false, name === "splinter" || name === "lance"),
+      body: mk(m.body, false, name === "splinter" || name === "starLance"),
       glow: m.glow ? mk(m.glow, true) : null,
       mover: m.mover ? mk(m.mover, false) : null,
     };
@@ -89,7 +90,7 @@ export class BossCardView {
     if (world.burnPools?.length) this.burnPools(dt, world, quality);
     if (world.splinters?.length) this.splinters(world);
     if (world.lances?.length) this.lances(world);
-    if (world.player.brood?.length) this.brood(dt, world, quality);
+    if (world.player.mossHelpers?.length) this.mossHelpers(dt, world, quality);
   }
   cages(dt, world, quality) {
     const r = this.r;
@@ -180,17 +181,17 @@ export class BossCardView {
   }
   lances(world) {
     const r = this.r;
-    const P = this.get("lance", 64);
+    const P = this.get("starLance", 64);
     for (const s of world.lances) {
       P.body.y(s.x, 0.7, s.y, s.a, 1);
       r.sprites.colC(r.sprites.bb(s.x, 0.7, s.y, 0.65, r.B), GOLD, 0.75);
     }
   }
-  brood(dt, world, quality) {
+  mossHelpers(dt, world, quality) {
     const r = this.r;
     const P = this.get("larva", 8);
     const time = r.time;
-    for (const larva of world.player.brood) {
+    for (const larva of world.player.mossHelpers) {
       const a = Math.atan2(larva.vy, larva.vx);
       const bob = Math.sin(time * 9 + larva.id) * 0.08;
       const hunt = !!larva.target;
@@ -210,7 +211,7 @@ export class BossCardView {
   event(ev, world, shakeK) {
     const r = this.r;
     switch (ev.k) {
-      case "sealgrid":
+      case "bellCage":
         r.ring(ev.x, ev.y, ev.r * 1.2, ev.r, GOLD, 0.3);
         return true;
       case "lockOn":
@@ -237,7 +238,7 @@ export class BossCardView {
         r.ring(ev.x, ev.y, 0.2, 0.9, ACID_PALE, 0.25);
         return true;
       case "boom":
-        if (ev.kind === "brood") {
+        if (ev.kind === "mossHelpers") {
           r.ring(ev.x, ev.y, 0.2, ev.r, ACID, 0.25);
           r.burst(ev.x, ev.y, 0.5, 12, 4, ACID, 0.45, 0.16, { drag: 2, grav: 5 });
           r.emit(ev.x, 0.5, ev.y, 0, 0.3, 0, 0.5, ev.r * 1.2, ACID_PALE, { drag: 0, grow: 1 });

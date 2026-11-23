@@ -19,7 +19,7 @@ page.on("pageerror", (err) => console.log("PAGEERROR:", err.message));
 const res = await page.evaluate(async () => {
   const E = window.__riftTest.game.sound.constructor,
     catalog = E.catalog(),
-    want = catalog.filter((c) => c.name.startsWith("place:") || c.name === "pulse" || c.name === "scatter"),
+    want = catalog.filter((c) => c.name.startsWith("place:") || c.name === "lanternGun" || c.name === "brassShotgun"),
     peaks = {},
     fail = [];
   for (const { name, spec } of want) {
@@ -37,13 +37,13 @@ const res = await page.evaluate(async () => {
 await browser.close();
 
 const p = res.peaks,
-  pulse = p.pulse,
-  scatter = p.scatter,
-  bedLimit = pulse * 0.6,
-  farLimit = scatter,
+  lanternGun = p.lanternGun,
+  brassShotgun = p.brassShotgun,
+  bedLimit = lanternGun * 0.6,
+  farLimit = brassShotgun,
   bedSet = new Set(Object.values(SCAPE).flatMap((scape) => scape.bed.map(([id]) => id))),
   overLimit = [];
-if (!(pulse > 0 && scatter > 0)) res.fail.push("Missing or silent reference shots");
+if (!(lanternGun > 0 && brassShotgun > 0)) res.fail.push("Missing or silent reference shots");
 const rows = Object.keys(p)
   .filter((k) => k.startsWith("place:"))
   .map((k) => {
@@ -54,8 +54,8 @@ const rows = Object.keys(p)
     return `${over ? "OVER " : "ok   "} ${k.padEnd(28)} peak ${p[k].toFixed(4)}  (limit ${limit.toFixed(4)})`;
   })
   .sort();
-console.log(`pulse peak   ${pulse.toFixed(4)}  -> bedLimit  ${bedLimit.toFixed(4)}`);
-console.log(`scatter peak ${scatter.toFixed(4)}  -> farLimit  ${farLimit.toFixed(4)}`);
+console.log(`pulse peak   ${lanternGun.toFixed(4)}  -> bedLimit  ${bedLimit.toFixed(4)}`);
+console.log(`scatter peak ${brassShotgun.toFixed(4)}  -> farLimit  ${farLimit.toFixed(4)}`);
 console.log(`amb bus at catalog = ambVol ${res.ambLiftBus} (x AMB_LIFT as built)\n`);
 console.log(rows.join("\n"));
 if (res.fail.length) console.log("\nFAILS:\n" + res.fail.join("\n"));

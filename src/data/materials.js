@@ -1,9 +1,18 @@
 // Physical actor surfaces shared by rendering and impacts; color does not determine the material.
-const ORGANIC = new Set(["swarmer", "mite", "splitter", "hive", "leaper", "carrier", "mender", "queen"]);
+const ORGANIC = new Set([
+  "smallBug",
+  "littlePod",
+  "sporePod",
+  "mushroomNest",
+  "bogHopper",
+  "supplyKite",
+  "mossHealer",
+  "mossQueen",
+]);
 export function actorMaterial(type) {
   if (ORGANIC.has(type)) return "organic";
-  if (type === "prism" || type === "wyrm") return "crystal";
-  if (type === "phantom" || type === "weaver") return "energy";
-  if (type === "core" || type === "tyrant") return "stone";
+  if (type === "iceCrystal" || type === "sandDragon") return "crystal";
+  if (type === "starGhost" || type === "starSpider") return "energy";
+  if (type === "starHeart" || type === "emberKing") return "stone";
   return "armor";
 }

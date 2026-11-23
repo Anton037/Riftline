@@ -946,7 +946,7 @@ export function plane(w = 1, h = 1, sx = 1, sy = 1) {
 }
 
 /** Horizontal disc in XZ plane facing +Y. */
-export function disc(r = 1, segs = 32) {
+export function ringBlade(r = 1, segs = 32) {
   const pos = [0, 0, 0],
     norm = [0, 1, 0],
     uv = [0.5, 0.5],
@@ -1293,7 +1293,7 @@ export function snowCoat(sourceGeo, lift = 0.025, minNy = 0.45) {
   return new Geometry(outP, outN, outU, outI);
 }
 
-/** Helical swirling funnel ribbon for Glass Flats dust devils. */
+/** Helical swirling funnel ribbon for Sun Dunes dust devils. */
 export function dustRibbon(phase = 0) {
   const steps = 22;
   const pos = [],

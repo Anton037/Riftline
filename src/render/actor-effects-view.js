@@ -35,7 +35,7 @@ export class ActorEffectsView {
         const x = ev.x + Math.cos(angle) * reach;
         const z = ev.y + Math.sin(angle) * reach;
         r.burst(x, z, height, boss ? 5 : 2, 2.2, color, 0.15, 0.09, {
-          spark: source !== "queen" && source !== "carrier",
+          spark: source !== "mossQueen" && source !== "supplyKite",
           drag: 5,
         });
         if (boss) r.flash(x, z, 1.6, 0.28, color, 12);
@@ -43,7 +43,7 @@ export class ActorEffectsView {
       }
       case "pop":
         r.burst(ev.x, ev.y, 0.75, 4, 2.2, ev.frost ? ICE : color, 0.16, 0.11, {
-          spark: source === "prism" || source === "wyrm",
+          spark: source === "iceCrystal" || source === "sandDragon",
           drag: 5,
         });
         return true;
@@ -51,7 +51,7 @@ export class ActorEffectsView {
         if (ev.leap || motion === "leap") {
           r.burst(ev.x, ev.y, 0.15, 9, 3.6, hexColor(0x657660), 0.3, 0.18, { up: 1, drag: 3 });
           r.debrisBurst(ev.x, ev.y, 0.12, 3, hexColor(0x60584b), 0.07, 2.2);
-        } else if (source === "wyrm") {
+        } else if (source === "sandDragon") {
           r.smokeView.emit(ev.x, 0.25, ev.y, 1.35, 0xc2ab84, 0.65);
           r.burst(ev.x, ev.y, 0.3, 16, 5.2, SAND, 0.55, 0.22, { up: 2, drag: 2 });
           r.burst(ev.x, ev.y, 0.6, 10, 5, accent, 0.35, 0.11, { spark: true, grav: 7 });
@@ -79,7 +79,7 @@ export class ActorEffectsView {
         return true;
       }
       case "hatch": {
-        const summon = boss?.summon || "brood";
+        const summon = boss?.summon || "mossHelpers";
         const big = ev.big ? 1.7 : 1;
         if (summon === "ember") {
           r.smokeView.emit(ev.x, 0.3, ev.y, 0.95 * big, 0x625f58, 0.65);
@@ -89,7 +89,7 @@ export class ActorEffectsView {
             const a = (i * Math.PI * 2) / 3;
             r.line(ev.x, ev.y, ev.x + Math.cos(a) * big, ev.y + Math.sin(a) * big, color, 0.3, 0.055, 0.05, 0.14);
           }
-        } else if (summon === "rift" || summon === "courtyard" || summon === "frost") {
+        } else if (summon === "rift" || summon === "lanternYard" || summon === "frost") {
           r.burst(ev.x, ev.y, 0.8, Math.round(10 * big), 4, color, 0.5, 0.16, { up: 3, drag: 2, spark: true });
           r.ring(ev.x, ev.y, 0.2, 1.8 * big, color, 0.35);
           r.ring(ev.x, ev.y, 0.4, 1.2 * big, accent, 0.24, 0.25);
@@ -110,7 +110,10 @@ export class ActorEffectsView {
       case "thud":
         r.addShake((ev.big ? 0.35 : 0.12) * shake);
         r.ring(ev.x, ev.y, 0.4, ev.big ? 3.2 : 1.5, color, 0.25);
-        r.burst(ev.x, ev.y, 0.15, ev.big ? 12 : 5, 3, source === "wyrm" ? SAND : ASH, 0.35, 0.18, { up: 1, drag: 3 });
+        r.burst(ev.x, ev.y, 0.15, ev.big ? 12 : 5, 3, source === "sandDragon" ? SAND : ASH, 0.35, 0.18, {
+          up: 1,
+          drag: 3,
+        });
         return true;
       case "phase":
       case "enrage":

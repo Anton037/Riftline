@@ -8,62 +8,62 @@ import { GLAZES } from "./palette.js";
 import { TAU } from "../core/util.js";
 
 const SKY_GRADIENTS = {
-  courtyard: {
+  lanternYard: {
     horizon: 0x3f4e5e,
     mid: 0x1e2c3e,
     zenith: 0x0b1322,
     cloud: 0x5c6878,
-    disc: 0xfbe0a8,
+    ringBlade: 0xfbe0a8,
     discAz: -2.18,
     discEl: 19.5,
     discR: 3.1,
   },
-  shelf: {
+  snowRidge: {
     horizon: 0x507a98,
     mid: 0x224162,
     zenith: 0x0d1b30,
     cloud: 0x7aa4c4,
-    disc: 0xdff4ff,
+    ringBlade: 0xdff4ff,
     discAz: -1.18,
     discEl: 23.0,
     discR: 2.7,
   },
-  marsh: {
+  mossBog: {
     horizon: 0x386155,
     mid: 0x18342e,
     zenith: 0x0a1816,
     cloud: 0x568272,
-    disc: 0xdcf4b4,
+    ringBlade: 0xdcf4b4,
     discAz: -0.92,
     discEl: 18.5,
     discR: 2.9,
   },
-  core: {
+  starHall: {
     horizon: 0x5e3874,
     mid: 0x2a1844,
     zenith: 0x0c071a,
     cloud: 0x8254a4,
-    disc: 0xf4c8ff,
+    ringBlade: 0xf4c8ff,
     discAz: -1.95,
     discEl: 22.0,
     discR: 2.4,
   },
-  caldera: {
+  emberHill: {
     horizon: 0x7c3a24,
     mid: 0x3b1a19,
     zenith: 0x140a0c,
     cloud: 0x9e5234,
-    disc: 0xffa85c,
+    ringBlade: 0xffa85c,
     discAz: -1.35,
     discEl: 17.0,
     discR: 3.3,
   },
-  flats: {
+  sunDunes: {
     horizon: 0xca9056,
     mid: 0x5b6a82,
     zenith: 0x1c2f4d,
     cloud: 0xe6b478,
-    disc: 0xfff0be,
+    ringBlade: 0xfff0be,
     discAz: -0.68,
     discEl: 16.5,
     discR: 3.8,
@@ -75,8 +75,8 @@ const SKY_GRADIENTS = {
  * so no triangle chord ever crosses `[-W, W] x [-H, H]`.
  */
 export function createSkyBackdrop(biomeId, W, H) {
-  const look = GLAZES[biomeId] || GLAZES.courtyard;
-  const grad = SKY_GRADIENTS[biomeId] || SKY_GRADIENTS.courtyard;
+  const look = GLAZES[biomeId] || GLAZES.lanternYard;
+  const grad = SKY_GRADIENTS[biomeId] || SKY_GRADIENTS.lanternYard;
   const cBase = new Color(look.fogColor);
   const cHor = new Color(grad.horizon);
   const cMid = new Color(grad.mid);
@@ -179,10 +179,10 @@ export function createSkyBackdrop(biomeId, W, H) {
     .translate(dx, grad.discEl, dz);
   const discMat = new Material({
     shader: "emissive",
-    color: grad.disc,
-    emissiveIntensity: biomeId === "flats" ? 1.38 : 1.18,
+    color: grad.ringBlade,
+    emissiveIntensity: biomeId === "sunDunes" ? 1.38 : 1.18,
     transparent: true,
-    opacity: biomeId === "caldera" ? 0.62 : 0.88,
+    opacity: biomeId === "emberHill" ? 0.62 : 0.88,
     depthWrite: false,
     doubleSide: true,
     fog: false,
@@ -202,7 +202,7 @@ export function createSkyBackdrop(biomeId, W, H) {
     .translate(Math.cos(grad.discAz) * (discDist + 0.5), grad.discEl, Math.sin(grad.discAz) * (discDist + 0.5));
   const haloMat = new Material({
     shader: "emissive",
-    color: grad.disc,
+    color: grad.ringBlade,
     emissiveIntensity: 1.0,
     transparent: true,
     additive: true,
@@ -219,23 +219,23 @@ export function createSkyBackdrop(biomeId, W, H) {
   haloMesh.freezeStatic();
   root.add(haloMesh);
 
-  // Starfield dome for Star-Vault (core) and twilight sparkle for courtyard & marsh
-  const starCount = biomeId === "core" ? 84 : biomeId === "courtyard" || biomeId === "marsh" ? 32 : 0;
+  // Starfield dome for Star Hall (core) and twilight sparkle for courtyard & marsh
+  const starCount = biomeId === "starHall" ? 84 : biomeId === "lanternYard" || biomeId === "mossBog" ? 32 : 0;
   if (starCount > 0) {
     const starParts = [];
     const starR = radius - 1.2;
     for (let i = 0; i < starCount; i++) {
       const sa = ((i * 2.39996) % TAU) - Math.PI;
       const sy = 9.5 + ((i * 19) % 27) + Math.sin(i * 1.7) * 1.2;
-      const sr = (biomeId === "core" ? 0.16 : 0.11) + (i % 3) * 0.055;
+      const sr = (biomeId === "starHall" ? 0.16 : 0.11) + (i % 3) * 0.055;
       starParts.push(octahedron(sr).translate(Math.cos(sa) * starR, sy, Math.sin(sa) * starR));
     }
     const starMat = new Material({
       shader: "emissive",
-      color: biomeId === "core" ? 0xf6dcff : 0xfff0c8,
-      emissiveIntensity: biomeId === "core" ? 1.45 : 1.15,
+      color: biomeId === "starHall" ? 0xf6dcff : 0xfff0c8,
+      emissiveIntensity: biomeId === "starHall" ? 1.45 : 1.15,
       transparent: true,
-      opacity: biomeId === "core" ? 0.88 : 0.58,
+      opacity: biomeId === "starHall" ? 0.88 : 0.58,
       depthWrite: false,
       fog: false,
     });

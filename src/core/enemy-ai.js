@@ -4,19 +4,19 @@ import { clamp, TAU, turnToward } from "./util.js";
 import { SENTINEL_BEAMS as SENTINEL_SKIN } from "../data/combat-effects.js";
 
 const RL_KITERS = new Set([
-  "gunner",
-  "sniper",
-  "hive",
-  "mortar",
-  "mender",
-  "turret",
-  "minebot",
-  "sapper",
-  "sentinel",
-  "carrier",
-  "drone",
-  "beacon",
-  "weaver",
+  "brassGuard",
+  "longshot",
+  "mushroomNest",
+  "bellCannon",
+  "mossHealer",
+  "watchTower",
+  "mineCart",
+  "bombMaker",
+  "crystalTower",
+  "supplyKite",
+  "dartSprite",
+  "healingStone",
+  "starSpider",
 ]);
 
 function updateSwarmer(game, enemy, dt, ctx) {
@@ -75,7 +75,7 @@ function updateGunner(game, enemy, dt, ctx) {
         game.shoot(enemy.x, enemy.y, ang + (k - (shots - 1) / 2) * 0.2, shotSpeed, enemy.dmg);
       }
       enemy.recoilT = 0.25;
-      game.emit("eshot", { x: enemy.x, y: enemy.y, type: "gunner", frost: enemy.variant === "frost" });
+      game.emit("eshot", { x: enemy.x, y: enemy.y, type: "brassGuard", frost: enemy.variant === "frost" });
       enemy.st = 0;
       enemy.t = 2.2 + game.rng.next() * 0.9;
     }
@@ -105,7 +105,7 @@ function updateBomber(game, enemy, dt, ctx) {
         player: true,
         dmgPlayer: enemy.dmg,
         knock: 5,
-        kind: "bomber",
+        kind: "firePot",
       });
       game.killEnemy(enemy);
     }
@@ -122,7 +122,7 @@ function updateBrute(game, enemy, dt, ctx) {
       enemy.st = 1;
       enemy.t2 = 0.8;
       enemy.ta = ang;
-      game.emit("charge", { x: enemy.x, y: enemy.y, type: "brute" });
+      game.emit("charge", { x: enemy.x, y: enemy.y, type: "ironGolem" });
     }
     return false;
   }
@@ -195,7 +195,7 @@ function updateSniper(game, enemy, dt, ctx) {
         r: 0.2,
       });
       enemy.recoilT = 0.25;
-      game.emit("eshot", { x: enemy.x, y: enemy.y, type: "sniper", frost: enemy.variant === "frost" });
+      game.emit("eshot", { x: enemy.x, y: enemy.y, type: "longshot", frost: enemy.variant === "frost" });
       enemy.st = 0;
       enemy.t = 3 + game.rng.next() * 1.2;
     }
@@ -220,7 +220,7 @@ function updateHive(game, enemy, dt, ctx) {
   if (spawnNow && enemy.kids < maxKids && game.enemies.length < 75) {
     const angle = game.rng.next() * TAU,
       kid = game.spawnEnemy(
-        "swarmer",
+        "smallBug",
         enemy.x + Math.cos(angle) * (enemy.r + 0.5),
         enemy.y + Math.sin(angle) * (enemy.r + 0.5),
         {
@@ -318,7 +318,7 @@ function updateStriker(game, enemy, dt, ctx) {
     if (enemy.t2 <= 0) {
       enemy.st = 3;
       enemy.t2 = 0.24;
-      game.emit("charge", { x: enemy.x, y: enemy.y, type: "striker" });
+      game.emit("charge", { x: enemy.x, y: enemy.y, type: "blinkBlade" });
     }
     return true;
   }
@@ -333,7 +333,7 @@ function updateStriker(game, enemy, dt, ctx) {
   return true;
 }
 
-// Bog-Hopper ('leaper'): jumps in a parabolic arc (enemy.jumpZ) over low obstacles and floor hazards,
+// Bog Hopper ('leaper'): jumps in a parabolic arc (enemy.jumpZ) over low obstacles and floor hazards,
 // landing with a 1.6m bog-splash that leaves a 2.5s mud/acid puddle.
 function updateLeaper(game, enemy, dt, ctx) {
   const { dist, ang, cdx, cdy, speed, alive } = ctx;
@@ -352,7 +352,7 @@ function updateLeaper(game, enemy, dt, ctx) {
         enemy.st = 1;
         enemy.t2 = 0.48;
         enemy.ta = ang;
-        game.emit("charge", { x: enemy.x, y: enemy.y, type: "leaper" });
+        game.emit("charge", { x: enemy.x, y: enemy.y, type: "bogHopper" });
       }
     }
   } else if (enemy.st === 1) {
@@ -368,7 +368,7 @@ function updateLeaper(game, enemy, dt, ctx) {
       enemy.leaping = true;
       enemy.vx = Math.cos(enemy.ta) * 13.5;
       enemy.vy = Math.sin(enemy.ta) * 13.5;
-      game.emit("blink", { x: enemy.x, y: enemy.y, leap: true, src: "leaper" });
+      game.emit("blink", { x: enemy.x, y: enemy.y, leap: true, src: "bogHopper" });
     }
   } else {
     enemy.t2 -= dt;
@@ -388,14 +388,14 @@ function updateLeaper(game, enemy, dt, ctx) {
       if (game.arena.acid && game.arena.acid.filter((p) => p.life != null).length < 14) {
         game.arena.acid.push({ x: enemy.x, y: enemy.y, r: 1.6, life: 2.5 });
       }
-      game.emit("thud", { x: enemy.x, y: enemy.y, src: "leaper" });
+      game.emit("thud", { x: enemy.x, y: enemy.y, src: "bogHopper" });
     }
   }
   enemy.face = turnToward(enemy.face, enemy.st === 1 ? enemy.ta : Math.atan2(enemy.vy, enemy.vx), 10 * dt);
   return true;
 }
 
-// Watch-Belfry ('turret'): walks into LOS, then anchors into a stationary belfry (speed = 0, -35% knockback taken)
+// Watch Tower ('turret'): walks into LOS, then anchors into a stationary belfry (speed = 0, -35% knockback taken)
 // that fires a 2-bolt chime salvo + a 3.2m radial brass shock-ring, only uprooting if the player stays out of range for 3.5s.
 function updateTurret(game, enemy, dt, ctx) {
   const { dist, ang, cdx, cdy, speed, alive } = ctx;
@@ -411,7 +411,7 @@ function updateTurret(game, enemy, dt, ctx) {
     enemy.outT = 0;
     enemy.vx = 0;
     enemy.vy = 0;
-    game.emit("plant", { x: enemy.x, y: enemy.y, type: "turret" });
+    game.emit("plant", { x: enemy.x, y: enemy.y, type: "watchTower" });
   }
   // Stationary anchored belfry
   enemy.vx = 0;
@@ -433,7 +433,7 @@ function updateTurret(game, enemy, dt, ctx) {
       enemy.st = 1;
       enemy.t2 = 0.58;
       enemy.ta = ang;
-      game.emit("aim", { x: enemy.x, y: enemy.y, type: "turret" });
+      game.emit("aim", { x: enemy.x, y: enemy.y, type: "watchTower" });
     }
   } else {
     enemy.ta = turnToward(enemy.ta, ang, 2.6 * dt);
@@ -444,7 +444,7 @@ function updateTurret(game, enemy, dt, ctx) {
         my = enemy.y + Math.sin(enemy.ta) * 0.7;
       for (const off of enemy.elite ? [-0.14, 0, 0.14] : [-0.08, 0.08]) {
         game.shoot(mx, my, enemy.ta + off, 19, enemy.dmg * 0.9, {
-          kind: "turret",
+          kind: "watchTower",
           r: 0.21,
         });
       }
@@ -458,7 +458,7 @@ function updateTurret(game, enemy, dt, ctx) {
         kind: "stomp",
       });
       enemy.recoilT = 0.25;
-      game.emit("eshot", { x: enemy.x, y: enemy.y, type: "turret" });
+      game.emit("eshot", { x: enemy.x, y: enemy.y, type: "watchTower" });
       enemy.st = 0;
       enemy.t = 2.4 + game.rng.next() * 1.0;
     }
@@ -489,7 +489,7 @@ function updateMender(game, enemy, dt, ctx) {
         other.dead ||
         other === enemy ||
         other.boss ||
-        other.type === "mender" ||
+        other.type === "mossHealer" ||
         Math.hypot(other.x - enemy.x, other.y - enemy.y) > 9
       )
         return;
@@ -538,7 +538,7 @@ function updateMortar(game, enemy, dt, ctx) {
         r: 2,
         delay: 1.5 + k * 0.15,
         dmg: enemy.dmg,
-        kind: "mortar",
+        kind: "bellCannon",
         sx: enemy.x,
         sy: enemy.y,
         chill: enemy.variant === "frost",
@@ -554,7 +554,7 @@ function updateMortar(game, enemy, dt, ctx) {
   return true;
 }
 
-// Battering Boar ('charger'): 1.4x charge contact damage and ricochets once off the first wall it hits at 70% speed
+// Wild Boar ('charger'): 1.4x charge contact damage and ricochets once off the first wall it hits at 70% speed
 // with a spark shower instead of stopping immediately.
 function updateCharger(game, enemy, dt, ctx) {
   const { dist, ang, cdx, cdy, speed, alive } = ctx;
@@ -603,7 +603,7 @@ function updateCharger(game, enemy, dt, ctx) {
       enemy.vx = Math.cos(bounceAng) * curSpd;
       enemy.vy = Math.sin(bounceAng) * curSpd;
       enemy.t2 = Math.max(enemy.t2, 0.36);
-      game.emit("thud", { x: enemy.x, y: enemy.y, src: "charger" });
+      game.emit("thud", { x: enemy.x, y: enemy.y, src: "wildBoar" });
     } else {
       enemy.vx *= 0.988;
       enemy.vy *= 0.988;
@@ -617,7 +617,7 @@ function updateCharger(game, enemy, dt, ctx) {
   return true;
 }
 
-// Cinder-Sower ('minebot'): plants persistent 7s armed Ember-Pots on the arena floor (up to 3 active,
+// Mine Cart ('minebot'): plants persistent 7s armed Ember-Pots on the arena floor (up to 3 active,
 // shootable by the player to detonate onto enemies!).
 function updateMinebot(game, enemy, dt, ctx) {
   const { dx, dy, dist, cdx, cdy, speed, alive } = ctx;
@@ -686,7 +686,7 @@ function updateSapper(game, enemy, dt, ctx) {
         r: 1.55,
         delay: 1.05,
         dmg: enemy.dmg * 1.25,
-        kind: "sapper",
+        kind: "bombMaker",
         sx: enemy.x,
         sy: enemy.y,
       });
@@ -703,7 +703,7 @@ function updateSapper(game, enemy, dt, ctx) {
   return true;
 }
 
-// Star-Wraith ('phantom'): while veiled (ghost = true), glides rapidly (8.5 m/s) toward the player's flank
+// Star Ghost ('starGhost'): while veiled (ghost = true), glides rapidly (8.5 m/s) toward the player's flank
 // leaving faint starlight footprints before materializing into its slash.
 function updatePhantom(game, enemy, dt, ctx) {
   const { dist, ang, cdx, cdy, speed, alive, player } = ctx;
@@ -757,7 +757,7 @@ function updatePhantom(game, enemy, dt, ctx) {
   return true;
 }
 
-// Prism Obelisk ('sentinel'): sweeps its beam across a wide arc (rot: 0.65 over 1.1s).
+// Crystal Tower ('sentinel'): sweeps its beam across a wide arc (rot: 0.65 over 1.1s).
 function updateSentinel(game, enemy, dt, ctx) {
   const { dx, dy, dist, ang, cdx, cdy, speed, alive } = ctx;
   if (enemy.st === 0) {
@@ -824,7 +824,7 @@ function updateSentinel(game, enemy, dt, ctx) {
   return true;
 }
 
-// Galleon-Kite ('carrier'): launches up to 2 miniature Paper-Skiff Escorts (mite-sized flyers that orbit and swoop)
+// Supply Kite ('carrier'): launches up to 2 miniature Paper-Skiff Escorts (mite-sized flyers that orbit and swoop)
 // while firing a heavy brass broadside cannonball.
 function updateCarrier(game, enemy, dt, ctx) {
   const { dx, dy, dist, ang, cdx, cdy, speed, alive } = ctx;
@@ -844,7 +844,7 @@ function updateCarrier(game, enemy, dt, ctx) {
   if (alive && dist < 15 && dist > 5.5 && enemy.t <= 0 && enemy.los) {
     // Fire heavy brass broadside cannonball
     game.shoot(enemy.x, enemy.y, ang, 16, enemy.dmg * 1.05, {
-      kind: "carrier",
+      kind: "supplyKite",
       r: 0.28,
       life: 3.4,
       homing: 0.7,
@@ -854,7 +854,7 @@ function updateCarrier(game, enemy, dt, ctx) {
     if (enemy.escorts.length < 2 && game.enemies.length < 75) {
       const launchAng = ang + (enemy.escorts.length === 0 ? -0.65 : 0.65);
       const skiff = game.spawnEnemy(
-        "mite",
+        "littlePod",
         enemy.x + Math.cos(launchAng) * (enemy.r + 0.45),
         enemy.y + Math.sin(launchAng) * (enemy.r + 0.45),
         {
@@ -870,11 +870,11 @@ function updateCarrier(game, enemy, dt, ctx) {
       skiff.kx = Math.cos(launchAng) * 6;
       skiff.ky = Math.sin(launchAng) * 6;
       enemy.escorts.push(skiff);
-      game.emit("hatch", { x: enemy.x, y: enemy.y, src: "carrier" });
+      game.emit("hatch", { x: enemy.x, y: enemy.y, src: "supplyKite" });
     }
     enemy.recoilT = 0.25;
     enemy.t = 2.4 + game.rng.next() * 1.0;
-    game.emit("eshot", { x: enemy.x, y: enemy.y, type: "carrier" });
+    game.emit("eshot", { x: enemy.x, y: enemy.y, type: "supplyKite" });
   }
   return true;
 }
@@ -896,16 +896,16 @@ function updateDrone(game, enemy, dt, ctx) {
   enemy.t -= dt;
   if (alive && dist < 16 && dist > 4.5 && enemy.t <= 0 && enemy.los) {
     for (const off of [-0.18, 0.18]) {
-      game.shoot(enemy.x, enemy.y, ang + off, 18, enemy.dmg * 0.72, { kind: "drone", life: 2.8, homing: 1.6 });
+      game.shoot(enemy.x, enemy.y, ang + off, 18, enemy.dmg * 0.72, { kind: "dartSprite", life: 2.8, homing: 1.6 });
     }
     enemy.recoilT = 0.25;
     enemy.t = 2.2 + game.rng.next() * 0.8;
-    game.emit("eshot", { x: enemy.x, y: enemy.y, type: "drone" });
+    game.emit("eshot", { x: enemy.x, y: enemy.y, type: "dartSprite" });
   }
   return true;
 }
 
-// Burrow-Mole ('driller'): burrows underground (enemy.ghost = true, lowered Y offset, dirt-wake particles)
+// Burrow Mole ('driller'): burrows underground (enemy.ghost = true, lowered Y offset, dirt-wake particles)
 // while tracking toward the player, then pauses with a 0.55s rumbling ring telegraph before erupting upward.
 function updateDriller(game, enemy, dt, ctx) {
   const { dist, ang, cdx, cdy, speed, alive } = ctx;
@@ -922,7 +922,7 @@ function updateDriller(game, enemy, dt, ctx) {
       enemy.ta = ang;
       enemy.ghost = true;
       enemy.burrowY = -0.58;
-      game.emit("charge", { x: enemy.x, y: enemy.y, type: "driller" });
+      game.emit("charge", { x: enemy.x, y: enemy.y, type: "burrowMole" });
     }
   } else if (enemy.st === 1) {
     // Burrowing underground toward the player
@@ -954,13 +954,13 @@ function updateDriller(game, enemy, dt, ctx) {
       enemy.st = 0;
       enemy.t = 1.8 + game.rng.next() * 1.2;
       game.arena.resolve(enemy, enemy.r);
-      game.emit("thud", { x: enemy.x, y: enemy.y, src: "driller" });
+      game.emit("thud", { x: enemy.x, y: enemy.y, src: "burrowMole" });
     }
   }
   return true;
 }
 
-// Mending Cairn ('beacon'): anchors in place during its 1.2s chant and projects a visible golden warding tether
+// Healing Stone ('beacon'): anchors in place during its 1.2s chant and projects a visible golden warding tether
 // to the 2 nearest allies (granting -30% damage taken + 8% mend on completion).
 function updateBeacon(game, enemy, dt, ctx) {
   const { dist, ang, cdx, cdy, speed } = ctx;
@@ -991,7 +991,7 @@ function updateBeacon(game, enemy, dt, ctx) {
       enemy.tetherIds = null;
       enemy.st = 0;
       enemy.t = 2.8 + game.rng.next() * 0.8;
-      game.emit("mend", { x: enemy.x, y: enemy.y, r: 6.5, type: "beacon" });
+      game.emit("mend", { x: enemy.x, y: enemy.y, r: 6.5, type: "healingStone" });
     }
     return true;
   }
@@ -1012,7 +1012,7 @@ function updateBeacon(game, enemy, dt, ctx) {
   if (enemy.t <= 0) {
     const candidates = [];
     game.hash.query(enemy.x, enemy.y, 7.5, (ally) => {
-      if (ally === enemy || ally.dead || ally.boss || ally.type === "beacon") return;
+      if (ally === enemy || ally.dead || ally.boss || ally.type === "healingStone") return;
       const d = Math.hypot(ally.x - enemy.x, ally.y - enemy.y);
       if (d <= 7.5 + ally.r) candidates.push({ ally, d });
     });
@@ -1031,7 +1031,7 @@ function updateBeacon(game, enemy, dt, ctx) {
   return true;
 }
 
-// Astral Weaver ('weaver'): when warping from point A to point B, strings a 3.0s glowing Star-Silk Tether
+// Star Spider ('weaver'): when warping from point A to point B, strings a 3.0s glowing Star-Silk Tether
 // between A and B that slows the player if crossed (and snaps with a bonus spark if dashed through).
 function updateWeaver(game, enemy, dt, ctx) {
   const { ang, speed, alive, player } = ctx;
@@ -1048,10 +1048,10 @@ function updateWeaver(game, enemy, dt, ctx) {
       if (alive) {
         const aim = Math.atan2(player.y - enemy.y, player.x - enemy.x);
         for (const off of [-0.22, 0, 0.22]) {
-          game.shoot(enemy.x, enemy.y, aim + off, 24, enemy.dmg * 0.72, { kind: "weaver", life: 2.6 });
+          game.shoot(enemy.x, enemy.y, aim + off, 24, enemy.dmg * 0.72, { kind: "starSpider", life: 2.6 });
         }
         enemy.recoilT = 0.25;
-        game.emit("eshot", { x: enemy.x, y: enemy.y, type: "weaver" });
+        game.emit("eshot", { x: enemy.x, y: enemy.y, type: "starSpider" });
       }
       enemy.t = 3.4 + game.rng.next() * 1.2;
     }
@@ -1079,43 +1079,43 @@ function updateWeaver(game, enemy, dt, ctx) {
         delay: 3.0,
         dmg: enemy.dmg * 0.55,
         kind: "tether",
-        src: "weaver",
+        src: "starSpider",
       });
-      game.emit("warp", { x: ox, y: oy, tx: enemy.x, ty: enemy.y, who: "weaver" });
+      game.emit("warp", { x: ox, y: oy, tx: enemy.x, ty: enemy.y, who: "starSpider" });
     }
     enemy.st = 1;
     enemy.t2 = 0.45;
-    game.emit("aim", { x: enemy.x, y: enemy.y, type: "weaver" });
+    game.emit("aim", { x: enemy.x, y: enemy.y, type: "starSpider" });
   }
   return true;
 }
 
 const ENEMY_HANDLERS = {
-  swarmer: updateSwarmer,
-  mite: updateSwarmer,
-  grunt: updateWalker,
-  splitter: updateWalker,
-  gunner: updateGunner,
-  bomber: updateBomber,
-  brute: updateBrute,
-  sniper: updateSniper,
-  hive: updateHive,
-  bulwark: updateBulwark,
-  striker: updateStriker,
-  leaper: updateLeaper,
-  turret: updateTurret,
-  mender: updateMender,
-  mortar: updateMortar,
-  charger: updateCharger,
-  minebot: updateMinebot,
-  sapper: updateSapper,
-  phantom: updatePhantom,
-  sentinel: updateSentinel,
-  carrier: updateCarrier,
-  drone: updateDrone,
-  driller: updateDriller,
-  beacon: updateBeacon,
-  weaver: updateWeaver,
+  smallBug: updateSwarmer,
+  littlePod: updateSwarmer,
+  kettleGuard: updateWalker,
+  sporePod: updateWalker,
+  brassGuard: updateGunner,
+  firePot: updateBomber,
+  ironGolem: updateBrute,
+  longshot: updateSniper,
+  mushroomNest: updateHive,
+  shieldGuard: updateBulwark,
+  blinkBlade: updateStriker,
+  bogHopper: updateLeaper,
+  watchTower: updateTurret,
+  mossHealer: updateMender,
+  bellCannon: updateMortar,
+  wildBoar: updateCharger,
+  mineCart: updateMinebot,
+  bombMaker: updateSapper,
+  starGhost: updatePhantom,
+  crystalTower: updateSentinel,
+  supplyKite: updateCarrier,
+  dartSprite: updateDrone,
+  burrowMole: updateDriller,
+  healingStone: updateBeacon,
+  starSpider: updateWeaver,
 };
 
 function updateEnemy(game, enemy, dt) {

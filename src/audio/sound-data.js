@@ -6,22 +6,22 @@ import { musicTrack, scoreBiomes } from "./score.js";
 
 // Every supported weapon has an explicit sound identity.
 export const RL_SFX_VOICES = Object.keys(WEAPON_EFFECTS);
-export const rlShotSfx = (id) => WEAPON_EFFECTS[id]?.shot || "pulse";
+export const rlShotSfx = (id) => WEAPON_EFFECTS[id]?.shot || "lanternGun";
 
 export const RL_BIOME_SPARK = {
-  courtyard: "sparkCourtyard",
-  shelf: "sparkShelf",
-  marsh: "sparkMarsh",
-  core: "sparkCore",
-  caldera: "sparkCaldera",
-  flats: "sparkFlats",
+  lanternYard: "sparkCourtyard",
+  snowRidge: "sparkShelf",
+  mossBog: "sparkMarsh",
+  starHeart: "sparkCore",
+  emberHill: "sparkCaldera",
+  sunDunes: "sparkFlats",
 };
 
 export const RL_PROP_VOICE = {
   lantern: "propLantern",
   rime: "propRime",
   puffball: "propPuffball",
-  prism: "propPrism",
+  iceCrystal: "propPrism",
   crucible: "propCrucible",
   sunglass: "propSunglass",
 };
@@ -30,47 +30,47 @@ export const RL_PROP_VOICE = {
    clockwork kettle-kin (dClockwork) and arcane constructs (dConstruct) stand apart from armour, flesh,
    electric drones and ghosts. Bosses and champions keep "bigkill". */
 export const RL_DEATH_FAMILY = {
-  swarmer: "dPop",
-  mite: "dPop",
-  splitter: "dSquelch",
-  hive: "dSquelch",
-  leaper: "dSquelch",
-  mender: "dSquelch",
-  brute: "dArmor",
-  striker: "dArmor",
-  bulwark: "dArmor",
-  driller: "dArmor",
-  mortar: "dArmor",
-  drone: "dZap",
-  sentinel: "dConstruct",
-  turret: "dZap",
-  phantom: "dGhost",
-  weaver: "dGhost",
-  grunt: "dClang",
-  gunner: "dClang",
-  sapper: "dRattle",
-  bomber: "dClockwork",
-  charger: "dClockwork",
-  carrier: "dSquelch",
-  minebot: "dClockwork",
-  sniper: "dClang",
-  beacon: "dConstruct",
+  smallBug: "dPop",
+  littlePod: "dPop",
+  sporePod: "dSquelch",
+  mushroomNest: "dSquelch",
+  bogHopper: "dSquelch",
+  mossHealer: "dSquelch",
+  ironGolem: "dArmor",
+  blinkBlade: "dArmor",
+  shieldGuard: "dArmor",
+  burrowMole: "dArmor",
+  bellCannon: "dArmor",
+  dartSprite: "dZap",
+  crystalTower: "dConstruct",
+  watchTower: "dZap",
+  starGhost: "dGhost",
+  starSpider: "dGhost",
+  kettleGuard: "dClang",
+  brassGuard: "dClang",
+  bombMaker: "dRattle",
+  firePot: "dClockwork",
+  wildBoar: "dClockwork",
+  supplyKite: "dSquelch",
+  mineCart: "dClockwork",
+  longshot: "dClang",
+  healingStone: "dConstruct",
 };
 
 /* wind-up voices of the "charge" event (enemy types and the bosses that charge) */
 export const RL_CHARGE_VOICE = {
-  brute: "windHeavy",
-  charger: "windWhine",
-  striker: "windSlash",
-  driller: "windDrill",
-  leaper: "windLeap",
-  bellkeeper: "bWind",
-  prism: "bWind",
-  tyrant: "bWind",
+  ironGolem: "windHeavy",
+  wildBoar: "windWhine",
+  blinkBlade: "windSlash",
+  burrowMole: "windDrill",
+  bogHopper: "windLeap",
+  bellKeeper: "bWind",
+  iceCrystal: "bWind",
+  emberKing: "bWind",
 };
 
 /* the "edash" event: the lunge itself */
-export const RL_DASH_VOICE = { charger: "ram", striker: "ram", driller: "ramDrill", phantom: "blink" };
+export const RL_DASH_VOICE = { wildBoar: "ram", blinkBlade: "ram", burrowMole: "ramDrill", starGhost: "blink" };
 
 /* boss attack telegraphs (event "bossAtk"); null: another event of the same attack already sounds
    (charge, beamWarn, blinkWarn, lob, erupt, thud) */
@@ -100,9 +100,9 @@ export const RL_BOSS_ATK = {
   rise: null,
   shards: "bLance",
   sunlance: null,
-  mirage: null,
+  sandstorm: null,
   // 3.3.0: the Overdrive attacks (they also sound the Overdrive alarm, bOverdrive)
-  sealgrid: "bLance",
+  bellCage: "bLance",
   whiteout: "bNova",
   plague: "bSummon",
   collapse: "bRain",
@@ -111,7 +111,7 @@ export const RL_BOSS_ATK = {
 
 // 3.33.0: the warning voice of a beam by its skin (the rest keep "beam" / "beamSmall")
 export const BEAM_VOICE = Object.fromEntries(Object.entries(BEAM_EFFECTS).map(([id, effect]) => [id, effect.warning]));
-export const RL_OVERDRIVE = new Set(["sealgrid", "whiteout", "plague", "collapse", "firestorm", "noon"]);
+export const RL_OVERDRIVE = new Set(["bellCage", "whiteout", "plague", "collapse", "firestorm", "noon"]);
 export const BOSS_WARNING_VOICES = new Set(Object.values(RL_BOSS_ATK).filter(Boolean));
 
 /* 3.10.0: the voice of the blast of an attack zone, by its kind and, where the kind is shared, its maker (the same
@@ -136,7 +136,7 @@ export function attackVoice(kind, src, biome, chill) {
 
 /* 2.9.0: how far the music dips for the big hits (gain factor 1 - x, about 100 ms; the music goes on) */
 export const MUSIC_DUCK = {
-  nova: 0.29,
+  fireBurst: 0.29,
   inlayRelease: 0.29,
   bossIntro: 0.29,
   bOverdrive: 0.29,
@@ -166,10 +166,10 @@ export const MUSIC_DUCK = {
   bcImplode: 0.11,
   tsRift: 0.08,
   bSlam: 0.12,
-  rail: 0.06,
-  scatter: 0.05,
-  rocket: 0.05,
-  tribute: 0.08,
+  starSpear: 0.06,
+  brassShotgun: 0.05,
+  emberLauncher: 0.05,
+  forgeGift: 0.08,
 };
 
 /* 3.2.0: the room of the big sounds (send level to the sound reverb); its size follows the biome (SFX_ROOM_BIOME).
@@ -182,7 +182,7 @@ export const SFX_ROOM = {
   bcImplode: 0.3,
   bcCage: 0.15,
   bcShatter: 0.15,
-  nova: 0.3,
+  fireBurst: 0.3,
   bigkill: 0.35,
   die: 0.3,
   bossIntro: 0.35,
@@ -190,8 +190,8 @@ export const SFX_ROOM = {
   bSlam: 0.3,
   enrage: 0.3,
   phase: 0.25,
-  rocket: 0.15,
-  rail: 0.15,
+  emberLauncher: 0.15,
+  starSpear: 0.15,
   thud: 0.25,
   evolve: 0.3,
   victory: 0.3,
@@ -213,48 +213,55 @@ export const SFX_ROOM = {
   propSunglass: 0.26,
 };
 
-/* how much room each biome gives the sounds: the Aurora Shelf and the Shattered Core are vast, the Glowmarsh damp;
-   3.49.0: the Ashfall Caldera is a crater bowl (rock all around) */
-export const SFX_ROOM_BIOME = { courtyard: 0.28, shelf: 0.5, marsh: 0.2, core: 0.55, caldera: 0.32, flats: 0.3 };
+/* how much room each biome gives the sounds: the Snow Ridge and the Shattered Core are vast, the Moss Bog damp;
+   3.49.0: the Ember Hill is a crater bowl (rock all around) */
+export const SFX_ROOM_BIOME = {
+  lanternYard: 0.28,
+  snowRidge: 0.5,
+  mossBog: 0.2,
+  starHall: 0.55,
+  emberHill: 0.32,
+  sunDunes: 0.3,
+};
 
-export const AMBIENCE_LEVEL = { festival: 0.032, aurora: 0.036, nectar: 0.034, harmonic: 0.032, forgewind: 0.038 };
+export const AMBIENCE_LEVEL = { festival: 0.032, aurora: 0.036, nectar: 0.034, starPaths: 0.032, hotWind: 0.038 };
 export const ROOM_TONE_LEVEL = {
-  courtyard: 0.024,
-  shelf: 0.032,
-  marsh: 0.024,
-  core: 0.024,
-  caldera: 0.026,
-  flats: 0.024,
+  lanternYard: 0.024,
+  snowRidge: 0.032,
+  mossBog: 0.024,
+  starHall: 0.024,
+  emberHill: 0.026,
+  sunDunes: 0.024,
 };
 
 /* 3.43.0: the event beds gather and pass instead of snapping on and off - a soundscape builds over about
    three seconds and dies away over about four, while the room tone stays underneath. */
-export const BED_ATTACK = { festival: 0.6, aurora: 1.1, nectar: 0.8, harmonic: 1.1, forgewind: 0.9 };
-export const BED_RELEASE = { festival: 0.6, aurora: 1.2, nectar: 0.7, harmonic: 1.0, forgewind: 0.9 };
+export const BED_ATTACK = { festival: 0.6, aurora: 1.1, nectar: 0.8, starPaths: 1.1, hotWind: 0.9 };
+export const BED_RELEASE = { festival: 0.6, aurora: 1.2, nectar: 0.7, starPaths: 1.0, hotWind: 0.9 };
 
 export const EVENT_BEDS = {
   aurora: [1120, 2.8, 0.14, 330, 0.62],
   nectar: [460, 2.4, 0.28, 174, 0.58],
   festival: [360, 2.0, 0.12, 196, 0.68],
-  forgewind: [640, 1.7, 0.18, 98, 0.56],
-  harmonic: [880, 3.8, 0.22, 220, 0.69],
+  hotWind: [640, 1.7, 0.18, 98, 0.56],
+  starPaths: [880, 3.8, 0.22, 220, 0.69],
 };
 
 export const ROOM_TONE_RECIPES = {
-  courtyard: [238, 2.1, 0.08, 65, 1280],
-  shelf: [940, 1.7, 0.053, 113, 2810],
-  marsh: [387, 1.3, 0.119, 83, 1460],
-  core: [510, 3.7, 0.072, 94, 1860],
-  flats: [729, 1.5, 0.103, 109, 2390],
-  caldera: [189, 1.2, 0.067, 71, 1110],
+  lanternYard: [238, 2.1, 0.08, 65, 1280],
+  snowRidge: [940, 1.7, 0.053, 113, 2810],
+  mossBog: [387, 1.3, 0.119, 83, 1460],
+  starHall: [510, 3.7, 0.072, 94, 1860],
+  sunDunes: [729, 1.5, 0.103, 109, 2390],
+  emberHill: [189, 1.2, 0.067, 71, 1110],
 };
 
 export const EVENT_ACCENTS = {
   aurora: [880, 1320, 1.15, "celesta", 0.024],
   nectar: [349, 523, 0.48, "kalimba", 0.022],
   festival: [294, 440, 0.78, "harp", 0.03],
-  harmonic: [330, 494, 0.92, "celesta", 0.024],
-  forgewind: [196, 294, 0.72, "brass", 0.028],
+  starPaths: [330, 494, 0.92, "celesta", 0.024],
+  hotWind: [196, 294, 0.72, "brass", 0.028],
 };
 
 // 3.9.0: the default of the Ambience slider; at it the atmospheres of the music play at the level they had before
@@ -279,7 +286,7 @@ export const KEY_SOUNDS = new Set([
   "bossDown",
   "enrage",
   "phase",
-  "nova",
+  "fireBurst",
   "guardBreak",
   "cleared",
   "bossCleared",
@@ -296,7 +303,7 @@ export const RL_TRAP_SOUND = {
   geyser: { warn: "tcGeyser", fire: "tsGeyser" },
   riftburst: { warn: "tcRift", fire: "tsRift" },
   laser: { warn: "tbLaser" },
-  cryo: { warn: "tbCryo" },
+  iceShot: { warn: "tbCryo" },
   acid: { warn: "tbAcid" },
   rift: { warn: "tbRift" },
   magma: { warn: "tbFlame" },
@@ -326,12 +333,12 @@ export const THREAT_WARNING_VOICES = new Set([
 ]);
 
 export const AMB_PREVIEW = {
-  courtyard: "galleryChime",
-  shelf: "icicles",
-  marsh: "drip",
-  core: "shimmer",
-  caldera: "rockFall",
-  flats: "glassPing",
+  lanternYard: "galleryChime",
+  snowRidge: "icicles",
+  mossBog: "drip",
+  starHeart: "shimmer",
+  emberHill: "rockFall",
+  sunDunes: "glassPing",
 };
 
 /* 2.9.0: what the music flood test throws at the engine (sound id, argument): every weapon, deaths, blasts */
@@ -339,7 +346,7 @@ export const RL_FLOOD = [
   ...RL_SFX_VOICES.map((id) => [id]),
   ["boom"],
   ["hurt"],
-  ["nova"],
+  ["fireBurst"],
   ["hit"],
   ["crit"],
   ["kill", 1.8],
@@ -347,7 +354,7 @@ export const RL_FLOOD = [
   ["dClang", 1.6],
   ["dShatter", 1.6],
   ["bigkill"],
-  ["bSlam", "bellkeeper"],
+  ["bSlam", "bellKeeper"],
   ["eshotBoss"],
 ];
 
@@ -454,9 +461,9 @@ export function rlSoundCatalog() {
     add = (name, spec) => list.push({ name, spec }),
     ids = (names, arg) => names.forEach((id) => add(id + (arg !== undefined ? ":" + arg : ""), { id, arg }));
   ids(RL_SFX_VOICES);
-  for (const type of ["grunt", "swarmer", "core", "prism", "phantom"])
+  for (const type of ["kettleGuard", "smallBug", "starHeart", "iceCrystal", "starGhost"])
     for (const id of ["hit", "crit"]) add(`${id}:${type}`, { id, arg: { type } });
-  add("hit:shield", { id: "hit", arg: { type: "grunt", shield: true } });
+  add("hit:shield", { id: "hit", arg: { type: "kettleGuard", shield: true } });
   ids([
     "block",
     "guardBreak",
@@ -475,7 +482,7 @@ export function rlSoundCatalog() {
     "shield",
     "shieldUp",
     "dash",
-    "nova",
+    "fireBurst",
     "novaReady",
     "shard",
     "heal",
@@ -500,7 +507,7 @@ export function rlSoundCatalog() {
     "eshotFrost",
     "tcPyro",
     "tsPyro",
-    "tribute",
+    "forgeGift",
     "bwCryo",
     "bwAcid",
     "bwFlame",
@@ -595,14 +602,21 @@ export function rlSoundCatalog() {
     ])
       ids([id], boss);
   }
-  for (const source of [...Object.keys(BOSS_EFFECTS), "striker", "phantom", "leaper", "weaver", "hive"])
+  for (const source of [
+    ...Object.keys(BOSS_EFFECTS),
+    "blinkBlade",
+    "starGhost",
+    "bogHopper",
+    "starSpider",
+    "mushroomNest",
+  ])
     for (const id of ["blink", "blinkWarn", "thud", "lob", "hatch"])
       add(`${id}:${source}`, { id, arg: { src: source } });
   for (const [skin, voices] of Object.entries(RL_TRAP_SOUND))
     for (const [phase, id] of Object.entries(voices))
       add(`${id}:${skin}`, { id, arg: phase === "warn" ? { delay: 0.8 } : 1 });
   for (const skin of ["embermine", "glassmine"]) add(`tArm:${skin}`, { id: "tArm", arg: skin });
-  for (const source of ["beacon", "mender"]) add(`mend:${source}`, { id: "mend", arg: source });
+  for (const source of ["healingStone", "mossHealer"]) add(`mend:${source}`, { id: "mend", arg: source });
   for (const rarity of [1, 2, 3, 4, 5, 6]) ids(["pick"], rarity);
   for (const ground of ["flagstone", "frost", "ice", "mud", "glass", "acid", "crust", "sandglass"])
     add("step:" + ground, { id: "step", arg: { ground } });
@@ -623,7 +637,7 @@ export function rlSoundCatalog() {
     "propSunglass",
   ]);
   ids(["bcCage", "bcLock", "bcShatter", "bcHatch", "bcBurst", "bcImplode"]);
-  for (const id of ["gilded", "starfall", "festival", "aurora", "nectar", "harmonic", "forgewind", "mirage"])
+  for (const id of ["goldCart", "starfall", "festival", "aurora", "nectar", "starPaths", "hotWind", "sandstorm"])
     ids(["event"], id);
   for (const bed of ["hum", ...Object.keys(AMBIENCE_LEVEL)]) add("bed:" + bed, { bed, stopAt: 1.1, stopRel: 0.1 });
   for (const biome of Object.keys(ROOM_TONE_LEVEL)) add("tone:" + biome, { tone: biome, stopAt: 1.0, fade: 0.25 });

@@ -1,7 +1,7 @@
 // High-contrast enemy/boss danger telegraphs, persistent battle floor marks, spikes, pillars and enemy projectiles.
 
 import { Color } from "../engine/math.js";
-import { cylinder, disc, octahedron, torus, meshPart, mergeGeometries } from "../engine/geometry.js";
+import { cylinder, ringBlade, octahedron, torus, meshPart, mergeGeometries } from "../engine/geometry.js";
 import { Material } from "../engine/scene.js";
 import { worldMaterial, emissiveMaterial } from "./materials.js";
 import { attackSurface, BOSS_EFFECTS, ENEMY_EFFECTS } from "../data/combat-effects.js";
@@ -27,20 +27,20 @@ const SHOT = {
   orb: new Color(0xff4284),
   bolt: new Color(0xff845c),
   fast: new Color(0xff3030),
-  turret: new Color(0xe85a4a),
-  drone: new Color(0xf06b62),
-  weaver: new Color(0xd684ff),
-  carrier: new Color(0xf48658),
+  watchTower: new Color(0xe85a4a),
+  dartSprite: new Color(0xf06b62),
+  starSpider: new Color(0xd684ff),
+  supplyKite: new Color(0xf48658),
   ...Object.fromEntries(Object.values(BOSS_EFFECTS).map((effect) => [effect.projectile, new Color(effect.color)])),
 };
 
 const DUST = {
-  courtyard: new Color(0x6a7686),
-  shelf: new Color(0x9ec8e2),
-  marsh: new Color(0x2f4238),
-  core: new Color(0x64429e),
-  caldera: new Color(0x7c6a5c),
-  flats: new Color(0xb69464),
+  lanternYard: new Color(0x6a7686),
+  snowRidge: new Color(0x9ec8e2),
+  mossBog: new Color(0x2f4238),
+  starHeart: new Color(0x64429e),
+  emberHill: new Color(0x7c6a5c),
+  sunDunes: new Color(0xb69464),
 };
 
 const Z = { crack: 0, lavaCrack: 1, molten: 2, frost: 3, acid: 4, rift: 5, target: 6, burn: 7, glass: 8 };
@@ -209,7 +209,7 @@ export class AttackView {
         fog: false,
         uniforms: { uWarn: { value: new Color(FINISH.vermilion) } },
       });
-      this.zonePool = new this.Pool(disc(1, 36), this.zoneMat, MAX.zone);
+      this.zonePool = new this.Pool(ringBlade(1, 36), this.zoneMat, MAX.zone);
       this.zonePool.mesh.renderOrder = 2;
       this.r.scene.add(this.zonePool.mesh);
       this.list.push(this.zonePool);
@@ -225,7 +225,7 @@ export class AttackView {
         doubleSide: false,
         fog: true,
       });
-      this._markPool = new this.Pool(disc(1, 24), this.markMat, MAX.mark);
+      this._markPool = new this.Pool(ringBlade(1, 24), this.markMat, MAX.mark);
       this._markPool.mesh.renderOrder = 0;
       this.r.scene.add(this._markPool.mesh);
       this.list.push(this._markPool);
@@ -254,7 +254,7 @@ export class AttackView {
     }
   }
   biomeId() {
-    return (this.r.biome && this.r.biome.id) || "courtyard";
+    return (this.r.biome && this.r.biome.id) || "lanternYard";
   }
   update(dt, world) {
     const r = this.r;
@@ -324,12 +324,12 @@ export class AttackView {
     if (hazard.kind === "tether") {
       const tx = hazard.tx ?? hazard.sx ?? x;
       const tz = hazard.ty ?? hazard.sy ?? z;
-      const pulse = 0.75 + Math.sin(time * 14 + seed * TAU) * 0.25;
+      const lanternGun = 0.75 + Math.sin(time * 14 + seed * TAU) * 0.25;
       const w = 0.09 + 0.05 * k;
       r.beams.colC(r.beams.seg(x, z, tx, tz, 0.72, w * 1.6, w * 0.7), RIFT, 0.55 + k * 0.35);
-      r.beams.colC(r.beams.seg(x, z, tx, tz, 0.74, w * 0.65, w * 0.45), WHITE, 0.75 * pulse);
-      r.ringPool.colC(r.ringPool.y(x, 0.08, z, time * 2.5, 0.65 + 0.15 * pulse), RIFT, 0.62);
-      r.ringPool.colC(r.ringPool.y(tx, 0.08, tz, -time * 2.5, 0.65 + 0.15 * pulse), RIFT_PINK, 0.62);
+      r.beams.colC(r.beams.seg(x, z, tx, tz, 0.74, w * 0.65, w * 0.45), WHITE, 0.75 * lanternGun);
+      r.ringPool.colC(r.ringPool.y(x, 0.08, z, time * 2.5, 0.65 + 0.15 * lanternGun), RIFT, 0.62);
+      r.ringPool.colC(r.ringPool.y(tx, 0.08, tz, -time * 2.5, 0.65 + 0.15 * lanternGun), RIFT_PINK, 0.62);
       if (chance(10 + 14 * k)) {
         const f = Math.random();
         r.emit(
@@ -385,7 +385,7 @@ export class AttackView {
       return;
     }
 
-    if (hazard.kind === "mine" || hazard.kind === "sapper" || hazard.crucibleBomb) {
+    if (hazard.kind === "mine" || hazard.kind === "bombMaker" || hazard.crucibleBomb) {
       const P = this.get(hazard.crucibleBomb ? "cinder" : hazard.kind === "mine" ? "mine" : "charge");
       const pop = clamp(hazard.t / 0.12, 0, 1);
       const baseScale = hazard.crucibleBomb ? 0.58 : 1.0;
@@ -397,16 +397,16 @@ export class AttackView {
       P.glow.colC(wick, k > 0.72 ? r.warnColor : FIRE_HOT, 0.9 + 0.65 * Math.abs(Math.sin(time * (6 + 18 * k))));
       if (hazard.shootable) {
         // Clear turquoise-gold rotating ring showing players they can shoot this bomb early!
-        const pulse = 0.72 + 0.28 * Math.sin(time * 12);
+        const lanternGun = 0.72 + 0.28 * Math.sin(time * 12);
         r.ringPool.colC(
           r.ringPool.y(x, 0.12, z, time * 3.6, hazard.crucibleBomb ? 1.15 : 0.78),
           ACID_LITE,
-          0.72 * pulse,
+          0.72 * lanternGun,
         );
         r.ringPool.colC(
           r.ringPool.y(x, 0.14, z, -time * 2.4, hazard.crucibleBomb ? 0.85 : 0.54),
           FIRE_HOT,
-          0.62 * pulse,
+          0.62 * lanternGun,
         );
       }
       if (chance(8 + k * 20))
@@ -423,7 +423,7 @@ export class AttackView {
       const pitch = Math.atan2(7 * Math.PI * Math.cos(Math.PI * k), dist);
       const yaw = Math.atan2(z - hazard.sy, x - hazard.sx);
       r.shadows.y(hx, 0.025, hz, 0, 0.9 * (0.4 + 0.6 * k));
-      if (hazard.src === "tyrant") {
+      if (hazard.src === "emberKing") {
         const P = this.get("cinder");
         const size = 0.36;
         P.body.col(P.body.yr(hx, hy, hz, yaw, size, size, size, pitch, time * 4), 1, 1, 1);
@@ -491,7 +491,7 @@ export class AttackView {
         if (k > 0.5 && chance(20 * k)) {
           const a = Math.random() * TAU,
             d = Math.random() * rr * k;
-          r.emit(x + Math.cos(a) * d, 0.1, z + Math.sin(a) * d, 0, 0.8, 0, 0.5, 0.25, DUST[biome] || DUST.courtyard, {
+          r.emit(x + Math.cos(a) * d, 0.1, z + Math.sin(a) * d, 0, 0.8, 0, 0.5, 0.25, DUST[biome] || DUST.lanternYard, {
             drag: 2,
             grow: 1,
           });
@@ -640,23 +640,23 @@ export class AttackView {
       z = ev.y,
       rr = ev.r;
     const biome = world?.arena ? world.arena.biome.id : this.biomeId();
-    const dust = DUST[biome] || DUST.courtyard;
+    const dust = DUST[biome] || DUST.lanternYard;
     const dustCol = this._dustCol || (this._dustCol = new Color());
     const kind = ev.kind;
-    const look = kind === "bomber" ? Z.target : lookOf(kind === "brimlit" ? "shorted" : kind, ev.src, biome, ev.chill);
+    const look = kind === "firePot" ? Z.target : lookOf(kind === "brimlit" ? "shorted" : kind, ev.src, biome, ev.chill);
     if (
       ![
         "stomp",
         "drill",
         "rain",
-        "mortar",
+        "bellCannon",
         "frost",
         "glacier",
         "mine",
-        "sapper",
+        "bombMaker",
         "fire",
         "volatile",
-        "bomber",
+        "firePot",
         "shorted",
         "brimlit",
         "starfall",
@@ -687,7 +687,7 @@ export class AttackView {
     }
     switch (look) {
       case Z.glass:
-        r.burst(x, z, 0.2, Math.round(10 + rr * 4), 3 + rr, DUST.flats, 0.55, 0.2, { up: 2, drag: 3 });
+        r.burst(x, z, 0.2, Math.round(10 + rr * 4), 3 + rr, DUST.sunDunes, 0.55, 0.2, { up: 2, drag: 3 });
         r.burst(x, z, 0.4, Math.round(9 + rr * 3), 4 + rr, SHOT.glass, 0.4, 0.12, { up: 4, grav: 8, spark: true });
         r.debrisBurst(x, z, 0.25, Math.round(5 + rr * 2), SHOT.glass, 0.1, 4 + rr);
         r.ring(x, z, 0.2, rr * 1.1, SHOT.glass, 0.3);
@@ -745,7 +745,7 @@ export class AttackView {
         r.ring(x, z, rr * 0.3, rr * 1.2, LAVA, 0.35);
         r.flash(x, z, rr * 2.6, 1.25, LAVA, 3.5);
         this.mark(x, z, rr * 0.95, M.molten);
-        shake(kind === "mortar" ? 0.2 : 0.12);
+        shake(kind === "bellCannon" ? 0.2 : 0.12);
         break;
       case Z.frost:
         this.spikeBurst(x, z, rr);
@@ -806,7 +806,7 @@ export class AttackView {
         r.ring(x, z, rr * 0.3, rr, FIRE, 0.3);
         r.flash(x, z, rr * 1.6, 1.15, FIRE, 4.5);
         this.mark(x, z, rr * 0.75, M.burn);
-        shake(kind === "mortar" ? 0.25 : 0.1);
+        shake(kind === "bellCannon" ? 0.25 : 0.1);
     }
     return true;
   }
@@ -830,8 +830,8 @@ export class AttackView {
       switch (kind) {
         case "bolt":
         case "fast":
-        case "turret": {
-          const heavy = kind === "turret";
+        case "watchTower": {
+          const heavy = kind === "watchTower";
           const len = shot.r * (kind === "fast" ? 5.6 : heavy ? 3.8 : 3.1);
           r.ebCore.colC(r.ebCore.y(shot.x, h, shot.y, angle, len * 0.94, shot.r * 0.78, shot.r * 0.78), color, 1.32);
           r.ebCore.col(
@@ -864,20 +864,20 @@ export class AttackView {
           P.glow.colC(P.glow.yr(shot.x, h, shot.y, angle, s, s, s, 0, roll), FROST_SHOT, 0.9);
           break;
         }
-        case "weaver": {
+        case "starSpider": {
           const P = this.get("weavershot"),
             s = shot.r * 1.3;
           P.glow.colC(P.glow.yr(shot.x, h, shot.y, angle, s, s, s, 0, time * 8), color, 1.15);
           halo = 3;
           break;
         }
-        case "drone": {
+        case "dartSprite": {
           const P = this.get("dart"),
             s = shot.r * 1.2;
           P.glow.colC(P.glow.y(shot.x, h, shot.y, angle, s, s, s), color, 0.9);
           break;
         }
-        case "carrier": {
+        case "supplyKite": {
           const P = this.get("pod"),
             s = shot.r * 1.3;
           P.body.col(P.body.yr(shot.x, h, shot.y, angle, s, s, s, 0, Math.sin(time * 5 + shot.x) * 0.2), 1, 1, 1);

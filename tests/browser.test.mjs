@@ -117,13 +117,13 @@ for (const tablet of [true, false])
       const cdp = await page.context().newCDPSession(page);
       const ignored = await page.evaluate(() => {
         const input = window.__riftTest.game.input;
-        for (const id of ["dashBtn", "novaBtn", "gadgetBtn"])
+        for (const id of ["dashBtn", "fireBurstBtn", "gravityBellBtn"])
           document
             .getElementById(id)
             .dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerType: "mouse", button: 2 }));
         return { ...input.pending, touch: document.body.classList.contains("input-touch") };
       });
-      assert.deepEqual(ignored, { dash: 0, nova: 0, gadget: 0, fire: 0, touch: true });
+      assert.deepEqual(ignored, { dash: 0, fireBurst: 0, gravityBell: 0, fire: 0, touch: true });
       await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: 160, y: 260, id: 1 }] });
       await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: 220, y: 230, id: 1 }] });
       try {
@@ -296,8 +296,8 @@ test(
     const hudDesktop = await page.evaluate(() => ({
       activeTag: document.activeElement?.tagName,
       dashKey: getComputedStyle(document.querySelector("#dashBtn .key")).display !== "none",
-      novaKey: getComputedStyle(document.querySelector("#novaBtn .key")).display !== "none",
-      gadgetKey: getComputedStyle(document.getElementById("gadgetKey")).display !== "none",
+      novaKey: getComputedStyle(document.querySelector("#fireBurstBtn .key")).display !== "none",
+      gravityBellKey: getComputedStyle(document.getElementById("gravityBellKey")).display !== "none",
       cursor: getComputedStyle(document.getElementById("touch")).cursor,
       touchInput: document.body.classList.contains("input-touch"),
       audit: window.__riftLayoutAudit(),
@@ -305,7 +305,7 @@ test(
     assert.equal(hudDesktop.activeTag, "BODY");
     assert.equal(hudDesktop.dashKey, true);
     assert.equal(hudDesktop.novaKey, true);
-    assert.equal(hudDesktop.gadgetKey, true);
+    assert.equal(hudDesktop.gravityBellKey, true);
     assert.equal(hudDesktop.cursor, "none");
     assert.equal(hudDesktop.touchInput, false);
     assert.equal(hudDesktop.audit.ok, true, JSON.stringify(hudDesktop.audit.findings));
@@ -388,12 +388,12 @@ test(
 
     await page.evaluate(() => {
       const w = window.__riftTest.game.world;
-      w.player.nova = 100;
+      w.player.fireBurst = 100;
       if (w.player.gadgetN < 1) w.player.gadgetN = 1;
-      w.spawnEnemy("grunt", w.player.x + 4, w.player.y, {});
+      w.spawnEnemy("kettleGuard", w.player.x + 4, w.player.y, {});
     });
     await page.keyboard.press("KeyE");
-    await page.waitForFunction(() => window.__riftTest.game.world.player.nova < 100);
+    await page.waitForFunction(() => window.__riftTest.game.world.player.fireBurst < 100);
     const preGadget = await page.evaluate(() => window.__riftTest.game.world.player.gadgetN);
     await page.keyboard.press("KeyG");
     await page.waitForFunction((n) => window.__riftTest.game.world.player.gadgetN < n, preGadget);
@@ -434,7 +434,7 @@ test(
       const w = window.__riftTest.game.world;
       w.rerolls = 2;
       w.banishes = 1;
-      w.ws.banish = 1;
+      w.ws.seal = 1;
       w.planIdx = w.plan.length;
       w.markers.length = 0;
       w.bossPending = null;
@@ -445,12 +445,12 @@ test(
     await page.locator("#cards:not(.locked)").waitFor();
     const chooseBadges = await page.evaluate(() => ({
       cards: [...document.querySelectorAll("#cards .card-key")].map((el) => el.textContent),
-      banish: document.querySelector("#banishBtn .card-key")?.textContent,
+      seal: document.querySelector("#sealBtn .card-key")?.textContent,
       reroll: document.querySelector("#rerollBtn .card-key")?.textContent,
       audit: window.__riftLayoutAudit(),
     }));
     assert.deepEqual(chooseBadges.cards, ["1", "2", "3"]);
-    assert.equal(chooseBadges.banish, "B");
+    assert.equal(chooseBadges.seal, "B");
     assert.equal(chooseBadges.reroll, "R");
     assert.equal(chooseBadges.audit.ok, true, JSON.stringify(chooseBadges.audit.findings));
 
@@ -458,7 +458,7 @@ test(
       const { game, ui } = window.__riftTest;
       const w = game.world;
       const savedOffer = w.offer;
-      w.offer = ["dmg", "orbit", "arc", "bloodrush", "halo", "sealgrid"];
+      w.offer = ["dmg", "orbit", "sparkChain", "killStreak", "halo", "bellCage"];
       ui.renderCards(w);
       const cards = [...document.querySelectorAll("#cards .card")];
       const styles = cards.map((el) => {
@@ -500,13 +500,13 @@ test(
       overlay.callouts = [];
       return out;
     }, bossPairs);
-    const legacyCallouts = /\b(BULLET RING|LASER CROSS|OVERDRIVE|BOMBARDMENT|FROST NOVA)\b/i;
+    const obscureCallouts = /\b(carillon|orrery|crucible|crescendo|convergence|rime)\b/i;
     for (const row of calloutRows) {
       assert.ok(row.label.length > 0, `boss ${row.boss} attack "${row.attack}" must have a callout label`);
       assert.doesNotMatch(
         row.label,
-        legacyCallouts,
-        `boss ${row.boss} attack "${row.attack}" used legacy callout "${row.label}"`,
+        obscureCallouts,
+        `boss ${row.boss} attack "${row.attack}" used a term that was meant to be simplified "${row.label}"`,
       );
     }
 
@@ -588,13 +588,13 @@ test(
       const { player } = window.__riftTest.game.world;
       player.gadgetN = 0;
       player.gadgetT = 0.055;
-      player.nova = 100;
+      player.fireBurst = 100;
       window.__fixturePad.buttons[3].pressed = true;
     });
     await page.waitForFunction(() => window.__riftTest.game.world.singularities.length > 0);
     await pressPad(3, false);
     await pressPad(1, true);
-    await page.waitForFunction(() => window.__riftTest.game.world.player.nova < 100);
+    await page.waitForFunction(() => window.__riftTest.game.world.player.fireBurst < 100);
     await pressPad(1, false);
     await pressPad(9, true);
     await visible(page, "pause");

@@ -1,10 +1,10 @@
 // Stylized biome environmental hazards (Courtyard charged inlays, Caldera magma fumaroles, Shelf ice sheets,
-// Glowmarsh bio-acid pools, Core portals, Glass Flats swirling dust devils) on custom WebGL2 engine.
+// Moss Bog bio-acid pools, Core portals, Sun Dunes swirling dust devils) on custom WebGL2 engine.
 
 import { Color } from "../engine/math.js";
 import {
   cylinder,
-  disc,
+  ringBlade,
   icosahedron,
   octahedron,
   torus,
@@ -227,7 +227,7 @@ export class HazardView {
       doubleSide: fire,
       fog: !fire,
     });
-    pool = this.pl["s:" + kind] = new this.Pool(fire ? tube() : disc(1, 36), mat, max);
+    pool = this.pl["s:" + kind] = new this.Pool(fire ? tube() : ringBlade(1, 36), mat, max);
     pool.mesh.renderOrder = fire ? 4 : 1;
     this.add(pool);
     return pool;
@@ -246,7 +246,7 @@ export class HazardView {
     const arena = world.arena;
     const quality = Math.min(1, r.maxParticles / 1400);
     if (arena.vents.length) {
-      if (arena.biome.id === "courtyard") this.chargedInlays(dt, world, quality);
+      if (arena.biome.id === "lanternYard") this.chargedInlays(dt, world, quality);
       else this.vents(dt, world, quality);
     }
     if (arena.ice.length) this.ice(dt, world, quality);
@@ -425,9 +425,9 @@ export class HazardView {
         this.ring(x, z, radius * Math.max(0.24, 1 - k * 0.74), PYRO_HOT, 0.4 + k * 0.45);
         r.discs.colC(r.discs.y(x, 0.055, z, rot, radius * 0.95), AMBER, 0.09 + k * 0.14);
       } else if (live) {
-        const pulse = (time * 2.2 + seedOf(x, z)) % 1;
+        const lanternGun = (time * 2.2 + seedOf(x, z)) % 1;
         this.ring(x, z, radius, HEAT, 0.92);
-        this.ring(x, z, radius * (0.28 + pulse * 0.74), AMBER, (1 - pulse) * 0.85);
+        this.ring(x, z, radius * (0.28 + lanternGun * 0.74), AMBER, (1 - lanternGun) * 0.85);
         r.discs.colC(r.discs.y(x, 0.055, z, rot, radius * 0.96), HEAT, 0.28);
       }
 
@@ -556,12 +556,24 @@ export class HazardView {
           );
         }
       }
-      if (world.event === "harmonic" && world.state === "fight") {
+      if (world.event === "starPaths" && world.state === "fight") {
         // Empowering harmonic leyline connecting the portal pair
-        const pulse = 0.75 + 0.25 * Math.sin(time * 5.2);
-        r.beams.colC(r.beams.seg(portal.ax, portal.ay, portal.bx, portal.by, 0.14, 0.42, 0.04), PORTAL_A, 0.26 * pulse);
-        r.beams.colC(r.beams.seg(portal.ax, portal.ay, portal.bx, portal.by, 0.18, 0.14, 0.04), PORTAL_B, 0.56 * pulse);
-        r.beams.colC(r.beams.seg(portal.ax, portal.ay, portal.bx, portal.by, 0.22, 0.045, 0.03), WHITE, 0.7 * pulse);
+        const lanternGun = 0.75 + 0.25 * Math.sin(time * 5.2);
+        r.beams.colC(
+          r.beams.seg(portal.ax, portal.ay, portal.bx, portal.by, 0.14, 0.42, 0.04),
+          PORTAL_A,
+          0.26 * lanternGun,
+        );
+        r.beams.colC(
+          r.beams.seg(portal.ax, portal.ay, portal.bx, portal.by, 0.18, 0.14, 0.04),
+          PORTAL_B,
+          0.56 * lanternGun,
+        );
+        r.beams.colC(
+          r.beams.seg(portal.ax, portal.ay, portal.bx, portal.by, 0.22, 0.045, 0.03),
+          WHITE,
+          0.7 * lanternGun,
+        );
         if (Math.random() < dt * 12 * quality) {
           const f = Math.random();
           r.emit(

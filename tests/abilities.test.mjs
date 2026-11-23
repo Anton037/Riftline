@@ -28,7 +28,7 @@ class Pool {
   col() {}
 }
 function fixture() {
-  const w = new World({ seed: 731, weapon: "pulse", threat: 0, ws: {} });
+  const w = new World({ seed: 731, weapon: "lanternGun", threat: 0, ws: {} });
   w.startWave(2);
   w.fx = [];
   const warning = () => {
@@ -65,16 +65,16 @@ function fixture() {
 test("one real Nova produces one bounded wave and one sound, without a screen wash", () => {
   const { w, r, view, draw, dispose } = fixture();
   try {
-    w.player.nova = 100;
-    w.nova();
-    const events = w.fx.filter((e) => e.k === "nova" || (e.k === "boom" && e.kind === "nova"));
+    w.player.fireBurst = 100;
+    w.fireBurst();
+    const events = w.fx.filter((e) => e.k === "fireBurst" || (e.k === "boom" && e.kind === "fireBurst"));
     assert.equal(events.length, 2, "exercise the two simulation notifications");
     for (const ev of events) assert.equal(view.event(ev, w, 1), true);
     const played = [];
     SoundEngine.prototype.consume.call({ live: () => true, play: (id) => played.push(id) }, events, w);
-    assert.deepEqual(played, ["nova"]);
+    assert.deepEqual(played, ["fireBurst"]);
     assert.equal(view.pulses.length, 1);
-    const radius = events.find((e) => e.k === "nova").r;
+    const radius = events.find((e) => e.k === "fireBurst").r;
     r.time += 0.4;
     draw();
     assert.equal(view.wavePool.n, 1);
@@ -93,13 +93,16 @@ test("Singularity flight, pull and collapse use private resources and leave simu
   const { w, r, view, draw, dispose } = fixture();
   try {
     w.useGadget({ aim: false });
+    const launch = w.fx.find((event) => event.k === "gravityBell");
+    assert.equal(launch.handCast, true);
+    assert.ok(Math.hypot(launch.x - w.player.x, launch.y - w.player.y) > 0.5);
     let flight = false,
       pull = false,
       collapse = false;
     for (let frame = 0; frame < 150; frame++) {
       for (const e of w.fx) {
         view.event(e, w, 1);
-        if (e.k === "boom" && e.kind === "singularity") collapse = true;
+        if (e.k === "boom" && e.kind === "gravityBell") collapse = true;
       }
       w.fx = [];
       const before = JSON.stringify(w.singularities);
@@ -110,6 +113,7 @@ test("Singularity flight, pull and collapse use private resources and leave simu
         flight = true;
         assert.equal(view.corePool.n, 1);
         assert.equal(view.fieldPool.n, 1);
+        if (frame === 0) assert.deepEqual(view.corePool.transforms[0].slice(0, 3), [launch.x, 1.05, launch.y]);
       } else if (g && !g.done) {
         pull = true;
         assert.equal(view.fieldPool.n, 2);
@@ -133,7 +137,7 @@ test("simultaneous powers stay capped and a new world clears transient effects",
     w.player.gadgetN = 8;
     for (let i = 0; i < 8; i++) w.useGadget({ aim: false });
     w.updateSingularities(1);
-    for (let i = 0; i < 100; i++) view.event({ k: "nova", x: 0, y: 0, r: 5 }, w, 1);
+    for (let i = 0; i < 100; i++) view.event({ k: "fireBurst", x: 0, y: 0, r: 5 }, w, 1);
     r.time += 0.1;
     draw();
     assert.equal(view.pulses.length, 32);
@@ -157,7 +161,7 @@ test("enemy blocks never trigger the player's Aegis; a real absorbed hit does", 
     assert.equal(view.shieldHitAt, -Infinity);
     w.player.shield = true;
     w.player.iT = 0;
-    w.hurtPlayer(10, 1, 0, "grunt");
+    w.hurtPlayer(10, 1, 0, "kettleGuard");
     const event = w.fx.find((e) => e.k === "shieldBreak");
     assert.ok(event);
     assert.equal(view.event(event, w, 1), true);

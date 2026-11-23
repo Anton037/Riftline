@@ -12,7 +12,7 @@ The routine gate runs focused Node contracts and sequential browser checks.
 | `npm run audit:visual` | Six biomes and bosses on tablet and landscape phone, High | 240 s per layout |
 | `node tools/verify.js equipment <tag>` | Seven weapons, all 25 enemies, smoke/rockets and FPS controls | 240 s |
 | `npm run verify:combat` | Every current boss pattern/Overdrive, seven weapons and biome beam/trap skins | 300 s |
-| `npm run verify:abilities` | Power phases across all biomes, Aegis, portals and nine Shelf views on tablet/phone | 300 s per layout |
+| `npm run verify:abilities` | Power phases across all biomes, shield, portals and nine Snow Ridge views on tablet/phone | 300 s per layout |
 | `npm run verify:audio` | Optional synthesized sound, mix and voice checks | 420 s |
 | `npm run verify:audio-budget` | Optional audio scheduler/real-node parity | 180 s |
 | `npm run probe:audio` | Audio fault recovery | 120 s |
@@ -49,9 +49,9 @@ For centre/edge/corner screenshots use `node tools/verify.js visual <tag> tablet
   continuation. The unplugged cases assert zero Gamepad API polls.
 - Empty profiles exercise touch and desktop onboarding, hybrid hints, real WebAudio pause and backgrounding,
   and safe resume. The menu flow verifies workshop upgrades and milestone rewards, then purchases a repair
-  at Wayfarer's Anvil and resumes that checkpoint before entering the next realm at a narrow viewport.
-- Combat regressions cover native arm traits, Thermal Shatter, Perfect Dash, micro-hitstop, Guardian recovery
-  windows and phase gates, Masterwork rolls, wave cleanup rewards, and the Endless burst cap.
+  at Roadside Forge and resumes that checkpoint before entering the next realm at a narrow viewport.
+- Combat regressions cover native arm traits, Heat Shatter, Perfect Dash, micro-hitstop, Boss recovery
+  windows and phase gates, Master Craft rolls, wave cleanup rewards, and the Endless burst cap.
 - The worker fixture uses the real worker source with small pages. It installs A, rejects an incomplete
   release, installs B with the same product version/build but different content identity, activates B
   while the A page stays open, stops the server, fetches A's bundle offline, then reloads offline into B.
@@ -69,7 +69,7 @@ No arbitrary sleep is used to wait for gameplay. The runner terminates its proce
 
 ```sh
 # One biome on a phone with the 30 FPS cap, retaining High detail
-node tools/verify.js visual review land core 30
+node tools/verify.js visual review land starHall 30
 # Every biome on a tablet with the default 60 FPS cap
 node tools/verify.js visual review tablet all 60
 # Seven weapons, eight player turn/lean/recoil views, all 25 enemies, smoke/rockets and FPS controls
@@ -86,7 +86,7 @@ Arguments after `visual`: output tag, layout (`land`/`phone` or `tablet`), biome
 (`30`, `60`, `120`). Screenshots and metrics go to `verification-output/<tag>-<layout>-<fps>fps/`.
 All limits retain High detail, shadows and the full particle budget.
 Each biome has encounter, boss, warning/projectile and charge/sniper telegraph scenes. These are staged
-encounters. The combat review separately stages each unique current boss pattern, including the Core’s
+encounters. The combat review separately stages each unique current boss pattern, including the Star Heart’s
 middle phase, Overdrives and close-ups of every boss. Node contracts exercise all normal/enraged phase combinations.
 The capture freezes the live loop after boot, advances twelve settling updates with only the final WebGL
 submission, and captures real pixels. FPS limits are pacing ceilings; the staged capture is not a sustained performance benchmark.

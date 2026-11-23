@@ -111,8 +111,8 @@
   color-scheme: dark;
 }
 
-/* Biome 1: Lantern Courtyard — warm slate-walnut & antique brass lantern glow */
-#app[data-biome="courtyard"] {
+/* Biome 1: Lantern Yard — warm slate-walnut & antique brass lantern glow */
+#app[data-biome="lanternYard"] {
   --surf-hi: #26201a;
   --surf-lo: #15110e;
   --panel: rgba(22, 18, 15, 0.96);
@@ -137,8 +137,8 @@
   --boss-b: #e6c07e;
 }
 
-/* Biome 2: Aurora Shelf — deep midnight-fjord navy with calm frost-sapphire trim */
-#app[data-biome="shelf"] {
+/* Biome 2: Snow Ridge — deep midnight-fjord navy with calm frost-sapphire trim */
+#app[data-biome="snowRidge"] {
   --surf-hi: #182a40;
   --surf-lo: #0d1826;
   --panel: rgba(13, 24, 38, 0.96);
@@ -165,8 +165,8 @@
   --boss-b: #98d8eb;
 }
 
-/* Biome 3: Glowmarsh — deep nocturnal moss-ink with soft firefly gold & jade trim */
-#app[data-biome="marsh"] {
+/* Biome 3: Moss Bog — deep nocturnal moss-ink with soft firefly gold & jade trim */
+#app[data-biome="mossBog"] {
   --surf-hi: #162b22;
   --surf-lo: #0c1913;
   --panel: rgba(13, 25, 19, 0.96);
@@ -191,8 +191,8 @@
   --boss-b: #a4df94;
 }
 
-/* Biome 4: The Star-Vault — deep astral obsidian-velvet, muted amethyst & kintsugi gold */
-#app[data-biome="core"] {
+/* Biome 4: Star Hall — deep astral obsidian-velvet, muted amethyst & kintsugi gold */
+#app[data-biome="starHall"] {
   --surf-hi: #23193b;
   --surf-lo: #130c24;
   --panel: rgba(19, 13, 35, 0.96);
@@ -217,8 +217,8 @@
   --boss-b: #e2b0d4;
 }
 
-/* Biome 5: Ashfall Caldera — deep forged-iron basalt with warm hearth-ember & copper trim */
-#app[data-biome="caldera"] {
+/* Biome 5: Ember Hill — deep forged-iron basalt with warm hearth-ember & copper trim */
+#app[data-biome="emberHill"] {
   --surf-hi: #2b1916;
   --surf-lo: #170c0a;
   --panel: rgba(23, 13, 11, 0.96);
@@ -243,8 +243,8 @@
   --boss-b: #e4ae58;
 }
 
-/* Biome 6: Glass Flats — deep desert-night espresso & obsidian-bronze with turquoise-gold trim */
-#app[data-biome="flats"] {
+/* Biome 6: Sun Dunes — deep desert-night espresso & obsidian-bronze with turquoise-gold trim */
+#app[data-biome="sunDunes"] {
   --surf-hi: #2b2017;
   --surf-lo: #17100b;
   --panel: rgba(23, 16, 12, 0.96);
@@ -1337,7 +1337,7 @@ body.device-touch #home .arrow::after {
   background: conic-gradient(from 45deg, color-mix(in oklab, var(--accent) 80%, var(--amber)) var(--q, 0%), rgba(255, 244, 224, 0.12) 0);
 }
 .act-btn.dash.pop { animation: readyPop 0.38s ease-out; }
-.act-btn.dash.deny, .act-btn.nova.deny, .act-btn.gadget.deny { animation: deny 0.28s ease-out; }
+.act-btn.dash.deny, .act-btn.fireBurst.deny, .act-btn.gravityBell.deny { animation: deny 0.28s ease-out; }
 @keyframes deny {
   20% { transform: translateX(-4px); }
   45% { transform: translateX(4px); }
@@ -1347,13 +1347,13 @@ body.device-touch #home .arrow::after {
   0% { box-shadow: 0 0 0 0 rgba(223, 186, 106, 0.85); transform: scale(1.08); }
   100% { box-shadow: 0 0 0 16px rgba(223, 186, 106, 0); transform: none; }
 }
-.act-btn.nova {
+.act-btn.fireBurst {
   width: 60px;
   height: 60px;
   margin-right: 34px;
   color: var(--dim);
 }
-.act-btn.nova .ring {
+.act-btn.fireBurst .ring {
   position: absolute;
   inset: -3px;
   border-radius: 50%;
@@ -1361,12 +1361,12 @@ body.device-touch #home .arrow::after {
   -webkit-mask: radial-gradient(circle, transparent 58%, #000 60%);
   mask: radial-gradient(circle, transparent 58%, #000 60%);
 }
-.act-btn.nova.ready {
+.act-btn.fireBurst.ready {
   color: #fff;
   border-color: var(--amber);
   box-shadow: 0 0 22px rgba(223, 186, 106, 0.72);
 }
-.act-btn.gadget {
+.act-btn.gravityBell {
   width: 60px;
   height: 60px;
   display: flex;
@@ -1378,18 +1378,18 @@ body.device-touch #home .arrow::after {
   color: var(--violet);
   border-color: color-mix(in oklab, var(--violet) 68%, var(--hud-border));
 }
-.act-btn.gadget .gico {
+.act-btn.gravityBell .gico {
   position: relative;
   z-index: 2;
   width: 19px;
   height: 19px;
   margin-top: 1px;
 }
-.act-btn.gadget .lbl {
+.act-btn.gravityBell .lbl {
   font-size: 10px;
   letter-spacing: 0.10em;
 }
-.act-btn.gadget .ring {
+.act-btn.gravityBell .ring {
   position: absolute;
   inset: -3px;
   border-radius: 50%;
@@ -1397,7 +1397,7 @@ body.device-touch #home .arrow::after {
   -webkit-mask: radial-gradient(circle, transparent 58%, #000 60%);
   mask: radial-gradient(circle, transparent 58%, #000 60%);
 }
-.act-btn.gadget .pips,
+.act-btn.gravityBell .pips,
 .act-btn.dash .pips {
   position: absolute;
   z-index: 2;
@@ -1411,14 +1411,14 @@ body.device-touch #home .arrow::after {
 }
 .act-btn.dash .pips[hidden] { display: none; }
 .act-btn.dash.multi { padding-bottom: 8px; }
-.act-btn.gadget .pips i,
+.act-btn.gravityBell .pips i,
 .act-btn.dash .pips i {
   width: 5px;
   height: 5px;
   border-radius: 50%;
   background: rgba(255, 244, 224, 0.22);
 }
-.act-btn.gadget .pips i.on {
+.act-btn.gravityBell .pips i.on {
   background: var(--violet);
   box-shadow: 0 0 5px rgba(200, 158, 230, 0.9);
 }
@@ -1426,11 +1426,11 @@ body.device-touch #home .arrow::after {
   background: var(--accent);
   box-shadow: 0 0 5px color-mix(in oklab, var(--accent) 88%, #fff);
 }
-.act-btn.gadget.empty {
+.act-btn.gravityBell.empty {
   color: #b8a3cc;
   border-color: rgba(200, 158, 230, 0.45);
 }
-.act-btn.gadget.pop { animation: gadgetPop 0.38s ease-out; }
+.act-btn.gravityBell.pop { animation: gadgetPop 0.38s ease-out; }
 @keyframes gadgetPop {
   0% { box-shadow: 0 0 0 0 rgba(200, 158, 230, 0.9); transform: scale(1.1); }
   100% { box-shadow: 0 0 0 16px rgba(200, 158, 230, 0); transform: none; }
@@ -2391,7 +2391,7 @@ input[type=range]::-moz-range-thumb {
     inset 0 0 24px rgba(201, 154, 56, 0.14),
     0 14px 34px rgba(5, 3, 2, 0.72);
 }
-/* Tier 5 — Masterwork (Evolution): Celestial Slate-Sapphire + Antique Brass */
+/* Tier 5 — Master Craft (Evolution): Celestial Slate-Sapphire + Antique Brass */
 .card.r5 {
   --rc: #cfb05c;
   --card-top: #113046;
@@ -2412,7 +2412,7 @@ input[type=range]::-moz-range-thumb {
 }
 .card.r5::before { background: linear-gradient(90deg, #cfb05c, #5ab6c8, #cfb05c); }
 .card.r5 .lv { color: #071822; }
-/* Tier 6 — Guardian Relic: Wax-Seal Garnet + Burnished Bronze */
+/* Tier 6 — Boss Reward: Wax-Seal Garnet + Burnished Bronze */
 .card.r6 {
   --rc: #c45e4e;
   --card-top: #44161e;
@@ -2498,7 +2498,7 @@ input[type=range]::-moz-range-thumb {
   color: #f2ac90;
 }
 body:not(.input-touch) .cards.banishing .card::after { content: "CLICK TO SEAL"; }
-#banishBtn.on {
+#sealBtn.on {
   border-color: #f29b7e;
   color: #f2ac90;
 }
@@ -3454,11 +3454,11 @@ body.device-phone.is-landscape #hud .act {
 }
 body.device-phone.is-landscape #hud .act-row { gap: 15px; }
 body.device-phone.is-landscape #hud .act-btn { width: 58px; height: 58px; }
-body.device-phone.is-landscape #hud .act-btn.nova { width: 50px; height: 50px; margin-right: 24px; }
-body.device-phone.is-landscape #hud .act-btn.gadget { width: 50px; height: 50px; padding-bottom: 8px; }
-body.device-phone.is-landscape #hud .act-btn.gadget .gico { width: 16px; height: 16px; margin-top: 0; }
-body.device-phone.is-landscape #hud .act-btn.gadget .lbl { font-size: 10px; letter-spacing: 0.06em; }
-body.device-phone.is-landscape #hud .act-btn.gadget .pips,
+body.device-phone.is-landscape #hud .act-btn.fireBurst { width: 50px; height: 50px; margin-right: 24px; }
+body.device-phone.is-landscape #hud .act-btn.gravityBell { width: 50px; height: 50px; padding-bottom: 8px; }
+body.device-phone.is-landscape #hud .act-btn.gravityBell .gico { width: 16px; height: 16px; margin-top: 0; }
+body.device-phone.is-landscape #hud .act-btn.gravityBell .lbl { font-size: 10px; letter-spacing: 0.06em; }
+body.device-phone.is-landscape #hud .act-btn.gravityBell .pips,
 body.device-phone.is-landscape #hud .act-btn.dash .pips { bottom: 4px; }
 body.device-phone.is-landscape #hud .combo-pop { top: calc(var(--st) + 18%); }
 body.device-phone.is-landscape #banner { top: 24%; }
@@ -3666,8 +3666,8 @@ body.device-phone.is-landscape #app:has(#hud:not([hidden])) .toast {
     width: clamp(50px, 16vh, 58px);
     height: clamp(50px, 16vh, 58px);
   }
-  body.device-phone.is-landscape #hud .act-btn.nova,
-  body.device-phone.is-landscape #hud .act-btn.gadget {
+  body.device-phone.is-landscape #hud .act-btn.fireBurst,
+  body.device-phone.is-landscape #hud .act-btn.gravityBell {
     width: clamp(44px, 14vh, 50px);
     height: clamp(44px, 14vh, 50px);
   }
@@ -3716,7 +3716,7 @@ body.device-phone.is-landscape #app:has(#hud:not([hidden])) .toast {
     animation: none;
     transform: rotate(-90deg);
   }
-  #vignette.low, .act-btn.gadget.pop, .act-btn.nova.ready {
+  #vignette.low, .act-btn.gravityBell.pop, .act-btn.fireBurst.ready {
     animation: none !important;
   }
 }
@@ -3732,7 +3732,7 @@ body.device-phone.is-landscape #app:has(#hud:not([hidden])) .toast {
   }
 }
 /* ============================================================================
-   Storybook UI Cohesion, Desktop HUD Fixes, Boot Veil, Journal Codex & Anvil
+   Storybook UI Cohesion, Desktop HUD Fixes, Boot Veil, Journal Guide & Anvil
    ============================================================================ */
 .boot-veil {
   position: fixed;
@@ -3930,7 +3930,7 @@ body.input-touch #pauseBtn .key, body.input-gamepad #pauseBtn .key { display: no
 .alert-banner b { color: var(--amber); }
 .alert-banner .btn-row { width: auto; flex: 0 0 auto; }
 
-/* Sanctuary Workshop category headings */
+/* Home Workshop category headings */
 .ws-group-h {
   grid-column: 1 / -1;
   display: flex;
@@ -3950,7 +3950,7 @@ body.input-touch #pauseBtn .key, body.input-gamepad #pauseBtn .key { display: no
   background: linear-gradient(90deg, rgba(223, 186, 106, 0.42), transparent);
 }
 
-/* Journal tabs (Milestones / Chronicle / Codex) & Codex cards */
+/* Journal tabs (Achievements / Run History / Guide) & Guide cards */
 .tab-bar {
   display: flex;
   align-items: center;
@@ -4213,7 +4213,7 @@ body.input-gamepad .desktop-control { display: none; }
   text-shadow: 0 4px 28px rgba(0, 0, 0, 0.72), 0 0 22px rgba(223, 186, 106, 0.5);
 }
 
-/* Wayfarer's Anvil (between-biome shard shop) */
+/* Roadside Forge (between-biome shard shop) */
 #anvil .center-col {
   max-width: 720px;
 }
@@ -4294,7 +4294,7 @@ body.input-gamepad .desktop-control { display: none; }
       body.dataset.device = device;
       body.dataset.orientation = w >= h ? 'landscape' : 'portrait';
       // Only enforce needs-rotate on phones when in an active run (#hud, #pause, #choose, #hudEdit visible or game.mode === "game"),
-      // allowing players to browse Home, Workshop, Journal, Chronicle, and Settings comfortably in portrait or landscape.
+      // allowing players to browse Home, Workshop, Journal, Run History, and Settings comfortably in portrait or landscape.
       const inRun = Boolean(
         window.__riftTest?.game?.mode === 'game' ||
         ['hud', 'pause', 'choose', 'anvil', 'hudEdit'].some((id) => {
@@ -4376,7 +4376,7 @@ body.input-gamepad .desktop-control { display: none; }
   <div id="hud" hidden>
     <div class="hud-top">
       <div class="hp-block">
-        <div class="hp-label"><span>HP</span><span id="hpNum" class="num">100</span><span id="shieldPip" class="pip" hidden title="Mirror Ward"></span></div>
+        <div class="hp-label"><span>HP</span><span id="hpNum" class="num">100</span><span id="shieldPip" class="pip" hidden title="Mirror Shield"></span></div>
         <div class="bar hp"><i id="hpFill"></i></div>
         <div id="buffs" class="buffs"></div>
       </div>
@@ -4397,14 +4397,14 @@ body.input-gamepad .desktop-control { display: none; }
       </div>
     </div>
     <div id="bossBar" class="boss-bar" hidden>
-      <div class="boss-name"><span id="bossName">Guardian</span><span id="bossPhase"></span></div>
+      <div class="boss-name"><span id="bossName">Boss</span><span id="bossPhase"></span></div>
       <div class="bar boss"><i id="bossFill"></i><b id="bossLag"></b><span id="bossTicks" class="ticks"></span></div>
     </div>
     <div id="coach" class="coach" hidden><div id="coachDots" class="coach-dots"></div><p id="coachText"></p></div>
     <div class="act">
       <div class="act-row">
-        <button id="gadgetBtn" class="act-btn gadget" aria-label="Throw Gravity Chime"><span class="ring"></span><svg class="gico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="currentColor"/><path d="M12 3.5a8.5 8.5 0 0 1 8.5 8.5M20.5 12a8.5 8.5 0 0 1-8.5 8.5M12 20.5A8.5 8.5 0 0 1 3.5 12M3.5 12A8.5 8.5 0 0 1 12 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="7 6"/><path d="M12 7.2a4.8 4.8 0 0 1 4.8 4.8M12 16.8A4.8 4.8 0 0 1 7.2 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span class="lbl">CHIME</span><span id="gadgetPips" class="pips" aria-hidden="true"></span><span id="gadgetKey" class="key" aria-hidden="true">G</span><span class="key pad-key" aria-hidden="true">Y</span></button>
-        <button id="novaBtn" class="act-btn nova" aria-label="Hearthburst"><span class="ring"></span><span class="lbl">BURST</span><span class="key" aria-hidden="true">E</span><span class="key pad-key" aria-hidden="true">B</span></button>
+        <button id="gravityBellBtn" class="act-btn gravityBell" aria-label="Throw Gravity Bell"><span class="ring"></span><svg class="gico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="currentColor"/><path d="M12 3.5a8.5 8.5 0 0 1 8.5 8.5M20.5 12a8.5 8.5 0 0 1-8.5 8.5M12 20.5A8.5 8.5 0 0 1 3.5 12M3.5 12A8.5 8.5 0 0 1 12 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="7 6"/><path d="M12 7.2a4.8 4.8 0 0 1 4.8 4.8M12 16.8A4.8 4.8 0 0 1 7.2 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span class="lbl">BELL</span><span id="gravityBellPips" class="pips" aria-hidden="true"></span><span id="gravityBellKey" class="key" aria-hidden="true">G</span><span class="key pad-key" aria-hidden="true">Y</span></button>
+        <button id="fireBurstBtn" class="act-btn fireBurst" aria-label="Fire Burst"><span class="ring"></span><span class="lbl">BURST</span><span class="key" aria-hidden="true">E</span><span class="key pad-key" aria-hidden="true">B</span></button>
       </div>
       <button id="dashBtn" class="act-btn dash" aria-label="Dash"><span class="ring"></span><span class="lbl">DASH</span><span id="dashPips" class="pips" aria-hidden="true" hidden></span><span class="key" aria-hidden="true">SPACE</span><span class="key pad-key" aria-hidden="true">A</span></button>
     </div>
@@ -4450,14 +4450,14 @@ body.input-gamepad .desktop-control { display: none; }
     <div class="home-grid">
       <div class="brand">
         <h1 class="logo" data-text="Riftline">Riftline</h1>
-        <p class="tagline">Six Miniature Realms · Twenty Waves · Lantern-Artificer</p>
+        <p class="tagline">Six Areas · Twenty Waves · Lantern Keeper</p>
         <p id="bestLine" class="best-line" hidden></p>
       </div>
       <div class="home-panel">
         <div class="weapon-card panel">
           <div class="wc-head">
             <button id="wPrev" class="arrow" aria-label="Previous weapon" data-icon="back"></button>
-            <div class="wc-title"><div class="eyebrow">ARMAMENT <span id="wIndex"></span></div><div id="wName" class="wc-name">Lantern Repeater</div></div>
+            <div class="wc-title"><div class="eyebrow">WEAPON <span id="wIndex"></span></div><div id="wName" class="wc-name">Lantern Gun</div></div>
             <button id="wNext" class="arrow flip" aria-label="Next weapon" data-icon="back"></button>
           </div>
           <p id="wBlurb" class="wc-blurb"></p>
@@ -4466,9 +4466,9 @@ body.input-gamepad .desktop-control { display: none; }
           <button id="wBuy" class="btn buy" hidden></button>
         </div>
         <div class="threat-row panel">
-          <button id="tPrev" class="arrow small" aria-label="Lower trial" data-icon="back"></button>
-          <div class="threat-mid"><div id="tName" class="threat-name">Wayfarer</div><div id="tDesc" class="threat-desc"></div></div>
-          <button id="tNext" class="arrow small flip" aria-label="Higher trial" data-icon="back"></button>
+          <button id="tPrev" class="arrow small" aria-label="Lower difficulty" data-icon="back"></button>
+          <div class="threat-mid"><div id="tName" class="threat-name">Normal</div><div id="tDesc" class="threat-desc"></div></div>
+          <button id="tNext" class="arrow small flip" aria-label="Higher difficulty" data-icon="back"></button>
         </div>
         <button id="continueBtn" class="btn primary alt" hidden></button>
         <p id="continueNote" class="note checkpoint-note" hidden></p>
@@ -4476,22 +4476,22 @@ body.input-gamepad .desktop-control { display: none; }
       </div>
     </div>
     <nav class="bottom-nav" aria-label="Primary">
-      <button data-go="workshop"><span data-icon="wrench"></span>Sanctuary</button>
+      <button data-go="workshop"><span data-icon="wrench"></span>Workshop</button>
       <button data-go="records"><span data-icon="trophy"></span>Journal<i id="recBadge" class="badge" hidden></i></button>
       <button data-go="news"><span data-icon="info"></span>News<i id="newsBadge" class="badge" hidden></i></button>
       <button data-go="settings"><span data-icon="gear"></span>Settings</button>
     </nav>
   </section>
 
-  <!-- ====================================================== SANCTUARY (WORKSHOP) -->
+  <!-- ====================================================== HOME (WORKSHOP) -->
   <section id="workshop" class="screen page" hidden>
     <header class="topbar">
       <button class="icon-btn" data-back aria-label="Back" data-icon="back"></button>
-      <h2>Sanctuary</h2>
+      <h2>Workshop</h2>
       <div class="spacer"></div>
       <div class="shard-chip big"><span class="shard-ico"></span><span class="num bankMirror">0</span></div>
     </header>
-    <p class="page-intro">Permanent crafts forged at the lantern bench. Spend shards earned from every expedition — won or lost.</p>
+    <p class="page-intro">Spend shards from your runs on permanent upgrades.</p>
     <div id="wsList" class="list scroll"></div>
   </section>
 
@@ -4504,14 +4504,14 @@ body.input-gamepad .desktop-control { display: none; }
       <div class="shard-chip big"><span class="shard-ico"></span><span class="num bankMirror">0</span></div>
     </header>
     <div class="tab-bar" id="recTabs" role="tablist" aria-label="Journal sections">
-      <button class="tab-btn on" data-rec-tab="milestones" role="tab" aria-selected="true">Milestones</button>
-      <button class="tab-btn" data-rec-tab="chronicle" role="tab" aria-selected="false">Chronicle</button>
-      <button class="tab-btn" data-rec-tab="codex" role="tab" aria-selected="false">Codex</button>
+      <button class="tab-btn on" data-rec-tab="milestones" role="tab" aria-selected="true">Achievements</button>
+      <button class="tab-btn" data-rec-tab="chronicle" role="tab" aria-selected="false">Run History</button>
+      <button class="tab-btn" data-rec-tab="codex" role="tab" aria-selected="false">Guide</button>
     </div>
     <div class="scroll">
       <div id="recMilestonesPane">
         <div class="rec-actions">
-          <p class="page-intro" style="margin:0">Claim shard rewards for milestones completed across your runs.</p>
+          <p class="page-intro" style="margin:0">Claim shards for your achievements.</p>
           <button id="claimAllBtn" class="btn small buy" hidden>Claim All</button>
         </div>
         <div id="msList" class="list"></div>
@@ -4519,14 +4519,14 @@ body.input-gamepad .desktop-control { display: none; }
       <div id="recChroniclePane" hidden>
         <h3 class="section-h">Lifetime stats</h3>
         <div id="statGrid" class="stat-grid"></div>
-        <h3 class="section-h">Recent Expeditions</h3>
+        <h3 class="section-h">Recent Runs</h3>
         <div id="runHist" class="list"></div>
       </div>
       <div id="recCodexPane" hidden>
         <div class="codex-subtabs" id="codexSubtabs">
-          <button class="tab-btn on" data-codex-tab="realms">Realms &amp; Relics</button>
-          <button class="tab-btn" data-codex-tab="foes">Foes &amp; Guardians</button>
-          <button class="tab-btn" data-codex-tab="masterworks">Masterworks</button>
+          <button class="tab-btn on" data-codex-tab="areas">Areas &amp; Objects</button>
+          <button class="tab-btn" data-codex-tab="enemies">Enemies &amp; Bosses</button>
+          <button class="tab-btn" data-codex-tab="masterworks">Master Crafts</button>
         </div>
         <div id="codexList" class="codex-grid"></div>
       </div>
@@ -4551,7 +4551,7 @@ body.input-gamepad .desktop-control { display: none; }
     <div class="scroll settings-body">
       <h3 class="section-h">Controls</h3>
       <div class="set-group">
-        <label class="set-row"><span><b>Auto-fire</b><small>Shoots the nearest foe while you are not aiming.</small></span><input type="checkbox" id="setAuto" class="toggle"></label>
+        <label class="set-row"><span><b>Auto-fire</b><small>Shoots the nearest enemy while you are not aiming.</small></span><input type="checkbox" id="setAuto" class="toggle"></label>
         <label class="set-row"><span><b>Aim assist</b><small>Gently steadies your aim onto nearby targets.</small></span><input type="checkbox" id="setAssist" class="toggle"></label>
         <div class="set-row" id="hudEditRow"><span><b>Button layout</b><small id="hudLayoutNote">Move and resize the touch buttons and sticks.</small></span><button id="hudEditBtn" class="btn small">Edit</button></div>
       </div>
@@ -4559,8 +4559,8 @@ body.input-gamepad .desktop-control { display: none; }
         <div class="ctrl-row"><span>Move</span><kbd class="desktop-control">W A S D / Arrows</kbd><kbd class="pad-control">Left stick</kbd><span class="touch-control">Drag left side</span></div>
         <div class="ctrl-row"><span>Aim &amp; Fire</span><kbd class="desktop-control">Mouse + LMB</kbd><kbd class="pad-control">Right stick + RT</kbd><span class="touch-control">Drag right side</span></div>
         <div class="ctrl-row"><span>Dash</span><kbd class="desktop-control">Space / Shift / RMB</kbd><kbd class="pad-control">A / LB</kbd><span class="touch-control">Dash button</span></div>
-        <div class="ctrl-row"><span>Hearthburst</span><kbd class="desktop-control">E / Q / F</kbd><kbd class="pad-control">B / RB</kbd><span class="touch-control">Burst button</span></div>
-        <div class="ctrl-row"><span>Gravity Chime</span><kbd class="desktop-control">G</kbd><kbd class="pad-control">Y / LT</kbd><span class="touch-control">Chime button</span></div>
+        <div class="ctrl-row"><span>Fire Burst</span><kbd class="desktop-control">E / Q / F</kbd><kbd class="pad-control">B / RB</kbd><span class="touch-control">Burst button</span></div>
+        <div class="ctrl-row"><span>Gravity Bell</span><kbd class="desktop-control">G</kbd><kbd class="pad-control">Y / LT</kbd><span class="touch-control">Chime button</span></div>
         <div class="ctrl-row"><span>Pause</span><kbd class="desktop-control">Esc / P</kbd><kbd class="pad-control">Start</kbd><span class="touch-control">Pause button</span></div>
         <div class="ctrl-row"><span>Mute</span><kbd class="desktop-control">M</kbd><kbd class="pad-control">Sound settings</kbd><span class="touch-control">Sound settings</span></div>
         <div class="ctrl-row pad-control"><span>Menus</span><kbd>D-pad · A select · B back</kbd></div>
@@ -4607,34 +4607,34 @@ body.input-gamepad .desktop-control { display: none; }
     <div class="choose-head">
       <div id="chooseEyebrow" class="eyebrow">WAVE 1 CLEARED</div>
       <h2 id="chooseTitle">Choose a craft</h2>
-      <p id="chooseFirstHint" class="choose-first-hint" hidden>Crafts strengthen your build for this run. Spend shards in the Sanctuary for permanent upgrades.</p>
+      <p id="chooseFirstHint" class="choose-first-hint" hidden>Crafts strengthen this run. Spend shards in the Workshop for permanent upgrades.</p>
       <div id="nextWave" class="next-wave" aria-live="polite"></div>
       <div class="choose-hp"><div class="bar hp small"><i id="chooseHp"></i></div><span id="chooseHpNum" class="num"></span></div>
     </div>
     <div id="cards" class="cards"></div>
     <div class="choose-foot">
       <button id="rerollBtn" class="btn ghost"><span data-icon="reroll"></span><span id="rerollTxt">Reroll</span></button>
-      <button id="banishBtn" class="btn ghost" hidden><span data-icon="skull"></span><span id="banishTxt">Seal</span></button>
+      <button id="sealBtn" class="btn ghost" hidden><span data-icon="skull"></span><span id="sealTxt">Seal</span></button>
     </div>
     <div id="buildStrip" class="build-strip"></div>
     <div id="chooseUpInfo" aria-live="polite" hidden></div>
   </section>
 
-  <!-- ====================================================== WAYFARER'S ANVIL -->
+  <!-- ====================================================== ROADSIDE FORGE -->
   <section id="anvil" class="screen overlay" hidden>
     <div class="choose-top-actions">
       <button id="anvilPauseBtn" class="icon-btn" aria-label="Pause" data-icon="pause"></button>
     </div>
     <div class="center-col">
-      <div id="anvilEyebrow" class="eyebrow">BETWEEN REALMS</div>
-      <h2>Wayfarer's Anvil</h2>
-      <p class="note">Spend run shards before stepping into the next realm, or keep them for the Sanctuary.</p>
+      <div id="anvilEyebrow" class="eyebrow">BETWEEN AREAS</div>
+      <h2>Roadside Forge</h2>
+      <p class="note">Spend shards here or save them for the Workshop.</p>
       <div class="anvil-status">
         <div class="shard-chip"><span class="shard-ico"></span><span id="anvilShards" class="num">0</span></div>
         <div class="choose-hp"><div class="bar hp small"><i id="anvilHp"></i></div><span id="anvilHpNum" class="num"></span></div>
       </div>
       <div id="anvilOffers" class="anvil-grid"></div>
-      <button id="anvilContinueBtn" class="btn primary">Continue to Next Realm</button>
+      <button id="anvilContinueBtn" class="btn primary">Continue</button>
     </div>
   </section>
 
@@ -4664,8 +4664,8 @@ body.input-gamepad .desktop-control { display: none; }
             <div class="ctrl-row"><span>Move</span><kbd class="desktop-control">W A S D / Arrows</kbd><kbd class="pad-control">Left stick</kbd><span class="touch-control">Drag left side</span></div>
             <div class="ctrl-row"><span>Aim &amp; Fire</span><kbd class="desktop-control">Mouse + LMB</kbd><kbd class="pad-control">Right stick + RT</kbd><span class="touch-control">Drag right side</span></div>
             <div class="ctrl-row"><span>Dash</span><kbd class="desktop-control">Space / Shift / RMB</kbd><kbd class="pad-control">A / LB</kbd><span class="touch-control">Dash button</span></div>
-            <div class="ctrl-row"><span>Hearthburst</span><kbd class="desktop-control">E / Q / F</kbd><kbd class="pad-control">B / RB</kbd><span class="touch-control">Burst button</span></div>
-            <div class="ctrl-row"><span>Gravity Chime</span><kbd class="desktop-control">G</kbd><kbd class="pad-control">Y / LT</kbd><span class="touch-control">Chime button</span></div>
+            <div class="ctrl-row"><span>Fire Burst</span><kbd class="desktop-control">E / Q / F</kbd><kbd class="pad-control">B / RB</kbd><span class="touch-control">Burst button</span></div>
+            <div class="ctrl-row"><span>Gravity Bell</span><kbd class="desktop-control">G</kbd><kbd class="pad-control">Y / LT</kbd><span class="touch-control">Chime button</span></div>
             <div class="ctrl-row"><span>Pause</span><kbd class="desktop-control">Esc / P</kbd><kbd class="pad-control">Start</kbd><span class="touch-control">Pause button</span></div>
             <div class="ctrl-row"><span>Mute</span><kbd class="desktop-control">M</kbd><kbd class="pad-control">Sound settings</kbd><span class="touch-control">Sound settings</span></div>
           </div>

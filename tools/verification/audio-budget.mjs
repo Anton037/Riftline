@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { withAudioPage } from "./audio-page.mjs";
 const url = process.argv[2] || "http://localhost:8124/index.html";
-for (const biome of ["courtyard", "shelf", "marsh", "core", "caldera", "flats"]) {
+for (const biome of ["lanternYard", "snowRidge", "mossBog", "starHall", "emberHill", "sunDunes"]) {
   const result = await withAudioPage(
     url,
     (biome) => {

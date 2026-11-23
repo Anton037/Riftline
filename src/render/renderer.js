@@ -2,7 +2,16 @@
 // camera, GPU-instanced pools, particles, biomes, actors, bosses and combat effects.
 
 import { Color, Euler, Mat4, Quat, Vec3, Camera } from "../engine/math.js";
-import { box, cylinder, disc, octahedron, plane, ring, sculptedCrystal, mergeGeometries } from "../engine/geometry.js";
+import {
+  box,
+  cylinder,
+  ringBlade,
+  octahedron,
+  plane,
+  ring,
+  sculptedCrystal,
+  mergeGeometries,
+} from "../engine/geometry.js";
 import {
   CompactInstancePool,
   GpuDebrisRing,
@@ -55,7 +64,7 @@ import { actorMaterial } from "../data/materials.js";
 import { AMBIENT_POOL_SHARE } from "../data/atmosphere.js";
 import { enemyDefs, eliteAffixes, bossDefs, biomeVariants } from "../data/enemies.js";
 import { biomeList } from "../data/biomes.js";
-import { weaponDefs } from "../data/weapons.js";
+import { muzzlePoint, weaponDefs } from "../data/weapons.js";
 import { STEP_LEN, DASH_TIME } from "../core/walk.js";
 import { logError } from "../core/diagnostics.js";
 import { smoothstep, clamp, TAU, easeOutBack, dampFactor, angleDiff } from "../core/util.js";
@@ -73,41 +82,41 @@ const variantColors = Object.fromEntries(Object.values(biomeVariants).map((v) =>
 
 // Biome-matched footstep & dash wake micro-VFX (rain ripples, snow crystals, spores, stardust, ash cinders, sand-glass)
 const BIOME_WAKE_VFX = {
-  courtyard: { color: hexColor(0x98c4dc), up: 1.1, life: 0.3, size: 0.14, grav: 4.5, spark: false, ring: true },
-  shelf: { color: hexColor(0xe6f9ff), up: 1.45, life: 0.38, size: 0.16, grav: 2.4, spark: true, ring: false },
-  marsh: { color: hexColor(0x7effbe), up: 1.15, life: 0.48, size: 0.17, grav: -0.6, spark: false, ring: true },
-  core: { color: hexColor(0xffe094), up: 1.5, life: 0.36, size: 0.15, grav: -0.4, spark: true, ring: false },
-  caldera: { color: hexColor(0xff9c42), up: 1.75, life: 0.4, size: 0.16, grav: -1.2, spark: true, ring: false },
-  flats: { color: hexColor(0xf0d696), up: 1.3, life: 0.34, size: 0.15, grav: 2.6, spark: true, ring: false },
+  lanternYard: { color: hexColor(0x98c4dc), up: 1.1, life: 0.3, size: 0.14, grav: 4.5, spark: false, ring: true },
+  snowRidge: { color: hexColor(0xe6f9ff), up: 1.45, life: 0.38, size: 0.16, grav: 2.4, spark: true, ring: false },
+  mossBog: { color: hexColor(0x7effbe), up: 1.15, life: 0.48, size: 0.17, grav: -0.6, spark: false, ring: true },
+  starHall: { color: hexColor(0xffe094), up: 1.5, life: 0.36, size: 0.15, grav: -0.4, spark: true, ring: false },
+  emberHill: { color: hexColor(0xff9c42), up: 1.75, life: 0.4, size: 0.16, grav: -1.2, spark: true, ring: false },
+  sunDunes: { color: hexColor(0xf0d696), up: 1.3, life: 0.34, size: 0.15, grav: 2.6, spark: true, ring: false },
 };
 
 // Ranged barrel-recoiling enemy types whose Mode 4 recoil responds strictly to enemy.recoilT
-const RECOIL_BARREL_TYPES = new Set(["gunner", "sniper", "mortar", "turret"]);
+const RECOIL_BARREL_TYPES = new Set(["brassGuard", "longshot", "bellCannon", "watchTower"]);
 
 const BOSS_PORTAL = {
-  bellkeeper: [hexColor(FINISH.brass), hexColor(FINISH.ivory)],
-  prism: [hexColor(FINISH.glacier), hexColor(FINISH.ivory)],
-  queen: [hexColor(FINISH.jade), hexColor(0xd6ffe8)],
-  core: [hexColor(FINISH.lavender), hexColor(0xff84cc)],
-  tyrant: [hexColor(0xff8c36), hexColor(0xffe094)],
-  wyrm: [hexColor(0xffd27a), hexColor(0x76e8d4)],
+  bellKeeper: [hexColor(FINISH.brass), hexColor(FINISH.ivory)],
+  iceCrystal: [hexColor(FINISH.glacier), hexColor(FINISH.ivory)],
+  mossQueen: [hexColor(FINISH.jade), hexColor(0xd6ffe8)],
+  starHall: [hexColor(FINISH.lavender), hexColor(0xff84cc)],
+  emberKing: [hexColor(0xff8c36), hexColor(0xffe094)],
+  sandDragon: [hexColor(0xffd27a), hexColor(0x76e8d4)],
 };
 
 const BIOME_ENEMY_DRESS = {
-  courtyard: [0.99, 0.99, 1.02],
-  shelf: [0.97, 1.0, 1.04],
-  marsh: [0.97, 1.02, 0.99],
-  core: [1.02, 0.98, 1.04],
-  caldera: [1.04, 0.99, 0.96],
-  flats: [1.03, 1.01, 0.97],
+  lanternYard: [0.99, 0.99, 1.02],
+  snowRidge: [0.97, 1.0, 1.04],
+  mossBog: [0.97, 1.02, 0.99],
+  starHall: [1.02, 0.98, 1.04],
+  emberHill: [1.04, 0.99, 0.96],
+  sunDunes: [1.03, 1.01, 0.97],
 };
 const BIOME_PORTAL_ACCENT = {
-  courtyard: hexColor(0xf2be72),
-  shelf: hexColor(0x9ceeff),
-  marsh: hexColor(0x7cf8b2),
-  core: hexColor(0xd29cff),
-  caldera: hexColor(0xffa248),
-  flats: hexColor(0x68f0de),
+  lanternYard: hexColor(0xf2be72),
+  snowRidge: hexColor(0x9ceeff),
+  mossBog: hexColor(0x7cf8b2),
+  starHeart: hexColor(0xd29cff),
+  emberHill: hexColor(0xffa248),
+  sunDunes: hexColor(0x68f0de),
 };
 
 const STEP_LOOK = {
@@ -126,31 +135,31 @@ const STEP_LOOK = {
 };
 
 const RL_MOTION = {
-  swarmer: { ref: 7, f: 2.2, roll: 0.18, lean: 0.14, bounce: 0.12, hover: 0.08, hf: 7, breath: 0.03, bf: 6 },
-  mite: { ref: 7, f: 2.8, roll: 0.22, lean: 0.12, bounce: 0.14, hover: 0, hf: 0, breath: 0.04, bf: 8 },
-  grunt: { ref: 5, f: 1.6, roll: 0.1, lean: 0.12, bounce: 0.1, hover: 0, hf: 0, breath: 0.025, bf: 3 },
-  gunner: { ref: 4, f: 1.3, roll: 0.08, lean: 0.08, bounce: 0.07, hover: 0, hf: 0, breath: 0.02, bf: 2.6 },
-  bomber: { ref: 5, f: 1.8, roll: 0.14, lean: 0.14, bounce: 0.12, hover: 0, hf: 0, breath: 0.05, bf: 6 },
-  splitter: { ref: 4, f: 1.4, roll: 0.1, lean: 0.08, bounce: 0.08, hover: 0.05, hf: 4, breath: 0.04, bf: 4 },
-  brute: { ref: 4, f: 1.1, roll: 0.09, lean: 0.14, bounce: 0.09, hover: 0, hf: 0, breath: 0.02, bf: 2 },
-  sniper: { ref: 4, f: 1.2, roll: 0.06, lean: 0.06, bounce: 0.05, hover: 0, hf: 0, breath: 0.02, bf: 2.2 },
-  hive: { ref: 3, f: 0.8, roll: 0.04, lean: 0.04, bounce: 0.02, hover: 0, hf: 0, breath: 0.05, bf: 2.4 },
-  bulwark: { ref: 3, f: 1.0, roll: 0.07, lean: 0.06, bounce: 0.06, hover: 0, hf: 0, breath: 0.02, bf: 1.8 },
-  striker: { ref: 7, f: 1.5, roll: 0.16, lean: 0.18, bounce: 0.04, hover: 0.12, hf: 5.5, breath: 0.03, bf: 4 },
-  mortar: { ref: 3, f: 1.1, roll: 0.06, lean: 0.06, bounce: 0.05, hover: 0, hf: 0, breath: 0.025, bf: 2 },
-  mender: { ref: 4, f: 1.0, roll: 0.08, lean: 0.08, bounce: 0, hover: 0.16, hf: 3.4, breath: 0.03, bf: 3.2 },
-  leaper: { ref: 6, f: 2.0, roll: 0.12, lean: 0.16, bounce: 0.16, hover: 0, hf: 0, breath: 0.03, bf: 4 },
-  turret: { ref: 4, f: 0, roll: 0, lean: 0, bounce: 0, hover: 0, hf: 0, breath: 0.015, bf: 2 },
-  charger: { ref: 6, f: 1.4, roll: 0.08, lean: 0.18, bounce: 0.06, hover: 0, hf: 0, breath: 0.02, bf: 3 },
-  minebot: { ref: 5, f: 1.6, roll: 0.1, lean: 0.08, bounce: 0.06, hover: 0, hf: 0, breath: 0.03, bf: 4 },
-  sapper: { ref: 5, f: 1.7, roll: 0.12, lean: 0.12, bounce: 0.1, hover: 0, hf: 0, breath: 0.03, bf: 3.5 },
-  phantom: { ref: 6, f: 1.2, roll: 0.1, lean: 0.12, bounce: 0, hover: 0.18, hf: 3.6, breath: 0.035, bf: 3 },
-  sentinel: { ref: 4, f: 1.0, roll: 0.05, lean: 0.06, bounce: 0, hover: 0.16, hf: 2.8, breath: 0.025, bf: 2.6 },
-  carrier: { ref: 3.5, f: 0.9, roll: 0.06, lean: 0.08, bounce: 0, hover: 0.14, hf: 2.2, breath: 0.025, bf: 2.2 },
-  drone: { ref: 7, f: 1.6, roll: 0.16, lean: 0.14, bounce: 0, hover: 0.14, hf: 6.2, breath: 0.02, bf: 5 },
-  driller: { ref: 5, f: 1.5, roll: 0.1, lean: 0.14, bounce: 0.08, hover: 0, hf: 0, breath: 0.02, bf: 3 },
-  beacon: { ref: 3, f: 0.8, roll: 0.04, lean: 0.04, bounce: 0, hover: 0.12, hf: 2.6, breath: 0.03, bf: 2.8 },
-  weaver: { ref: 4.5, f: 1.1, roll: 0.08, lean: 0.1, bounce: 0, hover: 0.16, hf: 3.8, breath: 0.03, bf: 3.4 },
+  smallBug: { ref: 7, f: 2.2, roll: 0.18, lean: 0.14, bounce: 0.12, hover: 0.08, hf: 7, breath: 0.03, bf: 6 },
+  littlePod: { ref: 7, f: 2.8, roll: 0.22, lean: 0.12, bounce: 0.14, hover: 0, hf: 0, breath: 0.04, bf: 8 },
+  kettleGuard: { ref: 5, f: 1.6, roll: 0.1, lean: 0.12, bounce: 0.1, hover: 0, hf: 0, breath: 0.025, bf: 3 },
+  brassGuard: { ref: 4, f: 1.3, roll: 0.08, lean: 0.08, bounce: 0.07, hover: 0, hf: 0, breath: 0.02, bf: 2.6 },
+  firePot: { ref: 5, f: 1.8, roll: 0.14, lean: 0.14, bounce: 0.12, hover: 0, hf: 0, breath: 0.05, bf: 6 },
+  sporePod: { ref: 4, f: 1.4, roll: 0.1, lean: 0.08, bounce: 0.08, hover: 0.05, hf: 4, breath: 0.04, bf: 4 },
+  ironGolem: { ref: 4, f: 1.1, roll: 0.09, lean: 0.14, bounce: 0.09, hover: 0, hf: 0, breath: 0.02, bf: 2 },
+  longshot: { ref: 4, f: 1.2, roll: 0.06, lean: 0.06, bounce: 0.05, hover: 0, hf: 0, breath: 0.02, bf: 2.2 },
+  mushroomNest: { ref: 3, f: 0.8, roll: 0.04, lean: 0.04, bounce: 0.02, hover: 0, hf: 0, breath: 0.05, bf: 2.4 },
+  shieldGuard: { ref: 3, f: 1.0, roll: 0.07, lean: 0.06, bounce: 0.06, hover: 0, hf: 0, breath: 0.02, bf: 1.8 },
+  blinkBlade: { ref: 7, f: 1.5, roll: 0.16, lean: 0.18, bounce: 0.04, hover: 0.12, hf: 5.5, breath: 0.03, bf: 4 },
+  bellCannon: { ref: 3, f: 1.1, roll: 0.06, lean: 0.06, bounce: 0.05, hover: 0, hf: 0, breath: 0.025, bf: 2 },
+  mossHealer: { ref: 4, f: 1.0, roll: 0.08, lean: 0.08, bounce: 0, hover: 0.16, hf: 3.4, breath: 0.03, bf: 3.2 },
+  bogHopper: { ref: 6, f: 2.0, roll: 0.12, lean: 0.16, bounce: 0.16, hover: 0, hf: 0, breath: 0.03, bf: 4 },
+  watchTower: { ref: 4, f: 0, roll: 0, lean: 0, bounce: 0, hover: 0, hf: 0, breath: 0.015, bf: 2 },
+  wildBoar: { ref: 6, f: 1.4, roll: 0.08, lean: 0.18, bounce: 0.06, hover: 0, hf: 0, breath: 0.02, bf: 3 },
+  mineCart: { ref: 5, f: 1.6, roll: 0.1, lean: 0.08, bounce: 0.06, hover: 0, hf: 0, breath: 0.03, bf: 4 },
+  bombMaker: { ref: 5, f: 1.7, roll: 0.12, lean: 0.12, bounce: 0.1, hover: 0, hf: 0, breath: 0.03, bf: 3.5 },
+  starGhost: { ref: 6, f: 1.2, roll: 0.1, lean: 0.12, bounce: 0, hover: 0.18, hf: 3.6, breath: 0.035, bf: 3 },
+  crystalTower: { ref: 4, f: 1.0, roll: 0.05, lean: 0.06, bounce: 0, hover: 0.16, hf: 2.8, breath: 0.025, bf: 2.6 },
+  supplyKite: { ref: 3.5, f: 0.9, roll: 0.06, lean: 0.08, bounce: 0, hover: 0.14, hf: 2.2, breath: 0.025, bf: 2.2 },
+  dartSprite: { ref: 7, f: 1.6, roll: 0.16, lean: 0.14, bounce: 0, hover: 0.14, hf: 6.2, breath: 0.02, bf: 5 },
+  burrowMole: { ref: 5, f: 1.5, roll: 0.1, lean: 0.14, bounce: 0.08, hover: 0, hf: 0, breath: 0.02, bf: 3 },
+  healingStone: { ref: 3, f: 0.8, roll: 0.04, lean: 0.04, bounce: 0, hover: 0.12, hf: 2.6, breath: 0.03, bf: 2.8 },
+  starSpider: { ref: 4.5, f: 1.1, roll: 0.08, lean: 0.1, bounce: 0, hover: 0.16, hf: 3.8, breath: 0.03, bf: 3.4 },
 };
 const RL_MOTION_NONE = { ref: 5, f: 1, roll: 0.06, lean: 0.06, bounce: 0.06, hover: 0, hf: 0, breath: 0.02, bf: 2 };
 
@@ -205,7 +214,7 @@ export class Renderer {
     this.shake = 0;
     this.kick = 0;
     this.kickA = 0;
-    this.pulse = 0;
+    this.lanternGun = 0;
     this.flashT = 0;
     this.focus = null;
     this.focusK = 0;
@@ -232,7 +241,7 @@ export class Renderer {
       "emissive_inst",
       "emissive_compact",
       ...Object.values(RL_BIOME_LOOK).map((look) => `floor_${look.style}`),
-      "aurora",
+      "snowWind",
       "aegis",
       "flame_inst",
       "abilityWave_inst",
@@ -359,7 +368,7 @@ export class Renderer {
     this.sprites = this._addPool(quad, additiveMaterial(0, 0.85, 1.08), 2200, 5);
     this.beams = this._addPool(box(1, 1, 1).translate(0.5, 0, 0), additiveMaterial(-1, 0.88, 1.12), 900, 4);
     this.ringPool = this._addPool(ring(0.87, 1, 36), additiveMaterial(-1, 0.86, 1.1), 260, 3);
-    this.discs = this._addPool(disc(1, 32), additiveMaterial(-1, 0.8, 0.92), 160, 2);
+    this.discs = this._addPool(ringBlade(1, 32), additiveMaterial(-1, 0.8, 0.92), 160, 2);
     this.columns = this._addPool(
       cylinder(0.65, 1, 1, 14, true).translate(0, 0.5, 0),
       additiveMaterial(-1, 0.76, 1.05),
@@ -440,7 +449,7 @@ export class Renderer {
         biomeSkin: true,
       });
       const glowMat = emissiveMaterial({ color: 0xffffff, emissiveIntensity: 1.18, vertexColors: true });
-      const cap = type === "swarmer" || type === "mite" ? 180 : 96;
+      const cap = type === "smallBug" || type === "littlePod" ? 180 : 96;
       const body = this._addCompactPool(kit.body, bodyMat, cap, 1);
       body.mesh.castShadow = true;
       body.mesh.receiveShadow = true;
@@ -574,13 +583,13 @@ export class Renderer {
         }
         // Rising dust puffs around newly emerged wave cover blocks
         const dustHex =
-          biome.id === "shelf"
+          biome.id === "snowRidge"
             ? 0xdceeff
-            : biome.id === "marsh"
+            : biome.id === "mossBog"
               ? 0x6ba87c
-              : biome.id === "flats"
+              : biome.id === "sunDunes"
                 ? 0xe8c998
-                : biome.id === "caldera"
+                : biome.id === "emberHill"
                   ? 0x7a5c52
                   : 0xb8a894;
         for (let i = 0; i < Math.min(10, (layout.obs || []).length); i++) {
@@ -589,7 +598,7 @@ export class Renderer {
         }
       }
     }
-    const look = RL_BIOME_LOOK[biome.id] || RL_BIOME_LOOK.courtyard;
+    const look = RL_BIOME_LOOK[biome.id] || RL_BIOME_LOOK.lanternYard;
     const s = this.scene;
     s.wakeHalf.x = (layout ? layout.W : 20) + 2;
     s.wakeHalf.y = (layout ? layout.H : 15) + 2;
@@ -615,7 +624,7 @@ export class Renderer {
     s.fogFar = dist * look.fog[1];
 
     const auroraK = this.rlAuroraK || 0;
-    if (biome.id === "shelf") {
+    if (biome.id === "snowRidge") {
       const breath = 0.5 - 0.5 * Math.cos(((this.worldT || 0) / 20) * TAU);
       s.fogNear *= 1 - 0.1 * breath;
       s.fogFar *= 1 - 0.1 * breath;
@@ -788,7 +797,7 @@ export class Renderer {
         lantern: hexColor(0xffcf78),
         rime: hexColor(0x9ce6ff),
         puffball: healColor,
-        prism: hexColor(0xc8a4ff),
+        iceCrystal: hexColor(0xc8a4ff),
         crucible: hexColor(0xff8c42),
         sunglass: hexColor(0xffe092),
       };
@@ -876,11 +885,11 @@ export class Renderer {
     const lights = this.scene.pointLights;
     this.muzzle = Math.max(0, (this.muzzle || 0) - dt * 14);
 
-    // Slot 0: dedicated warm flickering hero guiding-lantern (brightens during dash & Hearthburst charge!)
+    // Slot 0: dedicated warm flickering hero guiding-lantern (brightens during dash & Fire Burst charge!)
     if (player && player.alive) {
       const flicker = 0.92 + 0.08 * Math.sin(this.time * 9.5) + 0.05 * Math.sin(this.time * 17.3);
       const dashBoost = player.dashT > 0 ? 0.52 : 0;
-      const novaBoost = player.nova >= 100 ? 0.38 : 0;
+      const novaBoost = player.fireBurst >= 100 ? 0.38 : 0;
       const muzzleMix = Math.min(0.45, (this.muzzle || 0) * 0.45);
       const lc = this._heroLanternCol;
       lights[0].x = player.x;
@@ -936,13 +945,13 @@ export class Renderer {
     const showNumbers = opts.numbers !== false && this.numbers !== false;
     const shakeK = (opts.shake === false ? 0 : 1) * this.motion;
     for (const ev of events) {
-      if (ev.k === "nova") {
+      if (ev.k === "fireBurst") {
         this._zoomPunch = -0.03;
         if (this.player) {
           this.player.flareT = 1;
           this.player.castT = 0.45;
         }
-      } else if (ev.k === "grenade" || ev.k === "grenadeThrow") {
+      } else if (ev.k === "gravityBell" && ev.handCast) {
         if (this.player) this.player.throwT = 0.34;
       } else if (ev.k === "phase" || ev.k === "enrage") {
         this._zoomPunch = -0.03;
@@ -958,11 +967,21 @@ export class Renderer {
             dirZ = Math.sin(ev.a);
           const muzzle = this._shotMuzzle || (this._shotMuzzle = new Vec3());
           this.player.muzzle.getWorldPosition(muzzle);
-          muzzle.x += ev.x - this.player.group.position.x;
-          muzzle.z += ev.y - this.player.group.position.z;
+          if (ev.blocked) {
+            muzzle.set(ev.x, ev.height, ev.y);
+          } else {
+            // Carry the last rendered recoil and body lean onto the new shot direction.
+            const pose = this.player.group.position;
+            const rest = muzzlePoint(def, pose.x, pose.z, -this.player.aimYaw);
+            const x = muzzle.x - rest.x,
+              z = muzzle.z - rest.y,
+              turn = ev.a + this.player.aimYaw;
+            muzzle.x = ev.x + x * Math.cos(turn) - z * Math.sin(turn);
+            muzzle.z = ev.y + x * Math.sin(turn) + z * Math.cos(turn);
+          }
           this.player.recoil = Math.min(
             0.08,
-            this.player.recoil + (def.id === "rail" || def.id === "scatter" ? 0.065 : 0.038) * this.motion,
+            this.player.recoil + (def.id === "starSpear" || def.id === "brassShotgun" ? 0.065 : 0.038) * this.motion,
           );
           const muzzleKind = WEAPON_EFFECTS[ev.w].muzzle;
           if (muzzleKind === "arc") {
@@ -1023,7 +1042,7 @@ export class Renderer {
               (Math.random() - 0.5) * 9,
               Math.random() * TAU,
             );
-          } else if (muzzleKind === "rail") {
+          } else if (muzzleKind === "starSpear") {
             const perpX = -dirZ,
               perpZ = dirX;
             for (const side of [-1, 1]) {
@@ -1082,18 +1101,18 @@ export class Renderer {
             this.emit(muzzle.x, muzzle.y, muzzle.z, dirX * 4.5, 0, dirZ * 4.5, 0.08, 0.42, color, { drag: 0 });
             this.emit(muzzle.x, muzzle.y, muzzle.z, dirX * 2.2, 0, dirZ * 2.2, 0.045, 0.24, whiteColor, { drag: 0 });
           }
-          if (["pulse", "scatter", "rocket", "flame"].includes(def.id)) {
-            this.smokeView.emit(muzzle.x, muzzle.y, muzzle.z, def.id === "scatter" ? 0.5 : 0.3, 0x9da7a8, 0.35);
+          if (["lanternGun", "brassShotgun", "emberLauncher", "fireBellows"].includes(def.id)) {
+            this.smokeView.emit(muzzle.x, muzzle.y, muzzle.z, def.id === "brassShotgun" ? 0.5 : 0.3, 0x9da7a8, 0.35);
           }
-          this.muzzle = Math.min(1, (this.muzzle || 0) + (def.id === "flame" ? 0.14 : 0.65));
+          this.muzzle = Math.min(1, (this.muzzle || 0) + (def.id === "fireBellows" ? 0.14 : 0.65));
           this._muzzleCol.copy(color);
           if (!this.lastMuzzleT || this.time - this.lastMuzzleT > 0.05) {
             this.lastMuzzleT = this.time;
             this.flashes.push({
               x: muzzle.x,
               z: muzzle.z,
-              r: def.id === "rail" ? 3.4 : 2.3,
-              i: def.id === "flame" ? 0.4 : 0.6,
+              r: def.id === "starSpear" ? 3.4 : 2.3,
+              i: def.id === "fireBellows" ? 0.4 : 0.6,
               col: color,
               decay: 16,
               muzzle: true,
@@ -1103,10 +1122,11 @@ export class Renderer {
             this.kick = Math.min(0.6, this.kick + def.shake * 2.2 * this.motion);
             this.kickA = ev.a;
           }
-          if (def.rail) {
-            const len = world.stats.lance ? world.stats.range : world.arena.rayLen(ev.x, ev.y, ev.a, world.stats.range);
-            const offset = (muzzle.x - ev.x) * dirX + (muzzle.z - ev.y) * dirZ;
-            if (len > offset) {
+          if (def.starSpear && !ev.blocked) {
+            const len = world.stats.starLance
+              ? world.stats.range
+              : world.arena.rayLen(ev.x, ev.y, ev.a, world.stats.range);
+            if (len > 0) {
               this.line(muzzle.x, muzzle.z, ev.x + dirX * len, ev.y + dirZ * len, color, 0.22, 0.11, muzzle.y);
               this.line(muzzle.x, muzzle.z, ev.x + dirX * len, ev.y + dirZ * len, whiteColor, 0.09, 0.03, muzzle.y);
             }
@@ -1296,7 +1316,7 @@ export class Renderer {
               this.smokeView.emit(ev.x, 0.6, ev.y, 0.62 * scale, 0x8a9296, 0.52);
             }
           }
-          if (ev.type === "queen") {
+          if (ev.type === "mossQueen") {
             for (let j = 0; j < 14; j++)
               this.emit(
                 ev.x + (Math.random() - 0.5) * 3,
@@ -1311,18 +1331,18 @@ export class Renderer {
                 { drag: 1.2 },
               );
             this.ring(ev.x, ev.y, 0.4, 4.5, hexColor(0xd9fff0), 0.5);
-          } else if (ev.type === "bellkeeper") {
+          } else if (ev.type === "bellKeeper") {
             this.burst(ev.x, ev.y, 1.2, 16, 8, hexColor(0x3a8bff), 0.55, 0.24, { spark: true, drag: 3 });
             this.burst(ev.x, ev.y, 1.2, 16, 8, hexColor(0xff4258), 0.55, 0.24, { spark: true, drag: 3 });
             this.ring(ev.x, ev.y, 0.5, 5.2, hexColor(0x3a8bff), 0.42);
-          } else if (ev.type === "prism") {
+          } else if (ev.type === "iceCrystal") {
             this.burst(ev.x, ev.y, 1.5, 22, 9, hexColor(0xcff6ff), 0.75, 0.28, { spark: true, up: 4, drag: 2 });
             this.ring(ev.x, ev.y, 0.4, 5.4, hexColor(0x7be8ff), 0.48);
-          } else if (ev.type === "core") {
+          } else if (ev.type === "starHeart") {
             this.burst(ev.x, ev.y, 1.8, 20, 8.5, hexColor(0xc27bff), 0.7, 0.3, { spark: true, up: 5, drag: 2 });
             this.burst(ev.x, ev.y, 1.8, 12, 6, hexColor(0xff5cab), 0.65, 0.26, { up: 4, drag: 2 });
             this.ring(ev.x, ev.y, 0.5, 5.8, hexColor(0xdcb3ff), 0.5);
-          } else if (ev.type === "tyrant") {
+          } else if (ev.type === "emberKing") {
             this.burst(ev.x, ev.y, 1.1, 22, 9, hexColor(0xffa14a), 0.8, 0.34, {
               spark: true,
               up: 7,
@@ -1331,7 +1351,7 @@ export class Renderer {
             });
             this.smokeView.emit(ev.x, 1.1, ev.y, 2.2, 0x3a322d, 0.7);
             this.ring(ev.x, ev.y, 0.5, 5.4, hexColor(0xff6b2b), 0.48);
-          } else if (ev.type === "wyrm") {
+          } else if (ev.type === "sandDragon") {
             this.burst(ev.x, ev.y, 1.2, 22, 9.5, hexColor(0xffe08a), 0.7, 0.26, {
               spark: true,
               up: 5,
@@ -1393,9 +1413,9 @@ export class Renderer {
           const color =
             ev.kind === "pop"
               ? hexColor(0xffe066)
-              : ev.kind === "payload"
+              : ev.kind === "blastShot"
                 ? hexColor(0xffa458)
-                : ev.kind === "rocket"
+                : ev.kind === "emberLauncher"
                   ? hexColor(0xff6b3a)
                   : ev.kind === "frost" || ev.kind === "glacier"
                     ? hexColor(0x9eeeff)
@@ -1409,21 +1429,21 @@ export class Renderer {
           this.emit(ev.x, 0.68, ev.y, 0, 0, 0, 0.09, radius * 1.45, whiteColor, { drag: 0 });
           this.ring(ev.x, ev.y, radius * 0.25, radius * 1.08, color, 0.32, 0.12);
           this.addShake(
-            (ev.kind === "payload"
+            (ev.kind === "blastShot"
               ? 0.02
-              : ev.kind === "rain" || ev.kind === "stomp" || ev.kind === "mortar"
+              : ev.kind === "rain" || ev.kind === "stomp" || ev.kind === "bellCannon"
                 ? 0.25
                 : 0.1) * shakeK,
           );
-          if (ev.kind !== "payload" || Math.random() < 0.3)
-            this.flash(ev.x, ev.y, radius * 1.6, ev.kind === "payload" ? 0.5 : 1.15, color, 4.5);
-          if (ev.kind !== "payload" && ev.kind !== "pop" && ev.kind !== "frost" && ev.kind !== "glacier")
+          if (ev.kind !== "blastShot" || Math.random() < 0.3)
+            this.flash(ev.x, ev.y, radius * 1.6, ev.kind === "blastShot" ? 0.5 : 1.15, color, 4.5);
+          if (ev.kind !== "blastShot" && ev.kind !== "pop" && ev.kind !== "frost" && ev.kind !== "glacier")
             this.addScorch(ev.x, ev.y, radius * 0.7);
           if (ev.kind === "frost" || ev.kind === "glacier")
             this.burst(ev.x, ev.y, 0.2, Math.round(8 + radius * 4), radius * 1.6, whiteColor, 0.6, 0.22, {
               spark: true,
             });
-          if (["rocket", "bomber", "mortar", "volatile"].includes(ev.kind))
+          if (["emberLauncher", "firePot", "bellCannon", "volatile"].includes(ev.kind))
             this.debrisBurst(ev.x, ev.y, 0.3, 4, hexColor(0x3a2e28), 0.12, 5);
           break;
         }
@@ -1518,7 +1538,7 @@ export class Renderer {
           const p = world.player;
           const a = Math.atan2(p.vy, p.vx);
           const copper = hexColor(FINISH.copper);
-          const wake = BIOME_WAKE_VFX[world.arena?.biome?.id] || BIOME_WAKE_VFX.courtyard;
+          const wake = BIOME_WAKE_VFX[world.arena?.biome?.id] || BIOME_WAKE_VFX.lanternYard;
           this.engine.stampWake(p.x, p.y, 1.38, 0.95, 0.78, 0.85, 1.0, 0.55);
           this.line(p.x, p.y, p.x - Math.cos(a) * 1.45, p.y - Math.sin(a) * 1.45, whiteColor, 0.2, 0.085, 0.55, 0);
           for (const side of [-1, 1]) {
@@ -1654,10 +1674,10 @@ export class Renderer {
           this.ring(ev.x, ev.y, 1, 16, whiteColor, 0.8);
           break;
         case "wave":
-          this.pulse = 1;
+          this.lanternGun = 1;
           break;
         case "mend": {
-          const mend = hexColor(enemyDefs[ev.src || ev.type]?.color || enemyDefs.mender.color);
+          const mend = hexColor(enemyDefs[ev.src || ev.type]?.color || enemyDefs.mossHealer.color);
           if (ev.tx == null) {
             this.ring(ev.x, ev.y, 0.5, ev.r || 6, mend, 0.5);
             this.burst(ev.x, ev.y, 1, 10, 2, mend, 0.5, 0.15, { up: 2 });
@@ -1686,7 +1706,7 @@ export class Renderer {
           this.ring(ev.x, ev.y, 1, 9, goldColor, 0.6);
           this.flash(ev.x, ev.y, 6, 1.4, goldColor, 3);
           break;
-        case "tribute": {
+        case "forgeGift": {
           const ember = hexColor(0xffb45a);
           this.burst(ev.x, ev.y, 0.3, 20, 5, ember, 0.6, 0.4, { up: 5, spark: true, drag: 1 });
           this.ring(ev.x, ev.y, 0.3, 1.7, ember, 0.4);
@@ -1697,12 +1717,12 @@ export class Renderer {
           this.biomePropsView.consume(ev);
           break;
         case "erupt":
-          if (world?.arena?.biome?.id === "courtyard") {
+          if (world?.arena?.biome?.id === "lanternYard") {
             const brass = hexColor(FINISH.brass);
             this.ring(ev.x, ev.y, ev.r * 0.52, ev.r, brass, 0.46);
             this.burst(ev.x, ev.y, 0.26, 9, 3.3, brass, 0.42, 0.16, { spark: true, grav: 4, drag: 2 });
             this.addShake(0.035 * shakeK);
-          } else if (world?.arena?.biome?.id === "caldera") {
+          } else if (world?.arena?.biome?.id === "emberHill") {
             const magma = hexColor(0xffb45a);
             this.burst(ev.x, ev.y, 0.3, 24, 6, magma, 0.8, 0.55, { up: 8, grav: 9, drag: 1.4 });
             this.burst(ev.x, ev.y, 0.3, 12, 4, hexColor(0xfff0b8), 0.5, 0.35, { up: 10, spark: true });
@@ -1730,7 +1750,7 @@ export class Renderer {
     const cam = this.camera;
     const tilt = this.w < this.h ? 1.02 : 0.95;
 
-    // Contextual zoom modulation: +12% for Guardian boss fights, -5% for wave-clear/choose, -3% Hearthburst/phase punch
+    // Contextual zoom modulation: +12% for Guardian boss fights, -5% for wave-clear/choose, -3% Fire Burst/phase punch
     const targetCtxZoom = menu
       ? 1
       : world?.boss && !world.boss.dead
@@ -1822,7 +1842,11 @@ export class Renderer {
   frame(dt, world, opts = {}) {
     this.abilityView.useWorld(opts.menu ? null : world);
     const wantAurora =
-      !opts.menu && world && world.event === "aurora" && world.state === "fight" && world.arena?.biome?.id === "shelf"
+      !opts.menu &&
+      world &&
+      world.event === "snowWind" &&
+      world.state === "fight" &&
+      world.arena?.biome?.id === "snowRidge"
         ? 1
         : 0;
     this.rlAuroraK = clamp((this.rlAuroraK || 0) + (wantAurora ? 0.8 : -0.6) * (dt || 0), 0, 1);
@@ -1831,8 +1855,8 @@ export class Renderer {
       !opts.menu &&
       world &&
       world.state === "fight" &&
-      ((world.event === "festival" && world.arena?.biome?.id === "courtyard") ||
-        (world.event === "forgewind" && world.arena?.biome?.id === "caldera"));
+      ((world.event === "festival" && world.arena?.biome?.id === "lanternYard") ||
+        (world.event === "hotWind" && world.arena?.biome?.id === "emberHill"));
     this.rlWarmK = clamp((this.rlWarmK || 0) + (warm ? 0.65 : -0.8) * (dt || 0), 0, 1);
 
     // Subtle cohesive dusk deepening during enraged Guardian crescendos so lanterns & glows pop
@@ -1889,16 +1913,16 @@ export class Renderer {
 
     if (menu) {
       this.setBiome(opts.biome || biomeList[0]);
-      this.ensurePlayer(opts.weapon || "pulse", true);
+      this.ensurePlayer(opts.weapon || "lanternGun", true);
     } else {
       this.setBiome(world.arena.biome, world.arena);
       this.ensurePlayer(world.weapon, false);
     }
     this.updateCamera(dt, world, menu);
-    this.pulse = Math.max(0, (this.pulse || 0) - dt * 1.5);
+    this.lanternGun = Math.max(0, (this.lanternGun || 0) - dt * 1.5);
     const px = menu ? 0 : world.player.x,
       pz = menu ? 0 : world.player.y;
-    this.arena.update(dt, px, pz, this.pulse);
+    this.arena.update(dt, px, pz, this.lanternGun);
 
     const pools = this.allPools();
     for (const pool of pools) pool.begin();
@@ -2016,7 +2040,7 @@ export class Renderer {
       }
       // Smoothly update weapon/aim yaw FIRST, then orient the character's entire body to face the exact aim direction
       // so the head, torso, right arm and weapon ALWAYS align cleanly (zero gun-inside-back clipping!)
-      hero.aimAt(player.aim, dt);
+      hero.aimAt(player.aim, dt, player.firing || player.manual);
       const faceYaw = hero.aimYaw;
       const aimWorld = -faceYaw;
       const ca = Math.cos(aimWorld),
@@ -2072,7 +2096,7 @@ export class Renderer {
         !!player.firing,
         player.dashT > 0,
         clamp(player.hurtT / 0.3, 0, 1),
-        player.nova >= 100,
+        player.fireBurst >= 100,
       );
 
       const shieldHit = Math.max(0, 1 - (time - this.abilityView.shieldHitAt) / 0.28);
@@ -2098,18 +2122,25 @@ export class Renderer {
       }
       this.shadows.y(player.x, 0.025, player.y, 0, 1.9);
       if (player.manual) {
-        const reach = world.arena.rayLen(player.x, player.y, player.aim, Math.min(world.stats.range, 16));
+        const mouth = world.shotOrigin(player.aim);
+        const barrel = hero.muzzle.getWorldPosition(this._aimMuzzle || (this._aimMuzzle = new Vec3()));
+        const range = Math.min(world.stats.range, 16);
+        const reach = mouth.blocked
+          ? 0
+          : world.shotsCrossWalls()
+            ? range
+            : world.arena.rayLen(mouth.x, mouth.y, player.aim, range);
         const dx = Math.cos(player.aim),
           dz = Math.sin(player.aim);
-        for (let along = 1.0; along < reach; along += 1.2) {
+        for (let along = 0.25; along < reach; along += 1.2) {
           const end = Math.min(reach, along + 0.48);
           this.beams.colC(
             this.beams.seg(
-              player.x + dx * along,
-              player.y + dz * along,
-              player.x + dx * end,
-              player.y + dz * end,
-              0.083,
+              barrel.x + dx * along,
+              barrel.z + dz * along,
+              barrel.x + dx * end,
+              barrel.z + dz * end,
+              barrel.y,
               0.055,
               0.022,
             ),
@@ -2124,7 +2155,7 @@ export class Renderer {
         0.2,
       );
       if (player.dashT > 0 && dt > 0) {
-        const wake = BIOME_WAKE_VFX[world.arena?.biome?.id] || BIOME_WAKE_VFX.courtyard;
+        const wake = BIOME_WAKE_VFX[world.arena?.biome?.id] || BIOME_WAKE_VFX.lanternYard;
         this.engine.stampWake(player.x, player.y, 1.05, Math.min(1, dt * 18), 0.72, 0.65, 0.95, 0.42);
         if (Math.random() < dt * 65) {
           this.emit(
@@ -2224,14 +2255,14 @@ export class Renderer {
       let angle = enemy.face;
       let pitch = 0;
       let roll = 0;
-      if (enemy.type === "bomber" && enemy.st === 1) {
-        const pulse = 1.05 + Math.sin(time * 7) * 0.04;
-        scale *= pulse;
-        scaleY *= pulse;
+      if (enemy.type === "firePot" && enemy.st === 1) {
+        const lanternGun = 1.05 + Math.sin(time * 7) * 0.04;
+        scale *= lanternGun;
+        scaleY *= lanternGun;
       }
-      if (enemy.type === "brute" && enemy.st === 1) scaleY *= 0.9;
-      if (enemy.type === "mortar" && enemy.st === 1) scaleY *= 0.88;
-      if (enemy.type === "striker" && enemy.st === 1) {
+      if (enemy.type === "ironGolem" && enemy.st === 1) scaleY *= 0.9;
+      if (enemy.type === "bellCannon" && enemy.st === 1) scaleY *= 0.88;
+      if (enemy.type === "blinkBlade" && enemy.st === 1) {
         scale *= 0.96;
         scaleY *= 0.89;
       }
@@ -2259,7 +2290,7 @@ export class Renderer {
         scale *= 1 + enemy.flash * 0.16;
         scaleY *= 1 - enemy.flash * 0.2;
       }
-      if (enemy.type === "phantom" && enemy.ghost) {
+      if (enemy.type === "starGhost" && enemy.ghost) {
         scale *= 0.86;
         scaleY *= 1.12;
       }
@@ -2284,9 +2315,9 @@ export class Renderer {
         dt > 0 &&
         motion.hover === 0 &&
         jumpZ <= 0.1 &&
-        (speed > 3.2 || ((enemy.type === "charger" || enemy.type === "driller") && enemy.st >= 1))
+        (speed > 3.2 || ((enemy.type === "wildBoar" || enemy.type === "burrowMole") && enemy.st >= 1))
       ) {
-        const heavy = enemy.type === "charger" || enemy.type === "driller" || enemy.type === "brute";
+        const heavy = enemy.type === "wildBoar" || enemy.type === "burrowMole" || enemy.type === "ironGolem";
         if (heavy || Math.random() < dt * 7) {
           this.engine.stampWake(
             enemy.x,
@@ -2335,7 +2366,7 @@ export class Renderer {
       let br = 1,
         bg = 1,
         bb = 1;
-      if (enemy.type === "phantom" && enemy.ghost) {
+      if (enemy.type === "starGhost" && enemy.ghost) {
         br = 0.48;
         bg = 0.38;
         bb = 0.95;
@@ -2386,13 +2417,14 @@ export class Renderer {
 
       let glowK = 1.05;
       if (
-        (["gunner", "sniper", "charger", "driller", "weaver", "sentinel"].includes(enemy.type) && enemy.st === 1) ||
+        (["brassGuard", "longshot", "wildBoar", "burrowMole", "starSpider", "crystalTower"].includes(enemy.type) &&
+          enemy.st === 1) ||
         enemy.sunT > 0
       ) {
         glowK = 1.4 + Math.sin(time * 6) * 0.2;
       }
-      if (enemy.type === "bomber" && enemy.st === 1) glowK = 2.1;
-      if (enemy.type === "phantom" && enemy.ghost) {
+      if (enemy.type === "firePot" && enemy.st === 1) glowK = 2.1;
+      if (enemy.type === "starGhost" && enemy.ghost) {
         glowK = 0.3 + Math.sin(time * 3) * 0.08;
         if (Math.random() < dt * 18) this.emit(enemy.x, 0.65, enemy.y, 0, 0.6, 0, 0.28, 0.24, pools.color, { drag: 2 });
       }
@@ -2526,7 +2558,7 @@ export class Renderer {
         this.ringPool.colC(this.ringPool.y(enemy.x, 1.6 + enemy.r, enemy.y, -time * 3, enemy.r * 0.8), goldColor, 1);
       }
       if (enemy.caravan) {
-        // Gilded Caravan treasure automaton: shimmering gold ground halo + rotating crown ring + gold sparkles
+        // Gold Cart treasure automaton: shimmering gold ground halo + rotating crown ring + gold sparkles
         const glint = 0.72 + 0.28 * Math.sin(time * 7);
         this.ringPool.colC(this.ringPool.y(enemy.x, 0.07, enemy.y, time * 2.2, enemy.r * 2.1), goldColor, 0.85 * glint);
         this.ringPool.colC(
@@ -2603,18 +2635,18 @@ export class Renderer {
           { drag: 1 },
         );
 
-      if (enemy.type === "sniper" && enemy.st === 1)
+      if (enemy.type === "longshot" && enemy.st === 1)
         this.aimLine(world, enemy.x, enemy.y, enemy.ta, enemy.t2 < 0.35, 1 - enemy.t2 / 1.25);
-      if (enemy.type === "brute" && enemy.st === 1)
+      if (enemy.type === "ironGolem" && enemy.st === 1)
         this.chargeLine(enemy.x, enemy.y, enemy.ta, 9.5, 1.7, 1 - enemy.t2 / 0.8);
-      if (enemy.type === "leaper" && enemy.st === 1)
+      if (enemy.type === "bogHopper" && enemy.st === 1)
         this.chargeLine(enemy.x, enemy.y, enemy.ta, 7.5, 1.35, 1 - enemy.t2 / 0.55);
-      if (enemy.type === "bomber" && enemy.st === 1) {
+      if (enemy.type === "firePot" && enemy.st === 1) {
         const k = 1 - enemy.t2 / 0.55;
         this.ringPool.colC(this.ringPool.y(enemy.x, 0.05, enemy.y, 0, 2.6), warnColor, 0.9);
         this.discs.colC(this.discs.y(enemy.x, 0.04, enemy.y, 0, 2.6 * k), warnColor, 0.28);
       }
-      if (enemy.type === "gunner" && enemy.st === 1) {
+      if (enemy.type === "brassGuard" && enemy.st === 1) {
         this.sprites.colC(
           this.sprites.bb(
             enemy.x + Math.cos(enemy.face) * 0.95,
@@ -2627,13 +2659,13 @@ export class Renderer {
           1,
         );
       }
-      if (enemy.type === "turret" && enemy.st === 1)
+      if (enemy.type === "watchTower" && enemy.st === 1)
         this.aimLine(world, enemy.x, enemy.y, enemy.ta, enemy.t2 < 0.22, 1 - enemy.t2 / 0.62);
-      if (enemy.type === "charger" && enemy.st === 1)
+      if (enemy.type === "wildBoar" && enemy.st === 1)
         this.chargeLine(enemy.x, enemy.y, enemy.ta, 9.5, 1.35, 1 - enemy.t2 / 0.48);
-      if (enemy.type === "driller" && enemy.st === 1)
+      if (enemy.type === "burrowMole" && enemy.st === 1)
         this.chargeLine(enemy.x, enemy.y, enemy.ta, 9.5, 1.6, 1 - enemy.t2 / 0.58);
-      if (enemy.type === "weaver" && enemy.st === 1) {
+      if (enemy.type === "starSpider" && enemy.st === 1) {
         this.aimLine(
           world,
           enemy.x,
@@ -2643,7 +2675,7 @@ export class Renderer {
           1 - enemy.t2 / 0.45,
         );
       }
-      if (enemy.type === "bulwark") {
+      if (enemy.type === "shieldGuard") {
         const brassWard = hexColor(0xf4c46a);
         if (enemy.guardDown <= 0) {
           const alpha =
@@ -2667,7 +2699,7 @@ export class Renderer {
           );
         }
       }
-      if (enemy.type === "striker" && enemy.st === 1) {
+      if (enemy.type === "blinkBlade" && enemy.st === 1) {
         const k = 1 - enemy.t2 / 0.7;
         this.ringPool.colC(
           this.ringPool.y(enemy.tx, 0.05, enemy.ty, time * 4, 1.4 - k * 0.6),
@@ -2676,7 +2708,7 @@ export class Renderer {
         );
         this.discs.colC(this.discs.y(enemy.tx, 0.04, enemy.ty, 0, 0.9 * k), pools.color, 0.28);
       }
-      if (enemy.type === "striker" && enemy.st === 2)
+      if (enemy.type === "blinkBlade" && enemy.st === 2)
         this.chargeLine(enemy.x, enemy.y, enemy.ta, 4.2, 1, 1 - enemy.t2 / 0.32);
       if (enemy.affix) {
         const color = hexColor(eliteAffixes[enemy.affix].color);
@@ -3086,22 +3118,22 @@ export class Renderer {
     const scale = easeOutBack(grow);
     const walking = boss.st === "walk";
     const rushing = boss.st === "charge" && boss.sub === 1;
-    const diveTarget = boss.type === "wyrm" && boss.diveT > 0 ? 1 : 0;
+    const diveTarget = boss.type === "sandDragon" && boss.diveT > 0 ? 1 : 0;
     this._wyrmBurrow = (this._wyrmBurrow || 0) + (diveTarget - (this._wyrmBurrow || 0)) * dampFactor(9, dt);
-    const burrow = boss.type === "wyrm" ? this._wyrmBurrow : 0;
+    const burrow = boss.type === "sandDragon" ? this._wyrmBurrow : 0;
     const lift =
-      (boss.type === "prism" || boss.type === "wyrm"
+      (boss.type === "iceCrystal" || boss.type === "sandDragon"
         ? (1 + Math.sin(time * 1.6)) * 0.09
-        : boss.type === "queen"
+        : boss.type === "mossQueen"
           ? Math.abs(Math.sin(time * 2.2)) * 0.08
           : walking
             ? Math.abs(Math.sin(time * 6.5)) * 0.09
             : 0) -
       burrow * 1.62;
-    const divePitch = boss.type === "wyrm" ? (diveTarget - burrow) * 0.55 : 0;
+    const divePitch = boss.type === "sandDragon" ? (diveTarget - burrow) * 0.55 : 0;
     const pitch = (rushing ? -0.14 : walking ? -0.04 : 0) - divePitch;
     const roll =
-      boss.type === "bellkeeper" || boss.type === "tyrant"
+      boss.type === "bellKeeper" || boss.type === "emberKing"
         ? Math.sin(time * (rushing ? 14 : 6.5)) * (rushing ? 0.06 : walking ? 0.035 : 0)
         : 0;
     group.position.set(boss.x, lift, boss.y);
@@ -3167,7 +3199,7 @@ export class Renderer {
     group.rotation.set(roll, -boss.face, pitch);
     for (const part of view.spin) {
       part.m.rotation[part.ax] += part.v * dt * (boss.enraged ? 1.8 : 1);
-      if (boss.type === "core") part.m.position.y = 2.4 + Math.sin(time * 1.5) * 0.15;
+      if (boss.type === "starHeart") part.m.position.y = 2.4 + Math.sin(time * 1.5) * 0.15;
     }
     view.updatePose?.(boss, time, dt);
     const flash = boss.flash;
@@ -3201,7 +3233,7 @@ export class Renderer {
     );
     if (boss.shielded) this.ringPool.colC(this.ringPool.y(boss.x, 0.1, boss.y, time, boss.r * 1.6), whiteColor, 0.85);
 
-    if (boss.type === "prism" && !boss.ghost && Math.random() < dt * 18)
+    if (boss.type === "iceCrystal" && !boss.ghost && Math.random() < dt * 18)
       this.emit(
         boss.x + (Math.random() - 0.5) * 2.6,
         1 + Math.random() * 2.4,
@@ -3214,7 +3246,7 @@ export class Renderer {
         hexColor(0xbef2ff),
         { drag: 0.5 },
       );
-    if (boss.type === "wyrm" && (dive || burrow > 0.15)) {
+    if (boss.type === "sandDragon" && (dive || burrow > 0.15)) {
       this.engine.stampWake(boss.x, boss.y, 2.2, 0.9, 0.72, 0.65, 0.85, 0.6);
       if (Math.random() < dt * 42) {
         this.emit(
@@ -3234,18 +3266,18 @@ export class Renderer {
         this.smokeView.emit(boss.x, 0.35, boss.y, 1.4, 0xd4b684, 0.58);
       }
     }
-    if ((boss.type === "bellkeeper" || boss.type === "tyrant") && boss.st === "charge" && boss.sub === 0) {
+    if ((boss.type === "bellKeeper" || boss.type === "emberKing") && boss.st === "charge" && boss.sub === 0) {
       const wind = boss.enraged ? 0.65 : 0.85;
       this.chargeLine(
         boss.x,
         boss.y,
         boss.ta ?? boss.face,
-        boss.type === "tyrant" ? 10.5 : 13.5,
+        boss.type === "emberKing" ? 10.5 : 13.5,
         boss.r * 1.45,
         clamp((boss.subT || 0) / wind, 0, 1),
       );
     }
-    if (boss.type === "bellkeeper" && rushing && Math.random() < dt * 22) {
+    if (boss.type === "bellKeeper" && rushing && Math.random() < dt * 22) {
       const backward = boss.face + Math.PI;
       this.emit(
         boss.x + Math.cos(backward) * 1.16,
@@ -3260,7 +3292,7 @@ export class Renderer {
         { spark: true, drag: 2, grav: 3 },
       );
     }
-    if (boss.type === "queen" && Math.random() < dt * 10)
+    if (boss.type === "mossQueen" && Math.random() < dt * 10)
       this.emit(
         boss.x + (Math.random() - 0.5) * 2.4,
         1.2 + Math.random() * 1.6,
@@ -3273,7 +3305,7 @@ export class Renderer {
         hexColor(0x52ff9b),
         { drag: 1.2 },
       );
-    if (boss.type === "core" && Math.random() < dt * 14)
+    if (boss.type === "starHeart" && Math.random() < dt * 14)
       this.emit(
         boss.x + (Math.random() - 0.5) * 2.6,
         1.2 + Math.random() * 2.2,
@@ -3286,7 +3318,7 @@ export class Renderer {
         hexColor(Math.random() < 0.5 ? 0xb56cff : 0xff5cab),
         { spark: true, drag: 1.2 },
       );
-    if (boss.type === "tyrant" && Math.random() < dt * (rushing ? 32 : 14))
+    if (boss.type === "emberKing" && Math.random() < dt * (rushing ? 32 : 14))
       this.emit(
         boss.x + (Math.random() - 0.5) * 2.2,
         1.1 + Math.random() * 1.8,

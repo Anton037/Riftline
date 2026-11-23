@@ -37,7 +37,7 @@ test("every weapon runs finite combat without unseeded simulation randomness", (
 });
 
 test("same seed and inputs give the same state; run snapshots restore progress", () => {
-  const options = { seed: 731, weapon: "pulse", threat: 1, ws: {} };
+  const options = { seed: 731, weapon: "lanternGun", threat: 1, ws: {} };
   const a = new World(options),
     b = new World(options);
   step(a);
@@ -55,7 +55,7 @@ test("same seed and inputs give the same state; run snapshots restore progress",
 
 test("every biome has a boss and hazard; the route reaches all six places", () => {
   assert.equal(biomeList.length, 6);
-  const w = new World({ seed: 42, weapon: "pulse", threat: 0, ws: {} });
+  const w = new World({ seed: 42, weapon: "lanternGun", threat: 0, ws: {} });
   const reached = new Set();
   for (let wave = 1; wave <= 30; wave++) reached.add(w.biomeFor(wave).id);
   assert.deepEqual([...reached].sort(), biomeList.map((b) => b.id).sort());
@@ -75,7 +75,7 @@ test("selectable data references and release identity agree", () => {
 });
 
 test("saved choices preserve rerolls and banishes, including after another resume", () => {
-  const a = new World({ seed: 1, weapon: "pulse", threat: 0, ws: { reroll: 3, banish: 2 } });
+  const a = new World({ seed: 1, weapon: "lanternGun", threat: 0, ws: { reroll: 3, seal: 2 } });
   step(a, 360);
   a.beginChoice();
   let b = new World({ snap: cleanRun(JSON.parse(JSON.stringify(a.snapshot()))), ws: {} });
@@ -86,8 +86,8 @@ test("saved choices preserve rerolls and banishes, including after another resum
     b = new World({ snap: cleanRun(b.snapshot()), ws: {} });
   }
   const card = a.offer[0];
-  assert.equal(a.banish(card), true);
-  assert.equal(b.banish(card), true);
+  assert.equal(a.seal(card), true);
+  assert.equal(b.seal(card), true);
   assert.deepEqual(b.offer, a.offer);
   const old = a.snapshot();
   delete old.offerRng;
@@ -97,7 +97,7 @@ test("saved choices preserve rerolls and banishes, including after another resum
 });
 
 test("Armor Core reduces enemy hits but never stacks on map hazard resistance", () => {
-  const w = new World({ seed: 42, weapon: "pulse", threat: 0, ws: { armorCore: 5 } });
+  const w = new World({ seed: 42, weapon: "lanternGun", threat: 0, ws: { armor: 5 } });
   const loss = (source) => {
     w.player.hp = w.stats.maxHp;
     w.player.iT = 0;
@@ -105,13 +105,13 @@ test("Armor Core reduces enemy hits but never stacks on map hazard resistance", 
     w.hurtPlayer(30, null, null, source, true);
     return w.stats.maxHp - w.player.hp;
   };
-  assert.equal(loss("grunt"), 24);
+  assert.equal(loss("kettleGuard"), 24);
   for (const source of ["lava", "shock", "acid", "trap", "devil"]) assert.equal(loss(source), 30, source);
 });
 
 test("damage events retain the target type for material-specific hit feedback", () => {
-  const w = new World({ seed: 731, weapon: "pulse", threat: 0, ws: {} });
-  for (const type of ["grunt", "swarmer", "mender"]) {
+  const w = new World({ seed: 731, weapon: "lanternGun", threat: 0, ws: {} });
+  for (const type of ["kettleGuard", "smallBug", "mossHealer"]) {
     const enemy = w.spawnEnemy(type, 3, 3, {});
     w.fx.length = 0;
     w.hurtEnemy(enemy, 1, 1, 0, 0, true);
@@ -120,11 +120,11 @@ test("damage events retain the target type for material-specific hit feedback", 
     assert.equal(event.type, type);
     assert.equal(event.crit, true);
   }
-  const shielded = w.spawnEnemy("grunt", -3, 3, {});
+  const shielded = w.spawnEnemy("kettleGuard", -3, 3, {});
   shielded.shield = 100;
   w.fx.length = 0;
   w.hurtEnemy(shielded, 1, 1, 0, 0, false);
-  assert.equal(w.fx.find((e) => e.k === "dmg")?.type, "grunt");
+  assert.equal(w.fx.find((e) => e.k === "dmg")?.type, "kettleGuard");
   assert.equal(w.fx.find((e) => e.k === "dmg")?.shield, true);
 });
 
@@ -137,12 +137,12 @@ test("all six interactive biome props trigger deterministically from shots and d
   };
   try {
     const expectedKind = {
-      courtyard: "lantern",
-      shelf: "rime",
-      marsh: "puffball",
-      core: "prism",
-      caldera: "crucible",
-      flats: "sunglass",
+      lanternYard: "lantern",
+      snowRidge: "rime",
+      mossBog: "puffball",
+      starHall: "iceCrystal",
+      emberHill: "crucible",
+      sunDunes: "sunglass",
     };
     for (const [id, kind] of Object.entries(expectedKind)) {
       const biome = biomesById[id];
@@ -158,12 +158,12 @@ test("all six interactive biome props trigger deterministically from shots and d
         assert.equal(arenaA.outside(p.x, p.y, p.r + 0.5), false, `${id}: prop outside arena`);
       }
 
-      const w = new World({ seed: 4242, weapon: "pulse", threat: 0, ws: {} });
+      const w = new World({ seed: 4242, weapon: "lanternGun", threat: 0, ws: {} });
       w.arena = arenaA;
       w.enemies.length = 0;
       w.fx.length = 0;
       const prop = w.arena.props[0];
-      const foe = w.spawnEnemy("grunt", prop.x + 1.1, prop.y, {});
+      const foe = w.spawnEnemy("kettleGuard", prop.x + 1.1, prop.y, {});
       foe.hp = foe.maxHp = 500;
       w.hash.build(w.enemies);
 
@@ -197,7 +197,7 @@ test("all six interactive biome props trigger deterministically from shots and d
           assert.ok(prop.auraT > 4.5 && foe.slowT >= 1.3);
         } else if (kind === "rime") {
           assert.ok(w.player.tractionT > 3.5 && foe.slowT >= 2.5);
-        } else if (kind === "prism") {
+        } else if (kind === "iceCrystal") {
           assert.ok(prop.auraT > 2.5 && foe.hp < 500);
           w.eb.push({ x: prop.x, y: prop.y, vx: 10, vy: 0, r: 0.2, dmg: 5, life: 2 });
           w.updateEBullets(0.1);
@@ -219,19 +219,19 @@ test("reworked cozy wave events and shot-detonated proximity vessels are determi
     throw new Error("simulation touched Math.random");
   };
   try {
-    // 1. Gilded Caravan grants Gilded Haste on elite defeat
-    const wg = new World({ seed: 101, weapon: "pulse", threat: 0, ws: {} });
-    wg.event = "gilded";
-    const elite = wg.spawnEnemy("grunt", 3, 2, { elite: true });
+    // 1. Gold Cart grants Gilded Haste on elite defeat
+    const wg = new World({ seed: 101, weapon: "lanternGun", threat: 0, ws: {} });
+    wg.event = "goldCart";
+    const elite = wg.spawnEnemy("kettleGuard", 3, 2, { elite: true });
     wg.killEnemy(elite);
-    assert.ok(wg.player.gildT >= 3.0, "Gilded Caravan grants Gilded Haste on elite defeat");
+    assert.ok(wg.player.gildT >= 3.0, "Gold Cart grants Gilded Haste on elite defeat");
 
     // 2. Astral Convergence empowers shots warped through portals
-    const wc = new World({ seed: 202, weapon: "pulse", threat: 0, ws: {} });
-    wc.route = ["core"];
+    const wc = new World({ seed: 202, weapon: "lanternGun", threat: 0, ws: {} });
+    wc.route = ["starHall"];
     wc.startWave(17);
-    wc.event = "harmonic";
-    wc.startBiomeEvent("harmonic", 17);
+    wc.event = "starPaths";
+    wc.startBiomeEvent("starPaths", 17);
     assert.ok(wc.arena.portals.length >= 1);
     const p = wc.arena.portals[0];
     wc.pb.push({
@@ -247,19 +247,19 @@ test("reworked cozy wave events and shot-detonated proximity vessels are determi
       pierce: 0,
       bounce: 0,
       hits: [],
-      w: "pulse",
+      w: "lanternGun",
     });
     wc.updateFeatures(1 / 60);
     assert.ok(wc.pb[0].dmg >= 25.9, "Astral Convergence boosts portal-warped player shots by 30%");
 
     // 3. Armed proximity vessels detonate when shot for 1.5x pack damage without friendly fire
-    const wt = new World({ seed: 303, weapon: "pulse", threat: 0, ws: {} });
+    const wt = new World({ seed: 303, weapon: "lanternGun", threat: 0, ws: {} });
     wt.arena.obs = [];
     wt.player.x = 0;
     wt.player.y = 0;
     const hpBefore = wt.player.hp;
     wt.traps = [{ id: 1, fam: "mine", skin: "mine", x: 1.5, y: 0, st: "armed", t: 0 }];
-    const packFoe = wt.spawnEnemy("brute", 2.6, 0.9, {});
+    const packFoe = wt.spawnEnemy("ironGolem", 2.6, 0.9, {});
     packFoe.spawnT = 0;
     const foeHp0 = packFoe.hp;
     wt.hash.build(wt.enemies);
@@ -276,7 +276,7 @@ test("reworked cozy wave events and shot-detonated proximity vessels are determi
       pierce: 0,
       bounce: 0,
       hits: [],
-      w: "pulse",
+      w: "lanternGun",
     });
     wt.updatePBullets(1 / 60);
     assert.equal(wt.traps[0].st, "gone", "armed vessel detonates when shot");
@@ -290,11 +290,11 @@ test("reworked cozy wave events and shot-detonated proximity vessels are determi
 test("reimagined biome traps apply distinct mechanics across all six realms", async () => {
   const { rlUpdateTraps, TRAP_SKINS } = await import("../src/core/traps.js");
 
-  // 1. Star-Vault Astrolabe Well pulls enemies inward during warn telegraph
-  const wPull = new World({ seed: 41, weapon: "pulse", threat: 0, ws: {} });
+  // 1. Star Hall Astrolabe Well pulls enemies inward during warn telegraph
+  const wPull = new World({ seed: 41, weapon: "lanternGun", threat: 0, ws: {} });
   wPull.arena.obs = [];
   wPull.enemies.length = 0;
-  const foePull = wPull.spawnEnemy("grunt", 3.5, 0, { noVariant: true });
+  const foePull = wPull.spawnEnemy("kettleGuard", 3.5, 0, { noVariant: true });
   foePull.spawnT = 0;
   wPull.hash.build(wPull.enemies);
   wPull.traps = [
@@ -304,11 +304,11 @@ test("reimagined biome traps apply distinct mechanics across all six realms", as
   assert.ok(foePull.x < 3.4, "riftburst must pull foes inward during telegraph");
 
   // 2. Caldera Slag Crater ignites foes and leaves a lingering burn pool
-  const wBurn = new World({ seed: 42, weapon: "pulse", threat: 0, ws: {} });
+  const wBurn = new World({ seed: 42, weapon: "lanternGun", threat: 0, ws: {} });
   wBurn.arena.obs = [];
   wBurn.enemies.length = 0;
   wBurn.player.x = 12;
-  const foeBurn = wBurn.spawnEnemy("brute", 0.5, 0, { noVariant: true });
+  const foeBurn = wBurn.spawnEnemy("ironGolem", 0.5, 0, { noVariant: true });
   foeBurn.spawnT = 0;
   wBurn.hash.build(wBurn.enemies);
   wBurn.traps = [
@@ -318,13 +318,13 @@ test("reimagined biome traps apply distinct mechanics across all six realms", as
   assert.ok(foeBurn.burnT > 0, "pyro crater must ignite nearby foes");
   assert.ok(wBurn.burnPools.length > 0, "pyro crater must leave a lingering burn pool");
 
-  // 3. Glowmarsh Pitcher Spout corrodes foes and spawns a bog pool
-  const wBog = new World({ seed: 43, weapon: "pulse", threat: 0, ws: {} });
+  // 3. Moss Bog Pitcher Spout corrodes foes and spawns a bog pool
+  const wBog = new World({ seed: 43, weapon: "lanternGun", threat: 0, ws: {} });
   wBog.arena.obs = [];
   wBog.arena.acid = [];
   wBog.enemies.length = 0;
   wBog.player.x = 12;
-  const foeBog = wBog.spawnEnemy("brute", 0.5, 0, { noVariant: true });
+  const foeBog = wBog.spawnEnemy("ironGolem", 0.5, 0, { noVariant: true });
   foeBog.spawnT = 0;
   wBog.hash.build(wBog.enemies);
   wBog.traps = [
@@ -334,13 +334,13 @@ test("reimagined biome traps apply distinct mechanics across all six realms", as
   assert.equal(foeBog.corrode, true, "geyser spout must corrode foes");
   assert.ok(wBog.arena.acid.length > 0, "geyser spout must spawn a bog pool");
 
-  // 4. Glass Flats Sun-Glass Spire calms nearby dust devils and strongly knocks foes back
-  const wSun = new World({ seed: 44, weapon: "pulse", threat: 0, ws: {} });
+  // 4. Sun Dunes Sun-Glass Spire calms nearby dust devils and strongly knocks foes back
+  const wSun = new World({ seed: 44, weapon: "lanternGun", threat: 0, ws: {} });
   wSun.arena.obs = [];
   wSun.arena.devils = [{ x: 1.5, y: 0, r: 2.2, vx: 1, vy: 0, a: 0, calmT: 0 }];
   wSun.enemies.length = 0;
   wSun.player.x = 12;
-  const foeSun = wSun.spawnEnemy("grunt", 1.0, 0, { noVariant: true });
+  const foeSun = wSun.spawnEnemy("kettleGuard", 1.0, 0, { noVariant: true });
   foeSun.spawnT = 0;
   wSun.hash.build(wSun.enemies);
   wSun.traps = [
@@ -350,8 +350,8 @@ test("reimagined biome traps apply distinct mechanics across all six realms", as
   assert.ok(wSun.arena.devils[0].calmT > 0, "sunspike must calm nearby dust devils");
   assert.ok(Math.hypot(foeSun.kx, foeSun.ky) > 4, "sunspike must knock foes back strongly");
 
-  // 5. Star-Vault Armillary Lens swings as a pendulum; Caldera Dragon-Kiln beam burns foes
-  const wBeam = new World({ seed: 45, weapon: "pulse", threat: 0, ws: {} });
+  // 5. Star Hall Armillary Lens swings as a pendulum; Caldera Dragon-Kiln beam burns foes
+  const wBeam = new World({ seed: 45, weapon: "lanternGun", threat: 0, ws: {} });
   wBeam.arena.obs = [];
   wBeam.enemies.length = 0;
   wBeam.player.x = 12;
@@ -363,11 +363,11 @@ test("reimagined biome traps apply distinct mechanics across all six realms", as
   assert.equal(wBeam.beams.length, 2);
   const riftBeam = wBeam.beams.find((b) => b.skin === "rift");
   const magmaBeam = wBeam.beams.find((b) => b.skin === "magma");
-  assert.ok(riftBeam.swing > 0, "Star-Vault rift beam must use pendulum swing");
+  assert.ok(riftBeam.swing > 0, "Star Hall rift beam must use pendulum swing");
   const startA = riftBeam.a;
   wBeam.updateBeams(magmaBeam.warn + 0.05);
   const foeMagma = wBeam.spawnEnemy(
-    "brute",
+    "ironGolem",
     magmaBeam.x + Math.cos(magmaBeam.a) * 4,
     magmaBeam.y + Math.sin(magmaBeam.a) * 4,
     { noVariant: true },
@@ -380,10 +380,10 @@ test("reimagined biome traps apply distinct mechanics across all six realms", as
 });
 
 test("relic auras, bountyPulse amounts and Frost Prism splinter damage attribution stay accurate", async () => {
-  // 1. Star-Vault prism aura empowers passing player bolts by 25%
-  const wPrism = new World({ seed: 501, weapon: "pulse", threat: 0, ws: {} });
+  // 1. Star Hall prism aura empowers passing player bolts by 25%
+  const wPrism = new World({ seed: 501, weapon: "lanternGun", threat: 0, ws: {} });
   wPrism.arena.obs = [];
-  wPrism.arena.props = [{ kind: "prism", x: 3, y: 0, r: 0.8, auraT: 4, cd: 0 }];
+  wPrism.arena.props = [{ kind: "iceCrystal", x: 3, y: 0, r: 0.8, auraT: 4, cd: 0 }];
   wPrism.pb.push({
     id: 1,
     x: 2.5,
@@ -397,40 +397,43 @@ test("relic auras, bountyPulse amounts and Frost Prism splinter damage attributi
     pierce: 0,
     bounce: 0,
     hits: [],
-    w: "pulse",
+    w: "lanternGun",
   });
   wPrism.updatePBullets(1 / 60);
   assert.equal(wPrism.pb[0].prismBoost, true, "bolt passing lit prism aura is marked empowered");
   assert.equal(wPrism.pb[0].dmg, 25, "prism aura empowers passing bolt by +25%");
 
-  // 2. Glass Flats sunglass fires a 5-lance solar fan
-  const wSun = new World({ seed: 502, weapon: "pulse", threat: 0, ws: {} });
+  // 2. Sun Dunes sunglass fires a 5-lance solar fan
+  const wSun = new World({ seed: 502, weapon: "lanternGun", threat: 0, ws: {} });
   wSun.arena.obs = [];
   wSun.enemies.length = 0;
   wSun.pb.length = 0;
-  const foe = wSun.spawnEnemy("brute", 6, 0, { noVariant: true });
+  const foe = wSun.spawnEnemy("ironGolem", 6, 0, { noVariant: true });
   foe.spawnT = 0;
   const prop = { kind: "sunglass", x: 0, y: 0, r: 0.8, auraT: 0, cd: 0 };
   wSun.arena.props = [prop];
   wSun.hash.build(wSun.enemies);
   assert.equal(wSun.triggerBiomeProp(prop), true);
-  assert.equal(wSun.pb.length, 5, "Glass Flats sunglass relic must launch a 5-lance solar fan");
+  assert.equal(wSun.pb.length, 5, "Sun Dunes sunglass relic must launch a 5-lance solar fan");
 
-  // 3. Gilded Caravan elite kill emits bountyPulse with numeric amount > 0 (never undefined)
-  const wGild = new World({ seed: 503, weapon: "pulse", threat: 0, ws: {} });
-  wGild.event = "gilded";
+  // 3. Gold Cart elite kill emits bountyPulse with numeric amount > 0 (never undefined)
+  const wGild = new World({ seed: 503, weapon: "lanternGun", threat: 0, ws: {} });
+  wGild.event = "goldCart";
   wGild.fx.length = 0;
-  const elite = wGild.spawnEnemy("grunt", 2, 0, { elite: true });
+  const elite = wGild.spawnEnemy("kettleGuard", 2, 0, { elite: true });
   wGild.killEnemy(elite);
-  const pulse = wGild.fx.find((e) => e.k === "bountyPulse");
-  assert.ok(pulse && typeof pulse.amount === "number" && pulse.amount > 0, "bountyPulse must carry numeric amount");
+  const lanternGun = wGild.fx.find((e) => e.k === "bountyPulse");
+  assert.ok(
+    lanternGun && typeof lanternGun.amount === "number" && lanternGun.amount > 0,
+    "bountyPulse must carry numeric amount",
+  );
 
   // 4. Frost Prism splinters credit 'shard', not Glasswyrm 'fang'
   const { updateBossCards } = await import("../src/core/boss-cards.js");
-  const wShard = new World({ seed: 504, weapon: "pulse", threat: 0, ws: {} });
+  const wShard = new World({ seed: 504, weapon: "lanternGun", threat: 0, ws: {} });
   wShard.arena.obs = [];
   wShard.enemies.length = 0;
-  const target = wShard.spawnEnemy("brute", 2, 0, { noVariant: true });
+  const target = wShard.spawnEnemy("ironGolem", 2, 0, { noVariant: true });
   target.spawnT = 0;
   wShard.hash.build(wShard.enemies);
   wShard.splinters = [{ x: 1.9, y: 0, vx: 12, vy: 0, dmg: 30, life: 1, glass: false }];
@@ -439,7 +442,7 @@ test("relic auras, bountyPulse amounts and Frost Prism splinter damage attributi
   assert.equal(wShard.dmgSrc.fang || 0, 0, "Frost Prism splinter must not leak into dmgSrc.fang");
 });
 
-test("Masterwork evolutions validate prerequisites and Powder-Tinker lobs kegs onto flanks", async () => {
+test("Masterwork evolutions validate prerequisites and Bomb Maker lobs kegs onto flanks", async () => {
   const { upgradesById } = await import("../src/data/upgrades.js");
   const { updateEnemy } = await import("../src/core/ai.js");
 
@@ -453,7 +456,7 @@ test("Masterwork evolutions validate prerequisites and Powder-Tinker lobs kegs o
       assert.ok(reqLv >= 1 && reqLv <= (upgradesById[reqId].max || 99), `${evo.id}: invalid req level for ${reqId}`);
     }
   }
-  const wOffer = new World({ seed: 601, weapon: "pulse", threat: 0, ws: {} });
+  const wOffer = new World({ seed: 601, weapon: "lanternGun", threat: 0, ws: {} });
   wOffer.up = { orbit: 3, shield: 1 }; // prerequisites for Gilded Halo ('halo')
   let sawHalo = false;
   for (let i = 0; i < 12 && !sawHalo; i++) {
@@ -464,39 +467,39 @@ test("Masterwork evolutions validate prerequisites and Powder-Tinker lobs kegs o
   }
   assert.equal(sawHalo, true, "satisfied Masterwork evolution must appear in craft offers");
 
-  // 2. Powder-Tinker (sapper) lobs timed kegs onto the player's flank, distinct from Cinder-Sower (minebot)
-  const wAi = new World({ seed: 602, weapon: "pulse", threat: 0, ws: {} });
+  // 2. Bomb Maker (sapper) lobs timed kegs onto the player's flank, distinct from Mine Cart (minebot)
+  const wAi = new World({ seed: 602, weapon: "lanternGun", threat: 0, ws: {} });
   wAi.arena.obs = [];
   wAi.player.x = 7;
   wAi.player.y = 0;
-  const sapper = wAi.spawnEnemy("sapper", 0, 0, { noVariant: true });
-  const minebot = wAi.spawnEnemy("minebot", 0, 0, { noVariant: true });
-  Object.assign(sapper, { spawnT: 0, t: 0, los: true });
-  Object.assign(minebot, { spawnT: 0, t: 0, los: true });
+  const bombMaker = wAi.spawnEnemy("bombMaker", 0, 0, { noVariant: true });
+  const mineCart = wAi.spawnEnemy("mineCart", 0, 0, { noVariant: true });
+  Object.assign(bombMaker, { spawnT: 0, t: 0, los: true });
+  Object.assign(mineCart, { spawnT: 0, t: 0, los: true });
   wAi.hazards.length = 0;
-  updateEnemy(wAi, minebot, 1 / 60);
+  updateEnemy(wAi, mineCart, 1 / 60);
   const mineH = wAi.hazards.find((h) => h.kind === "mine");
   assert.ok(mineH, "minebot must plant a mine hazard");
-  assert.ok(Math.hypot(mineH.x - minebot.x, mineH.y - minebot.y) < 0.2, "minebot plants at its own feet");
+  assert.ok(Math.hypot(mineH.x - mineCart.x, mineH.y - mineCart.y) < 0.2, "minebot plants at its own feet");
   wAi.hazards.length = 0;
-  updateEnemy(wAi, sapper, 1 / 60);
-  const sapperH = wAi.hazards.find((h) => h.kind === "sapper");
+  updateEnemy(wAi, bombMaker, 1 / 60);
+  const sapperH = wAi.hazards.find((h) => h.kind === "bombMaker");
   assert.ok(sapperH, "sapper must lob a powder-keg hazard");
   assert.ok(Number.isFinite(sapperH.sx) && Number.isFinite(sapperH.sy), "sapper hazard must record lob origin");
-  assert.ok(Math.hypot(sapperH.x - sapper.x, sapperH.y - sapper.y) > 3, "sapper lobs onto the player's flank");
+  assert.ok(Math.hypot(sapperH.x - bombMaker.x, sapperH.y - bombMaker.y) > 3, "sapper lobs onto the player's flank");
 });
 
 test("regression: Bellkeeper sealgrid corridor beams span the arena and damage the player", async () => {
   const { updateBoss } = await import("../src/core/ai.js");
-  const w = new World({ seed: 701, weapon: "pulse", threat: 0, ws: {} });
-  w.route = ["courtyard"];
+  const w = new World({ seed: 701, weapon: "lanternGun", threat: 0, ws: {} });
+  w.route = ["lanternYard"];
   w.startWave(5);
   w.arena.obs = [];
   w.enemies.length = 0;
   w.beams.length = 0;
-  const boss = w.spawnBoss("bellkeeper");
+  const boss = w.spawnBoss("bellKeeper");
   boss.spawnT = 0;
-  boss.st = "sealgrid";
+  boss.st = "bellCage";
   boss.n = 0;
   boss.t = 0;
   w.player.x = 0;
@@ -525,11 +528,11 @@ test("regression: Bellkeeper sealgrid corridor beams span the arena and damage t
 
 test("regression: Glasswyrm diveT sets ghost=true and mirage/rise resolve inside arena bounds", async () => {
   const { updateBoss } = await import("../src/core/ai.js");
-  const w = new World({ seed: 702, weapon: "pulse", threat: 0, ws: {} });
-  w.route = ["flats"];
+  const w = new World({ seed: 702, weapon: "lanternGun", threat: 0, ws: {} });
+  w.route = ["sunDunes"];
   w.startWave(5);
   w.enemies.length = 0;
-  const boss = w.spawnBoss("wyrm");
+  const boss = w.spawnBoss("sandDragon");
   boss.spawnT = 0;
   boss.diveT = 0.5;
   updateBoss(w, boss, 0.05);
@@ -538,7 +541,7 @@ test("regression: Glasswyrm diveT sets ghost=true and mirage/rise resolve inside
   updateBoss(w, boss, 0.05);
   assert.equal(boss.ghost, false, "surfacing Glasswyrm must restore ghost=false");
   // Trigger mirage phase and verify position stays strictly inside arena and unobstructed
-  boss.st = "mirage";
+  boss.st = "sandstorm";
   boss.n = 0;
   boss.t = 0;
   w.player.x = w.arena.W - 2.0;
@@ -547,13 +550,13 @@ test("regression: Glasswyrm diveT sets ghost=true and mirage/rise resolve inside
   assert.equal(w.arena.outside(boss.x, boss.y, boss.r * 0.5), false, "Glasswyrm mirage must stay inside arena bounds");
 });
 
-test("regression: Glowmarsh puffball and trap corrodeT persist across updateFeatures ticks", async () => {
+test("regression: Moss Bog puffball and trap corrodeT persist across updateFeatures ticks", async () => {
   const { rlUpdateTraps } = await import("../src/core/traps.js");
-  const w = new World({ seed: 703, weapon: "pulse", threat: 0, ws: {} });
+  const w = new World({ seed: 703, weapon: "lanternGun", threat: 0, ws: {} });
   w.arena.obs = [];
   w.arena.acid = [];
   w.enemies.length = 0;
-  const foe = w.spawnEnemy("brute", 1.0, 0, { noVariant: true });
+  const foe = w.spawnEnemy("ironGolem", 1.0, 0, { noVariant: true });
   foe.spawnT = 0;
   w.hash.build(w.enemies);
   const prop = { kind: "puffball", x: 0, y: 0, r: 0.9, cd: 0, fuse: 0 };
@@ -568,7 +571,7 @@ test("regression: Glowmarsh puffball and trap corrodeT persist across updateFeat
   }
   assert.equal(foe.corrode, true, "puffball corrodeT must not be wiped by updateFeatures when no pools exist");
   // Also verify trap corrodeT persists across updateFeatures
-  const foe2 = w.spawnEnemy("brute", 5.0, 0, { noVariant: true });
+  const foe2 = w.spawnEnemy("ironGolem", 5.0, 0, { noVariant: true });
   foe2.spawnT = 0;
   w.hash.build(w.enemies);
   w.traps = [
@@ -584,11 +587,11 @@ test("regression: Glowmarsh puffball and trap corrodeT persist across updateFeat
 test("regression: shardfield splinters and fang lances pierce across kills", async () => {
   const { updateBossCards } = await import("../src/core/boss-cards.js");
   // 1. Frost Prism splinter pierces through a fatal hit into the second enemy behind it
-  const w1 = new World({ seed: 704, weapon: "pulse", threat: 0, ws: {} });
+  const w1 = new World({ seed: 704, weapon: "lanternGun", threat: 0, ws: {} });
   w1.arena.obs = [];
   w1.enemies.length = 0;
-  const a1 = w1.spawnEnemy("grunt", 1.0, 0, { noVariant: true });
-  const a2 = w1.spawnEnemy("grunt", 2.0, 0, { noVariant: true });
+  const a1 = w1.spawnEnemy("kettleGuard", 1.0, 0, { noVariant: true });
+  const a2 = w1.spawnEnemy("kettleGuard", 2.0, 0, { noVariant: true });
   a1.spawnT = a2.spawnT = 0;
   a1.hp = 5; // dies immediately to the splinter
   a2.hp = a2.maxHp = 500;
@@ -602,11 +605,11 @@ test("regression: shardfield splinters and fang lances pierce across kills", asy
   assert.ok(a2.hp < 500, "shardfield splinter must pierce across the kill and hit the second foe");
 
   // 2. Glasswyrm fang lance pierces through a fatal hit into the second enemy behind it
-  const w2 = new World({ seed: 705, weapon: "pulse", threat: 0, ws: {} });
+  const w2 = new World({ seed: 705, weapon: "lanternGun", threat: 0, ws: {} });
   w2.arena.obs = [];
   w2.enemies.length = 0;
-  const b1 = w2.spawnEnemy("grunt", 1.0, 0, { noVariant: true });
-  const b2 = w2.spawnEnemy("grunt", 2.1, 0, { noVariant: true });
+  const b1 = w2.spawnEnemy("kettleGuard", 1.0, 0, { noVariant: true });
+  const b2 = w2.spawnEnemy("kettleGuard", 2.1, 0, { noVariant: true });
   b1.spawnT = b2.spawnT = 0;
   b1.hp = 5;
   b2.hp = b2.maxHp = 500;
@@ -625,30 +628,30 @@ test("regression: Boss Waves offer guaranteed Relic as bonus slot and all 18 bio
   assert.equal(Object.keys(TRAP_SKINS).length, 18, "all 6 biomes must have floor, mine, and beam traps (18 total)");
   assert.deepEqual(TRAP_FROM, { floor: 2, mine: 4, beam: 7 });
 
-  const w = new World({ seed: 706, weapon: "pulse", threat: 0, ws: {} });
-  w.route = ["courtyard"];
+  const w = new World({ seed: 706, weapon: "lanternGun", threat: 0, ws: {} });
+  w.route = ["lanternYard"];
   w.startWave(5);
   w.offerBoss = true;
   w.beginChoice();
   assert.equal(w.offer.length, 4, "Boss Wave must grant 3 regular upgrades + 1 guaranteed bonus Relic slot");
   assert.ok(w.offerExclusive && w.offer[0] === w.offerExclusive, "Relic occupies dedicated slot 0");
   // With Workshop Insight, Boss Wave grants 4 regular + 1 Relic = 5 cards
-  const wInsight = new World({ seed: 706, weapon: "pulse", threat: 0, ws: { insight: 1 } });
-  wInsight.route = ["courtyard"];
+  const wInsight = new World({ seed: 706, weapon: "lanternGun", threat: 0, ws: { extraChoice: 1 } });
+  wInsight.route = ["lanternYard"];
   wInsight.startWave(5);
   wInsight.offerBoss = true;
   wInsight.beginChoice();
   assert.equal(wInsight.offer.length, 5, "Boss Wave with Insight must grant 4 regular + 1 bonus Relic = 5 cards");
 });
 
-test("Perfect Dash rewards exactly one near miss early in the dash, without Mirror Ward", () => {
-  const w = new World({ seed: 921, weapon: "pulse", threat: 0 });
+test("Perfect Dash rewards exactly one near miss early in the dash, without Mirror Shield", () => {
+  const w = new World({ seed: 921, weapon: "lanternGun", threat: 0 });
   const p = w.player;
   w.hold = true;
   for (let i = 0; i < 3; i++) w.shoot(p.x + 0.55, p.y + 0.32, 0, 0, 50, { solid: false });
   w.step(1 / 60, { dash: true, mx: 1 });
   assert.equal(w.fx.filter(({ k }) => k === "graze").length, 1);
-  assert.equal(p.nova, 8);
+  assert.equal(p.fireBurst, 8);
   assert.equal(p.hp, w.stats.maxHp);
   assert.ok(p.dashCdT < w.stats.dashCd - 0.3);
   assert.ok(w.hitstopT > 0);
@@ -660,8 +663,8 @@ test("Perfect Dash rewards exactly one near miss early in the dash, without Mirr
 });
 
 test("Micro-hitstop coalesces a burst of crits and prioritizes heavier impacts", () => {
-  const w = new World({ seed: 922, weapon: "pulse", threat: 0 });
-  const e = w.spawnEnemy("grunt", 4, 2, {});
+  const w = new World({ seed: 922, weapon: "lanternGun", threat: 0 });
+  const e = w.spawnEnemy("kettleGuard", 4, 2, {});
   e.maxHp = e.hp = 1000;
   w.hurtEnemy(e, 3, 1, 0, 0, true);
   assert.equal(w.hitstopT, 0.014);
@@ -671,15 +674,15 @@ test("Micro-hitstop coalesces a burst of crits and prioritizes heavier impacts",
   w.hitstopT = 0;
   w.hurtEnemy(e, 3, 1, 0, 0, true);
   assert.equal(w.hitstopT, 0);
-  w.player.nova = 100;
-  w.nova();
+  w.player.fireBurst = 100;
+  w.fireBurst();
   assert.ok(w.hitstopT >= 0.065);
 });
 
 test("Guardian recovery openings boost damage for all six fights and cannot skip phases", async () => {
   const { updateBoss, bossPatterns } = await import("../src/core/ai.js");
   for (const [id, patterns] of Object.entries(bossPatterns)) {
-    const w = new World({ seed: 923, weapon: "pulse", threat: 0 });
+    const w = new World({ seed: 923, weapon: "lanternGun", threat: 0 });
     const boss = w.spawnBoss(id);
     boss.spawnT = 0;
     for (let i = 0; i < 500 && !boss.openT; i++) updateBoss(w, boss, 1 / 60);
@@ -697,11 +700,11 @@ test("Guardian recovery openings boost damage for all six fights and cannot skip
   }
 });
 
-test("Seven native arm traits affect real shots and Thermal Shatter has a per-foe cooldown", () => {
+test("Seven native arm traits affect real shots and Heat Crack has a per-foe cooldown", () => {
   const setup = (weapon) => {
     const w = new World({ seed: 924, weapon, threat: 0 });
     w.stats.crit = 0;
-    const e = w.spawnEnemy("grunt", 3, 2, {});
+    const e = w.spawnEnemy("kettleGuard", 3, 2, {});
     e.hp = e.maxHp = 1000;
     w.hash.build(w.enemies);
     return [w, e];
@@ -713,29 +716,29 @@ test("Seven native arm traits affect real shots and Thermal Shatter has a per-fo
     w.bulletHit(w.pb[0], e);
     return 1000 - e.hp;
   };
-  const [pulse] = setup("pulse");
-  for (let i = 0; i < 4; i++) pulse.fire(0);
-  assert.equal(pulse.pb[3].dmg, pulse.pb[0].dmg * 1.3);
-  assert.ok(hit("scatter", { age: 0.05 }) > hit("scatter", { age: 0.3 }));
-  assert.ok(hit("tesla") > weaponDefs.tesla.dmg);
-  assert.ok(hit("rail", { pierceCount: 2 }) > hit("rail"));
-  assert.ok(hit("rocket") > weaponDefs.rocket.dmg + weaponDefs.rocket.explodeDmg);
-  assert.ok(hit("disc", { back: true }) > hit("disc"));
-  const [flame, chilled] = setup("flame");
+  const [lanternGun] = setup("lanternGun");
+  for (let i = 0; i < 4; i++) lanternGun.fire(0);
+  assert.equal(lanternGun.pb[3].dmg, lanternGun.pb[0].dmg * 1.3);
+  assert.ok(hit("brassShotgun", { age: 0.05 }) > hit("brassShotgun", { age: 0.3 }));
+  assert.ok(hit("sparkWand") > weaponDefs.sparkWand.dmg);
+  assert.ok(hit("starSpear", { pierceCount: 2 }) > hit("starSpear"));
+  assert.ok(hit("emberLauncher") > weaponDefs.emberLauncher.dmg + weaponDefs.emberLauncher.explodeDmg);
+  assert.ok(hit("ringBlade", { back: true }) > hit("ringBlade"));
+  const [fireBellows, chilled] = setup("fireBellows");
   chilled.frostT = 2;
-  flame.fire(0);
-  flame.bulletHit(flame.pb[0], chilled);
+  fireBellows.fire(0);
+  fireBellows.bulletHit(fireBellows.pb[0], chilled);
   chilled.frostT = 2;
-  flame.fire(0);
-  flame.bulletHit(flame.pb[1], chilled);
-  assert.equal(flame.fx.filter((event) => event.k === "shatter" && event.thermal).length, 1);
-  assert.ok(1000 - chilled.hp > weaponDefs.flame.dmg * 2 + 12);
+  fireBellows.fire(0);
+  fireBellows.bulletHit(fireBellows.pb[1], chilled);
+  assert.equal(fireBellows.fx.filter((event) => event.k === "shatter" && event.thermal).length, 1);
+  assert.ok(1000 - chilled.hp > weaponDefs.fireBellows.dmg * 2 + 12);
 });
 
 test("Wave pacing shortens downtime and keeps uncollected clear rewards", async () => {
   const { planWave } = await import("../src/core/waves.js");
   const { makeRng } = await import("../src/core/util.js");
-  const w = new World({ seed: 925, weapon: "pulse", threat: 0 });
+  const w = new World({ seed: 925, weapon: "lanternGun", threat: 0 });
   const plan = planWave(makeRng(925), 12, w.tm, false);
   assert.ok(plan.length > 1);
   assert.ok(plan.every((group) => group.gap < 2.55));
@@ -751,34 +754,34 @@ test("Wave pacing shortens downtime and keeps uncollected clear rewards", async 
 
 test("A Masterwork favors the active arm and deweights a prior offer while respecting seals", async () => {
   const { rollUpgradeOffer } = await import("../src/core/waves.js");
-  const owned = { rate: 2, multishot: 1, orbit: 2, shield: 1 };
+  const owned = { rate: 2, extraShots: 1, orbit: 2, shield: 1 };
   const roll = (n, exclude = [], banned = []) =>
-    rollUpgradeOffer({ next: () => n }, owned, 10, 1, 1, false, exclude, "pulse", banned)[0];
-  assert.equal(roll(0.35), "overdrive");
-  assert.equal(roll(0.35, ["overdrive"]), "halo");
-  assert.equal(roll(0.99, [], ["overdrive"]), "halo");
-  assert.equal(roll(0.99, [], ["halo"]), "overdrive");
+    rollUpgradeOffer({ next: () => n }, owned, 10, 1, 1, false, exclude, "lanternGun", banned)[0];
+  assert.equal(roll(0.35), "sunGun");
+  assert.equal(roll(0.35, ["sunGun"]), "halo");
+  assert.equal(roll(0.99, [], ["sunGun"]), "halo");
+  assert.equal(roll(0.99, [], ["halo"]), "sunGun");
 });
 
-test("Endless burst cap eases in at wave 40, refills after its window and exempts Hearthburst", async () => {
+test("Endless burst cap eases in at wave 40, refills after its window and exempts Fire Burst", async () => {
   const { burstFraction, BURST_WINDOW } = await import("../src/core/difficulty.js");
   assert.equal(burstFraction(39), 1);
   assert.equal(burstFraction(40), 0.97);
   assert.ok(burstFraction(100) > 0.6);
   assert.equal(burstFraction(400), 0.28);
-  const w = new World({ seed: 926, weapon: "pulse", threat: 0 });
+  const w = new World({ seed: 926, weapon: "lanternGun", threat: 0 });
   w.endless = true;
   w.startWave(40);
-  const e = w.spawnEnemy("grunt", 4, 5, {});
+  const e = w.spawnEnemy("kettleGuard", 4, 5, {});
   e.hp = e.maxHp = 100;
   w.hurtEnemy(e, 1000, 1, 0, 0, false);
   assert.equal(e.hp, 3);
   w.hurtEnemy(e, 1000, 1, 0, 0, false);
   assert.equal(e.hp, 3);
-  const second = w.spawnEnemy("grunt", 4, 5, {});
+  const second = w.spawnEnemy("kettleGuard", 4, 5, {});
   second.hp = second.maxHp = 100;
   w.hurtEnemy(second, 1000, 1, 0, 0, false);
-  w.hurtEnemy(second, 5, 1, 0, 0, false, "nova");
+  w.hurtEnemy(second, 5, 1, 0, 0, false, "fireBurst");
   assert.equal(second.dead, true);
   w.time += BURST_WINDOW + 0.01;
   w.hurtEnemy(e, 5, 1, 0, 0, false);
@@ -786,7 +789,7 @@ test("Endless burst cap eases in at wave 40, refills after its window and exempt
 });
 
 test("Anvil purchases persist with the route, cost, and cargo after a sanitized checkpoint", () => {
-  const w = new World({ seed: 927, weapon: "pulse", threat: 0 });
+  const w = new World({ seed: 927, weapon: "lanternGun", threat: 0 });
   w.startWave(5);
   w.state = "choose";
   w.offer = ["rate"];
@@ -809,4 +812,27 @@ test("Anvil purchases persist with the route, cost, and cargo after a sanitized 
   assert.equal(restored.state, "fight");
   assert.equal(restored.leaveAnvil(), false);
   assert.equal(restored.snapshot().anvil, undefined);
+});
+
+test("a gun at the edge of cover cannot fire through a wall between the body and muzzle", () => {
+  const w = new World({ seed: 929, weapon: "lanternGun", threat: 0 });
+  w.player.x = w.player.y = 0;
+  w.arena.obs = [{ t: "b", x: 0.72, y: 0.2, w: 0.02, h: 0.45 }];
+  w.fire(0);
+  const event = w.fx.find(({ k }) => k === "shot");
+  assert.equal(event.blocked, true);
+  assert.ok(Math.abs(event.x - 0.7) < 1e-6);
+  assert.equal(w.pb.length, 0);
+  assert.ok(w.fx.some(({ k }) => k === "spark"));
+});
+
+test("Ring Blade returns to the weapon instead of disappearing into the player's body", () => {
+  const w = new World({ seed: 929, weapon: "ringBlade", threat: 0 });
+  w.player.x = w.player.y = w.player.aim = 0;
+  w.arena.obs = [];
+  w.fire(0);
+  const bullet = w.pb[0];
+  Object.assign(bullet, { back: true, age: 0.8, vx: 0, vy: 0 });
+  w.updatePBullets(1 / 60);
+  assert.equal(bullet.life, 0);
 });

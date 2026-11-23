@@ -1,6 +1,7 @@
 // Ground-up stylized storybook diorama arena & exterior world builder for all 6 biomes:
 // sculpted cover monoliths, fortified gateways/bridges, rich lived-in exterior worlds, aurora ribbons & ambient weather.
 
+import { layoutBiomeSeedId } from "../data/content-ids.js";
 import { Color, Vec2 } from "../engine/math.js";
 import {
   box,
@@ -78,7 +79,7 @@ function safeExterior(x, z, r, W, H, pad = 0.35) {
   return Math.abs(x) - r >= W + pad || Math.abs(z) - r >= H + pad;
 }
 
-/** Multi-curtain stylized aurora ribbons & polar starfield strictly outside the Aurora Shelf arena bounds. */
+/** Multi-curtain stylized aurora ribbons & polar starfield strictly outside the Snow Ridge arena bounds. */
 export function createAurora(W, H) {
   const group = new Node();
   const mat = new Material({
@@ -147,7 +148,7 @@ export function createAurora(W, H) {
 /** 4 distinct sculpted cover archetypes per biome (24 total), strictly bounded inside each obstacle's collision footprint. */
 function buildCover(view, biomeId, obstacles, rng) {
   const props = view.obsGroup;
-  const look = GLAZES[biomeId] || GLAZES.courtyard;
+  const look = GLAZES[biomeId] || GLAZES.lanternYard;
 
   const matCache = new Map();
   const baseMat = (surface, color) => {
@@ -174,14 +175,14 @@ function buildCover(view, biomeId, obstacles, rng) {
 
   for (let i = 0; i < obstacles.length; i++) {
     const obs = obstacles[i];
-    const seed = hashString(`${biomeId}:obs:${i}:${obs.x}:${obs.y}`);
+    const seed = hashString(`${layoutBiomeSeedId(biomeId)}:obs:${i}:${obs.x}:${obs.y}`);
     const variant = (i + (seed & 3)) % 4;
     const isCircle = obs.t === "c";
     const w = isCircle ? obs.r * 2 : obs.w * 2;
     const d = isCircle ? obs.r * 2 : obs.h * 2;
     const rad = isCircle ? obs.r : Math.min(obs.w, obs.h);
 
-    if (biomeId === "courtyard") {
+    if (biomeId === "lanternYard") {
       // 4 Archetypes: 0 = Garden Lantern Shrine, 1 = Brass Vacuum-Tube Transformer Kiosk,
       //               2 = Stone Bonsai/Bamboo Planter, 3 = Arched Courtyard Spirit Screen
       const slateBase = isCircle
@@ -314,7 +315,7 @@ function buildCover(view, biomeId, obstacles, rng) {
           obs.y,
         );
       }
-    } else if (biomeId === "shelf") {
+    } else if (biomeId === "snowRidge") {
       // 4 Archetypes: 0 = Snow-Draped Rune Cairn, 1 = Sapphire Ice-Crystal Cluster,
       //               2 = Frosted Expedition Supply Crate/Sled + Storm Lantern, 3 = Carved Glacier Arch
       if (variant === 0) {
@@ -411,7 +412,7 @@ function buildCover(view, biomeId, obstacles, rng) {
         );
         place(props, octahedron(rad * 0.2), glowMat(look.trim, 1.18), obs.x, h * 0.62, obs.y);
       }
-    } else if (biomeId === "marsh") {
+    } else if (biomeId === "mossBog") {
       // 4 Archetypes: 0 = Spotted Velvet Toadstool Colony, 1 = Hollow Mossy Log Shrine,
       //               2 = Reed-Wrapped Bog Cairn + Glowing Frog, 3 = Bulbous Spore-Pot Amphora
       const h = isCircle ? 1.62 : 1.38;
@@ -539,7 +540,7 @@ function buildCover(view, biomeId, obstacles, rng) {
           Math.PI / 2,
         );
       }
-    } else if (biomeId === "core") {
+    } else if (biomeId === "starHall") {
       // 4 Archetypes: 0 = Amethyst Crystal Obelisk, 1 = Brass Celestial Orrery Pedestal,
       //               2 = Levitating Rune Library Monolith, 3 = Fractured Star-Glass Sundial
       const h = isCircle ? 2.44 : 2.04;
@@ -631,7 +632,7 @@ function buildCover(view, biomeId, obstacles, rng) {
         .scale(0.85, 1.4, 0.85)
         .translate(obs.x, h + 0.28, obs.y);
       (i % 2 ? coreGemPartsB : coreGemPartsA).push(gem);
-    } else if (biomeId === "caldera") {
+    } else if (biomeId === "emberHill") {
       // 4 Archetypes: 0 = Bronze-Banded Dwarven Anvil, 1 = Glowing Magma-Veined Crag,
       //               2 = Iron-Caged Hearth Brazier, 3 = Slag-Crucible Foundry Pillar
       const h = isCircle ? 2.38 : 1.96;
@@ -723,7 +724,7 @@ function buildCover(view, biomeId, obstacles, rng) {
         place(props, cylinder(rad * 0.48, rad * 0.48, 0.14, 8), glowMat(0xff8228, 1.28), obs.x, 0.4 + h * 0.78, obs.y);
       }
     } else {
-      // Glass Flats — 4 Archetypes: 0 = Stratified Ochre Hoodoo Mesa, 1 = Turquoise Desert-Glass Spire Cluster,
+      // Sun Dunes — 4 Archetypes: 0 = Stratified Ochre Hoodoo Mesa, 1 = Turquoise Desert-Glass Spire Cluster,
       //                             2 = Brass Sun-Compass & Urns under Canopy, 3 = Vitrified Fulgurite Arch
       const h = isCircle ? 2.32 : 1.88;
       const baseMesa = sculptedRock(w * 0.94, h * 0.48, d * 0.94, seed, isCircle);
@@ -841,17 +842,17 @@ function buildCover(view, biomeId, obstacles, rng) {
 /** Perimeter ramparts, cardinal bridges/gates, and rich multi-ring storybook worlds around all 4 arena sides! */
 function buildArchitectureAndVistas(view, biome, W, H, rng) {
   const props = view.sceneryGroup;
-  const look = GLAZES[biome.id] || GLAZES.courtyard;
+  const look = GLAZES[biome.id] || GLAZES.lanternYard;
   const surface =
-    biome.id === "courtyard"
+    biome.id === "lanternYard"
       ? "metal"
-      : biome.id === "shelf"
+      : biome.id === "snowRidge"
         ? "ice"
-        : biome.id === "marsh"
+        : biome.id === "mossBog"
           ? "wood"
-          : biome.id === "caldera"
+          : biome.id === "emberHill"
             ? "basalt"
-            : biome.id === "flats"
+            : biome.id === "sunDunes"
               ? "sandstone"
               : "stone";
 
@@ -883,9 +884,9 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
   let lampLens = null;
 
   // =========================================================================
-  // BIOME 1: LANTERN COURTYARD — Wrought-Brass Balustrades, Paper-Screen Pavilions & Canal Viaduct
+  // BIOME 1: LANTERN YARD — Wrought-Brass Balustrades, Paper-Screen Pavilions & Canal Viaduct
   // =========================================================================
-  if (biome.id === "courtyard") {
+  if (biome.id === "lanternYard") {
     lampLens = emissiveMaterial({ color: look.light, emissiveIntensity: 1.24 });
     const lampGeos = [];
     const addLampGeo = (g) => lampGeos.push(g);
@@ -1152,9 +1153,9 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
   }
 
   // =========================================================================
-  // BIOME 2: AURORA SHELF — Nordic Timber Lodges, Pine Groves & Frozen Fjord
+  // BIOME 2: SNOW RIDGE — Nordic Timber Lodges, Pine Groves & Frozen Fjord
   // =========================================================================
-  else if (biome.id === "shelf") {
+  else if (biome.id === "snowRidge") {
     const iceMat = mat("ice", 0x386e98);
     const snowMat = mat("stone", 0xd0eaf8);
     const spruceDark = mat("organic", 0x1b4248);
@@ -1414,9 +1415,9 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
   }
 
   // =========================================================================
-  // BIOME 3: GLOWMARSH — Stilt-Boardwalk Piers, Bog Huts, Lily Pads & Fungi
+  // BIOME 3: MOSS BOG — Stilt-Boardwalk Piers, Bog Huts, Lily Pads & Fungi
   // =========================================================================
-  else if (biome.id === "marsh") {
+  else if (biome.id === "mossBog") {
     const capJade = mat("organic", 0x2c8c68);
     const capAmber = mat("organic", 0xc4883e);
     const capTeal = mat("organic", 0x2b847e);
@@ -1696,9 +1697,9 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
   }
 
   // =========================================================================
-  // BIOME 4: SHATTERED CORE — Floating Sanctuary Cliff-Skirt & Astral Islands
+  // BIOME 4: SHATTERED CORE — Floating Home Cliff-Skirt & Astral Islands
   // =========================================================================
-  else if (biome.id === "core") {
+  else if (biome.id === "starHall") {
     const obsMat = mat("basalt", 0x261d4c);
     const cliffDark = mat("basalt", 0x171132);
     const kintsugiMat = mat("metal", FINISH.brass);
@@ -1751,7 +1752,7 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
       }
     }
 
-    // 4 Cardinal Broken Floating Sanctuary Stairways & Kintsugi Astral Gates
+    // 4 Cardinal Broken Floating Home Stairways & Kintsugi Astral Gates
     for (const sz of [-1, 1]) {
       for (let st = 0; st < 4; st++) {
         const zStep = sz * (H + 2.3 + st * 1.25);
@@ -1775,7 +1776,7 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
       }
     }
 
-    // 12 Floating Satellite Sanctuary Islands with outward-wound tapered undersides hovering above the starry cosmos!
+    // 12 Floating Satellite Home Islands with outward-wound tapered undersides hovering above the starry cosmos!
     const shardsA = [],
       shardsB = [],
       runesA = [],
@@ -1868,9 +1869,9 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
   }
 
   // =========================================================================
-  // BIOME 5: ASHFALL CALDERA — Dwarven Forge Bridges, Lava Aqueducts & Anvils
+  // BIOME 5: EMBER HILL — Dwarven Forge Bridges, Lava Aqueducts & Anvils
   // =========================================================================
-  else if (biome.id === "caldera") {
+  else if (biome.id === "emberHill") {
     const basaltMat = mat("basalt", 0x3a2526);
     const basaltDark = mat("basalt", 0x26181a);
     const copperMat = mat("metal", FINISH.copper);
@@ -2054,7 +2055,7 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
   }
 
   // =========================================================================
-  // BIOME 6: GLASS FLATS — Oasis Temple Pylons, Colonnades, Palms & Sand Dunes
+  // BIOME 6: SUN DUNES — Oasis Temple Pylons, Colonnades, Palms & Sand Dunes
   // =========================================================================
   else {
     const sandLight = mat("sandstone", 0xc89858);
@@ -2393,26 +2394,26 @@ function clearOfObstacles(obstacles, x, z, pad = 0.85) {
 /** 3D floor edge micro-dressing (maxY <= 0.44 strictly below 0.8) along arena perimeter & corners. */
 function buildEdgeDressing(view, biome, W, H, obstacles, rng) {
   const props = view.sceneryGroup;
-  const look = GLAZES[biome.id] || GLAZES.courtyard;
+  const look = GLAZES[biome.id] || GLAZES.lanternYard;
   const count = 28;
   const floraMat = worldMaterial({
-    color: biome.id === "marsh" ? 0x387c54 : biome.id === "courtyard" ? 0xdca84a : 0x568268,
+    color: biome.id === "mossBog" ? 0x387c54 : biome.id === "lanternYard" ? 0xdca84a : 0x568268,
     surface: "organic",
     wakeReact: 1.0,
     doubleSide: true,
   });
   const stoneMat = worldMaterial({
     color:
-      biome.id === "shelf"
+      biome.id === "snowRidge"
         ? 0xd6eefc
-        : biome.id === "caldera"
+        : biome.id === "emberHill"
           ? 0x362426
-          : biome.id === "flats"
+          : biome.id === "sunDunes"
             ? 0xbe7e4c
-            : biome.id === "core"
+            : biome.id === "starHall"
               ? 0x221946
               : 0x223446,
-    surface: biome.id === "flats" ? "sandstone" : "stone",
+    surface: biome.id === "sunDunes" ? "sandstone" : "stone",
   });
   const trimMat = worldMaterial({ color: FINISH.brass, surface: "metal" });
   const glowMat = emissiveMaterial({ color: look.accent, emissiveIntensity: 1.1 });
@@ -2426,7 +2427,7 @@ function buildEdgeDressing(view, biome, W, H, obstacles, rng) {
     if (Math.hypot(px, pz - 2) < 3.6 || !clearOfObstacles(obstacles, px, pz, 0.9)) continue;
     const rot = rng.range(0, TAU);
 
-    if (biome.id === "courtyard") {
+    if (biome.id === "lanternYard") {
       // Fallen golden gingko leaves, corner moss cushions & brass courtyard medallions (maxY <= 0.22)
       if (i % 3 === 0) {
         place(props, cylinder(0.32, 0.36, 0.05, 8), trimMat, px, 0.025, pz, rot);
@@ -2434,13 +2435,13 @@ function buildEdgeDressing(view, biome, W, H, obstacles, rng) {
         place(props, octahedron(0.18), floraMat, px, 0.04, pz, rot, 1.4, 0.22, 0.9);
         place(props, octahedron(0.13), floraMat, px + 0.22, 0.035, pz - 0.14, rot + 0.9, 1.3, 0.2, 0.85);
       }
-    } else if (biome.id === "shelf") {
+    } else if (biome.id === "snowRidge") {
       // Banked perimeter snowdrifts & tiny sparkling frost-crystal clusters (maxY <= 0.4)
       place(props, cylinder(0.45, 0.62, 0.18, 7).toFlatShaded(), stoneMat, px, 0.09, pz, rot, 1.25, 1, 0.85);
       if (i % 2 === 0) {
         place(props, octahedron(0.14), glowMat, px, 0.24, pz, rot, 0.75, 1.1, 0.75);
       }
-    } else if (biome.id === "marsh") {
+    } else if (biome.id === "mossBog") {
       // 3D bog lily pads with glowing blossoms & GPU wake-parting low reed tufts (maxY <= 0.44)
       place(props, cylinder(0.38, 0.4, 0.04, 7), floraMat, px, 0.02, pz, rot);
       if (i % 2 === 0) {
@@ -2449,20 +2450,20 @@ function buildEdgeDressing(view, biome, W, H, obstacles, rng) {
       } else {
         place(props, octahedron(0.11), glowMat, px, 0.09, pz, rot, 1.1, 0.55, 1.1);
       }
-    } else if (biome.id === "core") {
+    } else if (biome.id === "starHall") {
       // Levitating obsidian & brass pebble motes hovering just above the edges (maxY <= 0.4)
       place(props, octahedron(0.14), stoneMat, px, 0.22, pz, rot, 1.1, 0.65, 1.1);
       if (i % 2 === 0) {
         place(props, octahedron(0.08), glowMat, px + 0.18, 0.3, pz - 0.12, rot);
       }
-    } else if (biome.id === "caldera") {
+    } else if (biome.id === "emberHill") {
       // Cooled hexagonal basalt flagstones & warm ember pebbles (maxY <= 0.34)
       place(props, cylinder(0.34, 0.42, 0.14, 6).toFlatShaded(), stoneMat, px, 0.07, pz, rot);
       if (i % 3 === 0) {
         place(props, octahedron(0.09), glowMat, px + 0.14, 0.16, pz, rot);
       }
     } else {
-      // Glass Flats: warm terracotta pottery/amphora shards & turquoise glass pebbles (maxY <= 0.36)
+      // Sun Dunes: warm terracotta pottery/amphora shards & turquoise glass pebbles (maxY <= 0.36)
       place(props, cylinder(0.22, 0.3, 0.18, 7).toFlatShaded(), stoneMat, px, 0.09, pz, rot, 1.1, 0.8, 0.85);
       if (i % 2 === 0) {
         place(props, octahedron(0.12), glowMat, px - 0.18, 0.14, pz + 0.1, rot, 0.8, 1.1, 0.8);
@@ -2471,10 +2472,10 @@ function buildEdgeDressing(view, biome, W, H, obstacles, rng) {
   }
 }
 
-/** Richly dressed miniature Home/Workshop Sanctuary Plinth (maxY <= 0.42) under (0, 0, 0) on the Home screen. */
+/** Richly dressed miniature Home/Workshop Home Plinth (maxY <= 0.42) under (0, 0, 0) on the Home screen. */
 function buildMenuPlinth(view, biome) {
   const props = view.sceneryGroup;
-  const look = GLAZES[biome.id] || GLAZES.courtyard;
+  const look = GLAZES[biome.id] || GLAZES.lanternYard;
   const stoneMat = worldMaterial({ color: look.base, surface: "stone" });
   const trimMat = worldMaterial({ color: FINISH.brass, surface: "metal" });
   const copperMat = worldMaterial({ color: FINISH.copper, surface: "metal" });
@@ -2517,7 +2518,7 @@ function cloneExteriorNode(src, nodeMap) {
 }
 
 function getExteriorTemplate(biome, W, H) {
-  const extKey = `${biome.id}:${W}:${H}`;
+  const extKey = `${layoutBiomeSeedId(biome.id)}:${W}:${H}`;
   let tpl = EXTERIOR_CACHE.get(extKey);
   if (tpl) return tpl;
   const root = new Node();
@@ -2637,7 +2638,7 @@ export class ArenaView {
 
   build(biome, layout, animate = false, isMenu = false) {
     layout = layout || {
-      key: isMenu ? `${biome.id}:menu` : `${biome.id}:classic`,
+      key: isMenu ? `${layoutBiomeSeedId(biome.id)}:menu` : `${layoutBiomeSeedId(biome.id)}:classic`,
       W: biome.W,
       H: biome.H,
       obs: biome.obstacles,
@@ -2655,7 +2656,7 @@ export class ArenaView {
     });
     this.group.clear();
 
-    const look = GLAZES[biome.id] || GLAZES.courtyard;
+    const look = GLAZES[biome.id] || GLAZES.lanternYard;
     this.uniforms.uGrid.value.setHex(look.trim);
     this.uniforms.uGlaze.value.setHex(look.base);
     this.uniforms.uAccent.value.setHex(look.accent);
@@ -2708,7 +2709,7 @@ export class ArenaView {
       if (mapped) this.rlAnim.push({ ...a, o: mapped });
     }
 
-    if (biome.id === "shelf") {
+    if (biome.id === "snowRidge") {
       const aurora = createAurora(layout.W, layout.H);
       this.group.add(aurora);
       this.rlAnim.push({ o: aurora, k: "aurora" });
@@ -2740,7 +2741,7 @@ export class ArenaView {
     this._obsFrozen = true;
   }
 
-  update(dt, px, pz, pulse) {
+  update(dt, px, pz, lanternGun) {
     if (this.obsGroup && this.rise < 1) {
       this.rise = Math.min(1, this.rise + dt / 0.65);
       const ease = 1 - Math.pow(1 - this.rise, 3);
@@ -2748,9 +2749,9 @@ export class ArenaView {
       if (this.rise >= 1) this._freezeCoverStatic();
     }
     this.uniforms.uTime.value += dt;
-    this.uniforms.uPulse.value = pulse;
+    this.uniforms.uPulse.value = lanternGun;
     const time = this.uniforms.uTime.value;
-    if (this.biomeId === "courtyard" && this.lampLens) {
+    if (this.biomeId === "lanternYard" && this.lampLens) {
       const dark = this.uniforms.uDark.value || 0;
       const ember = (1.08 + 0.14 * Math.cos(time * 0.9)) * (1 + dark * 0.28);
       this.lampLens.emissiveIntensity = ember;
@@ -2808,7 +2809,7 @@ export function rlAmbient(renderer, dt, world, opts = {}) {
     const x = Math.max(-W - 8, Math.min(W + 8, cx + (Math.random() * 2 - 1) * 20));
     const z = Math.max(-H - 10, Math.min(H + 8, cz + (Math.random() * 2 - 1) * 16));
     switch (biome.id) {
-      case "courtyard":
+      case "lanternYard":
         if (Math.random() < 0.72) {
           renderer.emit(x, 4 + Math.random() * 4, z, -1.2, -10, 0.8, 0.55, 0.14, hexColor(0x88dce8), {
             ambient: true,
@@ -2822,7 +2823,7 @@ export function rlAmbient(renderer, dt, world, opts = {}) {
           });
         }
         break;
-      case "shelf":
+      case "snowRidge":
         renderer.emit(
           x,
           3.2 + Math.random() * 4.5,
@@ -2839,7 +2840,7 @@ export function rlAmbient(renderer, dt, world, opts = {}) {
           },
         );
         break;
-      case "marsh":
+      case "mossBog":
         renderer.emit(
           x,
           0.3 + Math.random() * 2.6,
@@ -2856,7 +2857,7 @@ export function rlAmbient(renderer, dt, world, opts = {}) {
           },
         );
         break;
-      case "core":
+      case "starHall":
         renderer.emit(
           x,
           0.2 + Math.random() * 2.5,
@@ -2874,7 +2875,7 @@ export function rlAmbient(renderer, dt, world, opts = {}) {
           },
         );
         break;
-      case "caldera":
+      case "emberHill":
         renderer.emit(
           x,
           0.15 + Math.random() * 1.6,

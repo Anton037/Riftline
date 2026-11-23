@@ -1,7 +1,7 @@
 // Player powers (Nova, Singularity, Aegis, Combo Surge) on custom WebGL2 instanced shaders.
 // Private pools never borrow hostile warning telegraphs or wash out the screen.
 
-import { Geometry, disc, sphere } from "../engine/geometry.js";
+import { Geometry, ringBlade, sphere } from "../engine/geometry.js";
 import { Material } from "../engine/scene.js";
 import { clamp, TAU } from "../core/util.js";
 import { COLLAPSE_TIME } from "../core/boss-cards.js";
@@ -87,7 +87,7 @@ export class AbilityEffectsView {
       this.fieldPool ||
       this.add(
         "fieldPool",
-        disc(1, 48),
+        ringBlade(1, 48),
         new Material({
           shader: "abilityField",
           transparent: true,
@@ -114,9 +114,9 @@ export class AbilityEffectsView {
   event(ev, world, shake) {
     this.useWorld(world);
     const r = this.r;
-    if (ev.k === "boom" && ev.kind === "nova") return true;
-    if (ev.k === "nova" || ev.k === "surge" || (ev.k === "boom" && ev.kind === "singularity")) {
-      const kind = ev.k === "nova" ? 0 : ev.k === "surge" ? 2 : 1;
+    if (ev.k === "boom" && ev.kind === "fireBurst") return true;
+    if (ev.k === "fireBurst" || ev.k === "surge" || (ev.k === "boom" && ev.kind === "gravityBell")) {
+      const kind = ev.k === "fireBurst" ? 0 : ev.k === "surge" ? 2 : 1;
       const life = kind === 1 ? 0.65 : 0.68;
       if (this.pulses.length === 32) this.pulses.shift();
       this.pulses.push({ x: ev.x, z: ev.y, r: ev.r, at: r.time, life, kind });
@@ -140,7 +140,7 @@ export class AbilityEffectsView {
       r.addShake((kind === 0 ? 0.38 : kind === 1 ? 0.24 : 0.12) * shake);
       return true;
     }
-    if (ev.k === "singularity" || ev.k === "singOpen" || ev.k === "implode") {
+    if (ev.k === "gravityBell" || ev.k === "singOpen" || ev.k === "implode") {
       r.burst(ev.x, ev.y, 0.8, 8, 2.5, VIOLET, 0.26, 0.1, { spark: true, drag: 3 });
       return true;
     }
@@ -179,7 +179,8 @@ export class AbilityEffectsView {
         const d = Math.hypot(g.tx - g.fx, g.ty - g.fy);
         const x = g.fx + (g.tx - g.fx) * k;
         const z = g.fy + (g.ty - g.fy) * k;
-        const h = 0.9 + Math.sin(Math.PI * k) * clamp(0.6 + d * 0.06, 0.8, 1.6);
+        const h =
+          0.9 + ((g.launchHeight ?? 0.9) - 0.9) * (1 - k) + Math.sin(Math.PI * k) * clamp(0.6 + d * 0.06, 0.8, 1.6);
         this.cores().y(x, h, z, 0, 0.19);
         this.field(g.tx, g.ty, world.stats.gadgetR * 1.7, 0, 3, 0.6);
         if (Math.random() < dt * 24) r.emit(x, h, z, 0, 0.15, 0, 0.22, 0.09, VIOLET, { spark: true, drag: 3 });

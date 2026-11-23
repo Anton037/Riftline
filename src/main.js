@@ -73,7 +73,7 @@ function rlIntroEvents(world) {
     const type = RL_INTRO.queue.shift(),
       seen = store.data.seen;
     seen["tip_enemy_" + type] = true;
-    if (type === "mender") {
+    if (type === "mossHealer") {
       seen.tip_mender = true;
     }
     store.save("intro");
@@ -323,7 +323,7 @@ const overlay = new Overlay(elementById("ov")),
           weapon: options.weapon || save.weapon,
           threat: options.threat ?? save.threat,
           ws: save.workshop,
-          starVaultUnlocked: (save.stats.bosses?.core || 0) > 0,
+          starVaultUnlocked: (save.stats.bosses?.starHeart || 0) > 0,
           snap,
         });
       } catch (err) {
@@ -431,15 +431,15 @@ const overlay = new Overlay(elementById("ov")),
       store.data.run = this.world.snapshot();
       store.save(reason);
     },
-    /* 3.25.0: Waxen Seal: the card is replaced and the craft never comes again in this run */
-    banish(id) {
+    /* 3.25.0: Seal Cards: the card is replaced and the craft never comes again in this run */
+    seal(id) {
       const world = this.world;
-      if (world && world.banish(id)) {
+      if (world && world.seal(id)) {
         ui.banishMode = false;
         ui.renderCards(world);
         ui.toast(`Sealed: ${upgradesById[id] ? upgradesById[id].name : id}`, "", 2600);
         store.data.run = world.snapshot();
-        store.save("banish");
+        store.save("seal");
       }
     },
     reroll() {
@@ -644,7 +644,7 @@ const overlay = new Overlay(elementById("ov")),
       this.overShown = true;
       rlRunAudit(world, win, abandoned);
       let mods = threatMods(world.threat),
-        salvage = 1 + 0.1 * (save.workshop.salvage || 0),
+        salvage = 1 + 0.1 * (save.workshop.extraShards || 0),
         collected = world.shards,
         bonus = win ? Math.round(collected * 0.25) : 0,
         total = Math.round((collected + bonus) * mods.shards * salvage),
@@ -656,7 +656,7 @@ const overlay = new Overlay(elementById("ov")),
         rows.push([`${threatLevels[world.threat].name} \xD7${mods.shards.toFixed(2)}`, "\xD7"]);
       }
       if (salvage > 1) {
-        rows.push([`Shard Kiln \xD7${salvage.toFixed(1)}`, "\xD7"]);
+        rows.push([`Extra Shards \xD7${salvage.toFixed(1)}`, "\xD7"]);
       }
       let claimedBefore = new Set(this.claimable()),
         unlocks = [],
@@ -1098,7 +1098,7 @@ let cardWave = 0,
 function announceMutator(ev) {
   const mutator = MUTATORS[ev.id];
   if (!mutator) return;
-  ui.banner(`Omen · ${mutator.name}${ev.level > 1 ? " " + "I".repeat(ev.level) : ""}`, mutator.desc, "warn", 2600);
+  ui.banner(`Modifier · ${mutator.name}${ev.level > 1 ? " " + "I".repeat(ev.level) : ""}`, mutator.desc, "warn", 2600);
   sound.play("mutator", ev.id);
 }
 function syncSoundMuffle() {
@@ -1148,7 +1148,7 @@ function handleWorldEvents(world) {
       );
     } else {
       if (ev.k === "barrier") {
-        ui.banner("Sanctuary Aegis", "Low HP — ward activated", "good", 1400);
+        ui.banner("Emergency Shield", "Low HP — shield activated", "good", 1400);
       }
     }
   }
@@ -1172,26 +1172,26 @@ function handleWorldEvents(world) {
           }
         } else
           ui.banner(
-            ev.boss ? "Guardian" : `Wave ${ev.n}`,
-            ev.boss ? "Guardian incoming" : newBiome ? rlBiomeTitle(biome) : world.endless ? "Endless" : "",
+            ev.boss ? "Boss" : `Wave ${ev.n}`,
+            ev.boss ? "Boss incoming" : newBiome ? rlBiomeTitle(biome) : world.endless ? "Endless" : "",
             ev.boss ? "boss" : "",
             ev.boss ? 3e3 : 2e3,
           );
         if (!ev.boss && world.arena.vents.length) {
-          if (world.arena.biome.id === "courtyard")
-            showTipOnce("shock", "Shock pads glow before they zap. Lure foes onto them to stun them.");
-          else if (world.arena.biome.id === "caldera")
+          if (world.arena.biome.id === "lanternYard")
+            showTipOnce("shock", "Shock pads glow before they zap. Lure enemies onto them to stun them.");
+          else if (world.arena.biome.id === "emberHill")
             showTipOnce(
               "pyro",
-              "Lava vents glow before they erupt. Lure foes onto them \u2014 the lava burns them too.",
+              "Lava vents glow before they erupt. Lure enemies onto them \u2014 the lava burns them too.",
             );
-          else showTipOnce("lava", "Lava vents glow before they erupt. Lure foes onto them \u2014 they burn too.");
+          else showTipOnce("lava", "Lava vents glow before they erupt. Lure enemies onto them \u2014 they burn too.");
         }
         if (!ev.boss && world.arena.ice.length) {
-          showTipOnce("ice", "The Aurora Shelf: the floor is icy and slippery \u2014 foes slide on it too.");
+          showTipOnce("ice", "Snow Ridge: the floor is icy and slippery \u2014 enemies slide on it too.");
         }
         if (!ev.boss && world.arena.acid.length) {
-          showTipOnce("acid", "Acid pools drain your HP \u2014 but foes standing in them take 25% more damage.");
+          showTipOnce("acid", "Acid pools drain your HP \u2014 but enemies standing in them take 25% more damage.");
         }
         if (!ev.boss && world.arena.portals.length) {
           showTipOnce("portal", "Portals warp you across the arena. Shots fly through them too.");
@@ -1212,12 +1212,12 @@ function handleWorldEvents(world) {
         }
         if (ev.n === 4) {
           showTipOnce(
-            "singularity",
+            "gravityBell",
             RL_INPUT.gamepad
-              ? "Tip: press Y or LT to toss a Gravity Chime."
+              ? "Tip: press Y or LT to toss a Gravity Bell."
               : rlKeys()
-                ? "Tip: press G to toss a Gravity Chime. It pulls foes together and bursts. Charges refill."
-                : "Tip: tap CHIME to toss a Gravity Chime at foes. Hold the right side to aim where it lands.",
+                ? "Tip: press G to toss a Gravity Bell. It pulls enemies together and bursts. Charges refill."
+                : "Tip: tap BELL to toss a Gravity Bell at enemies. Hold the right side to aim where it lands.",
           );
         }
         if (ev.n === 3) {
@@ -1227,7 +1227,7 @@ function handleWorldEvents(world) {
               ? "Tip: aim with the right stick and hold RT to fire."
               : rlKeys()
                 ? "Tip: hold the left mouse button to aim and fire at the cursor."
-                : "Tip: drag the right side to aim yourself. Holding it fires at the nearest foe.",
+                : "Tip: drag the right side to aim yourself. Holding it fires at the nearest enemy.",
           );
         }
         break;
@@ -1235,19 +1235,19 @@ function handleWorldEvents(world) {
       case "trapWarn":
         showTipOnce(
           "trap",
-          "Arena traps warn before they trigger \u2014 lure foes in, or shoot armed charges to detonate them!",
+          "Arena traps warn before they trigger \u2014 lure enemies in, or shoot armed charges to detonate them!",
         );
         break;
       case "gadgetReady":
-        ui.actionFlash("gadget", "pop");
+        ui.actionFlash("gravityBell", "pop");
         break;
       case "gadgetDeny":
-        ui.actionFlash("gadget", "deny");
+        ui.actionFlash("gravityBell", "deny");
         break;
       case "boss":
         // 3.1.0: the boss track starts on the spot, at the camera pan
         sound.setMusic("boss", world.biomeFor(world.wave).id);
-        showTipOnce("boss", "Guardians telegraph every attack. Step clear of marked zones and beams.");
+        showTipOnce("boss", "Bosses telegraph every attack. Move away from marked zones and beams.");
         if (world.player.alive && world.boss && renderer) {
           game.intro = { t: 0 };
           renderer.focusOn(world.boss.x, world.boss.y);
@@ -1258,16 +1258,16 @@ function handleWorldEvents(world) {
         break;
       case "novaReady":
         showTipOnce(
-          "nova",
+          "fireBurst",
           RL_INPUT.gamepad
-            ? "Hearthburst is charged — press B or RB to unleash it."
+            ? "Fire Burst is charged — press B or RB to unleash it."
             : rlKeys()
-              ? "Hearthburst is charged \u2014 press E to unleash a wide shockwave."
-              : "Hearthburst is charged \u2014 tap BURST to unleash a wide shockwave.",
+              ? "Fire Burst is charged \u2014 press E to unleash a wide shockwave."
+              : "Fire Burst is charged \u2014 tap BURST to unleash a wide shockwave.",
         );
         break;
       case "cleared":
-        ui.banner(ev.boss ? "Guardian Defeated" : "Cleared", ev.flawless ? "Flawless" : `Wave ${ev.n}`, "good", 1500);
+        ui.banner(ev.boss ? "Boss Defeated" : "Cleared", ev.flawless ? "Flawless" : `Wave ${ev.n}`, "good", 1500);
         if (!ev.boss) {
           game.slowMo = Math.max(game.slowMo, 0.45);
         }
@@ -1281,18 +1281,18 @@ function handleWorldEvents(world) {
       case "champion":
         ui.banner(
           "Champion",
-          `A ${enemyDefs[ev.type].name} rallies the pack \u2014 nearby foes move faster`,
+          `A ${enemyDefs[ev.type].name} rallies the pack \u2014 nearby enemies move faster`,
           "warn",
           2200,
         );
-        showTipOnce("champion", "Champions bolster nearby foes. Defeat the champion to break the aura.");
+        showTipOnce("champion", "Champions bolster nearby enemies. Defeat the champion to break the aura.");
         break;
       case "championDown":
         ui.banner("Champion Defeated", "Pack aura broken", "good", 1400);
         game.slowMo = Math.max(game.slowMo, 0.5);
         break;
       case "mend":
-        showTipOnce("mender", "Mender-Clocks restore nearby foes' HP. Take them out first.");
+        showTipOnce("mossHealer", "Mender-Clocks restore nearby enemies' HP. Take them out first.");
         break;
       case "bossAtk":
         overlay.callout(ev.atk, ev.id);
@@ -1314,7 +1314,7 @@ function handleWorldEvents(world) {
         break;
       case "pick":
         if (ev.evo) {
-          ui.banner("Masterwork", upgradesById[ev.id].name, "good", 1800);
+          ui.banner("Master Craft", upgradesById[ev.id].name, "good", 1800);
         }
         break;
       case "dash":
@@ -1323,7 +1323,7 @@ function handleWorldEvents(world) {
         }
         break;
       case "enrage":
-        ui.banner("Phase 2", "The Guardian quickens", "warn", 1400);
+        ui.banner("Phase 2", "The Boss speeds up", "warn", 1400);
         break;
       case "mutator":
         if (world.wave === 1 || world.biomeFor(world.wave - 1).id !== world.biomeFor(world.wave).id)
@@ -1446,15 +1446,15 @@ const // 2.3.4: keyboard/mouse players got the touch texts ("drag the left side"
       RL_INPUT.gamepad
         ? "Aim with the right stick and hold RT to fire."
         : rlKeys()
-          ? "Foes ahead! Your armament shoots automatically \u2014 hold the left mouse button to aim yourself."
-          : "Foes ahead! Your armament shoots automatically \u2014 drag the right side to aim yourself.",
+          ? "Enemies ahead! Your weapon shoots automatically \u2014 hold the left mouse button to aim yourself."
+          : "Enemies ahead! Your weapon shoots automatically \u2014 drag the right side to aim yourself.",
     () =>
       RL_INPUT.gamepad
         ? "Press A to dash through danger."
         : rlKeys()
           ? "Press SPACE or right-click to dash through danger."
           : "Tap DASH to dodge through danger.",
-    () => "Collect shards \u2014 spend them on permanent crafts in the Sanctuary.",
+    () => "Collect shards \u2014 spend them on permanent crafts in home.",
   ];
 function updateTutorial(dt, world) {
   let tut = game.tut;
@@ -1788,7 +1788,7 @@ function rlRetireToast() {
   if (!note || !note.count) return;
   set_RL_RETIRE_NOTE(null);
   ui.toast(
-    `Older armament unlocks converted to the current arsenal${note.refund ? `, +${formatCount(note.refund)} shards refunded` : ""}.`,
+    `Older weapon unlocks converted to the current arsenal${note.refund ? `, +${formatCount(note.refund)} shards refunded` : ""}.`,
     "good",
     9000,
   );
@@ -1799,7 +1799,7 @@ function rlRetireToast() {
 (() => {
   // Touch ghost-click shield: after a touch activation the browser still sends a
   // compatibility click to whatever is under the finger NOW — often a button on
-  // the next screen, a settings toggle or a Sanctuary "buy". Drop that one click
+  // the next screen, a settings toggle or a Home "buy". Drop that one click
   // in the capture phase, before any handler (guarded or plain) can see it.
   document.addEventListener(
     "click",
@@ -1849,7 +1849,7 @@ function rlRetireToast() {
   // ---- settings from the pause menu
   ui.click(getById("pauseSetBtn"), () => ui.openPauseSettings());
 
-  ui.click(getById("banishBtn"), () => {
+  ui.click(getById("sealBtn"), () => {
     ui.banishMode = !ui.banishMode;
     ui.renderCards(game.world);
   });
@@ -1863,9 +1863,9 @@ function rlRetireToast() {
       const upgrade = upgradesById[id];
       if (!upgrade) return "";
       const tag = upgrade.boss
-        ? "GUARDIAN RELIC"
+        ? "BOSS REWARD"
         : upgrade.evo
-          ? "MASTERWORK"
+          ? "MASTER CRAFT"
           : upgrade.repeat
             ? `\xD7${lv}`
             : `LV ${lv}/${upgrade.max}`;

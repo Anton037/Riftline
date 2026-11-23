@@ -29,7 +29,7 @@ test(
     await page.evaluate(() => {
       const w = window.__riftTest.game.world;
       for (let i = 0; i < 4; i++) {
-        const e = w.spawnEnemy("grunt", 5 + i, -3, {});
+        const e = w.spawnEnemy("kettleGuard", 5 + i, -3, {});
         w.killEnemy(e);
       }
     });
@@ -89,7 +89,7 @@ test("first-run desktop onboarding uses keyboard/mouse prompts and adapts on hyb
   await page.evaluate(() => {
     const w = window.__riftTest.game.world;
     for (let i = 0; i < 4; i++) {
-      const e = w.spawnEnemy("grunt", 5 + i, -3, {});
+      const e = w.spawnEnemy("kettleGuard", 5 + i, -3, {});
       w.killEnemy(e);
     }
   });
@@ -131,8 +131,8 @@ test("the focused menu keeps workshop upgrades and achievement rewards working",
     ui.renderHome();
   });
   await press('[data-go="workshop"]');
-  await press('[data-buy="hull"]');
-  assert.equal(await page.evaluate(() => window.__riftTest.store.data.workshop.hull), 1);
+  await press('[data-buy="healthCoat"]');
+  assert.equal(await page.evaluate(() => window.__riftTest.store.data.workshop.healthCoat), 1);
   await press("#workshop [data-back]");
   await press('[data-go="records"]');
   await press('[data-claim="kills100"]');
@@ -140,7 +140,7 @@ test("the focused menu keeps workshop upgrades and achievement rewards working",
   assert.equal(await page.evaluate(() => window.__riftTest.store.data.shards), 90);
   assert.equal(await page.locator('[data-claim="kills100"]').count(), 0);
   await page.reload();
-  await page.waitForFunction(() => window.__riftTest?.store?.data.workshop.hull === 1);
+  await page.waitForFunction(() => window.__riftTest?.store?.data.workshop.healthCoat === 1);
   assert.equal(await page.evaluate(() => window.__riftTest.store.data.shards), 90);
   await press("#playBtn");
   await page.waitForFunction(() => window.__riftTest.game.mode === "game");
