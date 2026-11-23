@@ -46,14 +46,14 @@ export async function openGame(t, mode, { fresh = false, audio = false, dpr = 1,
         return [];
       };
       Object.defineProperty(Navigator.prototype, "webdriver", { get: () => false, configurable: true });
-      if (!sessionStorage.getItem("test-seeded")) {
+      if (!fresh && !sessionStorage.getItem("test-seeded")) {
         sessionStorage.setItem("test-seeded", "1");
         localStorage.setItem(
           "riftline.save.v1",
           JSON.stringify({
             v: 1,
             game: "riftline",
-            seen: fresh ? {} : { tutorial: true },
+            seen: { tutorial: true },
             settings: { frameRate: 30, sfx: audio ? 0.8 : 0, music: audio ? 0.45 : 0, ambience: audio ? 0.8 : 0 },
           }),
         );

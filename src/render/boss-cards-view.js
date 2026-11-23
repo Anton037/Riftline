@@ -223,8 +223,12 @@ export class BossCardView {
         const ring = ev.glass ? GOLD : ICE;
         r.burst(ev.x, ev.y, 0.7, 9, 5.2, spark, 0.35, 0.13, { spark: true, drag: 3, grav: 5 });
         r.ring(ev.x, ev.y, 0.2, 1.25, ring, 0.22);
+        if (ev.thermal) r.ring(ev.x, ev.y, 0.45, 1.5, GOLD, 0.28);
         return true;
       }
+      case "graze":
+        r.ring(ev.x, ev.y, ev.r, ev.r + 0.85, GOLD_WHITE, 0.28);
+        return true;
       case "splinterHit":
         r.burst(ev.x, ev.y, 0.7, 5, 4.2, ev.glass ? GOLD : ICE_WHITE, 0.22, 0.09, { spark: true, drag: 5 });
         return true;

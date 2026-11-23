@@ -8,19 +8,19 @@ Journey across six handcrafted miniature realms as a cloaked **Lantern-Artificer
 
 ## Controls
 
-| Action | Touch control | Mouse + Keyboard / Gamepad |
-|---|---|---|
-| Move | Drag the left stick | `WASD` / Arrow keys / Left Stick |
-| Aim / fire | Drag the right stick | Hold left mouse button to aim/fire; auto-fire by default; Right Stick + `RT` |
-| Dash | Tap `DASH` | `Space` / `Shift` / Right-click / `A` / `LB` |
-| Hearthburst | Tap `BURST` | `E` / `Q` / `F` / `B` / `RB` |
-| Gravity Chime | Tap `CHIME` | `G` / `Shift`+Right-click / `Y` / `LT` |
-| Pause / Mute | Tap Pause | `Esc` / `P` · `M` to mute |
-| Crafts / End | Tap card or button | `1`–`4` pick, `B` seal, `R` reroll / retry |
+| Action | Touch | Mouse and keyboard | Standard gamepad |
+|---|---|---|---|
+| Move | Drag left side | `WASD` / Arrow keys | Left stick |
+| Aim and fire | Drag right side | Hold left mouse button | Right stick + `RT` |
+| Dash | Tap `DASH` | `Space` / `Shift` / Right-click | `A` / `LB` |
+| Hearthburst | Tap `BURST` | `E` / `Q` / `F` | `B` / `RB` |
+| Gravity Chime | Tap `CHIME` | `G` | `Y` / `LT` |
+| Pause | Tap Pause | `Esc` / `P` | Start |
+| Menus and craft offers | Tap a card or button | `1`–`5` pick, `B` seal, `R` reroll or retry | D-pad, `A` select, `B` back |
 
 Touch controls work in landscape and can be moved and resized in Settings. High detail is standard;
 choose a 30, 60 or 120 FPS cap, with 60 FPS as the default. Input switches automatically between touch,
-mouse/keyboard, and connected gamepads as you use them.
+mouse and keyboard, and connected gamepads as you use them. Press `M` to mute on desktop.
 
 ## Development
 

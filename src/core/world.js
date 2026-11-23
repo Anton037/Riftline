@@ -17,7 +17,7 @@ import {
   rlBiomeStart,
   rlEnemyFrom,
 } from "./waves.js";
-import { threatMods } from "../data/progression.js";
+import { anvilGoods, threatMods } from "../data/progression.js";
 import { upgradesById, upgradeList } from "../data/upgrades.js";
 import { Arena, buildLayout, SpatialHash, rlAddHazard250 } from "./arena.js";
 import { computeStats } from "./stats.js";
@@ -176,6 +176,7 @@ const rlStep = 1 / 60,
       this.tributeN = (snap && snap.tributeN) | 0;
       this.fangN = (snap && snap.fangN) | 0;
       this.hitstopT = 0;
+      this.impactAt = -Infinity;
       this.starVaultUnlocked = !!opts.starVaultUnlocked;
       this.runStats = {
         dmgTaken: (snap && snap.runStats && Number(snap.runStats.dmgTaken)) || 0,
@@ -284,8 +285,15 @@ const rlStep = 1 / 60,
       this.offerBoss = false;
       this.state = "fight";
       this.stateT = 0;
-      this.startWave(this.wave, snap ? snap.nova : null, !!snap && !Array.isArray(snap.offer));
-      if (snap && Array.isArray(snap.offer)) {
+      const atAnvil = Array.isArray(snap?.anvil) && this.hasAnvilAhead();
+      this.startWave(this.wave, snap ? snap.nova : null, !!snap && !atAnvil && !Array.isArray(snap.offer));
+      if (atAnvil) {
+        this.fx.length = 0;
+        this.plan = [];
+        this.bossPending = null;
+        this.championPending = null;
+        this.openAnvil(snap.anvil);
+      } else if (snap && Array.isArray(snap.offer)) {
         let offer = snap.offer.filter((id) => own(upgradesById, id));
         this.fx.length = 0;
         this.plan = [];
@@ -299,8 +307,10 @@ const rlStep = 1 / 60,
         if (!this.offer.length) this.skipEmptyChoice();
       }
     }
-    triggerHitstop(secs = 0.025) {
-      this.hitstopT = Math.max(this.hitstopT || 0, secs);
+    triggerHitstop(secs = 0.025, micro = false) {
+      if (micro && this.impactAt < this.time && this.time - this.impactAt < 0.13) return;
+      this.impactAt = this.time;
+      this.hitstopT = Math.max(this.hitstopT, secs);
     }
     emit(kind, data) {
       data = data || {};
@@ -386,6 +396,9 @@ const rlStep = 1 / 60,
         player.chronoCd = 0;
         player.heatSinkCd = 0;
         player.reactiveGrazeCd = 0;
+        player.grazeT = 0;
+        player.grazedDash = false;
+        this.impactAt = -Infinity;
         player.kilnAcc = 0;
         player.tributeT = 0;
         player.leylineT = 0;
@@ -433,7 +446,7 @@ const rlStep = 1 / 60,
         this.planTotal = this.plan.reduce((sum, group) => sum + group.members.length, 0);
         // Biome traps unlock early (World 1: floor W2, mine W4, beam W7)
         this.traps = rlPlanTraps(this, wave, !!boss);
-        this.groupT = 1.1;
+        this.groupT = wave === 1 ? 1.1 : 0.85;
         this.bossPending = boss;
         this.state = "fight";
         this.stateT = 0;
@@ -660,6 +673,7 @@ const rlStep = 1 / 60,
         snap.offerBoss = !!this.offerBoss;
         snap.offerRng = this.rng.state;
       }
+      if (this.state === "anvil") snap.anvil = [...this.anvilBought];
       return snap;
     }
     choose(id) {
@@ -693,7 +707,43 @@ const rlStep = 1 / 60,
       this.offer = null;
       this.offerExclusive = null;
       this.emit("pick", { id: id, evo: upgrade.rarity === 5, boss: !!upgrade.boss });
+      this.advanceAfterChoice();
+      return true;
+    }
+    hasAnvilAhead() {
+      return !this.isFinalWave() && this.biomeFor(this.wave).id !== this.biomeFor(this.wave + 1).id;
+    }
+    advanceAfterChoice() {
+      if (this.hasAnvilAhead()) this.openAnvil();
+      else this.startWave(this.wave + 1);
+    }
+    openAnvil(bought = []) {
+      this.state = "anvil";
+      this.stateT = 0;
+      this.anvilBought = new Set(bought);
+      this.emit("anvil");
+    }
+    get anvilOffers() {
+      return anvilGoods.map((good) => ({
+        ...good,
+        cost: good.cost + Math.min(24, this.wave),
+        bought: this.anvilBought.has(good.id),
+        available: good.available(this),
+      }));
+    }
+    buyAnvil(index) {
+      if (this.state !== "anvil") return false;
+      const offer = this.anvilOffers[index];
+      if (!offer || offer.bought || !offer.available || this.shards < offer.cost) return false;
+      this.shards -= offer.cost;
+      offer.apply(this);
+      this.anvilBought.add(offer.id);
+      return true;
+    }
+    leaveAnvil() {
+      if (this.state !== "anvil") return false;
       this.startWave(this.wave + 1);
+      this.anvilBought = null;
       return true;
     }
     reroll() {
@@ -757,7 +807,7 @@ const rlStep = 1 / 60,
        on phones. Both only read the layout (props are seeded from the arena key), so they are built here alongside it. */
     prefetchLayout() {
       const wave = this.wave + 1;
-      if (this.state !== "choose" || (this.nextLayout && this.nextLayout.wave === wave)) return;
+      if ((this.state !== "choose" && this.state !== "anvil") || this.nextLayout?.wave === wave) return;
       const biome = this.biomeFor(wave),
         layout = buildLayout(biome, this.seed, wave, !!this.bossFor(wave));
       this.nextLayout = {
@@ -776,7 +826,7 @@ const rlStep = 1 / 60,
       this.shards += shards;
       this.offer = null;
       this.emit("maxed", { heal, shards });
-      this.startWave(this.wave + 1);
+      this.advanceAfterChoice();
     }
     continueEndless() {
       if (this.state === "victory") {
@@ -863,7 +913,7 @@ const rlStep = 1 / 60,
       const wasDashing = player.dashT > 0;
       try {
         this.stateT += dt;
-        if (this.state === "choose" || this.state === "victory") this.idle(dt);
+        if (this.state === "choose" || this.state === "anvil" || this.state === "victory") this.idle(dt);
         else {
           this.time += this.state === "dead" ? 0 : dt;
           this.waveT += dt;
@@ -872,6 +922,7 @@ const rlStep = 1 / 60,
           if (this.chronoT > 0) this.chronoT = Math.max(0, this.chronoT - dt);
           if (player.chronoCd > 0) player.chronoCd = Math.max(0, player.chronoCd - dt);
           if (player.heatSinkCd > 0) player.heatSinkCd = Math.max(0, player.heatSinkCd - dt);
+          if (player.grazeT > 0) player.grazeT = Math.max(0, player.grazeT - dt);
           if (player.reactiveGrazeCd > 0) player.reactiveGrazeCd = Math.max(0, player.reactiveGrazeCd - dt);
           if (player.tributeT > 0) player.tributeT = Math.max(0, player.tributeT - dt);
           if (player.leylineT > 0) player.leylineT = Math.max(0, player.leylineT - dt);
@@ -1023,6 +1074,7 @@ const rlStep = 1 / 60,
       if (player.chronoCd > 0) player.chronoCd = Math.max(0, player.chronoCd - dt);
       if (player.heatSinkCd > 0) player.heatSinkCd = Math.max(0, player.heatSinkCd - dt);
       if (player.reactiveGrazeCd > 0) player.reactiveGrazeCd = Math.max(0, player.reactiveGrazeCd - dt);
+      if (player.grazeT > 0) player.grazeT = Math.max(0, player.grazeT - dt);
       if (player.echoQueue) player.echoQueue.length = 0;
       this.updatePickups(dt);
       for (let bullet of this.eb) bullet.life = 0;
@@ -1108,6 +1160,7 @@ const rlStep = 1 / 60,
         player.dashN--;
         if (player.dashCdT <= 0) player.dashCdT = stats.dashCd;
         player.dashAt = this.time;
+        player.grazedDash = false;
         player.dashId++;
         this.runStats.dashes++;
         player.iT = Math.max(player.iT, 0.24);
@@ -1194,7 +1247,10 @@ const rlStep = 1 / 60,
           aim = Math.atan2(target.y - player.y, target.x - player.x);
         }
       }
-      let firing = manual || (!!input.fire && aim != null) || (!!input.auto && aim != null && player.target != null);
+      let firing =
+        (manual && !input.aimOnly) ||
+        (!!input.fire && aim != null) ||
+        (!!input.auto && aim != null && player.target != null);
       if (aim != null) {
         player.aim = turnToward(player.aim, aim, 30 * dt);
       } else if (input.hasLook) {
@@ -1310,7 +1366,9 @@ const rlStep = 1 / 60,
           originY = player.y + Math.sin(angle) * muzzle;
         // Echo shots count toward weapon cadences (Solar Repeater, Kiln Surge)
         player.shotN = (player.shotN || 0) + 1;
-        const heavy = !!(stats.overdrive && player.shotN % 4 === 0),
+        const fourthShot = player.shotN % 4 === 0,
+          heavy = !!(stats.overdrive && fourthShot),
+          lantern = weapon.id === "pulse" && fourthShot,
           twinDisc = !!(stats.twinsaw && weapon.id === "disc"),
           shoot = (dir, mul) => {
             if (this.pb.length >= MAX_PLAYER_BULLETS) return;
@@ -1326,7 +1384,7 @@ const rlStep = 1 / 60,
                 vy: Math.sin(heading) * speed,
                 a: heading,
                 r: weapon.r * stats.sizeMul * (twinDisc ? 1.4 : 1),
-                dmg: weapon.dmg * stats.dmgMul * effMul * (twinDisc ? 1.35 : 1),
+                dmg: weapon.dmg * stats.dmgMul * effMul * (twinDisc ? 1.35 : 1) * (lantern ? 1.3 : 1),
                 baseDmg: weapon.dmg * effMul,
                 life: weapon.life * (weapon.cone ? 0.85 + this.rng.next() * 0.3 : 1),
                 pierce: stats.lance && weapon.rail ? 999 : stats.pierce,
@@ -1580,7 +1638,7 @@ const rlStep = 1 / 60,
       if (player.nova < 100 || !player.alive || this.state !== "fight") return;
       player.nova = 0;
       player.iT = Math.max(player.iT, 0.5);
-      this.triggerHitstop(0.028);
+      this.triggerHitstop(0.065);
       // Event Horizon ('blackstar'): Hearthburst drops a free Lodestone Chime at target/cursor
       if (stats.blackstar) {
         const target = this.singularityTarget({});
@@ -1659,6 +1717,7 @@ const rlStep = 1 / 60,
         player.shieldT = 0;
         player.iT = 0.6;
         shieldBlocked = true;
+        this.triggerHitstop(0.024);
         this.emit("shieldBreak", { x: player.x, y: player.y });
         hit = false;
       } else if (chip && !(dmg = rlChipDamage(player, dmg))) {
@@ -1671,6 +1730,7 @@ const rlStep = 1 / 60,
         this.lastHit = src || null;
         this.logHit(src, hullLost, chip, player.hp <= 0);
         if (!chip) {
+          this.triggerHitstop(0.05);
           player.iT = 0.65;
           player.hurtT = 0.3;
         }
@@ -1929,6 +1989,7 @@ const rlStep = 1 / 60,
       if (enemy.healFlash > 0) {
         enemy.healFlash = Math.max(0, enemy.healFlash - dt);
       }
+      if (enemy.frostT > 0) enemy.frostT = Math.max(0, enemy.frostT - dt);
       if (enemy.slowT > 0) {
         enemy.slowT -= dt;
       }
@@ -1985,6 +2046,7 @@ const rlStep = 1 / 60,
           enemy.shield -= absorbed;
           dmg -= absorbed / shieldScale;
           if (enemy.shield <= 0) {
+            this.triggerHitstop(0.022, true);
             this.emit("shieldPop", { x: enemy.x, y: enemy.y, r: enemy.r });
           }
         }
@@ -2135,15 +2197,13 @@ const rlStep = 1 / 60,
           dmg -= absorbed / shieldScale;
           enemy.flash = 0.6;
           if (enemy.shield <= 0) {
+            this.triggerHitstop(0.022, true);
             this.emit("shieldPop", { x: enemy.x, y: enemy.y, r: enemy.r });
           }
           if (dmg <= 0) {
             this.emit("dmg", { x: enemy.x, y: enemy.y, v: absorbed, shield: true, id: enemy.id, type: enemy.type });
             return;
           }
-        }
-        if (crit) {
-          this.runStats.critHits++;
         }
         if (enemy.corrode && !enemy.boss) {
           dmg *= 1.25;
@@ -2178,7 +2238,13 @@ const rlStep = 1 / 60,
           }
           dmg = taken;
         }
+        if (enemy.openT > 0) dmg *= 1.2;
         dmg = this.capPhase(enemy, dmg);
+        if (dmg <= 0) return;
+        if (crit) {
+          this.runStats.critHits++;
+          this.triggerHitstop(extra?.superCrit ? 0.028 : 0.014, true);
+        }
         enemy.hp -= dmg;
         this.dmgDealt += Math.min(dmg, enemy.hp + dmg);
         this.credit(src, Math.min(dmg, enemy.hp + dmg));
@@ -2243,11 +2309,12 @@ const rlStep = 1 / 60,
           superCrit: !!(extra && extra.superCrit),
           id: enemy.id,
           type: enemy.type,
-          w: this.weapon?.id,
+          w: this.weapon,
         });
         if (enemy.hp <= 0) {
           this.killEnemy(enemy);
         }
+        return dmg;
       }
     }
     // how much of a hit lands: at most burstFraction(wave) of the enemy's hull per BURST_WINDOW
@@ -2266,12 +2333,11 @@ const rlStep = 1 / 60,
     // Unified HP-gated phase cap across all 6 Guardians so burst DPS cannot skip Phase 2/3 transitions
     capPhase(enemy, dmg) {
       if (!enemy.boss) return dmg;
-      const marks = enemy.type === "core" ? [0.66, 0.33] : [0.5];
-      for (const frac of marks) {
-        const mark = enemy.maxHp * frac;
-        if (enemy.hp > mark && enemy.hp - dmg < mark) return Math.max(0, enemy.hp - (mark - 1));
-      }
-      return dmg;
+      const marks = enemy.type === "core" ? [0.66, 0.33] : [0.5],
+        mark = enemy.maxHp * (marks[(enemy.phaseN || 1) - 1] || 0);
+      if (mark <= 0) return dmg;
+      if (enemy.hp <= mark) return 0;
+      return Math.min(dmg, enemy.hp - Math.max(0.01, mark - 1));
     }
     credit(src, amount) {
       if (amount > 0) {
@@ -2282,6 +2348,10 @@ const rlStep = 1 / 60,
       if (enemy.dead) return;
       const kills0 = this.kills;
       enemy.dead = true;
+      if (!enemy.cleanup && !enemy.boss) {
+        if (enemy.champion) this.triggerHitstop(0.06);
+        else if (enemy.elite || enemy.r >= 0.8) this.triggerHitstop(enemy.elite ? 0.036 : 0.02, true);
+      }
       enemy.hp = 0;
       let def = enemy.def;
       if (enemy.cleanup) {
@@ -2434,7 +2504,7 @@ const rlStep = 1 / 60,
         }
       }
       if (enemy.boss) {
-        this.triggerHitstop(0.035);
+        this.triggerHitstop(0.075);
         if (alive) this.bossKills.push(enemy.type);
         this.boss = null;
         for (let other of this.enemies) {
@@ -2541,10 +2611,12 @@ const rlStep = 1 / 60,
     explode(x, y, radius, dmg, opts = {}) {
       if (opts.enemies) {
         this.hash.query(x, y, radius, (enemy) => {
-          if (enemy.dead || Math.hypot(enemy.x - x, enemy.y - y) > radius + enemy.r) return;
+          const distance = Math.hypot(enemy.x - x, enemy.y - y);
+          if (enemy.dead || distance > radius + enemy.r) return;
+          const center = opts.kind === "rocket" && distance <= radius * 0.5;
           this.hurtEnemy(
             enemy,
-            dmg,
+            center ? dmg * 1.2 : dmg,
             enemy.x - x,
             enemy.y - y,
             opts.knock || 3,
@@ -2614,6 +2686,7 @@ const rlStep = 1 / 60,
       if (pts.length > 2) {
         this.emit("chain", { pts: pts });
       }
+      return chained;
     }
     updatePBullets(dt) {
       let stats = this.stats,
@@ -2839,6 +2912,7 @@ const rlStep = 1 / 60,
           enemy.guardFlash = 1;
           if (enemy.guard <= 0) {
             enemy.guardDown = 4;
+            this.triggerHitstop(0.032);
             this.emit("guardBreak", { x: gx, y: gy });
           } else {
             if (!bullet.drag || this.rng.chance(0.2)) {
@@ -2891,6 +2965,16 @@ const rlStep = 1 / 60,
         return;
       }
       let baseHit = bullet.dmg;
+      const native = !bullet.wing && bullet.w === this.weapon;
+      if (native && bullet.w === "scatter" && bullet.age <= 0.16) baseHit *= 1.25;
+      if (native && bullet.w === "rail") baseHit *= 1 + 0.12 * Math.min(4, bullet.pierceCount || 0);
+      if (native && bullet.w === "disc" && bullet.back) baseHit *= 1.25;
+      const thermal =
+        native &&
+        bullet.w === "flame" &&
+        this.time >= (enemy.thawAt ?? 0) &&
+        (enemy.frostT > 0 || (this.arena.ice.length && this.arena.onIce(enemy.x, enemy.y)));
+      if (thermal) baseHit += 13 * stats.dmgMul;
       // Point-Blank Barrel ('pointblank'): +16% * lv damage to foes within 5.5m
       if (stats.pointblank > 0 && Math.hypot(enemy.x - this.player.x, enemy.y - this.player.y) <= 5.5) {
         baseHit *= 1 + 0.16 * stats.pointblank;
@@ -2917,7 +3001,7 @@ const rlStep = 1 / 60,
         }
       }
       bullet.crit = crit;
-      this.hurtEnemy(
+      const landed = this.hurtEnemy(
         enemy,
         dmg,
         bullet.vx,
@@ -2927,6 +3011,12 @@ const rlStep = 1 / 60,
         bullet.wing ? "wingman" : "weapon",
         superCrit ? { superCrit: true } : null,
       );
+      if (thermal && landed) {
+        enemy.frostT = 0;
+        enemy.thawAt = this.time + 0.8;
+        this.triggerHitstop(0.023, true);
+        this.emit("shatter", { x: enemy.x, y: enemy.y, r: enemy.r, thermal: true });
+      }
       if (superCrit) {
         // Prismatic arc to nearest secondary target
         let near = null,
@@ -2983,7 +3073,8 @@ const rlStep = 1 / 60,
       }
       let bounced = false;
       if (stats.cryo && !immune && this.rng.chance(stats.cryo * procMul)) {
-        enemy.slowT = 2;
+        enemy.slowT = Math.max(enemy.slowT, 2);
+        enemy.frostT = 2;
         this.emit("freeze", { x: enemy.x, y: enemy.y });
       }
       // Stackable Embers ('thermite'): up to 5 stacks capped at 2.2 * hitDmg * weapon.rate over 3s
@@ -3004,7 +3095,11 @@ const rlStep = 1 / 60,
         enemy.burnSrc = "burn";
       }
       if (stats.chain) {
-        this.chainFrom(enemy, stats.chain, dmg * stats.chainF, bullet.hits);
+        const jumps = this.chainFrom(enemy, stats.chain, dmg * stats.chainF, bullet.hits);
+        if (!jumps && native && bullet.w === "tesla" && !stats.tempest && landed && !enemy.dead) {
+          this.hurtEnemy(enemy, dmg * 0.2, bullet.vx, bullet.vy, 0, false, "arc");
+          this.emit("chain", { pts: [enemy.x, enemy.y, enemy.x + enemy.r, enemy.y - 0.35] });
+        }
       }
       if (stats.arc && this.rng.chance(stats.arc * procMul * (bullet.drag ? 0.25 : 1))) {
         this.chainFrom(enemy, stats.arcJumps, dmg * 0.6, bullet.hits, "arc");
@@ -3200,7 +3295,22 @@ const rlStep = 1 / 60,
               let dx = player.x - bullet.x,
                 dy = player.y - bullet.y,
                 hitR = player.r * 0.8 + bullet.r;
-              if (dx * dx + dy * dy < hitR * hitR && player.iT <= 0 && player.dashT <= 0) {
+              const distSq = dx * dx + dy * dy;
+              if (
+                this.state === "fight" &&
+                player.dashT > 0 &&
+                !player.grazedDash &&
+                this.time - player.dashAt <= 0.12 &&
+                distSq < (hitR + 0.4) ** 2
+              ) {
+                player.grazedDash = true;
+                player.grazeT = 1.5;
+                player.dashCdT = Math.max(0, player.dashCdT - 0.35);
+                this.addNova(8, true);
+                this.triggerHitstop(0.018, true);
+                this.emit("graze", { x: player.x, y: player.y, r: hitR });
+              }
+              if (distSq < hitR * hitR && player.iT <= 0 && player.dashT <= 0) {
                 bullet.life = 0;
                 if (
                   this.hurtPlayer(bullet.dmg, bullet.x - bullet.vx * 0.05, bullet.y - bullet.vy * 0.05, bullet.src) &&
@@ -3634,7 +3744,7 @@ const rlStep = 1 / 60,
     updateSpawns(dt) {
       if (this.planIdx >= this.plan.length && !this.bossPending && !this.boss && this.enemies.length <= 4) {
         this.stragglerT += dt;
-        if (this.stragglerT > 9) for (let enemy of this.enemies) enemy.hunt = true;
+        if (this.stragglerT > 6.5) for (let enemy of this.enemies) enemy.hunt = true;
       } else this.stragglerT = 0;
       if (this.bossPending && this.waveT > 1.6) {
         let id = this.bossPending;
@@ -3749,11 +3859,11 @@ const rlStep = 1 / 60,
           this.offerBoss = boss;
           this.emit("cleared", { n: this.wave, boss: boss, flawless: this.waveDmg === 0 });
         }
-      } else if (this.state === "cleared" && ((this.stateT > 1.6 && this.pickups.length === 0) || this.stateT > 3.5)) {
+      } else if (this.state === "cleared" && ((this.stateT > 1.2 && this.pickups.length === 0) || this.stateT > 2.7)) {
         for (let pickup of this.pickups) {
-          if (pickup.kind === "shard") {
-            this.shards += pickup.v;
-          }
+          if (pickup.dead) continue;
+          if (pickup.kind === "shard") this.shards += pickup.v;
+          if (pickup.kind === "heal") this.player.hp = Math.min(this.stats.maxHp, this.player.hp + pickup.v);
         }
         this.pickups.length = 0;
         this.singularities = [];

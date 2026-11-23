@@ -9,7 +9,9 @@ export const WHATS_NEW = [
     items: [
       "Wave transitions stay silky smooth on phones and desktop, with every realm prepared ahead of battle.",
       "Unified Lantern-Artificer arms, crafts, Sanctuary modules, Endless omens, and Journal Codex entries across the whole game.",
-      "Richer guardian encounters, tactile acoustic soundscapes, gamepad support, and between-realm Wayfarer's Anvil stops.",
+      "Right-click to dash or bring a controller, and use a perfectly timed dash to graze incoming shots.",
+      "Each arm has a native trait, and every Guardian leaves an opening between attacks.",
+      "Spend run shards at Wayfarer's Anvil before you enter the next realm.",
     ],
   },
   {

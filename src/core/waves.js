@@ -118,7 +118,8 @@ function rollUpgradeOffer(rng, owned, wave, hpFrac, count, boss, exclude = [], w
         Object.entries(upgrade.evo).every(([id, need]) => (owned[id] || 0) >= need),
     );
   if (evos.length) {
-    picks.push(evos[Math.floor(rng.next() * evos.length)].id);
+    const weights = evos.map((upgrade) => (upgrade.weapon ? 3 : 1) * (exclude.includes(upgrade.id) ? 0.05 : 1));
+    picks.push(weightedPick(rng, evos, weights).id);
   }
   const left = pool.slice();
   for (; picks.length < count && left.length;) {
@@ -241,7 +242,7 @@ function planWave(rng, wave, tm, boss, plan = {}) {
       order = head.filter((spawn) => !(heavyEnemies[spawn.type] || spawn.elite)).concat(tail, heavyHead),
       groups = [],
       groupSize = clamp(4 + Math.floor(wave / 2.5), 4, 12),
-      gap = boss ? 7 : Math.max(1.6, 3.2 - wave * 0.06);
+      gap = boss ? 6.1 : Math.max(1.4, 2.85 - wave * 0.055);
     let next = 0;
     for (; next < order.length;) {
       const size = groupSize + rng.int(-1, 1),

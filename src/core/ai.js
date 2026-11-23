@@ -53,9 +53,10 @@ function nextBossAttack(game, boss) {
   game.emit("bossAtk", { id: boss.type, atk: boss.st, src: boss.type });
 }
 
-function endBossAttack(boss, delay) {
+function endBossAttack(boss, delay, opening = true) {
   boss.st = "walk";
   boss.t = delay * (boss.pace || 1);
+  boss.openT = opening ? Math.min(0.85, boss.t) : 0;
   boss.n = 0;
   boss.t2 = 0;
   boss.charging = false;
@@ -103,7 +104,7 @@ function triggerPhaseTransition(game, boss, nextPhase) {
     game.emit("enrage", { id: boss.type, x: boss.x, y: boss.y, src: boss.type });
     if (REINFORCE[boss.type]) bossReinforce(game, boss);
   }
-  endBossAttack(boss, 1.0);
+  endBossAttack(boss, 1.0, false);
 }
 
 function updateBoss(game, boss, dt) {
@@ -113,6 +114,7 @@ function updateBoss(game, boss, dt) {
     boss.vy = 0;
     return;
   }
+  if (boss.openT > 0) boss.openT = Math.max(0, boss.openT - dt);
   if (boss.stunT > 0) {
     boss.stunT = Math.max(0, boss.stunT - dt);
     boss.vx *= 0.7;

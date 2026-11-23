@@ -47,6 +47,7 @@ import { upgradesById } from "./data/upgrades.js";
 import { Renderer } from "./render/renderer.js";
 import { Overlay } from "./render/overlay.js";
 
+const RESUME_MS = 800;
 const RL_INTRO = { queue: [], last: 0 };
 function rlIntroEvents(world) {
   if (game.tut) return; // the tutorial coach owns the screen on the first run
@@ -291,6 +292,7 @@ const overlay = new Overlay(elementById("ov")),
     mode: "menu",
     world: null,
     paused: false,
+    resumeAt: 0,
     previewW: store.data.weapon,
     buildId: BUILD_ID,
     chooseShown: false,
@@ -335,7 +337,10 @@ const overlay = new Overlay(elementById("ov")),
         document.activeElement?.blur?.();
         this.mode = "game";
         this.paused = false;
+        this.clearResume();
         this.chooseShown = false;
+        this.anvilShown = false;
+        this._pausedFromChoose = this._pausedFromAnvil = false;
         this.overShown = false;
         this.acc = 0;
         this.slowMo = 0;
@@ -354,6 +359,7 @@ const overlay = new Overlay(elementById("ov")),
         ui.hideMenus();
         ui.hideOver();
         ui.hideChoose();
+        ui.hideAnvil();
         ui.hidePause();
         ui.hideCrash();
         ui.showHud(true);
@@ -361,7 +367,6 @@ const overlay = new Overlay(elementById("ov")),
         placeHud();
         input.reset();
         input.enabled = true;
-        game.freeze = 0;
         game.tut =
           !store.data.seen.tutorial && !resume && this.world.wave === 1
             ? { step: 0, t: 0, moved: 0, kills: 0, dashed: false }
@@ -395,8 +400,36 @@ const overlay = new Overlay(elementById("ov")),
         this.chooseShown = false;
         ui.hideChoose();
         input.reset();
+        if (world.state === "anvil") this.showAnvil();
+        else this.saveCheckpoint("pick");
         syncSoundMuffle();
       }
+    },
+    showAnvil() {
+      this.anvilShown = true;
+      this._settledOverlayFrames = 0;
+      input.reset();
+      ui.showAnvil(this.world);
+      this.saveCheckpoint("anvil");
+      syncSoundMuffle();
+    },
+    buyAnvil(index) {
+      if (this.paused || !this.world?.buyAnvil(index)) return;
+      this.saveCheckpoint("anvil-buy");
+      sound.play("buy");
+      ui.showAnvil(this.world);
+    },
+    leaveAnvil() {
+      if (this.paused || !this.world?.leaveAnvil()) return;
+      this.anvilShown = false;
+      ui.hideAnvil();
+      input.reset();
+      this.saveCheckpoint("anvil-leave");
+      syncSoundMuffle();
+    },
+    saveCheckpoint(reason) {
+      store.data.run = this.world.snapshot();
+      store.save(reason);
     },
     /* 3.25.0: Waxen Seal: the card is replaced and the craft never comes again in this run */
     banish(id) {
@@ -431,6 +464,12 @@ const overlay = new Overlay(elementById("ov")),
     },
     pause() {
       let world = this.world;
+      if (this.resumeAt) {
+        this.clearResume();
+        input.reset();
+        ui.showPause(world);
+        return;
+      }
       if (!(
         this.mode !== "game" ||
         !world ||
@@ -452,28 +491,40 @@ const overlay = new Overlay(elementById("ov")),
       }
     },
     resume() {
-      // Do not resume behind the portrait rotation prompt.
-      if (this.paused && !needsRotate()) {
-        document.activeElement?.blur?.();
-        this.paused = false;
-        ui.hidePause();
-        if (this._pausedFromChoose) {
-          this._pausedFromChoose = false;
-          getById("choose").hidden = false;
-          ui.coverHud(true);
-        } else if (this._pausedFromAnvil) {
-          this._pausedFromAnvil = false;
-          if (getById("anvil")) getById("anvil").hidden = false;
-          ui.coverHud(true);
-        }
-        input.reset();
-        this.last = performance.now();
-        setWakeLock(true);
-        if (this.world) {
-          sound.setMusic(this.world.boss ? "boss" : "fight", this.world.biomeFor(this.world.wave).id, true);
-        }
-        syncSoundMuffle();
+      if (!this.paused || this.resumeAt || needsRotate() || document.hidden) return;
+      document.activeElement?.blur?.();
+      ui.hidePause();
+      if (this._pausedFromChoose || this._pausedFromAnvil) {
+        this.finishResume();
+      } else {
+        this.resumeAt = performance.now() + RESUME_MS;
+        getById("resumeCountNum").textContent = "3";
+        getById("resumeCount").hidden = false;
       }
+    },
+    clearResume() {
+      this.resumeAt = 0;
+      getById("resumeCount").hidden = true;
+    },
+    finishResume() {
+      this.clearResume();
+      this.paused = false;
+      if (this._pausedFromChoose) {
+        this._pausedFromChoose = false;
+        getById("choose").hidden = false;
+        ui.coverHud(true);
+      } else if (this._pausedFromAnvil) {
+        this._pausedFromAnvil = false;
+        getById("anvil").hidden = false;
+        ui.coverHud(true);
+      }
+      input.reset();
+      this.last = performance.now();
+      setWakeLock(true);
+      if (this.world) {
+        sound.setMusic(this.world.boss ? "boss" : "fight", this.world.biomeFor(this.world.wave).id, true);
+      }
+      syncSoundMuffle();
     },
     restart() {
       ui.hidePause();
@@ -521,6 +572,7 @@ const overlay = new Overlay(elementById("ov")),
       this.mode = "menu";
       this.world = null;
       this.paused = false;
+      this.clearResume();
       this.chooseShown = false;
       this.anvilShown = false;
       this._pausedFromChoose = false;
@@ -529,7 +581,7 @@ const overlay = new Overlay(elementById("ov")),
       if (renderer) renderer.clearTransient();
       ui.hideOver();
       ui.hideChoose();
-      ui.hideAnvil?.();
+      ui.hideAnvil();
       ui.hidePause();
       ui.showHud(false);
       window.__riftUpdateDeviceProfile?.();
@@ -796,7 +848,14 @@ input.onBlur = () => {
   }
 };
 input.isPlaying = () =>
-  game.mode === "game" && !game.paused && !game.chooseShown && !game.anvilShown && !game.overShown;
+  game.mode === "game" &&
+  !game.paused &&
+  !game.overShown &&
+  (game.world?.state === "fight" || game.world?.state === "cleared");
+input.onDeny = (action) => {
+  ui.actionFlash(action, "deny");
+  sound.play("deny");
+};
 input.onMute = () => game.toggleMute();
 input.onPause = () => {
   if (!getById("dialog").hidden) {
@@ -817,7 +876,7 @@ input.onPause = () => {
     return;
   }
   if (game.mode === "game") {
-    if (game.paused) {
+    if (game.paused && !game.resumeAt) {
       game.resume();
     } else {
       game.pause();
@@ -882,6 +941,16 @@ function loopTick(now) {
     // nothing outside the fight or when already paused)
     if (needsRotate()) game.pause();
     try {
+      if (game.resumeAt && !document.hidden) {
+        const remaining = game.resumeAt - now;
+        if (remaining <= 0) {
+          game.finishResume();
+          dt = 0;
+        } else {
+          getById("resumeCountNum").textContent = String(Math.ceil((remaining * 3) / RESUME_MS));
+        }
+      }
+      input.pollGamepad();
       const frameStart = performance.now();
       runFrame(dt);
       frameErrorCount = 0;
@@ -911,18 +980,12 @@ function runFrame(dt) {
       let slow = game.slowMo > 0 ? 0.35 : 1;
       game.slowMo = Math.max(0, game.slowMo - dt);
       const noMotion = !!(settings.reducedMotion || reducedMotion());
-      if (world.hitstopT > 0) {
-        if (noMotion) world.hitstopT = 0;
-        else world.hitstopT = Math.max(0, world.hitstopT - dt);
-      }
+      const stopped = noMotion ? 0 : Math.min(world.hitstopT, dt);
+      world.hitstopT = noMotion ? 0 : world.hitstopT - stopped;
       if (game.intro) {
         updateBossIntro(dt, world);
-      } else {
-        if (game.freeze > 0) {
-          game.freeze -= dt;
-        } else if (!(world.hitstopT > 0)) {
-          game.acc += dt * slow; // 3.37.0: the never-assigned fast-forward hook game.speed is gone
-        }
+      } else if (!(world.hitstopT > 0)) {
+        game.acc += (dt - stopped) * slow;
       }
       let steps = 0,
         maxSteps = 5;
@@ -936,7 +999,7 @@ function runFrame(dt) {
       for (; !(world.hitstopT > 0) && game.acc >= rlStep && steps < maxSteps;) {
         // 3.31.0: where everything was before the step, so a frame can be drawn between two steps (render/interp.js)
         interpCapture(world);
-        world.step(rlStep, input.sample(world, settings));
+        world.step(rlStep, input.sample(world, settings, rlStep));
         game.acc -= rlStep;
         steps++;
         if (world.hitstopT > 0 && noMotion) world.hitstopT = 0;
@@ -978,7 +1041,7 @@ function runFrame(dt) {
     // (game.noInterp: the full-QA section smooth compares with and without)
     if (game.interpWorld === world && !game.noInterp) interpApply(game.acc / rlStep);
     try {
-      const staticOverlay = game.chooseShown || game.overShown;
+      const staticOverlay = game.chooseShown || game.anvilShown || game.overShown;
       if (!staticOverlay) game._settledOverlayFrames = 0;
       if (renderer && (!staticOverlay || (game._settledOverlayFrames = (game._settledOverlayFrames || 0) + 1) <= 2)) {
         renderer.frame(dt, world);
@@ -999,6 +1062,12 @@ function runFrame(dt) {
       ui.showChoose(world);
       syncSoundMuffle();
       // 3.30.0: the next wave's layout is built while the player reads the cards (no hitch when one is picked)
+      const prefetch = () => game.world === world && world.prefetchLayout();
+      if (window.requestIdleCallback) requestIdleCallback(prefetch, { timeout: 1500 });
+      else setTimeout(prefetch, 300);
+    }
+    if (world.state === "anvil" && !game.anvilShown && !game.overShown) {
+      game.showAnvil();
       const prefetch = () => game.world === world && world.prefetchLayout();
       if (window.requestIdleCallback) requestIdleCallback(prefetch, { timeout: 1500 });
       else setTimeout(prefetch, 300);
@@ -1035,9 +1104,7 @@ function announceMutator(ev) {
 function syncSoundMuffle() {
   const world = game.world,
     inGame = game.mode === "game" && !!world && !game.overShown,
-    choosing =
-      inGame &&
-      (game.chooseShown || game.anvilShown || world.state === "choose" || world.state === "anvil" || !!world.choosing),
+    choosing = inGame && (game.chooseShown || game.anvilShown || world.state === "choose" || world.state === "anvil"),
     lowWard = inGame && world.player.alive && world.player.hp / Math.max(1, world.stats.maxHp) < 0.25;
   sound.setMuffleState?.({
     paused: !!(inGame && game.paused),
@@ -1089,10 +1156,7 @@ function handleWorldEvents(world) {
     switch (ev.k) {
       case "wave": {
         // 3.28.1: never for a run that has ended (see runFrame)
-        if (!game.overShown) {
-          store.data.run = world.snapshot();
-          store.save("wave");
-        }
+        if (!game.overShown) game.saveCheckpoint("wave");
         let biome = world.biomeFor(ev.n);
         let newBiome = ev.n === 1 || world.biomeFor(ev.n - 1).id !== biome.id;
         if (renderer) {
@@ -1139,25 +1203,31 @@ function handleWorldEvents(world) {
         if (ev.n === 2) {
           showTipOnce(
             "dash",
-            rlKeys()
-              ? "Tip: SPACE or right-click dashes \u2014 you cannot be hit during a dash."
-              : "Tip: DASH dodges through attacks \u2014 you cannot be hit during it.",
+            RL_INPUT.gamepad
+              ? "Tip: press A to dash through danger."
+              : rlKeys()
+                ? "Tip: SPACE or right-click dashes \u2014 you cannot be hit during a dash."
+                : "Tip: DASH dodges through attacks \u2014 you cannot be hit during it.",
           );
         }
         if (ev.n === 4) {
           showTipOnce(
             "singularity",
-            rlKeys()
-              ? "Tip: press G to toss a Gravity Chime. It pulls foes together and bursts. Charges refill."
-              : "Tip: tap CHIME to toss a Gravity Chime at foes. Hold the right side to aim where it lands.",
+            RL_INPUT.gamepad
+              ? "Tip: press Y or LT to toss a Gravity Chime."
+              : rlKeys()
+                ? "Tip: press G to toss a Gravity Chime. It pulls foes together and bursts. Charges refill."
+                : "Tip: tap CHIME to toss a Gravity Chime at foes. Hold the right side to aim where it lands.",
           );
         }
         if (ev.n === 3) {
           showTipOnce(
             "aim",
-            rlKeys()
-              ? "Tip: hold the left mouse button to aim and fire at the cursor."
-              : "Tip: drag the right side to aim yourself. Holding it fires at the nearest foe.",
+            RL_INPUT.gamepad
+              ? "Tip: aim with the right stick and hold RT to fire."
+              : rlKeys()
+                ? "Tip: hold the left mouse button to aim and fire at the cursor."
+                : "Tip: drag the right side to aim yourself. Holding it fires at the nearest foe.",
           );
         }
         break;
@@ -1169,10 +1239,10 @@ function handleWorldEvents(world) {
         );
         break;
       case "gadgetReady":
-        ui.gadgetFlash("pop");
+        ui.actionFlash("gadget", "pop");
         break;
       case "gadgetDeny":
-        ui.gadgetFlash("deny");
+        ui.actionFlash("gadget", "deny");
         break;
       case "boss":
         // 3.1.0: the boss track starts on the spot, at the camera pan
@@ -1189,9 +1259,11 @@ function handleWorldEvents(world) {
       case "novaReady":
         showTipOnce(
           "nova",
-          rlKeys()
-            ? "Hearthburst is charged \u2014 press E to unleash a wide shockwave."
-            : "Hearthburst is charged \u2014 tap BURST to unleash a wide shockwave.",
+          RL_INPUT.gamepad
+            ? "Hearthburst is charged — press B or RB to unleash it."
+            : rlKeys()
+              ? "Hearthburst is charged \u2014 press E to unleash a wide shockwave."
+              : "Hearthburst is charged \u2014 tap BURST to unleash a wide shockwave.",
         );
         break;
       case "cleared":
@@ -1204,7 +1276,6 @@ function handleWorldEvents(world) {
         if (!ev.chip) {
           ui.hurtFlash();
           overlay.addHurt(world, ev.sx, ev.sy);
-          hitStop(0.06);
         }
         break;
       case "champion":
@@ -1219,21 +1290,9 @@ function handleWorldEvents(world) {
       case "championDown":
         ui.banner("Champion Defeated", "Pack aura broken", "good", 1400);
         game.slowMo = Math.max(game.slowMo, 0.5);
-        hitStop(0.08);
         break;
       case "mend":
         showTipOnce("mender", "Mender-Clocks restore nearby foes' HP. Take them out first.");
-        break;
-      case "kill":
-        if ((ev.elite || ev.r >= 0.8) && !ev.cleanup) {
-          hitStop(ev.elite ? 0.05 : 0.025);
-        }
-        break;
-      case "nova":
-        hitStop(0.08);
-        break;
-      case "guardBreak":
-        hitStop(0.03);
         break;
       case "bossAtk":
         overlay.callout(ev.atk, ev.id);
@@ -1359,13 +1418,6 @@ function updateBossIntro(dt, world) {
     game.acc = 0;
   }
 }
-function hitStop(duration) {
-  let now = performance.now();
-  if (!(now - (game.lastStop || 0) < 180)) {
-    game.lastStop = now;
-    game.freeze = Math.max(game.freeze || 0, duration);
-  }
-}
 let heartbeatTimer = 0;
 function updateHeartbeat(dt, world) {
   let player = world.player;
@@ -1382,14 +1434,26 @@ function updateHeartbeat(dt, world) {
 const // 2.3.4: keyboard/mouse players got the touch texts ("drag the left side"), which do nothing
   // with a mouse, and the keys were explained nowhere. Every step now has both wordings and
   // follows the input in use (the coach re-reads the text every frame).
-  rlKeys = () => !RL_INPUT.touch,
+  rlKeys = () => !RL_INPUT.touch && !RL_INPUT.gamepad,
   tutorialTexts = [
-    () => (rlKeys() ? "Move with W A S D or the arrow keys." : "Drag anywhere on the left side to move."),
     () =>
-      rlKeys()
-        ? "Foes ahead! Your armament shoots automatically \u2014 hold the left mouse button to aim yourself."
-        : "Foes ahead! Your armament shoots automatically \u2014 drag the right side to aim yourself.",
-    () => (rlKeys() ? "Press SPACE to dash through danger." : "Tap DASH to dodge through danger."),
+      RL_INPUT.gamepad
+        ? "Move with the left stick."
+        : rlKeys()
+          ? "Move with W A S D or the arrow keys."
+          : "Drag anywhere on the left side to move.",
+    () =>
+      RL_INPUT.gamepad
+        ? "Aim with the right stick and hold RT to fire."
+        : rlKeys()
+          ? "Foes ahead! Your armament shoots automatically \u2014 hold the left mouse button to aim yourself."
+          : "Foes ahead! Your armament shoots automatically \u2014 drag the right side to aim yourself.",
+    () =>
+      RL_INPUT.gamepad
+        ? "Press A to dash through danger."
+        : rlKeys()
+          ? "Press SPACE or right-click to dash through danger."
+          : "Tap DASH to dodge through danger.",
     () => "Collect shards \u2014 spend them on permanent crafts in the Sanctuary.",
   ];
 function updateTutorial(dt, world) {

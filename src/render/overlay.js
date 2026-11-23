@@ -196,8 +196,8 @@ const healthBarTypes = {
       if (target && !target.dead && player.firing && !player.manual && player.alive) return true;
       if (
         input &&
-        !input.isTouch &&
         !RL_INPUT.touch &&
+        !RL_INPUT.gamepad &&
         input.mouse &&
         Number.isFinite(input.mouse.x) &&
         Number.isFinite(input.mouse.y) &&
@@ -302,8 +302,8 @@ const healthBarTypes = {
       // Custom mouse reticle with crisp recoil-bloom feedback during manual/cursor aim
       if (
         input &&
-        !input.isTouch &&
         !RL_INPUT.touch &&
+        !RL_INPUT.gamepad &&
         input.mouse &&
         Number.isFinite(input.mouse.x) &&
         Number.isFinite(input.mouse.y) &&

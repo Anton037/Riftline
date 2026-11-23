@@ -6,7 +6,7 @@ import { own, GAME_VERSION } from "./util.js";
 import { bossOrder } from "../data/enemies.js";
 import { runContentIds, saveContentIds } from "../data/content-ids.js";
 import { weaponDefs } from "../data/weapons.js";
-import { milestones, workshopModules } from "../data/progression.js";
+import { anvilGoods, milestones, workshopModules } from "../data/progression.js";
 import { LEGACY_WEAPONS, LEGACY_MODULES, legacyWeapon, legacyUpgrade } from "./save-compat.js";
 import { upgradeList, upgradesById } from "../data/upgrades.js";
 import { BOSS_CARD_CHANCE } from "./boss-cards.js";
@@ -338,6 +338,9 @@ function cleanRun(raw) {
         n: Math.max(1, Math.floor(cleanNumber(h.n, 1, 1, 1e6))),
       });
     }
+  if (Array.isArray(raw.anvil)) {
+    run.anvil = anvilGoods.filter(({ id }) => raw.anvil.includes(id)).map(({ id }) => id);
+  }
   if (Array.isArray(raw.offer)) {
     // 3.15.0: a boss card belongs only in a boss offer
     const offer = [

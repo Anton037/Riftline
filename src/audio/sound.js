@@ -1238,6 +1238,9 @@ const SoundEngine = class {
         case "shatter":
           this.play("bcShatter");
           break;
+        case "graze":
+          this.play("gadgetReady");
+          break;
         case "splinterHit":
           if (!this.gate || this.gate("sfx:splinter", 0.04)) this.play("hit", { type: "prism" });
           break;

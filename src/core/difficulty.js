@@ -3,14 +3,13 @@
 
 // Burst cap: an enemy can lose at most this fraction of its maximum hull within BURST_WINDOW seconds, no
 // matter how many shots, pierces, explosions and chain jumps land (a maxed Railgun salve used to wipe whole
-// lines at wave 150). Sustained damage is not limited, only the stacking in one moment. No cap up to wave
-// 40, then it tightens by 0.72 points of a hull per wave down to a floor of 12 % (about wave 148).
+// lines at wave 150). Wave 40 caps a burst at 97% of hull. The cap tightens gradually to a 28% floor.
 const BURST_WINDOW = 0.25,
   BURST_FROM = 40,
-  BURST_FLOOR = 0.12;
+  BURST_FLOOR = 0.28;
 function burstFraction(wave) {
-  if (wave <= BURST_FROM) return 1;
-  return Math.max(BURST_FLOOR, 0.9 - 0.0072 * (wave - BURST_FROM));
+  if (wave < BURST_FROM) return 1;
+  return Math.max(BURST_FLOOR, 0.97 - 0.005 * (wave - BURST_FROM));
 }
 
 // Extra hull for the regular enemies on top of the quadratic curve in World.startWave: none up to wave 30,

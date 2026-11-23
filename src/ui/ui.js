@@ -366,32 +366,9 @@ const getById = (id) => document.getElementById(id),
           el.blur?.();
           action();
         });
-      onPress(getById("dashBtn"), () => {
-        this.g.input.press("dash");
-        let world = this.g.world,
-          btn = getById("dashBtn");
-        if (world && world.player.dashN <= 0 && world.player.dashCdT > 0.08) {
-          btn.classList.remove("deny");
-          btn.offsetWidth;
-          btn.classList.add("deny");
-          this.g.sound.play("deny");
-        }
-      });
-      onPress(getById("novaBtn"), () => {
-        this.g.input.press("nova");
-        let world = this.g.world,
-          btn = getById("novaBtn");
-        if (world && world.player.nova < 100) {
-          btn.classList.remove("deny");
-          btn.offsetWidth;
-          btn.classList.add("deny");
-          this.g.sound.play("deny");
-        }
-      });
-      onPress(getById("gadgetBtn"), () => {
-        // the deny flash comes from the simulation's gadgetDeny event (no charge, or outside a fight)
-        this.g.input.press("gadget");
-      });
+      for (const action of ["dash", "nova", "gadget"]) {
+        onPress(getById(action + "Btn"), () => this.g.input.press(action));
+      }
       this.click(getById("pauseBtn"), () => {
         getById("pauseBtn").blur?.();
         this.g.pause();
@@ -410,7 +387,8 @@ const getById = (id) => document.getElementById(id),
         }
       });
       this.click(getById("rerollBtn"), () => this.g.reroll());
-      this.click(getById("anvilContinueBtn"), () => this.g.leaveAnvil?.());
+      this.click(getById("anvilContinueBtn"), () => this.g.leaveAnvil());
+      this.click(getById("anvilPauseBtn"), () => this.g.pause());
       this.click(getById("claimAllBtn"), () => this.claimAll());
       for (const tabBtn of document.querySelectorAll("#recTabs [data-rec-tab]")) {
         this.click(tabBtn, () => {
@@ -1317,7 +1295,10 @@ const getById = (id) => document.getElementById(id),
           getById("bossName").textContent = boss.champion
             ? `${enemyDefs[boss.type].name} Champion`
             : bossDefs[boss.type].name;
-          getById("bossPhase").textContent = boss.enraged ? "Phase 2" : boss.champion ? "Rallying" : "";
+        });
+        const phase = boss.openT > 0 ? "Open" : boss.enraged ? `Phase ${boss.phaseN}` : boss.champion ? "Rallying" : "";
+        update("bossPhase", phase, (text) => {
+          getById("bossPhase").textContent = text;
         });
         update("bossF", Math.round((boss.hp / boss.maxHp) * 100), (value) => {
           getById("bossFill").style.transform = `scaleX(${clamp(value / 100, 0, 1)})`;
@@ -1423,7 +1404,7 @@ const getById = (id) => document.getElementById(id),
         chips.push(["rush", `HASTE \xD7${player.rushN}`, "#f08e70", player.rushT / 4]);
       }
       if (player.grazeT > 0) {
-        chips.push(["graze", "GRAZE+", "#ffd872", player.grazeT / 1.5]);
+        chips.push(["graze", "PERFECT GRAZE", "#ffd872", player.grazeT / 1.5]);
       }
       if (world.chronoT > 0) {
         chips.push(["chrono", "SLOW TIME", "#bacfd9", world.chronoT / 1.5]);
@@ -1661,7 +1642,7 @@ const getById = (id) => document.getElementById(id),
       getById("rerollBtn").disabled = world.rerolls <= 0;
       getById("buildStrip").innerHTML = this.buildHtml(world, true);
       if (getById("chooseUpInfo")) getById("chooseUpInfo").hidden = true;
-      if (!RL_INPUT.touch) {
+      if (!RL_INPUT.touch && !RL_INPUT.gamepad) {
         cards.querySelectorAll("[data-pick]").forEach((card, i) => {
           card.classList.add("has-key");
           card.insertAdjacentHTML("beforeend", `<kbd class="card-key" aria-hidden="true">${i + 1}</kbd>`);
@@ -1723,7 +1704,7 @@ const getById = (id) => document.getElementById(id),
     }
     showAnvil(world) {
       const box = getById("anvil");
-      if (!box || !world.anvilOffers) return;
+      if (world.state !== "anvil") return;
       const next = world.previewWave(world.wave + 1),
         nextBiome = biomesById[next.biome];
       getById("anvilEyebrow").textContent = nextBiome ? `Ahead · ${nextBiome.name}` : "Between Realms";
@@ -1734,12 +1715,12 @@ const getById = (id) => document.getElementById(id),
       const grid = getById("anvilOffers");
       grid.innerHTML = world.anvilOffers
         .map((offer, i) => {
-          const disabled = offer.bought || world.shards < offer.cost;
+          const disabled = offer.bought || !offer.available || world.shards < offer.cost;
           return `<div class="anvil-card${offer.bought ? " bought" : ""}"><b>${escapeHtml(offer.name)}</b><p>${escapeHtml(offer.desc)}</p><button class="btn buy small" data-anvil="${i}" ${disabled ? "disabled" : ""}>${offer.bought ? "FORGED" : `<span class="shard-ico"></span>${offer.cost}`}</button></div>`;
         })
         .join("");
       for (const btn of grid.querySelectorAll("[data-anvil]")) {
-        this.click(btn, () => this.g.buyAnvil?.(+btn.dataset.anvil));
+        this.click(btn, () => this.g.buyAnvil(+btn.dataset.anvil));
       }
       this.coverHud(true);
       box.hidden = false;
@@ -1881,7 +1862,7 @@ const getById = (id) => document.getElementById(id),
       getById("retryBtn").hidden = false;
       getById("retryBtn").classList.toggle("primary", !result.canEndless);
       // 3.45.4: R runs again from the end screen (keyboard players only)
-      if (!RL_INPUT.touch) {
+      if (!RL_INPUT.touch && !RL_INPUT.gamepad) {
         const targetBtn = getById(result.canEndless ? "endlessBtn" : "retryBtn");
         targetBtn.insertAdjacentHTML("beforeend", '<kbd class="card-key inline" aria-hidden="true">R</kbd>');
       }
@@ -2003,9 +1984,8 @@ const getById = (id) => document.getElementById(id),
     hideCrash() {
       getById("crash").hidden = true;
     }
-    // 3.0.0: the GADGET button reacts to the simulation: "ready" pops it, "deny" shakes it
-    gadgetFlash(kind) {
-      const btn = getById("gadgetBtn");
+    actionFlash(action, kind) {
+      const btn = getById(action + "Btn");
       btn.classList.remove(kind);
       btn.offsetWidth;
       btn.classList.add(kind);

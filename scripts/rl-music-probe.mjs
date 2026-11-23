@@ -219,7 +219,7 @@ const trackFn = (biome) =>
       if (r.peak >= 0.95) fail.push(`${name}: clipping (peak ${r.peak})`);
       if (!(d.rms > 0.004)) fail.push(`${name}: silent (rms ${d.rms})`);
       if (r.musicSkipped || r.musicShed) fail.push(`${name}: notes refused while rendering`);
-      if (d.flat > 0.16) fail.push(`${name}: noisy (flatness ${d.flat.toFixed(3)})`);
+      if (d.flat > 0.15) fail.push(`${name}: noisy (flatness ${d.flat.toFixed(3)})`);
     }
     return { out, fail };
   };

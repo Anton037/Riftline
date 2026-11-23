@@ -123,7 +123,7 @@ for (const tablet of [true, false])
             .dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerType: "mouse", button: 2 }));
         return { ...input.pending, touch: document.body.classList.contains("input-touch") };
       });
-      assert.deepEqual(ignored, { dash: false, nova: false, gadget: false, touch: true });
+      assert.deepEqual(ignored, { dash: 0, nova: 0, gadget: 0, fire: 0, touch: true });
       await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: 160, y: 260, id: 1 }] });
       await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: 220, y: 230, id: 1 }] });
       try {
@@ -285,13 +285,8 @@ test(
     assert.equal(settingsCheck.updateBtnHidden, true, "Update ready button must be hidden until a new SW waits");
     assert.equal(settingsCheck.audit.ok, true, JSON.stringify(settingsCheck.audit.findings));
 
-    await page.evaluate(() => document.getElementById("hudEditBtn").click());
-    await visible(page, "hudEdit");
-    await page.keyboard.press("KeyP");
-    assert.equal(await page.evaluate(() => document.getElementById("hudEdit").hidden), false);
-    await page.keyboard.press("Escape");
-    await hidden(page, "hudEdit");
-    await visible(page, "settings");
+    await page.locator("#hudEditRow").waitFor({ state: "hidden" });
+    assert.equal(await page.locator("#settingsControlsCard .pad-control:visible").count(), 0);
     await page.keyboard.press("Escape");
     await visible(page, "home");
 
@@ -322,7 +317,7 @@ test(
       paused: window.__riftTest.game.paused,
       dash: window.__riftTest.game.input.pending.dash,
     }));
-    assert.deepEqual(modCheck, { paused: false, dash: false });
+    assert.deepEqual(modCheck, { paused: false, dash: 0 });
 
     const start = await page.evaluate(() => {
       const w = window.__riftTest.game.world;
@@ -339,7 +334,7 @@ test(
     await page.waitForFunction((x) => window.__riftTest.game.world.player.x < x - 0.8, afterRight);
     await page.keyboard.up("ArrowLeft");
 
-    // Mouse LMB raycast aim & fire, plus right-click ignored
+    // Mouse LMB aims and fires. RMB alone dashes.
     await page.evaluate(() => {
       window.__riftTest.store.data.settings.autoFire = false;
     });
@@ -355,16 +350,19 @@ test(
     });
     await page.mouse.up({ button: "left" });
     await page.mouse.click(aimPoint.x, aimPoint.y, { button: "right" });
-    const afterMouse = await page.evaluate(() => {
-      window.__riftTest.store.data.settings.autoFire = true;
-      const g = window.__riftTest.game;
-      return { down: g.input.mouse.down, dash: g.input.pending.dash };
+    await page.waitForFunction((d) => window.__riftTest.game.world.runStats.dashes === d + 1, start.dashes);
+    assert.equal(await page.evaluate(() => window.__riftTest.game.input.mouse.down), false);
+    const beforeHudDash = await page.evaluate(() => {
+      const { game } = window.__riftTest;
+      game.store.data.settings.autoFire = true;
+      game.world.player.dashT = 0;
+      game.world.player.dashCdT = 0;
+      return game.world.runStats.dashes;
     });
-    assert.deepEqual(afterMouse, { down: false, dash: false });
 
     // Left-click #dashBtn blurs focus so Space works right after; then test E nova and G singularity.
     await press("#dashBtn");
-    await page.waitForFunction((d) => window.__riftTest.game.world.runStats.dashes > d, start.dashes);
+    await page.waitForFunction((d) => window.__riftTest.game.world.runStats.dashes > d, beforeHudDash);
     assert.equal(await page.evaluate(() => document.activeElement?.id || "BODY"), "BODY");
     const dashCount = await page.evaluate(() => {
       const w = window.__riftTest.game.world;
@@ -374,6 +372,19 @@ test(
     });
     await page.keyboard.press("Space");
     await page.waitForFunction((d) => window.__riftTest.game.world.runStats.dashes > d, dashCount);
+
+    const bufferDash = (cooldown) =>
+      page.evaluate((cd) => {
+        const w = window.__riftTest.game.world;
+        Object.assign(w.player, { dashCdT: cd, dashT: 0, dashN: 0 });
+        window.dispatchEvent(new KeyboardEvent("keydown", { code: "Space", key: " " }));
+        return w.runStats.dashes;
+      }, cooldown);
+    const buffered = await bufferDash(0.065);
+    await page.waitForFunction((d) => window.__riftTest.game.world.runStats.dashes === d + 1, buffered);
+    const expired = await bufferDash(0.28);
+    await page.waitForFunction(() => window.__riftTest.game.world.player.dashN > 0);
+    assert.equal(await page.evaluate(() => window.__riftTest.game.world.runStats.dashes), expired);
 
     await page.evaluate(() => {
       const w = window.__riftTest.game.world;
@@ -397,8 +408,26 @@ test(
     await hidden(page, "settings");
     await visible(page, "pause");
     await page.keyboard.press("KeyP");
-    await hidden(page, "pause");
-    assert.equal(await page.evaluate(() => window.__riftTest.game.paused), false);
+    await visible(page, "resumeCount");
+    const interrupted = await page.evaluate(() => {
+      const { game } = window.__riftTest;
+      const remaining = game.resumeAt - performance.now();
+      const time = game.world.time;
+      Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+      document.dispatchEvent(new Event("visibilitychange"));
+      delete document.visibilityState;
+      document.dispatchEvent(new Event("visibilitychange"));
+      return { remaining, time, paused: game.paused };
+    });
+    assert.ok(interrupted.remaining > 600 && interrupted.remaining <= 800);
+    assert.equal(interrupted.paused, true);
+    await hidden(page, "resumeCount");
+    await visible(page, "pause");
+    assert.equal(await page.evaluate(() => window.__riftTest.game.world.time), interrupted.time);
+    await page.keyboard.press("KeyP");
+    await visible(page, "resumeCount");
+    await page.waitForFunction(() => !window.__riftTest.game.paused);
+    await hidden(page, "resumeCount");
 
     // Wave clear -> key badges, R reroll, B banish + 1 banish pick, 2 upgrade pick
     await page.evaluate(() => {
@@ -515,6 +544,70 @@ test(
     await page.waitForFunction(() => window.__riftTest.game.world?.wave === 1);
 
     assert.equal(await page.evaluate(() => window.__gamepadReads), 0);
+    const padStart = await page.evaluate(() => {
+      const { game } = window.__riftTest;
+      game.world.hold = true;
+      game.store.data.settings.autoFire = false;
+      const pad = {
+        index: 0,
+        connected: true,
+        mapping: "standard",
+        axes: [0.08, 0, 0, 0],
+        buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })),
+      };
+      window.__fixturePad = pad;
+      navigator.getGamepads = () => {
+        window.__gamepadReads++;
+        return [pad];
+      };
+      window.dispatchEvent(Object.assign(new Event("gamepadconnected"), { gamepad: pad }));
+      return { x: game.world.player.x, dashes: game.world.runStats.dashes };
+    });
+    await page.waitForFunction(() => window.__gamepadReads > 2);
+    assert.equal(await page.evaluate(() => window.__riftTest.game.world.player.x), padStart.x);
+    await page.evaluate(() => {
+      window.__fixturePad.axes = [1, 0, 1, 0];
+    });
+    await page.waitForFunction((x) => window.__riftTest.game.world.player.x > x + 0.3, padStart.x);
+    assert.ok(await page.locator("#dashBtn .pad-key").isVisible());
+    const pressPad = (button, pressed) =>
+      page.evaluate(
+        ([index, value]) => {
+          window.__fixturePad.buttons[index].pressed = value;
+        },
+        [button, pressed],
+      );
+    assert.equal(await page.evaluate(() => window.__riftTest.game.world.player.firing), false);
+    await pressPad(7, true);
+    await page.waitForFunction(() => window.__riftTest.game.world.player.firing);
+    await pressPad(7, false);
+    await pressPad(0, true);
+    await page.waitForFunction((d) => window.__riftTest.game.world.runStats.dashes === d + 1, padStart.dashes);
+    await pressPad(0, false);
+    await page.evaluate(() => {
+      const { player } = window.__riftTest.game.world;
+      player.gadgetN = 0;
+      player.gadgetT = 0.055;
+      player.nova = 100;
+      window.__fixturePad.buttons[3].pressed = true;
+    });
+    await page.waitForFunction(() => window.__riftTest.game.world.singularities.length > 0);
+    await pressPad(3, false);
+    await pressPad(1, true);
+    await page.waitForFunction(() => window.__riftTest.game.world.player.nova < 100);
+    await pressPad(1, false);
+    await pressPad(9, true);
+    await visible(page, "pause");
+    await pressPad(9, false);
+    const reads = await page.evaluate(() => {
+      const pad = window.__fixturePad;
+      pad.connected = false;
+      window.dispatchEvent(Object.assign(new Event("gamepaddisconnected"), { gamepad: pad }));
+      return window.__gamepadReads;
+    });
+    await page.waitForFunction(() => !document.body.classList.contains("input-gamepad"));
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    assert.equal(await page.evaluate(() => window.__gamepadReads), reads);
     assert.deepEqual(errors, []);
   },
 );

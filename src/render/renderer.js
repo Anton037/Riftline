@@ -1735,7 +1735,7 @@ export class Renderer {
       ? 1
       : world?.boss && !world.boss.dead
         ? 1.12
-        : world?.state === "cleared" || world?.state === "choose"
+        : world?.state === "cleared" || world?.state === "choose" || world?.state === "anvil"
           ? 0.95
           : 1;
     this._ctxZoom += (targetCtxZoom - this._ctxZoom) * dampFactor(2.4, dt);

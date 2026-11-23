@@ -640,3 +640,173 @@ test("regression: Boss Waves offer guaranteed Relic as bonus slot and all 18 bio
   wInsight.beginChoice();
   assert.equal(wInsight.offer.length, 5, "Boss Wave with Insight must grant 4 regular + 1 bonus Relic = 5 cards");
 });
+
+test("Perfect Dash rewards exactly one near miss early in the dash, without Mirror Ward", () => {
+  const w = new World({ seed: 921, weapon: "pulse", threat: 0 });
+  const p = w.player;
+  w.hold = true;
+  for (let i = 0; i < 3; i++) w.shoot(p.x + 0.55, p.y + 0.32, 0, 0, 50, { solid: false });
+  w.step(1 / 60, { dash: true, mx: 1 });
+  assert.equal(w.fx.filter(({ k }) => k === "graze").length, 1);
+  assert.equal(p.nova, 8);
+  assert.equal(p.hp, w.stats.maxHp);
+  assert.ok(p.dashCdT < w.stats.dashCd - 0.3);
+  assert.ok(w.hitstopT > 0);
+
+  w.time += 0.13;
+  p.grazedDash = false;
+  w.updateEBullets(1 / 60);
+  assert.equal(w.fx.filter(({ k }) => k === "graze").length, 1, "late dash cannot graze");
+});
+
+test("Micro-hitstop coalesces a burst of crits and prioritizes heavier impacts", () => {
+  const w = new World({ seed: 922, weapon: "pulse", threat: 0 });
+  const e = w.spawnEnemy("grunt", 4, 2, {});
+  e.maxHp = e.hp = 1000;
+  w.hurtEnemy(e, 3, 1, 0, 0, true);
+  assert.equal(w.hitstopT, 0.014);
+  w.hurtEnemy(e, 3, 1, 0, 0, true, "weapon", { superCrit: true });
+  assert.equal(w.hitstopT, 0.028);
+  w.time += 0.1;
+  w.hitstopT = 0;
+  w.hurtEnemy(e, 3, 1, 0, 0, true);
+  assert.equal(w.hitstopT, 0);
+  w.player.nova = 100;
+  w.nova();
+  assert.ok(w.hitstopT >= 0.065);
+});
+
+test("Guardian recovery openings boost damage for all six fights and cannot skip phases", async () => {
+  const { updateBoss, bossPatterns } = await import("../src/core/ai.js");
+  for (const [id, patterns] of Object.entries(bossPatterns)) {
+    const w = new World({ seed: 923, weapon: "pulse", threat: 0 });
+    const boss = w.spawnBoss(id);
+    boss.spawnT = 0;
+    for (let i = 0; i < 500 && !boss.openT; i++) updateBoss(w, boss, 1 / 60);
+    assert.ok(boss.openT > 0 && boss.openT <= 0.85, `${id} opens after ${patterns[0]}`);
+    const hp = boss.hp;
+    w.hurtEnemy(boss, 10, 1, 0, 0, false);
+    assert.ok(Math.abs(hp - boss.hp - 12) < 1e-8, id);
+    w.hurtEnemy(boss, 1e6, 1, 0, 0, false);
+    const gate = boss.hp;
+    w.hurtEnemy(boss, 1e6, 1, 0, 0, false);
+    assert.equal(boss.hp, gate, id);
+    updateBoss(w, boss, 1 / 60);
+    assert.equal(boss.phaseN, 2, id);
+    assert.equal(boss.openT, 0, id);
+  }
+});
+
+test("Seven native arm traits affect real shots and Thermal Shatter has a per-foe cooldown", () => {
+  const setup = (weapon) => {
+    const w = new World({ seed: 924, weapon, threat: 0 });
+    w.stats.crit = 0;
+    const e = w.spawnEnemy("grunt", 3, 2, {});
+    e.hp = e.maxHp = 1000;
+    w.hash.build(w.enemies);
+    return [w, e];
+  };
+  const hit = (weapon, build = {}) => {
+    const [w, e] = setup(weapon);
+    w.fire(0);
+    Object.assign(w.pb[0], build);
+    w.bulletHit(w.pb[0], e);
+    return 1000 - e.hp;
+  };
+  const [pulse] = setup("pulse");
+  for (let i = 0; i < 4; i++) pulse.fire(0);
+  assert.equal(pulse.pb[3].dmg, pulse.pb[0].dmg * 1.3);
+  assert.ok(hit("scatter", { age: 0.05 }) > hit("scatter", { age: 0.3 }));
+  assert.ok(hit("tesla") > weaponDefs.tesla.dmg);
+  assert.ok(hit("rail", { pierceCount: 2 }) > hit("rail"));
+  assert.ok(hit("rocket") > weaponDefs.rocket.dmg + weaponDefs.rocket.explodeDmg);
+  assert.ok(hit("disc", { back: true }) > hit("disc"));
+  const [flame, chilled] = setup("flame");
+  chilled.frostT = 2;
+  flame.fire(0);
+  flame.bulletHit(flame.pb[0], chilled);
+  chilled.frostT = 2;
+  flame.fire(0);
+  flame.bulletHit(flame.pb[1], chilled);
+  assert.equal(flame.fx.filter((event) => event.k === "shatter" && event.thermal).length, 1);
+  assert.ok(1000 - chilled.hp > weaponDefs.flame.dmg * 2 + 12);
+});
+
+test("Wave pacing shortens downtime and keeps uncollected clear rewards", async () => {
+  const { planWave } = await import("../src/core/waves.js");
+  const { makeRng } = await import("../src/core/util.js");
+  const w = new World({ seed: 925, weapon: "pulse", threat: 0 });
+  const plan = planWave(makeRng(925), 12, w.tm, false);
+  assert.ok(plan.length > 1);
+  assert.ok(plan.every((group) => group.gap < 2.55));
+  w.state = "cleared";
+  w.stateT = 2.71;
+  w.player.hp = 50;
+  w.pickups.push(w.mkPickup("heal", 4, 2, 10), w.mkPickup("shard", 4, 2, 5));
+  w.checkWaveEnd();
+  assert.equal(w.state, "choose");
+  assert.equal(w.shards, 5);
+  assert.equal(w.player.hp, 60);
+});
+
+test("A Masterwork favors the active arm and deweights a prior offer while respecting seals", async () => {
+  const { rollUpgradeOffer } = await import("../src/core/waves.js");
+  const owned = { rate: 2, multishot: 1, orbit: 2, shield: 1 };
+  const roll = (n, exclude = [], banned = []) =>
+    rollUpgradeOffer({ next: () => n }, owned, 10, 1, 1, false, exclude, "pulse", banned)[0];
+  assert.equal(roll(0.35), "overdrive");
+  assert.equal(roll(0.35, ["overdrive"]), "halo");
+  assert.equal(roll(0.99, [], ["overdrive"]), "halo");
+  assert.equal(roll(0.99, [], ["halo"]), "overdrive");
+});
+
+test("Endless burst cap eases in at wave 40, refills after its window and exempts Hearthburst", async () => {
+  const { burstFraction, BURST_WINDOW } = await import("../src/core/difficulty.js");
+  assert.equal(burstFraction(39), 1);
+  assert.equal(burstFraction(40), 0.97);
+  assert.ok(burstFraction(100) > 0.6);
+  assert.equal(burstFraction(400), 0.28);
+  const w = new World({ seed: 926, weapon: "pulse", threat: 0 });
+  w.endless = true;
+  w.startWave(40);
+  const e = w.spawnEnemy("grunt", 4, 5, {});
+  e.hp = e.maxHp = 100;
+  w.hurtEnemy(e, 1000, 1, 0, 0, false);
+  assert.equal(e.hp, 3);
+  w.hurtEnemy(e, 1000, 1, 0, 0, false);
+  assert.equal(e.hp, 3);
+  const second = w.spawnEnemy("grunt", 4, 5, {});
+  second.hp = second.maxHp = 100;
+  w.hurtEnemy(second, 1000, 1, 0, 0, false);
+  w.hurtEnemy(second, 5, 1, 0, 0, false, "nova");
+  assert.equal(second.dead, true);
+  w.time += BURST_WINDOW + 0.01;
+  w.hurtEnemy(e, 5, 1, 0, 0, false);
+  assert.equal(e.dead, true);
+});
+
+test("Anvil purchases persist with the route, cost, and cargo after a sanitized checkpoint", () => {
+  const w = new World({ seed: 927, weapon: "pulse", threat: 0 });
+  w.startWave(5);
+  w.state = "choose";
+  w.offer = ["rate"];
+  w.shards = 52;
+  assert.ok(w.choose("rate"));
+  assert.equal(w.state, "anvil");
+  assert.equal(w.buyAnvil(0), false, "full Ward should block a repair");
+  const rerolls = w.rerolls;
+  const cost = w.anvilOffers[2].cost;
+  assert.ok(w.buyAnvil(2));
+  assert.equal(w.buyAnvil(2), false);
+  const snap = cleanRun(w.snapshot());
+  const restored = new World({ snap, threat: 0 });
+  assert.equal(restored.state, "anvil");
+  assert.equal(restored.shards, 52 - cost);
+  assert.equal(restored.rerolls, rerolls + 1);
+  assert.equal(restored.buyAnvil(2), false);
+  assert.ok(restored.leaveAnvil());
+  assert.equal(restored.wave, 6);
+  assert.equal(restored.state, "fight");
+  assert.equal(restored.leaveAnvil(), false);
+  assert.equal(restored.snapshot().anvil, undefined);
+});

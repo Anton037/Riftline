@@ -419,4 +419,33 @@ const milestones = [
   },
 ];
 
-export { threatMods, milestones, workshopModules, threatLevels };
+const anvilGoods = [
+  {
+    id: "ward",
+    name: "Mend the Ward",
+    desc: "Restore 35% of your maximum HP.",
+    cost: 12,
+    available: (world) => world.player.hp < world.stats.maxHp,
+    apply: (world) => {
+      world.player.hp = Math.min(world.stats.maxHp, world.player.hp + Math.ceil(world.stats.maxHp * 0.35));
+    },
+  },
+  {
+    id: "kindling",
+    name: "Hearth Kindling",
+    desc: "Add 50 points of Hearthburst charge.",
+    cost: 10,
+    available: (world) => world.player.nova < 100,
+    apply: (world) => world.addNova(50, true),
+  },
+  {
+    id: "shuffle",
+    name: "Fortune's Token",
+    desc: "Gain one reroll for a future craft offer.",
+    cost: 16,
+    available: () => true,
+    apply: (world) => world.rerolls++,
+  },
+];
+
+export { threatMods, milestones, workshopModules, threatLevels, anvilGoods };

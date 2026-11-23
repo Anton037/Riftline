@@ -563,8 +563,8 @@ function rlMonStart(world, resume) {
     kills: world.kills,
   };
   rlMonBeginWave(world);
-  // Resumed at the upgrade choice (or continuing into endless): that wave is already won.
-  if (world.state === "choose" || world.state === "victory") RL_MON.cur.cleared = true;
+  // A checkpoint at a craft offer or the Anvil follows an already cleared wave.
+  if (world.state === "choose" || world.state === "anvil" || world.state === "victory") RL_MON.cur.cleared = true;
 }
 function rlMonIssue(sev, id, msg) {
   const mon = RL_MON;

@@ -590,7 +590,8 @@ export function scoreBed({ osc, loop, filt, lfo, level, root, barRate, boss }, b
   const [air, drift, motion] = themeFor(biome).bed;
   const breath = filt("bandpass", air, 2.1, loop(0.7, "pink"));
   lfo(motion, air * 0.22, breath.frequency);
-  level(breath, 0.15);
+  // Keep the Flats' sandy bed below the plucked lead and brush percussion.
+  level(biome === "flats" && !boss ? filt("lowpass", 440, 0.707, breath) : breath, 0.15);
   const floor = level(osc("sine", root * 0.5), boss ? 0.04 : 0.028);
   lfo(boss ? barRate * 2 : drift, 0.012, floor.gain);
   const fifth = level(osc("sine", root * 1.498), 0.018);

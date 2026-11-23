@@ -94,7 +94,7 @@ test("first-run desktop onboarding uses keyboard/mouse prompts and adapts on hyb
     }
   });
   await page.waitForFunction(() => window.__riftTest.game.tut?.step === 2);
-  assert.match(await page.locator("#coachText").textContent(), /Press SPACE to dash/);
+  assert.match(await page.locator("#coachText").textContent(), /Press SPACE or right-click to dash/);
 
   // Switching to touch on a hybrid laptop updates coach text immediately; keyboard restores PC prompts.
   const cdp = await page.context().newCDPSession(page);
@@ -102,7 +102,9 @@ test("first-run desktop onboarding uses keyboard/mouse prompts and adapts on hyb
   await page.waitForFunction(() => /Tap DASH/.test(document.getElementById("coachText").textContent));
   await cdp.send("Input.dispatchTouchEvent", { type: "touchCancel", touchPoints: [] });
   await page.keyboard.press("KeyD");
-  await page.waitForFunction(() => /Press SPACE to dash/.test(document.getElementById("coachText").textContent));
+  await page.waitForFunction(() =>
+    /Press SPACE or right-click to dash/.test(document.getElementById("coachText").textContent),
+  );
 
   await page.keyboard.press("Space");
   await page.waitForFunction(() => window.__riftTest.game.tut?.step === 3);
@@ -143,5 +145,37 @@ test("the focused menu keeps workshop upgrades and achievement rewards working",
   await press("#playBtn");
   await page.waitForFunction(() => window.__riftTest.game.mode === "game");
   assert.equal(await page.evaluate(() => window.__riftTest.game.world.stats.maxHp), 110);
+  await page.evaluate(() => {
+    const w = window.__riftTest.game.world;
+    w.startWave(5);
+    w.state = "cleared";
+    w.stateT = 1.3;
+    w.shards = 55;
+    w.player.hp = 50;
+    w.offerBoss = true;
+  });
+  await page.locator("#cards:not(.locked) [data-pick]").first().waitFor({ state: "visible" });
+  await press("#cards:not(.locked) [data-pick]");
+  await page.locator("#anvil").waitFor({ state: "visible" });
+  assert.equal(await page.locator("#anvilOffers [data-anvil]").count(), 3);
+  await press('#anvilOffers [data-anvil="0"]');
+  assert.equal(await page.locator("#anvilShards").textContent(), "38");
+  assert.match(await page.locator("#anvilHpNum").textContent(), /^89\/110$/);
+  assert.ok(await page.locator('#anvilOffers [data-anvil="0"]').isDisabled());
+  await press("#anvilPauseBtn");
+  await press("#resumeBtn");
+  await page.locator("#anvil").waitFor({ state: "visible" });
+  assert.equal(await page.locator("#resumeCount").isVisible(), false);
+  await page.reload();
+  await press("#continueBtn");
+  await page.locator("#anvil").waitFor({ state: "visible" });
+  assert.equal(await page.locator("#anvilShards").textContent(), "38");
+  assert.ok(await page.locator('#anvilOffers [data-anvil="0"]').isDisabled());
+  await page.setViewportSize({ width: 720, height: 320 });
+  await page.waitForFunction(() => window.innerHeight === 320);
+  const continueBox = await page.locator("#anvilContinueBtn").boundingBox();
+  assert.ok(continueBox.y >= 0 && continueBox.y + continueBox.height <= 320);
+  await press("#anvilContinueBtn");
+  await page.waitForFunction(() => window.__riftTest.game.world?.wave === 6);
   assert.deepEqual(errors, []);
 });

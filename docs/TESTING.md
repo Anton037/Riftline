@@ -1,14 +1,13 @@
 # Testing Riftline
 
-Keep the routine gate short. Focused Node contracts and seven browser checks cover the critical paths;
-there is no historical release assertion catalog, always-on soak or hidden extended test chain.
+The routine gate runs focused Node contracts and sequential browser checks.
 
 | Command | Coverage | Deadline |
 |---|---|---|
-| `npm run check` | Formatting, lint, build and standard tests | Test subprocess 95 s |
-| `npm test` | Node contracts, desktop & tablet/phone flows, onboarding, progression and worker update | Build 30 s; tests 95 s |
+| `npm run check` | Formatting, lint, build and standard tests | Test subprocess 150 s |
+| `npm test` | Node contracts, desktop & tablet/phone flows, onboarding, progression and worker update | Build 30 s; tests 150 s |
 | `npm run test:unit` | Saves, deterministic simulation, data and render geometry | 30 s |
-| `npm run e2e` | Desktop KB/mouse, touch, onboarding/audio, progression and worker update | Game flows 25–35 s; worker 20 s; process 75 s |
+| `npm run e2e` | Desktop KB/mouse, touch, onboarding/audio, progression and worker update | Game flows 25–35 s; worker 20 s; process 120 s |
 | `npm run test:render` | Same browser checks with actual drawing | Game flows 180 s each; process 600 s |
 | `npm run audit:visual` | Six biomes and bosses on tablet and landscape phone, High | 240 s per layout |
 | `node tools/verify.js equipment <tag>` | Seven weapons, all 25 enemies, smoke/rockets and FPS controls | 240 s |
@@ -42,22 +41,17 @@ For centre/edge/corner screenshots use `node tools/verify.js visual <tag> tablet
 - Save checks cover round-trip persistence, migration, unknown future fields and corrupt-save recovery
   when storage is full. Failed explicit imports/resets retain old progress; successful ones recover held saves.
 - Choice snapshots keep the RNG through rerolls, banishes and repeated resumes.
-- The desktop keyboard/mouse flow verifies desktop layout audit, Vibration row controls and Settings/HUD editor
-  `Esc` handling, modifier passthrough (`Control+KeyP`/`Control+Space`), WASD/Arrow movement, LMB raycast aim/fire,
-  `Space`/`E`/`G` actions, `P`/`Esc` pause/resume, card shortcuts (`1`–`4`, `B`, `R`), and `R` retry.
-- The tablet flow uses touch for settings, movement, dash, pause/resume, card choice, offline reload,
-  saved-run continuation, death recap and returning home. Death/wave completion are arranged through
-  the simulation interface rather than waiting through whole fights. An import dialog survives a pending
-  update during a simulated visibility change, and secondary mouse button action events (`button: 2`) are ignored.
-  Startup health checks must report no failures. Settings and repeated viewport notifications must retain
-  an unchanged drawing buffer; actual viewport changes must resize it.
-- The landscape phone flow holds both sticks and taps dash with a third finger, cancels the touches,
-  then pauses/resumes. A gamepad API counter must stay at zero.
-- Fresh profiles verify both real touch (with real WebAudio pause/backgrounding/resume) and desktop keyboard/mouse
-  onboarding coaches (including live hybrid switching between touch and keyboard prompts).
-- The simplified menu buys a workshop level, claims an achievement once, persists both across reload and
-  starts a run with the purchased benefit. Removed modes/Codex have no DOM or navigation targets.
-  Old challenge checkpoints resume as normal runs; discovery flags and mode configuration are discarded.
+- The desktop flow covers input-specific controls, modifier passthrough, keyboard movement and card shortcuts,
+  mouse aim and right-click dash, buffered actions, and the 0.8 s resume countdown. Backgrounding during the
+  countdown returns to Pause without advancing the world. A standard Gamepad API fixture tests connection,
+  stick dead zones, movement, aiming, abilities, pause, and disconnection.
+- The tablet and landscape phone flows exercise multitouch ownership, pause, settings, resizing and offline run
+  continuation. The unplugged cases assert zero Gamepad API polls.
+- Empty profiles exercise touch and desktop onboarding, hybrid hints, real WebAudio pause and backgrounding,
+  and safe resume. The menu flow verifies workshop upgrades and milestone rewards, then purchases a repair
+  at Wayfarer's Anvil and resumes that checkpoint before entering the next realm at a narrow viewport.
+- Combat regressions cover native arm traits, Thermal Shatter, Perfect Dash, micro-hitstop, Guardian recovery
+  windows and phase gates, Masterwork rolls, wave cleanup rewards, and the Endless burst cap.
 - The worker fixture uses the real worker source with small pages. It installs A, rejects an incomplete
   release, installs B with the same product version/build but different content identity, activates B
   while the A page stays open, stops the server, fetches A's bundle offline, then reloads offline into B.

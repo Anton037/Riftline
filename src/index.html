@@ -357,7 +357,7 @@ button {
 }
 #ov { pointer-events: none; }
 #touch { touch-action: none; z-index: 10; pointer-events: auto; }
-body:not(.input-touch) #touch { cursor: none; }
+body:not(.input-touch):not(.input-gamepad) #touch { cursor: none; }
 
 #flash {
   position: absolute;
@@ -1452,7 +1452,11 @@ body.device-touch #home .arrow::after {
   white-space: nowrap;
   pointer-events: none;
 }
-body:not(.input-touch) .act-btn .key { display: block; }
+body:not(.input-touch):not(.input-gamepad) .act-btn .key,
+body.input-gamepad .act-btn .pad-key { display: block; }
+body.input-gamepad .act-btn .key:not(.pad-key),
+body.input-gamepad .card-key,
+body.input-touch .card-key { display: none; }
 .act-btn:active { transform: scale(0.94); }
 
 #hud.custom .act, #hud.custom .act-row { display: contents; }
@@ -2868,6 +2872,8 @@ button.bi.sel {
 /* While overlays are open, hide gameplay hints (.intro, .hint) so they never cover controls */
 #pause:not([hidden]) ~ #toasts :is(.intro, .hint),
 #choose:not([hidden]) ~ #toasts :is(.intro, .hint),
+#anvil:not([hidden]) ~ #toasts :is(.intro, .hint),
+#resumeCount:not([hidden]) ~ #toasts :is(.intro, .hint),
 #over:not([hidden]) ~ #toasts :is(.intro, .hint),
 #settings.in-run:not([hidden]) ~ #toasts :is(.intro, .hint) {
   visibility: hidden;
@@ -3853,7 +3859,8 @@ input[type=range]::-moz-range-thumb {
 body.device-desktop .act {
   bottom: calc(var(--sb) + 18px);
 }
-body.device-desktop:not(.input-touch) #hudEditRow {
+body.device-desktop:not(.input-touch) #hudEditRow,
+body.input-gamepad #hudEditRow {
   display: none;
 }
 #waveSub:empty { display: none; }
@@ -3896,7 +3903,7 @@ body.device-desktop:not(.input-touch) #hudEditRow {
   color: var(--amber);
   pointer-events: none;
 }
-body.input-touch #pauseBtn .key { display: none; }
+body.input-touch #pauseBtn .key, body.input-gamepad #pauseBtn .key { display: none; }
 .buffs {
   max-height: 54px;
   overflow: hidden;
@@ -4064,7 +4071,7 @@ body.input-touch #pauseBtn .key { display: none; }
 
 /* Upgrade choice heading consistency, clickable build strip & phone visibility */
 #choose .choose-head h2 { color: var(--amber); }
-#choose .choose-top-actions {
+#choose .choose-top-actions, #anvil .choose-top-actions {
   position: absolute;
   top: calc(var(--st) + 12px);
   right: calc(var(--sr) + 14px);
@@ -4154,10 +4161,16 @@ body.input-touch #pauseBtn .key { display: none; }
   border-bottom: 1px solid rgba(255, 244, 224, 0.06);
 }
 .controls-card .ctrl-row:last-child { border-bottom: none; }
-.controls-card kbd {
+.controls-card kbd,
+.controls-card .touch-control {
   font: 600 11.5px/1.2 var(--display);
   color: var(--amber);
 }
+
+body:not(.input-touch) .touch-control,
+body:not(.input-gamepad) .pad-control,
+body.input-touch .desktop-control,
+body.input-gamepad .desktop-control { display: none; }
 
 /* Distinct Victory vs Defeat end-screen atmosphere */
 #over.is-win {
@@ -4190,7 +4203,7 @@ body.input-touch #pauseBtn .key { display: none; }
   z-index: 65;
   display: grid;
   place-items: center;
-  pointer-events: none;
+  pointer-events: auto;
   background: rgba(12, 9, 7, 0.32);
 }
 .resume-count[hidden] { display: none; }
@@ -4204,9 +4217,19 @@ body.input-touch #pauseBtn .key { display: none; }
 #anvil .center-col {
   max-width: 720px;
 }
+#anvil .eyebrow { padding-inline: 50px; }
+#anvil .center-col > .note { margin: 0; }
+.anvil-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 14px;
+}
+#anvilContinueBtn { align-self: center; }
 .anvil-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
   gap: 10px;
   width: 100%;
 }
@@ -4223,6 +4246,11 @@ body.input-touch #pauseBtn .key { display: none; }
 .anvil-card b { font-size: 15px; color: var(--amber); }
 .anvil-card p { margin: 0; font-size: 13px; color: var(--dim); flex: 1; }
 .anvil-card .btn { width: 100%; }
+@media (orientation: landscape) and (max-height: 430px) {
+  #anvil .center-col { gap: 7px; }
+  #anvil .choose-top-actions { top: calc(var(--st) + 6px); }
+  .anvil-card { padding: 9px; gap: 5px; }
+}
 
 /* Mute button on Home/Settings topbar */
 .mute-btn {
@@ -4269,7 +4297,7 @@ body.input-touch #pauseBtn .key { display: none; }
       // allowing players to browse Home, Workshop, Journal, Chronicle, and Settings comfortably in portrait or landscape.
       const inRun = Boolean(
         window.__riftTest?.game?.mode === 'game' ||
-        ['hud', 'pause', 'choose', 'hudEdit'].some((id) => {
+        ['hud', 'pause', 'choose', 'anvil', 'hudEdit'].some((id) => {
           const el = document.getElementById(id);
           return el && !el.hidden;
         })
@@ -4375,10 +4403,10 @@ body.input-touch #pauseBtn .key { display: none; }
     <div id="coach" class="coach" hidden><div id="coachDots" class="coach-dots"></div><p id="coachText"></p></div>
     <div class="act">
       <div class="act-row">
-        <button id="gadgetBtn" class="act-btn gadget" aria-label="Throw Gravity Chime"><span class="ring"></span><svg class="gico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="currentColor"/><path d="M12 3.5a8.5 8.5 0 0 1 8.5 8.5M20.5 12a8.5 8.5 0 0 1-8.5 8.5M12 20.5A8.5 8.5 0 0 1 3.5 12M3.5 12A8.5 8.5 0 0 1 12 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="7 6"/><path d="M12 7.2a4.8 4.8 0 0 1 4.8 4.8M12 16.8A4.8 4.8 0 0 1 7.2 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span class="lbl">CHIME</span><span id="gadgetPips" class="pips" aria-hidden="true"></span><span id="gadgetKey" class="key" aria-hidden="true">G</span></button>
-        <button id="novaBtn" class="act-btn nova" aria-label="Hearthburst"><span class="ring"></span><span class="lbl">BURST</span><span class="key" aria-hidden="true">E</span></button>
+        <button id="gadgetBtn" class="act-btn gadget" aria-label="Throw Gravity Chime"><span class="ring"></span><svg class="gico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="currentColor"/><path d="M12 3.5a8.5 8.5 0 0 1 8.5 8.5M20.5 12a8.5 8.5 0 0 1-8.5 8.5M12 20.5A8.5 8.5 0 0 1 3.5 12M3.5 12A8.5 8.5 0 0 1 12 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="7 6"/><path d="M12 7.2a4.8 4.8 0 0 1 4.8 4.8M12 16.8A4.8 4.8 0 0 1 7.2 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span class="lbl">CHIME</span><span id="gadgetPips" class="pips" aria-hidden="true"></span><span id="gadgetKey" class="key" aria-hidden="true">G</span><span class="key pad-key" aria-hidden="true">Y</span></button>
+        <button id="novaBtn" class="act-btn nova" aria-label="Hearthburst"><span class="ring"></span><span class="lbl">BURST</span><span class="key" aria-hidden="true">E</span><span class="key pad-key" aria-hidden="true">B</span></button>
       </div>
-      <button id="dashBtn" class="act-btn dash" aria-label="Dash"><span class="ring"></span><span class="lbl">DASH</span><span id="dashPips" class="pips" aria-hidden="true" hidden></span><span class="key" aria-hidden="true">SPACE</span></button>
+      <button id="dashBtn" class="act-btn dash" aria-label="Dash"><span class="ring"></span><span class="lbl">DASH</span><span id="dashPips" class="pips" aria-hidden="true" hidden></span><span class="key" aria-hidden="true">SPACE</span><span class="key pad-key" aria-hidden="true">A</span></button>
     </div>
   </div>
   <div id="resumeCount" class="resume-count" hidden aria-live="polite"><span id="resumeCountNum">3</span></div>
@@ -4528,12 +4556,14 @@ body.input-touch #pauseBtn .key { display: none; }
         <div class="set-row" id="hudEditRow"><span><b>Button layout</b><small id="hudLayoutNote">Move and resize the touch buttons and sticks.</small></span><button id="hudEditBtn" class="btn small">Edit</button></div>
       </div>
       <div class="panel controls-card" id="settingsControlsCard">
-        <div class="ctrl-row"><span>Move</span><kbd>W A S D / Arrows / Left Stick</kbd></div>
-        <div class="ctrl-row"><span>Aim &amp; Fire</span><kbd>Mouse + LMB / Right Stick + RT</kbd></div>
-        <div class="ctrl-row"><span>Dash</span><kbd>Space / Shift / RMB / A</kbd></div>
-        <div class="ctrl-row"><span>Hearthburst</span><kbd>E / Q / F / B / RB</kbd></div>
-        <div class="ctrl-row"><span>Gravity Chime</span><kbd>G / Shift+RMB / Y / LT</kbd></div>
-        <div class="ctrl-row"><span>Pause / Mute</span><kbd>Esc / P · M</kbd></div>
+        <div class="ctrl-row"><span>Move</span><kbd class="desktop-control">W A S D / Arrows</kbd><kbd class="pad-control">Left stick</kbd><span class="touch-control">Drag left side</span></div>
+        <div class="ctrl-row"><span>Aim &amp; Fire</span><kbd class="desktop-control">Mouse + LMB</kbd><kbd class="pad-control">Right stick + RT</kbd><span class="touch-control">Drag right side</span></div>
+        <div class="ctrl-row"><span>Dash</span><kbd class="desktop-control">Space / Shift / RMB</kbd><kbd class="pad-control">A / LB</kbd><span class="touch-control">Dash button</span></div>
+        <div class="ctrl-row"><span>Hearthburst</span><kbd class="desktop-control">E / Q / F</kbd><kbd class="pad-control">B / RB</kbd><span class="touch-control">Burst button</span></div>
+        <div class="ctrl-row"><span>Gravity Chime</span><kbd class="desktop-control">G</kbd><kbd class="pad-control">Y / LT</kbd><span class="touch-control">Chime button</span></div>
+        <div class="ctrl-row"><span>Pause</span><kbd class="desktop-control">Esc / P</kbd><kbd class="pad-control">Start</kbd><span class="touch-control">Pause button</span></div>
+        <div class="ctrl-row"><span>Mute</span><kbd class="desktop-control">M</kbd><kbd class="pad-control">Sound settings</kbd><span class="touch-control">Sound settings</span></div>
+        <div class="ctrl-row pad-control"><span>Menus</span><kbd>D-pad · A select · B back</kbd></div>
       </div>
       <h3 class="section-h">Display</h3>
       <div class="set-group">
@@ -4576,7 +4606,7 @@ body.input-touch #pauseBtn .key { display: none; }
     </div>
     <div class="choose-head">
       <div id="chooseEyebrow" class="eyebrow">WAVE 1 CLEARED</div>
-      <h2 id="chooseTitle">Choose an upgrade</h2>
+      <h2 id="chooseTitle">Choose a craft</h2>
       <p id="chooseFirstHint" class="choose-first-hint" hidden>Crafts strengthen your build for this run. Spend shards in the Sanctuary for permanent upgrades.</p>
       <div id="nextWave" class="next-wave" aria-live="polite"></div>
       <div class="choose-hp"><div class="bar hp small"><i id="chooseHp"></i></div><span id="chooseHpNum" class="num"></span></div>
@@ -4592,12 +4622,17 @@ body.input-touch #pauseBtn .key { display: none; }
 
   <!-- ====================================================== WAYFARER'S ANVIL -->
   <section id="anvil" class="screen overlay" hidden>
+    <div class="choose-top-actions">
+      <button id="anvilPauseBtn" class="icon-btn" aria-label="Pause" data-icon="pause"></button>
+    </div>
     <div class="center-col">
       <div id="anvilEyebrow" class="eyebrow">BETWEEN REALMS</div>
       <h2>Wayfarer's Anvil</h2>
       <p class="note">Spend run shards before stepping into the next realm, or keep them for the Sanctuary.</p>
-      <div class="shard-chip big"><span class="shard-ico"></span><span id="anvilShards" class="num">0</span></div>
-      <div class="choose-hp"><div class="bar hp small"><i id="anvilHp"></i></div><span id="anvilHpNum" class="num"></span></div>
+      <div class="anvil-status">
+        <div class="shard-chip"><span class="shard-ico"></span><span id="anvilShards" class="num">0</span></div>
+        <div class="choose-hp"><div class="bar hp small"><i id="anvilHp"></i></div><span id="anvilHpNum" class="num"></span></div>
+      </div>
       <div id="anvilOffers" class="anvil-grid"></div>
       <button id="anvilContinueBtn" class="btn primary">Continue to Next Realm</button>
     </div>
@@ -4626,12 +4661,13 @@ body.input-touch #pauseBtn .key { display: none; }
           <div id="pauseUpInfo" class="up-info" aria-live="polite" hidden></div>
           <div class="section-h">Controls</div>
           <div class="panel controls-card">
-            <div class="ctrl-row"><span>Move</span><kbd>W A S D / Arrows</kbd></div>
-            <div class="ctrl-row"><span>Aim &amp; Fire</span><kbd>Mouse + LMB</kbd></div>
-            <div class="ctrl-row"><span>Dash</span><kbd>Space / Shift / RMB</kbd></div>
-            <div class="ctrl-row"><span>Hearthburst</span><kbd>E / Q / F</kbd></div>
-            <div class="ctrl-row"><span>Gravity Chime</span><kbd>G / Shift+RMB</kbd></div>
-            <div class="ctrl-row"><span>Pause / Mute</span><kbd>Esc / P · M</kbd></div>
+            <div class="ctrl-row"><span>Move</span><kbd class="desktop-control">W A S D / Arrows</kbd><kbd class="pad-control">Left stick</kbd><span class="touch-control">Drag left side</span></div>
+            <div class="ctrl-row"><span>Aim &amp; Fire</span><kbd class="desktop-control">Mouse + LMB</kbd><kbd class="pad-control">Right stick + RT</kbd><span class="touch-control">Drag right side</span></div>
+            <div class="ctrl-row"><span>Dash</span><kbd class="desktop-control">Space / Shift / RMB</kbd><kbd class="pad-control">A / LB</kbd><span class="touch-control">Dash button</span></div>
+            <div class="ctrl-row"><span>Hearthburst</span><kbd class="desktop-control">E / Q / F</kbd><kbd class="pad-control">B / RB</kbd><span class="touch-control">Burst button</span></div>
+            <div class="ctrl-row"><span>Gravity Chime</span><kbd class="desktop-control">G</kbd><kbd class="pad-control">Y / LT</kbd><span class="touch-control">Chime button</span></div>
+            <div class="ctrl-row"><span>Pause</span><kbd class="desktop-control">Esc / P</kbd><kbd class="pad-control">Start</kbd><span class="touch-control">Pause button</span></div>
+            <div class="ctrl-row"><span>Mute</span><kbd class="desktop-control">M</kbd><kbd class="pad-control">Sound settings</kbd><span class="touch-control">Sound settings</span></div>
           </div>
         </div>
       </div>
