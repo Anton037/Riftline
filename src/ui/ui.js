@@ -329,6 +329,18 @@ const getById = (id) => document.getElementById(id),
       el.addEventListener("pointercancel", cancelTouch, { passive: true });
       el.addEventListener("lostpointercapture", cancelTouch, { passive: true });
       el.addEventListener("click", (ev) => {
+        // Touch actions are handled on pointerup. A browser's compatibility click can
+        // arrive much later, when the same coordinates are over a different screen.
+        if (
+          touchInput &&
+          (ev.pointerType === "touch" ||
+            ev.sourceCapabilities?.firesTouchEvents ||
+            (!ev.pointerType && ev.isTrusted && ev.detail > 0))
+        ) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          return;
+        }
         const now = performance.now(),
           guard = RL_TOUCH_CLICK_GUARD,
           dx = Number(ev.clientX) - guard.x,

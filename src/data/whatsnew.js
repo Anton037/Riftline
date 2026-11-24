@@ -4,6 +4,11 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "5.2.10",
+    title: "Safer Forge taps",
+    items: ["Continuing to the Roadside Forge keeps your purchases and shards until you tap an item."],
+  },
+  {
     version: "5.2.9",
     title: "Safer pauses and checkpoints",
     items: [
@@ -38,14 +43,6 @@ export const WHATS_NEW = [
       "Swiping keeps the offer open, and pausing or turning your phone keeps your place.",
       "Rerolls only spend a charge when they turn up a new card.",
       "Long Endless builds scroll separately so your reward cards stay in view.",
-    ],
-  },
-  {
-    version: "5.2.5",
-    title: "Faster craft picks",
-    items: [
-      "Tap a craft as soon as it appears, even while another finger is on the screen.",
-      "Boss rewards show when they can't be sealed, and Seal starts off on each new offer.",
     ],
   },
 ];

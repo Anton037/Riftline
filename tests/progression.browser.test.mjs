@@ -487,6 +487,26 @@ test("the focused menu keeps workshop upgrades and achievement rewards working",
   await page.locator("#anvil").waitFor({ state: "visible" });
   assert.equal(await page.locator("#anvilShards").textContent(), "38");
   assert.ok(await page.locator('#anvilOffers [data-anvil="0"]').isDisabled());
+  // A compatibility click can be retargeted to the Forge after the old duplicate-click window.
+  const reroll = page.locator('#anvilOffers [data-anvil="2"]');
+  await reroll.evaluate(async (button) => {
+    await new Promise((resolve) => setTimeout(resolve, 850));
+    const r = button.getBoundingClientRect();
+    button.dispatchEvent(
+      new PointerEvent("click", {
+        bubbles: true,
+        pointerType: "touch",
+        detail: 1,
+        clientX: r.x + r.width / 2,
+        clientY: r.y + r.height / 2,
+      }),
+    );
+  });
+  assert.equal(await page.locator("#anvilShards").textContent(), "38");
+  assert.equal(await reroll.isEnabled(), true);
+  await reroll.tap();
+  assert.equal(await page.locator("#anvilShards").textContent(), "17");
+  assert.equal(await reroll.isDisabled(), true);
   await page.setViewportSize({ width: 720, height: 320 });
   await page.waitForFunction(() => window.innerHeight === 320);
   const continueBox = await page.locator("#anvilContinueBtn").boundingBox();
