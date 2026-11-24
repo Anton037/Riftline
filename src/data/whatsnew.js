@@ -1,12 +1,13 @@
-// "What's new" tab: short player-facing notes, newest version first. Add an entry per release
-// (the first entry has to match the game version; tests/core.test.mjs checks it, and that the list stays
-// at NEWS_KEEP entries). Keep every line to one short sentence.
+// Record every significant player-facing change in the release's "What's New" entry.
+// Keep each item to one short sentence. The newest entry must match the game version,
+// and tests/core.test.mjs checks that the list stays at NEWS_KEEP entries.
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
     version: "5.2.1",
     title: "Cleaner menus",
     items: [
+      "Settings and menus have fewer shortcut labels, and the shortcuts still work.",
       "Settings can show live FPS and CPU frame time during play.",
       "Screen-edge arrows point toward enemies and healing pickups.",
     ],
