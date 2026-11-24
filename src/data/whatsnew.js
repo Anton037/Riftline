@@ -4,6 +4,14 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "5.2.8",
+    title: "A clearer Keeper",
+    items: [
+      "A shorter brim and a pale clasp make it easier to see which way the Keeper is facing.",
+      "The ground arrow and the weapon preview stay lined up with the Keeper as they turn.",
+    ],
+  },
+  {
     version: "5.2.7",
     title: "Movement follows your thumb",
     items: [
@@ -39,10 +47,5 @@ export const WHATS_NEW = [
       "Boss medals are saved alongside progress from another tab.",
       "Save imports check for bad data, and offline updates check that the game files match.",
     ],
-  },
-  {
-    version: "5.2.3",
-    title: "Simple controls",
-    items: ["Play with touch in landscape on phones and tablets, or with keyboard and mouse on desktop."],
   },
 ];

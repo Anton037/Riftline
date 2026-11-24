@@ -427,21 +427,21 @@ export function buildPlayerModel(weapon = "lanternGun", weaponColor = 0x5ce8ff) 
   ]);
   base.add(new MeshNode(torsoGeo, armorMat));
 
-  // 2. Storybook pointed artificer hood & wide brimmed hat (on `base` so body lean/bank flows into hood/hat!)
+  // 2. The cropped brim and pale front clasp give the hood a clear facing at gameplay distance.
   const hatGeo = mergeGeometries([
     // Shadowed cowl alcove under the brim
-    part(G_SPH, 0x1c1724, { x: 0.08, y: 1.37, sx: 0.34, sy: 0.3, sz: 0.34 }),
+    part(G_SPH, 0x1c1724, { x: 0.11, y: 1.39, sx: 0.4, sy: 0.33, sz: 0.42 }),
     // Soft cloth hood drape around neck & back of head
     part(G_HOOD, CLOAK_TEAL, { x: -0.05, y: 1.24, rz: 0.44, sx: 0.58, sy: 0.54, sz: 0.54 }),
-    // Wide upturned brimmed artificer hat + burnished brass hatband & buckle
-    part(G_DOME, CLOAK_TEAL, { x: 0.03, y: 1.46, rz: 0.14, sx: 0.98, sy: 0.16, sz: 1.02 }),
-    part(G_TOR_SM, CLOAK_TRIM, { x: 0.03, y: 1.5, rz: 0.14, rx: Math.PI / 2, sx: 0.92, sy: 0.96, sz: 0.72 }),
-    part(G_TOR_SM, BRASS, { x: 0.02, y: 1.57, rz: 0.16, rx: Math.PI / 2, sx: 0.52, sy: 0.52, sz: 0.52 }),
-    part(G_OCT, BRASS, { x: 0.26, y: 1.6, sx: 0.11, sy: 0.12, sz: 0.14 }),
-    // Pointed crooked storybook hat crown curving gently back
-    part(G_HOOD, CLOAK_TEAL, { x: -0.04, y: 1.56, rz: 0.36, sx: 0.52, sy: 0.62, sz: 0.5 }),
-    part(G_CONE6, CLOAK_TEAL, { x: -0.26, y: 2.08, rz: 0.78, sx: 0.24, sy: 0.36, sz: 0.24 }),
-    part(G_OCT, BRASS, { x: -0.39, y: 2.2, sx: 0.08, sy: 0.09, sz: 0.08 }),
+    // Teal cloth brim, short gold band and a warm porcelain clasp above the face.
+    part(G_DOME, CLOAK_TEAL, { x: -0.07, y: 1.5, rz: 0.18, sx: 0.78, sy: 0.13, sz: 0.88 }),
+    part(G_TOR_SM, BRONZE, { x: -0.07, y: 1.53, rz: 0.18, rx: Math.PI / 2, sx: 0.72, sy: 0.82, sz: 0.4 }),
+    part(G_TOR_SM, BRASS, { x: -0.1, y: 1.61, rz: 0.2, rx: Math.PI / 2, sx: 0.49, sy: 0.49, sz: 0.34 }),
+    part(G_BEV, PARCHMENT, { x: 0.22, y: 1.58, rz: 0.3, sx: 0.23, sy: 0.09, sz: 0.31 }),
+    // The taper leans back, leaving the brow clear from the arena camera.
+    part(G_HOOD, CLOAK_TEAL, { x: -0.12, y: 1.57, rz: 0.46, sx: 0.52, sy: 0.57, sz: 0.5 }),
+    part(G_CONE6, CLOAK_TEAL, { x: -0.36, y: 1.99, rz: 0.94, sx: 0.23, sy: 0.32, sz: 0.23 }),
+    part(G_OCT, BRASS, { x: -0.48, y: 2.09, sx: 0.08, sy: 0.09, sz: 0.08 }),
   ]);
   base.add(new MeshNode(hatGeo, armorMat));
 
@@ -457,12 +457,12 @@ export function buildPlayerModel(weapon = "lanternGun", weaponColor = 0x5ce8ff) 
   // Warm glowing eyes tucked beneath the shadowed hat brim (single draw call!)
   const eyes = new MeshNode(
     mergeGeometries([
-      part(G_OCT, 0xffffff, { x: 0.0, y: 0.0, z: -0.082, sx: 0.075, sy: 0.095, sz: 0.09 }),
-      part(G_OCT, 0xffffff, { x: 0.0, y: 0.0, z: 0.082, sx: 0.075, sy: 0.095, sz: 0.09 }),
+      part(G_OCT, 0xffffff, { z: -0.092, sx: 0.082, sy: 0.1, sz: 0.1 }),
+      part(G_OCT, 0xffffff, { z: 0.092, sx: 0.082, sy: 0.1, sz: 0.1 }),
     ]),
     visorMat,
   );
-  eyes.position.set(0.24, 1.38, 0);
+  eyes.position.set(0.325, 1.42, 0);
   base.add(eyes);
 
   // Swinging brass guiding-lantern suspended from the off-hand left glove

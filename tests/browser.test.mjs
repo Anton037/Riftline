@@ -481,6 +481,15 @@ test(
     await page.keyboard.press("Escape");
     await visible(page, "home");
 
+    const previewError = await page.evaluate(() => {
+      const { renderer } = window.__riftTest;
+      const hero = renderer.player;
+      hero.aimYaw = renderer.time * 0.32 + Math.PI / 2;
+      renderer.drawMenuPlayer(1 / 60);
+      return Math.abs(hero.weaponBearing.rotation.y - hero.base.rotation.y);
+    });
+    assert.ok(previewError < 1e-6, "The preview weapon follows the Keeper's turn");
+
     await press("#playBtn");
     await visible(page, "hud");
     await page.waitForFunction(() => window.__riftTest.game.world?.time > 0.1);
@@ -530,6 +539,25 @@ test(
     await page.keyboard.down("ArrowLeft");
     await page.waitForFunction((x) => window.__riftTest.game.world.player.x < x - 0.8, afterRight);
     await page.keyboard.up("ArrowLeft");
+
+    const turning = await page.evaluate(() => {
+      const { game, renderer } = window.__riftTest;
+      const world = game.world;
+      const player = world.player;
+      const previous = { aim: player.aim, firing: player.firing, manual: player.manual };
+      Object.assign(player, { aim: Math.PI / 2, firing: false, manual: false });
+      renderer.player.aimYaw = 0;
+      renderer.frame(1 / 60, world);
+      Object.assign(player, previous);
+      return {
+        body: renderer.player.base.rotation.y,
+        weapon: renderer.player.weaponBearing.rotation.y,
+        compass: renderer.heroLocator.compass.rotation.y,
+      };
+    });
+    assert.ok(turning.body < 0 && turning.body > -Math.PI / 2, "The Keeper is mid-turn");
+    assert.equal(turning.weapon, turning.body);
+    assert.equal(turning.compass, turning.body, "The ground arrow follows the visible turn");
 
     // Aiming without Auto Fire turns the body and weapon together before the mouse is clicked.
     const beforeAim = await page.evaluate(() => {

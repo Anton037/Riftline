@@ -1983,7 +1983,7 @@ export class Renderer {
     hero.shield.visible = false;
     const menuWorldAngle = -this.time * 0.32;
     hero.base.rotation.set(0, -menuWorldAngle, 0);
-    hero.aimAt(menuWorldAngle, dt);
+    hero.aimAt(menuWorldAngle, dt, true);
     hero.updateExpression?.(this.time, dt, false, false, 0, false);
     this.corpses.length = 0;
     for (const mat of hero.mats) mat.emissive.setScalar(0);
@@ -2026,7 +2026,6 @@ export class Renderer {
       this.heroLocator.root.visible = player.alive;
       if (player.alive) {
         this.heroLocator.root.position.set(player.x, 0.044, player.y);
-        this.heroLocator.compass.rotation.y = -player.aim;
         this.heroLocator.accentMat.color.setHex(weaponDefs[world.weapon].color);
       }
     }
@@ -2059,6 +2058,7 @@ export class Renderer {
       hero.base.rotation.y = faceYaw;
       hero.base.rotation.z = -hero.lean;
       hero.base.rotation.x = hero.bank;
+      if (this.heroLocator) this.heroLocator.compass.rotation.y = faceYaw;
       const strideDir = localFwd < -0.25 ? -1 : 1;
       if (moving && speed > 0.6) {
         let moveAng = Math.atan2(player.vy, player.vx);
