@@ -6,7 +6,10 @@ export const WHATS_NEW = [
   {
     version: "5.2.1",
     title: "Cleaner menus",
-    items: ["Settings can show live FPS and CPU frame time during play."],
+    items: [
+      "Settings can show live FPS and CPU frame time during play.",
+      "Screen-edge arrows point toward enemies and healing pickups.",
+    ],
   },
   {
     version: "5.2.0",

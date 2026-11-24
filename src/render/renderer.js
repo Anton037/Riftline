@@ -3398,9 +3398,8 @@ export class Renderer {
     const ndc = this.camera.projectNDC(x, y, z, this._v);
     out.x = (ndc.x * 0.5 + 0.5) * this.w;
     out.y = (-ndc.y * 0.5 + 0.5) * this.h;
-    out.vis = ndc.z < 1 && ndc.x > -1.05 && ndc.x < 1.05 && ndc.y > -1.05 && ndc.y < 1.05;
-    out.nx = ndc.x;
-    out.ny = ndc.y;
+    out.behind = ndc.w < 0;
+    out.vis = ndc.w > 0 && ndc.z >= -1 && ndc.z < 1 && Math.abs(ndc.x) < 1.05 && Math.abs(ndc.y) < 1.05;
     return out;
   }
 

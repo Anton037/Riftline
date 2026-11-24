@@ -10,7 +10,7 @@
     "url": "git+https://github.com/Anton037/Riftline.git"
   },
   "riftline": {
-    "build": "r521a1123a-r1"
+    "build": "r521a1123a-r2"
   },
   "scripts": {
     "build": "node build.js",

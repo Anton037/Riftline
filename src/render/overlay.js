@@ -122,8 +122,8 @@ const healthBarTypes = {
     constructor(canvas) {
       this.c = canvas;
       this.g = canvas.getContext("2d");
-      this.tmp = { x: 0, y: 0, vis: false, nx: 0, ny: 0 };
-      this.tmp2 = { x: 0, y: 0, vis: false, nx: 0, ny: 0 };
+      this.tmp = { x: 0, y: 0, vis: false, behind: false, angle: 0 };
+      this.tmp2 = { x: 0, y: 0, vis: false, behind: false };
       this.w = 0;
       this.h = 0;
       // Crisp vector HUD overlay without burning 4x pixel fillrate on HiDPI screens in Firefox.
@@ -260,7 +260,7 @@ const healthBarTypes = {
       let ctx = this.g,
         pos = this.tmp,
         safe = opts.safe || { t: 0, b: 0, l: 0, r: 0 };
-      // project a world point into pos; true when it is in front of the camera
+      // Project a world point into pos; true when it is within the camera frustum with a small margin.
       const project = (x, y, z) => {
         renderer.project(x, y, z, pos);
         return pos.vis;
@@ -472,6 +472,26 @@ const healthBarTypes = {
         margin = 26,
         botHud = Math.min(110, this.h * 0.22),
         topHud = Math.min(60, this.h * 0.12);
+      const cx = this.w / 2,
+        cy = this.h / 2,
+        left = margin + safe.l,
+        right = this.w - margin - safe.r,
+        top = margin + safe.t + topHud,
+        bottom = this.h - margin - safe.b - botHud;
+      const placeMarker = () => {
+        // Perspective mirrors a point only when its depth is behind the camera.
+        const sign = pos.behind ? -1 : 1;
+        const dx = (pos.x - cx) * sign,
+          dy = (pos.y - cy) * sign;
+        if (!Number.isFinite(dx) || !Number.isFinite(dy) || (dx === 0 && dy === 0)) return false;
+        const tx = dx === 0 ? Infinity : ((dx > 0 ? right : left) - cx) / dx;
+        const ty = dy === 0 ? Infinity : ((dy > 0 ? bottom : top) - cy) / dy;
+        const edge = Math.min(tx, ty);
+        pos.x = cx + dx * edge;
+        pos.y = cy + dy * edge;
+        pos.angle = Math.atan2(dy, dx);
+        return true;
+      };
       for (let enemy of world.enemies) {
         let windingUp =
           enemy.st === 1 &&
@@ -491,42 +511,22 @@ const healthBarTypes = {
             !fewEnemies &&
             !windingUp &&
             !(world.state === "fight" && world.stragglerT > 3)) ||
-          inView(enemy.x, 0.6, enemy.y)
+          inView(enemy.x, 0.6, enemy.y) ||
+          !placeMarker()
         )
           continue;
-        let cx = this.w / 2,
-          cy = this.h / 2,
-          dx = pos.x - cx,
-          dy = pos.y - cy;
-        // Behind-camera projection guard: flip direction vector when point is behind near plane
-        if (!pos.vis) {
-          dx = -dx;
-          dy = -dy;
-        }
-        if ((pos.nx === 0 && pos.ny === 0) || !Number.isFinite(dx) || !Number.isFinite(dy)) continue;
-        let len = Math.hypot(dx, dy) || 1;
-        dx /= len;
-        dy /= len;
-        let tx = Math.abs(dx) > 0.001 ? ((dx > 0 ? this.w - margin - safe.r : margin + safe.l) - cx) / dx : 1 / 0,
-          ty =
-            Math.abs(dy) > 0.001
-              ? ((dy > 0 ? this.h - margin - safe.b - botHud : margin + safe.t + topHud) - cy) / dy
-              : 1 / 0,
-          edge = Math.min(tx, ty),
-          ax = cx + dx * edge,
-          ay = cy + dy * edge,
-          color = windingUp
-            ? "#e85448"
-            : enemy.caravan
-              ? "#ffd85a"
-              : enemy.boss
-                ? cssColor(bossDefs[enemy.type].color)
-                : enemy.elite
-                  ? "#ffc84a"
-                  : cssColor(enemyDefs[enemy.type].color);
+        const color = windingUp
+          ? "#e85448"
+          : enemy.caravan
+            ? "#ffd85a"
+            : enemy.boss
+              ? cssColor(bossDefs[enemy.type].color)
+              : enemy.elite
+                ? "#ffc84a"
+                : cssColor(enemyDefs[enemy.type].color);
         ctx.save();
-        ctx.translate(ax, ay);
-        ctx.rotate(Math.atan2(dy, dx));
+        ctx.translate(pos.x, pos.y);
+        ctx.rotate(pos.angle);
         ctx.fillStyle = color;
         ctx.strokeStyle = "rgba(18,12,10,0.92)";
         ctx.lineWidth = 2.6;
@@ -546,27 +546,9 @@ const healthBarTypes = {
       ctx.globalAlpha = 1;
       if (player.alive && player.hp / world.stats.maxHp < 0.6) {
         for (let pickup of world.pickups) {
-          if (pickup.kind !== "heal" || inView(pickup.x, 0.5, pickup.y)) continue;
-          let cx = this.w / 2,
-            cy = this.h / 2,
-            dx = pos.x - cx,
-            dy = pos.y - cy;
-          if (!pos.vis) {
-            dx = -dx;
-            dy = -dy;
-          }
-          if (!Number.isFinite(dx) || !Number.isFinite(dy)) continue;
-          let len = Math.hypot(dx, dy) || 1;
-          dx /= len;
-          dy /= len;
-          let tx = Math.abs(dx) > 0.001 ? ((dx > 0 ? this.w - margin - safe.r : margin + safe.l) - cx) / dx : 1 / 0,
-            ty =
-              Math.abs(dy) > 0.001
-                ? ((dy > 0 ? this.h - margin - safe.b - botHud : margin + safe.t + topHud) - cy) / dy
-                : 1 / 0,
-            edge = Math.min(tx, ty);
+          if (pickup.kind !== "heal" || inView(pickup.x, 0.5, pickup.y) || !placeMarker()) continue;
           ctx.save();
-          ctx.translate(cx + dx * edge, cy + dy * edge);
+          ctx.translate(pos.x, pos.y);
           ctx.globalAlpha = 0.68 + Math.sin(this.time * 6) * 0.26;
           ctx.fillStyle = "rgba(18,14,12,0.9)";
           ctx.fillRect(-8.5, -4, 17, 8);
@@ -574,7 +556,7 @@ const healthBarTypes = {
           ctx.fillStyle = "#7ce69e";
           ctx.fillRect(-7, -2.5, 14, 5);
           ctx.fillRect(-2.5, -7, 5, 14);
-          ctx.rotate(Math.atan2(dy, dx));
+          ctx.rotate(pos.angle);
           ctx.strokeStyle = "rgba(18,14,12,0.9)";
           ctx.lineWidth = 2.4;
           ctx.beginPath();

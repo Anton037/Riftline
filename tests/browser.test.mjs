@@ -20,6 +20,68 @@ const hidden = (page, id) =>
     return !e || e.hidden;
   }, id);
 
+test("off-screen enemy and heal markers point toward their targets", { timeout: 60000 }, async (t) => {
+  const { page, errors } = await openGame(t, "desktop");
+  const rows = await page.evaluate(() => {
+    const { renderer, overlay } = window.__riftTest;
+    const cases = [
+      { label: "enemy left", x: -18, z: 0, axis: "x", sign: -1 },
+      { label: "enemy right", x: 18, z: 0, axis: "x", sign: 1 },
+      { label: "enemy above", x: 0, z: -28, axis: "y", sign: -1 },
+      { label: "enemy below", x: 0, z: 9, axis: "y", sign: 1 },
+      { label: "enemy behind camera", x: 4, z: 35, axis: "y", sign: 1 },
+      { label: "enemy in view", x: 0, z: 0 },
+      { label: "heal right", x: 18, z: 0, axis: "x", sign: 1, heal: true },
+    ];
+    const safe = { t: 14, b: 16, l: 12, r: 20 };
+    return [
+      [1280, 720],
+      [720, 320],
+      [390, 730],
+    ].flatMap(([w, h]) => {
+      const camera = new renderer.camera.constructor(44, w / h, 0.5, 190);
+      camera.position.set(0, 14, 10);
+      camera.lookAt(0, 0, 0);
+      camera.updateMatrixWorld();
+      const view = { w, h, camera, _v: {}, nums: [], project: renderer.project };
+      const canvas = document.createElement("canvas");
+      const probe = new overlay.constructor(canvas);
+      Object.assign(probe, { w, h, dpr: 1 });
+      const draw = probe.g;
+      let marker;
+      draw.rotate = (angle) => {
+        const { e: x, f: y } = draw.getTransform();
+        marker = { x, y, dx: Math.cos(angle), dy: Math.sin(angle) };
+      };
+      return cases.map(({ label, x, z, axis, sign, heal }) => {
+        marker = null;
+        probe.draw(
+          view,
+          {
+            player: { x: 0, y: 0, alive: true, hp: heal ? 20 : 100 },
+            stats: { maxHp: 100 },
+            enemies: heal ? [] : [{ type: "ironGolem", x, y: z, hp: 100, maxHp: 100 }],
+            pickups: heal ? [{ kind: "heal", x, y: z }] : [],
+          },
+          null,
+          { safe },
+        );
+        return { label: `${label} at ${w}×${h}`, marker, axis, sign, w, h };
+      });
+    });
+  });
+  for (const { label, marker, axis, sign, w, h } of rows) {
+    if (!axis) {
+      assert.equal(marker, null, label);
+      continue;
+    }
+    assert.ok(marker, label);
+    assert.ok(marker[`d${axis}`] * sign > 0.8, `${label} pointed the wrong way`);
+    assert.ok((marker[axis] - (axis === "x" ? w : h) / 2) * sign > 0, `${label} appeared on the wrong edge`);
+  }
+  assert.deepEqual(errors, []);
+});
+
 for (const tablet of [true, false])
   test(
     `${tablet ? "tablet player" : "phone multitouch"} flow`,
