@@ -301,7 +301,7 @@ for (const tablet of [true, false])
       });
       await visible(page, "choose");
       await visible(page, "chooseFirstHint");
-      await press("#cards:not(.locked) .card");
+      await press("#cards [data-pick]");
       await page.waitForFunction(
         () => window.__riftTest.game.world.wave === 2 && document.getElementById("choose").hidden,
       );
@@ -601,7 +601,6 @@ test(
       for (const e of [...w.enemies]) w.killEnemy(e);
     });
     await visible(page, "choose");
-    await page.locator("#cards:not(.locked)").waitFor();
     assert.equal(await page.locator("#choose .card-key").count(), 0);
     const choiceAudit = await page.evaluate(() => window.__riftLayoutAudit());
     assert.equal(choiceAudit.ok, true, JSON.stringify(choiceAudit.findings));
@@ -625,7 +624,6 @@ test(
       });
       w.offer = savedOffer;
       ui.renderCards(w);
-      document.getElementById("cards").classList.remove("locked");
       return styles;
     });
     assert.equal(new Set(rarityCheck.map((s) => s.bg)).size, 6, "all 6 card tiers must have distinct card body colors");
@@ -666,14 +664,12 @@ test(
     await page.waitForFunction(() => window.__riftTest.game.world.rerolls === 1);
     await page.keyboard.press("KeyB");
     await page.waitForFunction(() => document.getElementById("cards").classList.contains("banishing"));
-    await page.locator("#cards:not(.locked)").waitFor();
     await page.keyboard.press("Digit1");
     await page.waitForFunction(
       () =>
         window.__riftTest.game.world.banishes === 0 &&
         !document.getElementById("cards").classList.contains("banishing"),
     );
-    await page.locator("#cards:not(.locked)").waitFor();
     await page.keyboard.press("Digit2");
     await page.waitForFunction(
       () => window.__riftTest.game.world.wave === 2 && document.getElementById("choose").hidden,

@@ -5,6 +5,71 @@ import { openGame } from "./support/game.mjs";
 
 const timeout = process.env.TEST_DRAW === "1" ? 180000 : 30000;
 
+test("a phone can pick its first craft while a movement thumb is still down", { timeout }, async (t) => {
+  const { page, press, errors } = await openGame(t, false, {
+    fresh: true,
+    viewport: { width: 667, height: 375 },
+  });
+  await press("#playBtn");
+  await page.waitForFunction(() => window.__riftTest.game.tut?.step === 0);
+  const cdp = await page.context().newCDPSession(page);
+  const move = { x: 160, y: 260, id: 1 };
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [move] });
+  move.x += 60;
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [move] });
+  try {
+    await page.waitForFunction(() => window.__riftTest.game.tut?.step === 1);
+    await page.evaluate(() => {
+      const w = window.__riftTest.game.world;
+      w.god = true;
+      w.planIdx = w.plan.length;
+      w.markers.length = 0;
+      w.bossPending = null;
+      w.championPending = null;
+      for (const e of [...w.enemies]) w.killEnemy(e);
+    });
+    await page.locator("#chooseFirstHint").waitFor({ state: "visible" });
+    const craft = page.locator("#cards [data-pick]").last();
+    await craft.waitFor({ state: "visible" });
+    const id = await craft.getAttribute("data-pick");
+    const bounds = await craft.boundingBox();
+    const tap = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2, id: 2 };
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [move, tap] });
+    const slide = { ...tap, x: tap.x - 36 };
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [move, slide] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [slide] });
+    assert.equal(await page.evaluate(() => window.__riftTest.game.world.state), "choose");
+    await page.evaluate(() => {
+      document.addEventListener(
+        "pointerup",
+        (event) => {
+          window.upgradeRelease = {
+            primary: event.isPrimary,
+            trusted: event.isTrusted,
+            card: event.target.closest("[data-pick]")?.dataset.pick,
+          };
+        },
+        { capture: true, once: true },
+      );
+    });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [move, tap] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [tap] });
+    assert.deepEqual(await page.evaluate(() => window.upgradeRelease), { primary: false, trusted: true, card: id });
+    await page.waitForFunction(
+      () =>
+        window.__riftTest.game.world.wave === 2 &&
+        window.__riftTest.game.world.state === "fight" &&
+        document.getElementById("choose").hidden,
+    );
+    const run = await page.evaluate(() => JSON.parse(localStorage.getItem("riftline.save.v1")).run);
+    assert.equal(run.wave, 2);
+    assert.equal(run.up[id], 1);
+  } finally {
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchCancel", touchPoints: [] });
+  }
+  assert.deepEqual(errors, []);
+});
+
 test(
   "first-run tutorial accepts touch, unlocks audio and resumes safely after backgrounding",
   { timeout },
@@ -144,16 +209,30 @@ test("the focused menu keeps workshop upgrades and achievement rewards working",
   await page.waitForFunction(() => window.__riftTest.game.mode === "game");
   assert.equal(await page.evaluate(() => window.__riftTest.game.world.stats.maxHp), 110);
   await page.evaluate(() => {
-    const w = window.__riftTest.game.world;
+    const { game, ui } = window.__riftTest;
+    const w = game.world;
     w.startWave(5);
     w.state = "cleared";
     w.stateT = 1.3;
     w.shards = 55;
     w.player.hp = 50;
     w.offerBoss = true;
+    w.ws.seal = 1;
+    w.banishes = 2;
+    ui.banishMode = true; // An old selection must not carry into a newly opened offer.
   });
-  await page.locator("#cards:not(.locked) [data-pick]").first().waitFor({ state: "visible" });
-  await press("#cards:not(.locked) [data-pick]");
+  const reward = page.locator("#cards .r6");
+  await reward.waitFor({ state: "visible" });
+  assert.equal(await page.locator("#sealBtn").getAttribute("aria-pressed"), "false");
+  await press("#sealBtn");
+  assert.equal(await reward.isDisabled(), true);
+  assert.match(await reward.evaluate((card) => getComputedStyle(card, "::after").content), /CAN’T BE SEALED/);
+  const sealable = "#cards [data-pick]:not(:disabled)";
+  const sealed = await page.locator(sealable).first().getAttribute("data-pick");
+  await press(sealable);
+  assert.equal(await page.evaluate((id) => window.__riftTest.game.world.banished.includes(id), sealed), true);
+  assert.equal(await reward.isEnabled(), true);
+  await press("#cards .r6");
   await page.locator("#anvil").waitFor({ state: "visible" });
   assert.equal(await page.locator("#anvilOffers [data-anvil]").count(), 3);
   await press('#anvilOffers [data-anvil="0"]');

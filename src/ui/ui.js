@@ -246,6 +246,7 @@ const getById = (id) => document.getElementById(id),
       this.viewThreat = 0;
       this.recTab = "milestones";
       this.codexTab = "areas";
+      this.banishMode = false;
       this.hudCache = {};
       // 3.46.0: the buff row and its step bars are cached per frame (see buffs)
       this.buffRow = null;
@@ -267,7 +268,7 @@ const getById = (id) => document.getElementById(id),
     get save() {
       return this.g.store.data;
     }
-    click(el, action) {
+    click(el, action, { sound = true } = {}) {
       if (!el) return;
       let touchDown = 0,
         startX = 0,
@@ -275,7 +276,7 @@ const getById = (id) => document.getElementById(id),
         pointerId = 0,
         activate = () => {
           if (el.disabled || el.hidden) return false;
-          this.g.sound.play("click");
+          if (sound) this.g.sound.play("click");
           action();
           return true;
         };
@@ -1551,6 +1552,7 @@ const getById = (id) => document.getElementById(id),
       }
     }
     showChoose(world) {
+      this.banishMode = false;
       let bossReward = world.offerBoss;
       getById("chooseEyebrow").textContent = bossReward
         ? `${bossDefs[world.bossKills[world.bossKills.length - 1]] ? bossDefs[world.bossKills[world.bossKills.length - 1]].name : "Boss"} Defeated`
@@ -1579,9 +1581,17 @@ const getById = (id) => document.getElementById(id),
     }
     renderCards(world) {
       const tierCrests = ["", "\u25c7", "\u25c6", "\u25c8", "\u2605", "\u2726", "\u265b"];
-      let cards = getById("cards");
+      const cards = getById("cards");
+      const sealButton = getById("sealBtn");
+      sealButton.hidden = !(world.ws.seal > 0 || world.banishes > 0);
+      sealButton.disabled = world.banishes <= 0 || world.offer.length < 2;
+      if (sealButton.disabled) this.banishMode = false;
+      sealButton.classList.toggle("on", this.banishMode);
+      sealButton.setAttribute("aria-pressed", String(this.banishMode));
+      getById("sealTxt").textContent = `Seal (${world.banishes})`;
+      cards.classList.toggle("banishing", this.banishMode);
       cards.innerHTML = world.offer
-        .map((id, i) => {
+        .map((id) => {
           let up = upgradesById[id],
             level = world.up[id] || 0,
             crest = tierCrests[up.rarity] || "",
@@ -1598,37 +1608,26 @@ const getById = (id) => document.getElementById(id),
             evo = this.evoHint(up, world),
             delta = this.statDelta(id, world);
           const seal = up.boss ? `<span class="seal" aria-hidden="true">${iconSvg("star")}</span>` : "";
-          return `<button class="card r${up.rarity}" data-pick="${id}" style="animation-delay:${i * 70}ms">${seal}<span class="cico">${iconSvg(up.icon)}</span><span><span class="ctop"><b>${escapeHtml(up.name)}</b><span class="lv">${escapeHtml(tag)}</span></span><p>${escapeHtml(up.desc(level))}</p>${delta}${evo}</span></button>`;
+          const protectedReward = this.banishMode && world.offerBoss && id === world.offerExclusive;
+          return `<button class="card r${up.rarity}" data-pick="${id}"${protectedReward ? " disabled" : ""}>${seal}<span class="cico">${iconSvg(up.icon)}</span><span><span class="ctop"><b>${escapeHtml(up.name)}</b><span class="lv">${escapeHtml(tag)}</span></span><p>${escapeHtml(up.desc(level))}</p>${delta}${evo}</span></button>`;
         })
         .join("");
-      cards.classList.add("locked");
-      clearTimeout(this.armT);
-      this.armT = setTimeout(() => cards.classList.remove("locked"), 650);
+      const choose = getById("choose");
       for (let card of cards.querySelectorAll("[data-pick]")) {
-        card.addEventListener("click", () => {
-          if (!cards.classList.contains("locked")) {
-            // 3.25.0: with Seal armed the card is sealed out of the run instead of taken
+        this.click(
+          card,
+          () => {
+            // Reroll and Seal replace the card nodes. Pause only hides the screen.
+            if (!card.isConnected || choose.hidden) return;
             if (this.banishMode) this.g.seal(card.dataset.pick);
             else this.g.choose(card.dataset.pick);
-          }
-        });
+          },
+          { sound: false },
+        );
         // 2.7.0: a soft tick when the mouse moves over a card (touch has no hover)
         card.addEventListener("pointerenter", (ev) => {
-          if (!touchInput && ev.pointerType === "mouse" && !cards.classList.contains("locked"))
-            this.g.sound.play("hover");
+          if (!touchInput && ev.pointerType === "mouse" && !card.disabled) this.g.sound.play("hover");
         });
-      }
-      // 3.25.0: Seal Cards: shown when the module is owned (or a seal is left in a resumed run)
-      {
-        const btn = getById("sealBtn"),
-          has = (world.ws.seal || 0) > 0 || world.banishes > 0;
-        btn.hidden = !has;
-        if (world.banishes <= 0 || world.offer.length < 2) this.banishMode = false;
-        btn.disabled = world.banishes <= 0 || world.offer.length < 2;
-        btn.classList.toggle("on", !!this.banishMode);
-        btn.setAttribute("aria-pressed", String(!!this.banishMode));
-        getById("sealTxt").textContent = `Seal (${world.banishes})`;
-        cards.classList.toggle("banishing", !!this.banishMode);
       }
       getById("rerollTxt").textContent = `Reroll (${world.rerolls})`;
       getById("rerollBtn").disabled = world.rerolls <= 0;

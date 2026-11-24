@@ -701,12 +701,12 @@ textarea::-webkit-scrollbar-thumb {
   .icon-btn:hover:not([disabled]),
   .arrow:hover:not([disabled]),
   .bottom-nav button:hover,
-  .card:hover {
+  .card:hover:not(:disabled) {
     filter: brightness(1.09);
     border-color: var(--focus);
   }
   .btn:not([disabled]):hover { transform: translateY(-1px); }
-  .card:hover { transform: translateY(-3px); }
+  .card:hover:not(:disabled) { transform: translateY(-3px); }
 }
 
 .shard-chip {
@@ -2264,7 +2264,7 @@ input[type=range]::-moz-range-thumb {
     inset 0 1px 0 rgba(246, 236, 214, 0.18),
     inset 0 0 22px var(--card-glow),
     0 14px 32px rgba(5, 3, 2, 0.68);
-  animation: cardIn 0.35s ease-out both;
+  animation: cardIn 0.18s ease-out;
 }
 .card::before {
   content: "";
@@ -2468,16 +2468,15 @@ input[type=range]::-moz-range-thumb {
 @keyframes sealPulse {
   50% { box-shadow: 0 0 20px rgba(255, 120, 90, 0.95); }
 }
-.card:active { filter: brightness(1.18); }
-.cards.locked .card { pointer-events: none; }
+.card:active:not(:disabled) { filter: brightness(1.18); }
 @keyframes cardIn {
-  from { opacity: 0; transform: translateY(10px); }
+  from { opacity: 0.72; }
 }
-.cards.banishing .card {
+.cards.banishing .card { padding-bottom: 36px !important; }
+.cards.banishing .card:not(:disabled) {
   outline: 2px dashed #f29b7e;
   outline-offset: -4px;
   cursor: crosshair;
-  padding-bottom: 36px !important;
 }
 .cards.banishing .card::after {
   content: "TAP TO SEAL";
@@ -2490,7 +2489,12 @@ input[type=range]::-moz-range-thumb {
   letter-spacing: 0.2em;
   color: #f2ac90;
 }
-:root:not(.device-touch) .cards.banishing .card::after { content: "CLICK TO SEAL"; }
+:root:not(.device-touch) .cards.banishing .card:not(:disabled)::after { content: "CLICK TO SEAL"; }
+.cards.banishing .card:disabled { cursor: default; }
+.cards.banishing .card:disabled::after {
+  content: "CAN’T BE SEALED";
+  color: var(--dim);
+}
 #sealBtn.on {
   border-color: #f29b7e;
   color: #f2ac90;
@@ -4544,7 +4548,7 @@ body.device-desktop .act {
     <div class="choose-head">
       <div id="chooseEyebrow" class="eyebrow">WAVE 1 CLEARED</div>
       <h2 id="chooseTitle">Choose a craft</h2>
-      <p id="chooseFirstHint" class="choose-first-hint" hidden>Crafts strengthen this run. Spend shards in the Workshop for permanent upgrades.</p>
+      <p id="chooseFirstHint" class="choose-first-hint" hidden>Pick one to start the next wave.</p>
       <div id="nextWave" class="next-wave" aria-live="polite"></div>
       <div class="choose-hp"><div class="bar hp small"><i id="chooseHp"></i></div><span id="chooseHpNum" class="num"></span></div>
     </div>

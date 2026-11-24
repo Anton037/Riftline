@@ -459,10 +459,7 @@ function chooseKey(code, key) {
   const match = /^(?:Digit|Numpad)([1-5])$/.exec(code) || /^([1-5])$/.exec(key);
   if (match) {
     const card = getById("cards").querySelectorAll("[data-pick]")[+match[1] - 1];
-    if (card && !getById("cards").classList.contains("locked")) {
-      if (getById("cards").classList.contains("banishing")) game.seal(card.dataset.pick);
-      else game.choose(card.dataset.pick);
-    }
+    card?.click();
     return true;
   }
   if (key === "b") {

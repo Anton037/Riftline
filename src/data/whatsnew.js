@@ -4,6 +4,14 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "5.2.5",
+    title: "Faster craft picks",
+    items: [
+      "Tap a craft as soon as it appears, even while another finger is on the screen.",
+      "Boss rewards show when they can't be sealed, and Seal starts off on each new offer.",
+    ],
+  },
+  {
     version: "5.2.4",
     title: "Sharper cues and safer saves",
     items: [
@@ -37,14 +45,6 @@ export const WHATS_NEW = [
       "Settings and menus have fewer shortcut labels, and the shortcuts still work.",
       "Settings can show live FPS and CPU frame time during play.",
       "Screen-edge arrows point toward enemies and healing pickups.",
-    ],
-  },
-  {
-    version: "5.2.0",
-    title: "Simpler names and clearer shots",
-    items: [
-      "Weapons, bosses, areas, and crafts have simpler names.",
-      "Shots and their flashes now line up with the weapon.",
     ],
   },
 ];
