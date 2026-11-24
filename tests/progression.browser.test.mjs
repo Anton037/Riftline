@@ -3,7 +3,114 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { openGame } from "./support/game.mjs";
 
+globalThis.__RL_VERSION__ ??= "test";
+globalThis.__RL_BUILD__ ??= "test";
+const { upgradeList } = await import("../src/data/upgrades.js");
 const timeout = process.env.TEST_DRAW === "1" ? 180000 : 30000;
+
+test("a lost graphics context pauses the run and waits for an explicit resume", { timeout }, async (t) => {
+  const { page, press, errors } = await openGame(t, "desktop", { viewport: { width: 800, height: 450 } });
+  await press("#playBtn");
+  await page.waitForFunction(() => window.__riftTest.game.world?.time > 0.1);
+  await page.keyboard.down("KeyD");
+  await page.evaluate(() => {
+    const gl = window.__riftTest.renderer.renderer.getContext();
+    const extension = gl.getExtension("WEBGL_lose_context");
+    window.restoreGraphics = () => extension.restoreContext();
+    extension.loseContext();
+  });
+  const resume = page.locator("#resumeBtn");
+  await resume.filter({ hasText: "Waiting for graphics" }).waitFor();
+  assert.equal(await resume.isDisabled(), true);
+  assert.equal(await page.locator("#restartBtn").isDisabled(), true);
+  const frozen = await page.evaluate(() => ({
+    time: window.__riftTest.game.world.time,
+    frame: window.__riftTest.renderer.renderer.info.render.frame,
+  }));
+  await page.keyboard.press("Escape");
+  assert.deepEqual(
+    await page.evaluate(() => {
+      const { game } = window.__riftTest;
+      return { time: game.world.time, paused: game.paused, resumeAt: game.resumeAt, keys: game.input.keys.size };
+    }),
+    { time: frozen.time, paused: true, resumeAt: 0, keys: 0 },
+  );
+  await page.keyboard.up("KeyD");
+  await page.evaluate(() => window.restoreGraphics());
+  await resume.filter({ hasText: /^Resume$/ }).waitFor();
+  assert.equal(await page.evaluate(() => window.__riftTest.game.world.time), frozen.time);
+  await press("#resumeBtn");
+  await page.waitForFunction(
+    ({ time, frame }) =>
+      window.__riftTest.game.world.time > time && window.__riftTest.renderer.renderer.info.render.frame > frame,
+    frozen,
+  );
+  assert.deepEqual(errors, ["[riftline] webgl context lost", "[riftline] webgl context restored"]);
+});
+
+test("entering Endless writes the exact reward checkpoint before the next frame", { timeout }, async (t) => {
+  const { page, press, errors } = await openGame(t, "desktop");
+  await press("#playBtn");
+  await page.evaluate(() => {
+    const { world } = window.__riftTest.game;
+    world.startWave(20);
+    world.state = "cleared";
+    world.stateT = 3;
+    world.shards = 40;
+    world.offerBoss = true;
+  });
+  await page.locator("#endlessBtn").waitFor();
+  const saved = await page.evaluate(() => {
+    // Read the persistent save in the click's task, before the next animation frame can save it.
+    document.getElementById("endlessBtn").click();
+    return JSON.parse(localStorage.getItem("riftline.save.v1"));
+  });
+  assert.equal(saved.run.endless, true);
+  assert.ok(saved.run.offer.length > 0);
+  assert.equal(saved.shards, 50);
+  await page.reload();
+  assert.match(await page.locator("#continueBtn").textContent(), /BOSS REWARD/);
+  await press("#continueBtn");
+  await page.locator("#choose").waitFor();
+  const restored = await page.evaluate(() => {
+    const { game, store } = window.__riftTest;
+    return { seed: game.world.seed, offer: game.world.offer, endless: game.world.endless, bank: store.data.shards };
+  });
+  assert.deepEqual(restored, { seed: saved.run.seed, offer: saved.run.offer, endless: true, bank: saved.shards });
+  assert.deepEqual(errors, []);
+});
+
+test("a tablet can swipe through the build list during a reward choice", { timeout }, async (t) => {
+  const { page, press, errors } = await openGame(t, true);
+  await press("#playBtn");
+  await page.waitForFunction(() => window.__riftTest.game.mode === "game");
+  await page.evaluate(
+    (up) => {
+      const { world } = window.__riftTest.game;
+      world.startWave(15);
+      world.up = up;
+      world.state = "cleared";
+      world.stateT = 3;
+    },
+    Object.fromEntries(upgradeList.filter(({ repeat }) => !repeat).map(({ id }) => [id, 1])),
+  );
+  await page.locator("#choose").waitFor();
+  const strip = page.locator("#buildStrip");
+  assert.equal(await strip.evaluate((el) => el.scrollHeight > el.clientHeight), true);
+  const bounds = await strip.boundingBox();
+  const point = { id: 1, x: Math.round(bounds.x + bounds.width / 2), y: Math.round(bounds.y + bounds.height - 12) };
+  const cdp = await page.context().newCDPSession(page);
+  const touch = (type, touchPoints) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints });
+  await touch("touchStart", [point]);
+  await touch("touchMove", [{ ...point, y: point.y - 35 }]);
+  await touch("touchMove", [{ ...point, y: point.y - 90 }]);
+  await touch("touchEnd", []);
+  await page.waitForFunction(() => document.getElementById("buildStrip").scrollTop > 0);
+  await strip.locator("[data-up]").last().tap();
+  await page.locator("#chooseUpInfo").waitFor();
+  assert.equal(await page.evaluate(() => window.__riftTest.game.world.state), "choose");
+  assert.deepEqual(errors, []);
+});
 
 test("the fixed movement stick is optional and stays anchored after reloading", { timeout }, async (t) => {
   const { page, press, errors } = await openGame(t, false, { fresh: true, viewport: { width: 568, height: 320 } });
@@ -374,6 +481,8 @@ test("the focused menu keeps workshop upgrades and achievement rewards working",
   await page.locator("#anvil").waitFor({ state: "visible" });
   assert.equal(await page.locator("#resumeCount").isVisible(), false);
   await page.reload();
+  assert.match(await page.locator("#continueBtn").textContent(), /ROADSIDE FORGE/);
+  assert.equal(await page.locator("#continueNote").isVisible(), false);
   await press("#continueBtn");
   await page.locator("#anvil").waitFor({ state: "visible" });
   assert.equal(await page.locator("#anvilShards").textContent(), "38");

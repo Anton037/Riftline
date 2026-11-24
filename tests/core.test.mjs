@@ -122,6 +122,23 @@ test("reroll keeps the last craft and its charge if there is nothing new to offe
   assert.equal(resumed.wave, 43);
 });
 
+test("an empty craft offer pays shards and reports only the HP it actually restores", () => {
+  const initial = new World({ seed: 1, weapon: "lanternGun", threat: 0 });
+  const snap = initial.snapshot();
+  snap.up = Object.fromEntries(upgradeList.map(({ id, max }) => [id, max]));
+  const world = new World({ snap });
+  for (const missing of [3, 0]) {
+    world.player.hp = world.stats.maxHp - missing;
+    world.fx.length = 0;
+    const wave = world.wave;
+    world.beginChoice();
+    assert.equal(world.wave, wave + 1);
+    const reward = world.fx.find((event) => event.k === "maxed");
+    assert.equal(reward.heal, missing);
+    assert.equal(reward.shards, 10 + Math.floor(wave / 2));
+  }
+});
+
 test("Armor Core reduces enemy hits but never stacks on map hazard resistance", () => {
   const w = new World({ seed: 42, weapon: "lanternGun", threat: 0, ws: { armor: 5 } });
   const loss = (source) => {

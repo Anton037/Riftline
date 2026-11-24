@@ -4,6 +4,17 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "5.2.9",
+    title: "Safer pauses and checkpoints",
+    items: [
+      "If the browser loses graphics, the run pauses until you can see again.",
+      "Endless saves as soon as you enter it.",
+      "Continue tells you when you're returning to a reward choice or the Roadside Forge.",
+      "On tablets, you can swipe through a long list of your crafts while choosing a reward.",
+      "When no crafts are available, the reward shows how much HP you actually recovered.",
+    ],
+  },
+  {
     version: "5.2.8",
     title: "A clearer Keeper",
     items: [
@@ -35,17 +46,6 @@ export const WHATS_NEW = [
     items: [
       "Tap a craft as soon as it appears, even while another finger is on the screen.",
       "Boss rewards show when they can't be sealed, and Seal starts off on each new offer.",
-    ],
-  },
-  {
-    version: "5.2.4",
-    title: "Sharper cues and safer saves",
-    items: [
-      "Right-click while standing still to dash toward the cursor.",
-      "The aim guide and damage markers line up with what happens on screen.",
-      "New runs clear old damage markers and held keys.",
-      "Boss medals are saved alongside progress from another tab.",
-      "Save imports check for bad data, and offline updates check that the game files match.",
     ],
   },
 ];

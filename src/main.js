@@ -200,13 +200,17 @@ try {
 } catch (err) {
   logError("webgl", err);
 }
-elementById("gl").addEventListener("webglcontextlost", () => logError("webgl", "context lost"));
+elementById("gl").addEventListener("webglcontextlost", () => {
+  logError("webgl", "context lost");
+  game.pause();
+  input.reset(true);
+  performanceOverlay.hidden = true;
+  ui.syncGraphicsControls();
+});
 elementById("gl").addEventListener("webglcontextrestored", () => {
   logError("webgl", "context restored");
-  // 2.9.1: say so; the picture may flicker or look different for a moment (it used to be only logged)
-  try {
-    ui.toast("Graphics were reset by the browser and restored.", "warn");
-  } catch {}
+  ui.syncGraphicsControls();
+  ui.toast(game.paused ? "Graphics restored. Resume when ready." : "Graphics restored.", "good");
 });
 let _resizeRaf = 0,
   _resizeWhy = "resize",
@@ -299,6 +303,9 @@ const overlay = new Overlay(elementById("ov")),
     chooseShown: false,
     overShown: false,
     slowMo: 0,
+    get graphicsReady() {
+      return !!renderer && !renderer.renderer.getContext().isContextLost();
+    },
     _pendingUpdate: null,
     get pendingUpdate() {
       return this._pendingUpdate;
@@ -310,6 +317,7 @@ const overlay = new Overlay(elementById("ov")),
     },
     cloud: null,
     startRun(options) {
+      if (!this.graphicsReady) return;
       const { resume } = options;
       lockLandscape();
       let save = store.data,
@@ -495,7 +503,7 @@ const overlay = new Overlay(elementById("ov")),
       }
     },
     resume() {
-      if (!this.paused || this.resumeAt || needsRotate() || document.hidden) return;
+      if (!this.graphicsReady || !this.paused || this.resumeAt || needsRotate() || document.hidden) return;
       document.activeElement?.blur?.();
       ui.hidePause();
       if (this._pausedFromChoose || this._pausedFromAnvil) {
@@ -530,6 +538,7 @@ const overlay = new Overlay(elementById("ov")),
       syncSoundMuffle();
     },
     restart() {
+      if (!this.graphicsReady) return;
       ui.hidePause();
       this.paused = false;
       this.endRun(false, true, true);
@@ -547,12 +556,13 @@ const overlay = new Overlay(elementById("ov")),
     },
     endless() {
       let world = this.world;
-      if (!(!world || world.state !== "victory")) {
+      if (this.graphicsReady && this.overShown && world?.state === "victory") {
         document.activeElement?.blur?.();
         ui.hideOver();
         this.overShown = false;
         // the counters and the clock of the Endless part start again (World.enterEndless, shared with the tests)
         world.enterEndless();
+        this.saveCheckpoint("endless");
         ui.showHud(true);
         placeHud();
         this.chooseShown = false;
@@ -827,6 +837,7 @@ function afterProgressReset(message) {
 }
 const ui = new GameUI(game);
 game.ui = ui;
+ui.syncGraphicsControls();
 const hudEditor = touchInput ? new HudEditor({ store, ui, input, onSave: () => game.settingsChanged() }) : null;
 /* the button layout of the player on the HUD that is on screen; a layout that does not fit this screen gives way to the
    default layout (see fitHudLayout), and the player hears about it once */
@@ -972,6 +983,7 @@ function loopTick(now) {
   if (!paceFrame(framePacer, now, store.data.settings.frameRate)) return;
   {
     game.last = now;
+    if (!game.graphicsReady) return;
     dt = Math.min(0.1, Math.max(0, dt));
     // A mobile run waits paused behind the rotate screen.
     if (needsRotate()) game.pause();
@@ -1336,7 +1348,7 @@ function handleWorldEvents(world) {
         }
         break;
       case "maxed":
-        ui.toast(`All Crafts Maxed · +${ev.heal} HP, +${ev.shards} shards`, "gold", 3500);
+        ui.toast(`No crafts available · ${ev.heal > 0 ? `+${ev.heal} HP · ` : ""}+${ev.shards} shards`, "gold", 3500);
         break;
       case "combo":
         ui.comboPop(ev.n, ev.bonus);
@@ -1592,7 +1604,9 @@ document.addEventListener(
     if (!(
       target &&
       target.closest &&
-      target.closest(".scroll, .cards, .center-col, .dialog, #dlgBody, textarea, input, .log")
+      target.closest(
+        ".scroll, .cards, .center-col, .dialog, #dlgBody, #buildStrip, #chooseUpInfo, textarea, input, .log",
+      )
     )) {
       ev.preventDefault();
     }

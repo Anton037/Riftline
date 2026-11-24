@@ -638,17 +638,21 @@ const getById = (id) => document.getElementById(id),
         btn = getById("continueBtn");
       if (run) {
         btn.hidden = false;
-        btn.innerHTML = `${iconSvg("play")}CONTINUE \xB7 WAVE ${run.wave + (run.offer ? 1 : 0)} \xB7 ${escapeHtml(weaponDefs[run.weapon].name)}`;
+        const stage = run.anvil
+          ? "ROADSIDE FORGE"
+          : run.offer
+            ? run.offerBoss
+              ? "BOSS REWARD"
+              : "CRAFT CHOICE"
+            : `WAVE ${run.wave}`;
+        btn.innerHTML = `${iconSvg("play")}CONTINUE \xB7 ${stage} \xB7 ${escapeHtml(weaponDefs[run.weapon].name)}`;
         getById("playBtn").classList.remove("primary");
       } else {
         btn.hidden = true;
         getById("playBtn").classList.add("primary");
       }
       const checkpoint = getById("continueNote");
-      checkpoint.hidden = !run;
-      checkpoint.textContent = run?.offer
-        ? "Continue at your saved craft choice."
-        : "Continue restarts the saved wave from its beginning.";
+      checkpoint.hidden = !run || !!(run.offer || run.anvil);
       this.updatePlayState();
       getById("recBadge").hidden = !this.g.claimable().length;
       getById("newsBadge").hidden = !!save.seen["news_" + GAME_VERSION];
@@ -733,21 +737,33 @@ const getById = (id) => document.getElementById(id),
       getById("tNext").disabled = this.viewThreat >= Math.min(5, save.threatMax + 1);
       this.updatePlayState();
     }
+    syncGraphicsControls() {
+      const ready = this.g.graphicsReady;
+      for (const id of ["resumeBtn", "restartBtn", "retryBtn", "endlessBtn"]) {
+        getById(id).disabled = !ready;
+      }
+      getById("resumeBtn").textContent = ready ? "Resume" : "Waiting for graphics…";
+      this.updatePlayState();
+    }
     updatePlayState() {
       let save = this.save,
         id = weaponOrder[this.viewWeapon],
-        playable = !!save.weapons[id] && this.viewThreat <= save.threatMax && !!this.g.renderer,
+        graphicsReady = this.g.graphicsReady,
+        playable = graphicsReady && !!save.weapons[id] && this.viewThreat <= save.threatMax,
         btn = getById("playBtn");
+      getById("continueBtn").disabled = !graphicsReady;
       btn.disabled = !playable;
       btn.textContent = !this.g.renderer
         ? "3D UNAVAILABLE"
-        : playable
-          ? save.run
-            ? "NEW RUN"
-            : "PLAY"
-          : save.weapons[id]
-            ? "TRIAL LOCKED"
-            : "WEAPON LOCKED";
+        : !graphicsReady
+          ? "WAITING FOR GRAPHICS…"
+          : playable
+            ? save.run
+              ? "NEW RUN"
+              : "PLAY"
+            : save.weapons[id]
+              ? "TRIAL LOCKED"
+              : "WEAPON LOCKED";
     }
     stepWeapon(dir) {
       this.viewWeapon = clamp(this.viewWeapon + dir, 0, weaponOrder.length - 1);
@@ -783,20 +799,21 @@ const getById = (id) => document.getElementById(id),
       this.renderHome();
     }
     async play() {
-      let save = this.save;
-      if (!(
+      const save = this.save;
+      if (
         save.run &&
         !(await this.confirm(
           "Start a new run?",
           `Your run at wave ${save.run.wave} ends here. You keep the shards collected in it.`,
           "New run",
         ))
-      )) {
-        if (save.run) {
-          this.g.discardRun();
-        }
-        this.g.startRun({});
+      )
+        return;
+      if (!this.g.graphicsReady) return;
+      if (save.run) {
+        this.g.discardRun();
       }
+      this.g.startRun({});
     }
     renderWorkshop() {
       let save = this.save;

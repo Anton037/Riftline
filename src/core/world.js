@@ -826,9 +826,10 @@ const rlStep = 1 / 60,
     // no cards: repair the hull a bit, pay a few shards and go on with the next wave
     skipEmptyChoice() {
       const player = this.player,
-        heal = Math.round(this.stats.maxHp * 0.35),
+        hpBefore = Math.ceil(player.hp),
         shards = 10 + Math.floor(this.wave / 2);
-      player.hp = Math.min(this.stats.maxHp, player.hp + heal);
+      player.hp = Math.min(this.stats.maxHp, player.hp + Math.round(this.stats.maxHp * 0.35));
+      const heal = Math.ceil(player.hp) - hpBefore;
       this.shards += shards;
       this.offer = null;
       this.emit("maxed", { heal, shards });
