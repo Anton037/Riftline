@@ -24,7 +24,7 @@ const Input = class {
     this.dashPoint = null;
     this.R = 56;
     // the stick size of the player (times the default radius) and, with a fixed move stick, where it sits
-    // (a function that returns its centre in px, see ui/hud-layout.js; null: the stick starts where the thumb does)
+    // (a function that returns its centre in px; null lets the movement base follow the thumb)
     this.stickScale = 1;
     this.fixedMove = null;
     this.enabled = true;
@@ -167,9 +167,18 @@ const Input = class {
       stick.lastEv = performance.now();
       stick.x = x;
       stick.y = y;
-      // 2.6.0: the stick stays where the finger touched down. Before, its centre followed the
-      // finger once it was dragged further than 1.25 radii; the knob is clamped when drawn and
-      // sample() caps the strength at 1.
+      if (stick === this.move && !this.fixedMove) {
+        const radius = this.radius();
+        const dx = x - stick.ox;
+        const dy = y - stick.oy;
+        const distance = Math.hypot(dx, dy);
+        if (distance > radius) {
+          // Move the base just enough to keep the thumb at the edge of the stick.
+          const scale = radius / distance;
+          stick.ox = x - dx * scale;
+          stick.oy = y - dy * scale;
+        }
+      }
     }
   }
   up(ev) {

@@ -136,7 +136,9 @@ function layoutProblems(stick) {
     for (let j = i + 1; j < circles.length; j++) {
       const a = circles[i],
         b = circles[j];
-      if (Math.hypot(a.x - b.x, a.y - b.y) < a.r + b.r + GAP) {
+      // Touch halos may share the gap as long as neither covers the other control's face.
+      const clearance = Math.max(a.r + b.visR, a.visR + b.r) + GAP;
+      if (Math.hypot(a.x - b.x, a.y - b.y) < clearance) {
         bad.add(a.id);
         bad.add(b.id);
       }
@@ -560,7 +562,7 @@ class HudEditor {
         ? "Red buttons cover another button or the HP and wave display: move them."
         : this.draft.stickFixed
           ? "Drag a button or the stick to move it, tap a button to resize it."
-          : "Drag a button to move it, tap it to resize it. The move stick starts where your thumb lands.");
+          : "Drag buttons to move them. Tap to resize. The move stick follows your thumb.");
     note.classList.toggle("bad", !!this.note || bad.size > 0);
     getById("heSave").disabled = bad.size > 0;
     this.placePanel();

@@ -1,6 +1,6 @@
 {
   "name": "riftline",
-  "version": "5.2.6",
+  "version": "5.2.7",
   "private": true,
   "type": "module",
   "description": "Riftline – a Tactile Cozy Diorama 3D arena roguelite with twin-stick touch and mouse + keyboard controls (GPU-First WebGL2 Engine v2, spatial WebAudio).",
@@ -10,7 +10,7 @@
     "url": "git+https://github.com/Anton037/Riftline.git"
   },
   "riftline": {
-    "build": "r526a1124a-r1"
+    "build": "r527a1124a-r1"
   },
   "scripts": {
     "build": "node build.js",

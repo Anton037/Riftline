@@ -5,6 +5,42 @@ import { openGame } from "./support/game.mjs";
 
 const timeout = process.env.TEST_DRAW === "1" ? 180000 : 30000;
 
+test("the fixed movement stick is optional and stays anchored after reloading", { timeout }, async (t) => {
+  const { page, press, errors } = await openGame(t, false, { fresh: true, viewport: { width: 568, height: 320 } });
+  await press('[data-go="settings"]');
+  await press("#hudEditBtn");
+  const fixed = page.locator("#heFixed");
+  await fixed.waitFor();
+  assert.equal(await fixed.isChecked(), false);
+  await fixed.tap();
+  assert.equal(await fixed.isChecked(), true);
+  await press("#heSave");
+  await page.reload();
+  await page.waitForFunction(() => window.__riftTest?.store.data.settings.stickFixed === true);
+  await press("#playBtn");
+  const cdp = await page.context().newCDPSession(page);
+  const move = { x: 160, y: 260, id: 1 };
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [move] });
+  try {
+    move.x += 140;
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [move] });
+    await page.waitForFunction((x) => window.__riftTest.game.input.move.x === x, move.x);
+    const stick = await page.evaluate(() => {
+      const { input } = window.__riftTest.game;
+      const center = input.fixedMove(input.radius());
+      const { active, x, ox, oy } = input.move;
+      return { active, x, ox, oy, center };
+    });
+    assert.equal(stick.active, true);
+    assert.equal(stick.x, move.x);
+    assert.equal(stick.ox, stick.center.x);
+    assert.equal(stick.oy, stick.center.y);
+  } finally {
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchCancel", touchPoints: [] });
+  }
+  assert.deepEqual(errors, []);
+});
+
 test("a phone can pick its first craft while a movement thumb is still down", { timeout }, async (t) => {
   const { page, press, errors } = await openGame(t, false, {
     fresh: true,

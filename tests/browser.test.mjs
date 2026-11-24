@@ -280,22 +280,46 @@ for (const tablet of [true, false])
           return Math.hypot(w.player.x - p.x, w.player.y - p.y) > 1;
         }, start);
         if (!tablet) {
+          const move = { x: 326, y: 230, id: 1 };
+          await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [move] });
+          await page.waitForFunction((x) => window.__riftTest.game.input.move.x === x, move.x);
+          const travel = await page.evaluate(() => {
+            const { input } = window.__riftTest.game;
+            const { x, y, ox, oy } = input.move;
+            return { ox, distance: Math.hypot(x - ox, y - oy), radius: input.radius() };
+          });
+          assert.ok(travel.ox > 240, "The default movement base follows a long drag");
+          assert.ok(Math.abs(travel.distance - travel.radius) < 0.1);
+          move.x = 240;
+          await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [move] });
+          await page.waitForFunction(() => {
+            const { x, ox } = window.__riftTest.game.input.move;
+            return x === 240 && x < ox;
+          });
+
           // Both sticks and DASH must coexist without stealing the movement pointer.
+          const aim = { x: 680, y: 250, id: 2 };
           await cdp.send("Input.dispatchTouchEvent", {
             type: "touchStart",
-            touchPoints: [
-              { x: 220, y: 230, id: 1 },
-              { x: 680, y: 250, id: 2 },
-            ],
+            touchPoints: [move, aim],
           });
+          aim.x -= 80;
+          await cdp.send("Input.dispatchTouchEvent", {
+            type: "touchMove",
+            touchPoints: [move, aim],
+          });
+          await page.waitForFunction((x) => window.__riftTest.game.input.aim.x === x, aim.x);
+          assert.deepEqual(
+            await page.evaluate(() => {
+              const { x, ox } = window.__riftTest.game.input.aim;
+              return { x, ox };
+            }),
+            { x: aim.x, ox: 680 },
+          );
           const dash = await page.locator("#dashBtn").boundingBox();
           await cdp.send("Input.dispatchTouchEvent", {
             type: "touchStart",
-            touchPoints: [
-              { x: 220, y: 230, id: 1 },
-              { x: 680, y: 250, id: 2 },
-              { x: dash.x + dash.width / 2, y: dash.y + dash.height / 2, id: 3 },
-            ],
+            touchPoints: [move, aim, { x: dash.x + dash.width / 2, y: dash.y + dash.height / 2, id: 3 }],
           });
           await page.waitForFunction((p) => window.__riftTest.game.world.runStats.dashes > p.dashes, start);
         }

@@ -4,6 +4,14 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "5.2.7",
+    title: "Movement follows your thumb",
+    items: [
+      "The mobile movement stick follows long drags so you can change direction quickly.",
+      "You can save either movement stick style from Button layout.",
+    ],
+  },
+  {
     version: "5.2.6",
     title: "Easier reward picks",
     items: [
@@ -36,16 +44,5 @@ export const WHATS_NEW = [
     version: "5.2.3",
     title: "Simple controls",
     items: ["Play with touch in landscape on phones and tablets, or with keyboard and mouse on desktop."],
-  },
-  {
-    version: "5.2.2",
-    title: "Steadier aim and cleaner shots",
-    items: [
-      "With Auto Fire off, the Keeper turns toward the mouse without shooting.",
-      "Aim assist checks cover from the weapon, and close enemies can be hit at the barrel.",
-      "Shots stay on course during quick turns, and Echo Shot repeats from the original spot.",
-      "Back Shot respects cover, and helper wisps turn toward what they shoot.",
-      "Star Hall and Star Heart use their own portal and aiming effects again.",
-    ],
   },
 ];
