@@ -5,7 +5,7 @@ import { enemyDefs, bossOrder, biomeVariants, bossDefs, bossByBiome, BOSS_SLOT_H
 import { clamp, TAU, turnToward, hashString, angleDiff, makeRng, dampFactor, own } from "./util.js";
 import { updateEnemy, updateBoss, initBoss } from "./ai.js";
 import { RL_BIOME_INFO, biomesById, planBiomeRoute, biomeList } from "../data/biomes.js";
-import { muzzlePoint, weaponDefs, weaponMount } from "../data/weapons.js";
+import { aimFromMuzzle, muzzlePoint, weaponDefs } from "../data/weapons.js";
 import { projectileFor } from "../data/combat-effects.js";
 import {
   waveEvents,
@@ -949,7 +949,7 @@ const rlStep = 1 / 60,
               for (let i = 0; i < player.echoQueue.length; i++) {
                 const eq = player.echoQueue[i];
                 eq.t -= dt;
-                if (eq.t <= 0) this.fire(eq.angle, eq.mul, true);
+                if (eq.t <= 0) this.fire(eq.angle, eq);
                 else player.echoQueue[ew++] = eq;
               }
               player.echoQueue.length = ew;
@@ -1239,22 +1239,17 @@ const rlStep = 1 / 60,
       let manual = !!input.aim && Math.hypot(+input.ax || 0, +input.ay || 0) > 0.2,
         aim = null;
       if (manual) {
-        aim = Math.atan2(input.ay, input.ax);
-        if (input.assist !== false) {
-          aim = this.assistAim(aim);
-        }
-        if (input.aimDistance > 1.7) aim -= Math.asin(weaponMount.side / input.aimDistance);
+        const cursor = Number.isFinite(input.aimX) && Number.isFinite(input.aimY);
+        const dx = cursor ? input.aimX - player.x : input.ax;
+        const dy = cursor ? input.aimY - player.y : input.ay;
+        const direction = Math.atan2(dy, dx);
+        const assisted = input.assist !== false ? this.assistAim(direction) : null;
+        aim = assisted ?? (cursor ? aimFromMuzzle(stats.weapon, dx, dy) : direction);
         player.target = null;
       } else {
         let target = this.pickTarget();
         player.target = target;
-        if (target) {
-          const dx = target.x - player.x,
-            dy = target.y - player.y,
-            distance = Math.hypot(dx, dy);
-          aim = Math.atan2(dy, dx);
-          if (distance > 1.7) aim -= Math.asin(weaponMount.side / distance);
-        }
+        if (target) aim = aimFromMuzzle(stats.weapon, target.x - player.x, target.y - player.y);
       }
       let firing =
         (manual && !input.aimOnly) ||
@@ -1314,25 +1309,43 @@ const rlStep = 1 / 60,
     canSee(enemy) {
       return this.shotsCrossWalls() || this.arena.los(this.player.x, this.player.y, enemy.x, enemy.y, 0.15);
     }
+    targetAim(enemy) {
+      const { player, arena } = this;
+      const weapon = this.stats.weapon;
+      const aim = aimFromMuzzle(weapon, enemy.x - player.x, enemy.y - player.y);
+      const muzzle = muzzlePoint(weapon, player.x, player.y, aim);
+      if (
+        arena.outside(muzzle.x, muzzle.y) ||
+        (!this.shotsCrossWalls() &&
+          (!arena.los(player.x, player.y, muzzle.x, muzzle.y) ||
+            !arena.los(muzzle.x, muzzle.y, enemy.x, enemy.y, 0.15)))
+      ) {
+        return null;
+      }
+      return aim;
+    }
     assistAim(angle) {
       let player = this.player,
-        best = null,
+        bestAim = null,
         bestErr = 0.22,
         range = this.stats.range + 2;
       for (let enemy of this.enemies) {
-        if (enemy.dead || enemy.ghost) continue;
+        if (enemy.dead || enemy.spawnT > 0.2 || enemy.ghost) continue;
         let dx = enemy.x - player.x,
           dy = enemy.y - player.y,
           dist = Math.hypot(dx, dy);
         if (dist > range) continue;
         let err = Math.abs(angleDiff(angle, Math.atan2(dy, dx))),
           cone = Math.min(0.35, 0.12 + Math.atan2(enemy.r, dist));
-        if (err < cone && err < bestErr + (0.05 * dist) / range && this.canSee(enemy)) {
-          best = enemy;
-          bestErr = err;
+        if (err < cone && err < bestErr + (0.05 * dist) / range) {
+          const aim = this.targetAim(enemy);
+          if (aim != null) {
+            bestAim = aim;
+            bestErr = err;
+          }
         }
       }
-      return best ? Math.atan2(best.y - player.y, best.x - player.x) : angle;
+      return bestAim;
     }
     // 2.8.0: smarter auto-aim. Enemies behind a wall are skipped (the shots would only hit the
     // wall); close enemies come first, rushers that explode or ram you even more so; enemies that
@@ -1341,24 +1354,23 @@ const rlStep = 1 / 60,
     pickTarget() {
       let player = this.player,
         range = this.stats.range + 2.5,
-        cross = this.shotsCrossWalls(),
         best = null,
         bestScore = 1 / 0;
       for (let enemy of this.enemies) {
         if (enemy.dead || enemy.spawnT > 0.2 || enemy.ghost) continue;
         let dist = Math.hypot(enemy.x - player.x, enemy.y - player.y) - enemy.r;
-        if (dist > range || (!cross && !enemy.los)) continue;
+        if (dist > range) continue;
         let score = dist;
         if (dist < 4) score *= 0.6;
         else if (dist < 7 && RL_RUSHERS.has(enemy.type)) score *= 0.75;
         if (enemy.shielded) score += 12;
         if (enemy === player.target) score *= 0.8;
-        if (score < bestScore) {
+        if (score < bestScore && this.targetAim(enemy) != null) {
           bestScore = score;
           best = enemy;
         }
       }
-      return best && (cross || this.canSee(best)) ? best : null;
+      return best;
     }
     shotOrigin(angle) {
       const { player, arena } = this;
@@ -1376,7 +1388,7 @@ const rlStep = 1 / 60,
         blocked: true,
       };
     }
-    fire(angle, echoMul = 1, isEcho = false) {
+    fire(angle, echo = null) {
       const stats = this.stats,
         player = this.player,
         weapon = stats.weapon;
@@ -1385,25 +1397,34 @@ const rlStep = 1 / 60,
         dmgBefore = stats.dmgMul;
       if (slipBoost) stats.dmgMul = dmgBefore * slipMul;
       try {
+        const { x, y } = echo ?? player;
         const count = weapon.count + (weapon.cone ? stats.extra * 2 : stats.extra),
-          mouth = this.shotOrigin(angle);
+          mouth = echo?.mouth ?? this.shotOrigin(angle);
         // Echo shots count toward weapon cadences (Sun Gun, Fire Wave)
         player.shotN = (player.shotN || 0) + 1;
         const fourthShot = player.shotN % 4 === 0,
           heavy = !!(stats.overdrive && fourthShot),
           lantern = weapon.id === "lanternGun" && fourthShot,
           twinDisc = !!(stats.twinRings && weapon.id === "ringBlade"),
+          launch = {
+            w: weapon.id,
+            x: mouth.x,
+            y: mouth.y,
+            height: mouth.height,
+            blocked: mouth.blocked,
+            a: angle,
+            heavy,
+          },
           shoot = (dir, mul) => {
             if (this.pb.length >= MAX_PLAYER_BULLETS) return;
             const spread = (this.rng.next() - 0.5) * 2 * weapon.spread,
               heading = dir + spread,
               speed = weapon.speed * stats.velMul * (weapon.cone ? 0.85 + this.rng.next() * 0.3 : 1),
-              effMul = mul * echoMul,
+              effMul = mul * (echo?.mul ?? 1),
               bullet = {
                 id: this.nextId++,
-                x: mul === 1 ? mouth.x : player.x + Math.cos(dir) * 0.75,
-                y: mul === 1 ? mouth.y : player.y + Math.sin(dir) * 0.75,
-                heroShot: mul === 1,
+                x: mul === 1 ? mouth.x : x + Math.cos(dir) * 0.75,
+                y: mul === 1 ? mouth.y : y + Math.sin(dir) * 0.75,
                 vx: Math.cos(heading) * speed,
                 vy: Math.sin(heading) * speed,
                 a: heading,
@@ -1420,6 +1441,7 @@ const rlStep = 1 / 60,
                 dashBoost: slipBoost,
                 pierceCount: 0,
               };
+            if (mul === 1) bullet.launch = launch;
             if (effMul !== 1) bullet.mul = effMul;
             if (weapon.explode) bullet.dm = stats.dmgMul;
             if (heavy && mul >= 1) {
@@ -1446,6 +1468,12 @@ const rlStep = 1 / 60,
               if (weapon.explode || stats.payloadR) this.bulletBurst(bullet, null);
               return;
             }
+            if (
+              mul !== 1 &&
+              (this.arena.outside(bullet.x, bullet.y) ||
+                (!this.shotsCrossWalls() && this.arena.rayLen(x, y, dir, 0.75) < 0.75))
+            )
+              return;
             this.pb.push(bullet);
           };
         if (mouth.blocked) this.emit("spark", { x: mouth.x, y: mouth.y, w: weapon.id });
@@ -1455,7 +1483,7 @@ const rlStep = 1 / 60,
         } else {
           for (let i = 0; i < count; i++) shoot(angle + (i - (count - 1) / 2) * weapon.fan, 1);
         }
-        // Rear Guard: astern bolts equal to ceil(count * 0.5) at 0.75x damage; Lv 2 adds flank fan
+        // Back Shot adds a rear spread, plus a shot to each side at level two.
         if (stats.rear >= 1) {
           const rearN = Math.max(1, Math.ceil(count * 0.5));
           for (let i = 0; i < rearN; i++) {
@@ -1471,17 +1499,10 @@ const rlStep = 1 / 60,
             shoot(angle - Math.PI / 2 + off, 0.75);
           }
         }
-        this.emit("shot", {
-          w: weapon.id,
-          x: mouth.x,
-          y: mouth.y,
-          height: mouth.height,
-          blocked: mouth.blocked,
-          a: angle,
-          heavy,
-        });
+        if (echo) launch.echoOf = echo.launch;
+        this.emit("shot", launch);
         // Deterministic Echo Shot ('echo'): Lv 1 every 4th shot (0.80x), Lv 2 every 3rd shot (0.95x) after 0.10s
-        if (!isEcho && stats.echo > 0 && this.state === "fight" && player.alive) {
+        if (!echo && stats.echo > 0 && this.state === "fight" && player.alive) {
           const every = stats.echo > 1 ? 3 : 4;
           if (player.shotN % every === 0) {
             if (!player.echoQueue) player.echoQueue = [];
@@ -1489,6 +1510,10 @@ const rlStep = 1 / 60,
               t: 0.1,
               angle: angle + this.rng.range(-0.025, 0.025),
               mul: stats.echo > 1 ? 0.95 : 0.8,
+              x,
+              y,
+              mouth,
+              launch,
             });
           }
         }
@@ -2738,11 +2763,18 @@ const rlStep = 1 / 60,
         if (bullet.life <= 0) continue;
         bullet.life -= dt;
         bullet.age += dt;
-        if (bullet.heroShot && bullet.age === dt) {
-          const rail = !!weaponDefs[bullet.w].starSpear;
-          this.hash.query(bullet.x, bullet.y, bullet.r + 0.8, (enemy) =>
-            this.probeHit(bullet, enemy, bullet.x, bullet.y, rail),
-          );
+        if (bullet.launch && bullet.age === dt) {
+          const weapon = weaponDefs[bullet.w];
+          const barrelLength = weapon.muzzle[0];
+          const dx = Math.cos(bullet.launch.a),
+            dy = Math.sin(bullet.launch.a);
+          const x = bullet.x,
+            y = bullet.y;
+          this.hash.query(x, y, bullet.r + Math.max(0.8, barrelLength), (enemy) => {
+            // A foe can overlap the barrel at the instant the shot leaves it.
+            const back = clamp((x - enemy.x) * dx + (y - enemy.y) * dy, 0, barrelLength);
+            return this.probeHit(bullet, enemy, x - dx * back, y - dy * back, !!weapon.starSpear);
+          });
           if (bullet.life <= 0) continue;
         }
         if (bullet.boom) {
@@ -3432,7 +3464,7 @@ const rlStep = 1 / 60,
       if (!count) return;
       let player = this.player;
       for (; player.wings.length < count;)
-        player.wings.push({ x: player.x, y: player.y, t: player.wings.length * 0.2 });
+        player.wings.push({ x: player.x, y: player.y, a: player.aim, t: player.wings.length * 0.2 });
       let damp = dampFactor(6, dt);
       for (let i = 0; i < count; i++) {
         let wing = player.wings[i],
@@ -3457,6 +3489,7 @@ const rlStep = 1 / 60,
         wing.t = this.stats.wingCycle || (this.stats.helperWisps > 1 ? 0.3 : 0.5);
         let angle = Math.atan2(target.y - wing.y, target.x - wing.x),
           spread = this.stats.wingSpread;
+        wing.a = angle;
         for (let j = 0; j < spread && !(this.pb.length >= MAX_PLAYER_BULLETS); j++) {
           let shotAngle = angle + (j - (spread - 1) / 2) * 0.16;
           this.pb.push({

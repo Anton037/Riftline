@@ -8,7 +8,7 @@ const BIOME_RETICLE = {
   lanternYard: "rgba(130,244,218,0.92)",
   snowRidge: "rgba(38,142,216,0.92)",
   mossBog: "rgba(140,255,176,0.92)",
-  starHeart: "rgba(228,176,255,0.92)",
+  starHall: "rgba(228,176,255,0.92)",
   emberHill: "rgba(255,196,104,0.94)",
   sunDunes: "rgba(36,158,154,0.92)",
 };

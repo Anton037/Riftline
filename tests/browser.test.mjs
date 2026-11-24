@@ -407,15 +407,34 @@ test(
     await page.waitForFunction((x) => window.__riftTest.game.world.player.x < x - 0.8, afterRight);
     await page.keyboard.up("ArrowLeft");
 
-    // Mouse LMB aims and fires. RMB alone dashes.
-    await page.evaluate(() => {
-      window.__riftTest.store.data.settings.autoFire = false;
+    // Aiming without Auto Fire turns the body and weapon together before the mouse is clicked.
+    const beforeAim = await page.evaluate(() => {
+      const { game, store } = window.__riftTest;
+      store.data.settings.autoFire = false;
+      const w = game.world;
+      const enemy = w.spawnEnemy("kettleGuard", w.player.x - 5, w.player.y, {});
+      enemy.spawnT = 0;
+      return w.player.shotN;
     });
     const aimPoint = await page.evaluate(() => ({
       x: Math.round(innerWidth * 0.8),
       y: Math.round(innerHeight * 0.45),
     }));
     await page.mouse.move(aimPoint.x, aimPoint.y);
+    await page.waitForFunction((shotN) => {
+      const { game, renderer } = window.__riftTest;
+      const p = game.world.player;
+      const hero = renderer.player;
+      return (
+        p.manual &&
+        !p.firing &&
+        p.shotN === shotN &&
+        Math.abs(p.aim) < 0.35 &&
+        Math.abs(hero.base.rotation.y + p.aim) < 1e-6 &&
+        Math.abs(hero.weaponBearing.rotation.y + p.aim) < 1e-6
+      );
+    }, beforeAim);
+    // Mouse LMB fires. RMB alone dashes.
     await page.mouse.down({ button: "left" });
     await page.waitForFunction(() => {
       const p = window.__riftTest.game.world.player;

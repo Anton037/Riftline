@@ -301,3 +301,42 @@ test("normal shots, flashes and the weapon model share the muzzle on all seven w
     }
   }
 });
+
+test("a projectile keeps its launch pose when the weapon turns or moves during the first frames", async () => {
+  const { World } = await import("../src/core/world.js");
+  const { buildPlayerModel } = await import("../src/render/models.js");
+  const { WeaponEffectsView } = await import("../src/render/weapon-effects-view.js");
+  const world = new World({ seed: 215, weapon: "lanternGun", threat: 0 });
+  const hero = buildPlayerModel("lanternGun", 0x91c9b4);
+  const renderer = { time: 0.5, player: hero };
+  const view = new WeaponEffectsView(renderer);
+  let center;
+  view.segment = () => {};
+  view.pulseBolts = () => ({
+    yr: (x, y, z) => (center = new Vec3(x, y, z)),
+    colC: () => {},
+  });
+  world.arena.obs = [];
+  world.player.x = world.player.y = world.player.aim = 0;
+  hero.group.position.set(0, 0.48, 0);
+  hero.base.rotation.set(0.24, 0, -0.18);
+  hero.recoil = 0.07;
+  hero.aimAt(0);
+  const modelMuzzle = hero.muzzle.getWorldPosition(new Vec3());
+  world.fire(0);
+  const [shot] = world.pb;
+  const flash = view.captureLaunch(shot.launch, hero);
+  assert.ok(flash.clone().sub(modelMuzzle).length() < 1e-6);
+  view.draw(0, world);
+  const fired = center;
+  assert.ok(fired.clone().sub(modelMuzzle).length() <= 0.060001);
+  world.player.aim = Math.PI;
+  hero.group.position.set(3, 0, 5);
+  hero.base.rotation.set(-0.15, -Math.PI, 0.2);
+  hero.aimAt(Math.PI);
+  view.draw(0, world);
+  assert.ok(center.clone().sub(fired).length() < 1e-6);
+  shot.age = 0.08;
+  view.draw(0, world);
+  assert.equal(center.y, shot.launch.height);
+});

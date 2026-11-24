@@ -1334,7 +1334,7 @@ function handleWorldEvents(world) {
         game.slowMo = Math.max(game.slowMo, 0.5);
         break;
       case "mend":
-        showTipOnce("mossHealer", "Mender-Clocks restore nearby enemies' HP. Take them out first.");
+        showTipOnce("mossHealer", RL_ENEMY_TIPS.mossHealer);
         break;
       case "bossAtk":
         overlay.callout(ev.atk, ev.id);

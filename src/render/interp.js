@@ -43,6 +43,7 @@ function capture(world) {
   count = 0;
   if (!world || !world.player) return;
   add(world.player);
+  addList(world.player.wings);
   addList(world.enemies);
   addList(world.pb);
   addList(world.eb);

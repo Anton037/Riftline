@@ -195,6 +195,8 @@ try {
         b.shieldT = 0;
         b.shielded = false;
       } else if (spec.kind === "weapon") {
+        Object.assign(input, { aim: true, aimOnly: true, assist: false, ax: 1, ay: 0 });
+        w.player.manual = true;
         for (const [x, y] of [
           [7, 2],
           [9, 4],
@@ -237,7 +239,7 @@ try {
         r.frame(1 / 60, w);
         if (spec.kind === "weapon") {
           w.hash.build(w.enemies);
-          w.fire(0);
+          w.fire(w.player.aim);
         }
         for (let frame = 0; frame < frames; frame++) {
           if (spec.kind === "trap") {
@@ -249,7 +251,7 @@ try {
             if (spec.phase === "fire" && frame === 0)
               w.emit("trapFire", { id: t.id, x: 0, y: 0, r: 2.2, skin: spec.skin, fam: spec.fam });
           } else {
-            if (spec.extra === "stream" && frame % 4 === 0) w.fire(0);
+            if (spec.extra === "stream" && frame % 4 === 0) w.fire(w.player.aim);
             w.step(1 / 60, input);
           }
           for (const shot of w.eb) if (shot.src === spec.boss) seenShots.add(shot.kind);

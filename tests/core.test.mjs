@@ -6,7 +6,7 @@ const pkg = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.ur
 globalThis.__RL_VERSION__ = pkg.version;
 globalThis.__RL_BUILD__ = pkg.riftline.build;
 const { World } = await import("../src/core/world.js");
-const { weaponOrder, weaponDefs } = await import("../src/data/weapons.js");
+const { weaponOrder, weaponDefs, muzzlePoint } = await import("../src/data/weapons.js");
 const { biomeList, RL_BIOME_HAZARD } = await import("../src/data/biomes.js");
 const { bossByBiome, bossDefs } = await import("../src/data/enemies.js");
 const { upgradeList } = await import("../src/data/upgrades.js");
@@ -824,6 +824,66 @@ test("a gun at the edge of cover cannot fire through a wall between the body and
   assert.ok(Math.abs(event.x - 0.7) < 1e-6);
   assert.equal(w.pb.length, 0);
   assert.ok(w.fx.some(({ k }) => k === "spark"));
+});
+
+test("auto aim drops a covered favorite and acquires a clear target before the AI sight cache updates", () => {
+  const w = new World({ seed: 929, weapon: "lanternGun", threat: 0 });
+  w.player.x = w.player.y = 0;
+  w.arena.obs = [{ t: "b", x: 2.6, y: 0, w: 0.3, h: 0.55 }];
+  const covered = w.spawnEnemy("kettleGuard", 4, 0, {});
+  const clear = w.spawnEnemy("kettleGuard", 0, 7, {});
+  Object.assign(covered, { spawnT: 0, los: true });
+  Object.assign(clear, { spawnT: 0, los: false });
+  w.player.target = covered;
+  assert.equal(w.pickTarget(), clear);
+});
+
+test("aim assist uses the enemy's position while unassisted mouse aim reaches the cursor from the muzzle", () => {
+  const w = new World({ seed: 929, weapon: "lanternGun", threat: 0 });
+  w.player.x = w.player.y = 0;
+  w.arena.obs = [];
+  const enemy = w.spawnEnemy("kettleGuard", 4, 0.35, {});
+  enemy.spawnT = 0;
+  const mouse = { ax: 1, ay: 0, aim: true, aimX: 12, aimY: 0, aimOnly: true, mx: 0, my: 1 };
+  for (const assist of [true, false]) {
+    w.updatePlayer(1 / 60, { ...mouse, assist });
+    const { x, y, aim } = w.player;
+    const target = assist ? enemy : { x: mouse.aimX, y: mouse.aimY };
+    const muzzle = muzzlePoint(w.stats.weapon, x, y, aim);
+    assert.ok(Math.abs((target.x - muzzle.x) * Math.sin(aim) - (target.y - muzzle.y) * Math.cos(aim)) < 1e-8);
+    assert.equal(w.player.firing, false);
+  }
+  assert.equal(w.pb.length, 0);
+});
+
+test("Echo Shot repeats the original muzzle launch after moving and turning", () => {
+  const w = new World({ seed: 929, weapon: "lanternGun", threat: 0 });
+  w.arena.obs = [];
+  Object.assign(w.player, { x: 0, y: 0, aim: 0, shotN: 3 });
+  w.stats.echo = 1;
+  w.fire(w.player.aim);
+  const original = w.pb[0];
+  const [echo] = w.player.echoQueue;
+  Object.assign(w.player, { x: 5, y: -3, aim: Math.PI });
+  w.fire(echo.angle, echo);
+  const duplicate = w.pb[1];
+  assert.deepEqual([duplicate.x, duplicate.y], [original.x, original.y]);
+  assert.ok(duplicate.vx > 0);
+  assert.equal(duplicate.launch.echoOf, original.launch);
+});
+
+test("Back Shot respects cover and a long barrel still lands point-blank shots", () => {
+  const w = new World({ seed: 929, weapon: "starSpear", threat: 0 });
+  w.player.x = w.player.y = 0;
+  w.arena.obs = [{ t: "b", x: -0.65, y: 0, w: 0.025, h: 0.4 }];
+  w.stats.rear = 1;
+  w.fire(0);
+  assert.equal(w.pb.length, 1);
+  const close = w.spawnEnemy("kettleGuard", 0.68, 0.36, {});
+  Object.assign(close, { spawnT: 0, r: 0.25 });
+  w.hash.build(w.enemies);
+  w.updatePBullets(1 / 60);
+  assert.ok(close.hp < close.maxHp);
 });
 
 test("Ring Blade returns to the weapon instead of disappearing into the player's body", () => {

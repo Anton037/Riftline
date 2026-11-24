@@ -4,6 +4,17 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "5.2.2",
+    title: "Steadier aim and cleaner shots",
+    items: [
+      "With Auto Fire off, the Keeper turns toward the mouse without shooting.",
+      "Aim assist checks cover from the weapon, and close enemies can be hit at the barrel.",
+      "Shots stay on course during quick turns, and Echo Shot repeats from the original spot.",
+      "Back Shot respects cover, and helper wisps turn toward what they shoot.",
+      "Star Hall and Star Heart use their own portal and aiming effects again.",
+    ],
+  },
+  {
     version: "5.2.1",
     title: "Cleaner menus",
     items: [
@@ -39,16 +50,6 @@ export const WHATS_NEW = [
       "Cleaner combat visuals with falling Starfall comets, shootable forge bombs, and a full Lantern Keeper defeat animation.",
       "The Lantern Keeper now turns naturally toward your aim with steady weapon handling and movement lean.",
       "Added multi-charge dash pips, 50% boss phase markers, clearer craft descriptions, and 8 reworked realm events.",
-    ],
-  },
-  {
-    version: "5.0.0",
-    title: "Interactive realm relics and living diorama worlds",
-    items: [
-      "Every realm features bespoke perimeter architecture, corner landmarks, sculpted cover, and interactive relics to spark or shatter.",
-      "The Lantern Keeper, all seven handcrafted arms, 25 animated enemies with 3D variant gear, and six multi-phase bosses come alive.",
-      "Six per-realm musical arrangements, scale-tuned reward chimes, and handcrafted surface footsteps enrich every expedition.",
-      "The Home sanctuary plinth, arm-inspection flourish, relic HUD buffs, and gilded storybook frames complete the overhaul.",
     ],
   },
 ];

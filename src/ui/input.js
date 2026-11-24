@@ -35,7 +35,7 @@ const Input = class {
     this.move = newStick();
     this.aim = newStick();
     this.keys = new Set();
-    this.mouse = { x: 0, y: 0, down: false };
+    this.mouse = { x: NaN, y: NaN, down: false };
     this.pending = { dash: 0, fireBurst: 0, gravityBell: 0, fire: 0 };
     this.pads = new Set();
     this.padButtons = [];
@@ -494,7 +494,8 @@ const Input = class {
     let ax = 0,
       ay = 0,
       aim = false,
-      aimDistance = 0,
+      aimX,
+      aimY,
       fire = false;
     if (this.aim.active) {
       let dx = this.aim.x - this.aim.ox,
@@ -524,6 +525,7 @@ const Input = class {
     } else if (RL_INPUT.touch) {
       fire ||= bufferedFire;
     } else if (this.r && Number.isFinite(this.mouse.x) && Number.isFinite(this.mouse.y)) {
+      fire = this.mouse.down || bufferedFire;
       let ground = this.r.groundAt(this.mouse.x, this.mouse.y);
       if (ground) {
         let dx = ground.x - world.player.x,
@@ -533,16 +535,16 @@ const Input = class {
           lookX = dx / dist;
           lookY = dy / dist;
           hasLook = true;
-          if (!aim && (this.mouse.down || bufferedFire)) {
+          if (!aim && (fire || settings.autoFire === false)) {
             ax = lookX;
             ay = lookY;
-            aimDistance = dist;
+            aimX = ground.x;
+            aimY = ground.y;
             aim = true;
-            this.usedAim = true;
+            if (fire) this.usedAim = true;
           }
         }
       }
-      if (!aim && (this.mouse.down || bufferedFire)) fire = true;
     }
     this.manualAim = !!(aim || this.mouse.down || this.aim.active);
     this.showReticle =
@@ -553,9 +555,10 @@ const Input = class {
       ax,
       ay,
       aim,
-      aimDistance,
+      aimX,
+      aimY,
       fire,
-      aimOnly: RL_INPUT.gamepad && !fire,
+      aimOnly: (!RL_INPUT.touch || RL_INPUT.gamepad) && !fire,
       lookX,
       lookY,
       hasLook,

@@ -197,7 +197,7 @@ const upgradeList = [
     max: 2,
     icon: "fan",
     desc: (level) =>
-      (level === 0 ? "Also fire astern" : "Also fire astern and to both flanks") +
+      (level === 0 ? "Fire extra shots backward" : "Fire extra shots backward and to both sides") +
       " at 75% damage (scales with Extra Shots)",
   },
   {

@@ -78,6 +78,8 @@ try {
       w.player.hurtT = 0;
       w.player.x = 0;
       w.player.y = 2;
+      w.player.aim = 0;
+      w.player.firing = true;
       w.enemies.length = 0;
       ["kettleGuard", "smallBug", "sporePod", "shieldGuard"].forEach((id, i) => {
         const e = w.spawnEnemy(id, (i % 2 ? 1 : -1) * 3, Math.floor(i / 2) * 5, {});
@@ -98,7 +100,7 @@ try {
       } finally {
         r.renderer.render = draw;
       }
-      w.fire(0);
+      w.fire(w.player.aim);
       const victim = w.enemies[0];
       w.hurtEnemy(victim, 99999, 1, 0, 0, false);
       r.consume(w.fx, w, T.store.data.settings);
@@ -145,7 +147,7 @@ try {
       r.frame(0.01, w);
       const d = r.player,
         angle = (turn * Math.PI) / 4;
-      d.base.rotation.set(turn % 2 ? 0.25 : 0, 0, -0.1, "YZX");
+      d.base.rotation.set(turn % 2 ? 0.25 : 0, -angle, -0.1, "YZX");
       d.group.position.set(0, d.setWalk(turn * 0.8, 0.8, turn === 6 ? 1 : 0, 8), 0);
       d.recoil = 0.07;
       d.aimAt(angle);

@@ -64,7 +64,7 @@ import { actorMaterial } from "../data/materials.js";
 import { AMBIENT_POOL_SHARE } from "../data/atmosphere.js";
 import { enemyDefs, eliteAffixes, bossDefs, biomeVariants } from "../data/enemies.js";
 import { biomeList } from "../data/biomes.js";
-import { muzzlePoint, weaponDefs } from "../data/weapons.js";
+import { weaponDefs } from "../data/weapons.js";
 import { STEP_LEN, DASH_TIME } from "../core/walk.js";
 import { logError } from "../core/diagnostics.js";
 import { smoothstep, clamp, TAU, easeOutBack, dampFactor, angleDiff } from "../core/util.js";
@@ -97,7 +97,7 @@ const BOSS_PORTAL = {
   bellKeeper: [hexColor(FINISH.brass), hexColor(FINISH.ivory)],
   iceCrystal: [hexColor(FINISH.glacier), hexColor(FINISH.ivory)],
   mossQueen: [hexColor(FINISH.jade), hexColor(0xd6ffe8)],
-  starHall: [hexColor(FINISH.lavender), hexColor(0xff84cc)],
+  starHeart: [hexColor(FINISH.lavender), hexColor(0xff84cc)],
   emberKing: [hexColor(0xff8c36), hexColor(0xffe094)],
   sandDragon: [hexColor(0xffd27a), hexColor(0x76e8d4)],
 };
@@ -114,7 +114,7 @@ const BIOME_PORTAL_ACCENT = {
   lanternYard: hexColor(0xf2be72),
   snowRidge: hexColor(0x9ceeff),
   mossBog: hexColor(0x7cf8b2),
-  starHeart: hexColor(0xd29cff),
+  starHall: hexColor(0xd29cff),
   emberHill: hexColor(0xffa248),
   sunDunes: hexColor(0x68f0de),
 };
@@ -965,23 +965,17 @@ export class Renderer {
           const color = hexColor(def.color);
           const dirX = Math.cos(ev.a),
             dirZ = Math.sin(ev.a);
-          const muzzle = this._shotMuzzle || (this._shotMuzzle = new Vec3());
-          this.player.muzzle.getWorldPosition(muzzle);
-          if (ev.blocked) {
-            muzzle.set(ev.x, ev.height, ev.y);
-          } else {
-            // Carry the last rendered recoil and body lean onto the new shot direction.
-            const pose = this.player.group.position;
-            const rest = muzzlePoint(def, pose.x, pose.z, -this.player.aimYaw);
-            const x = muzzle.x - rest.x,
-              z = muzzle.z - rest.y,
-              turn = ev.a + this.player.aimYaw;
-            muzzle.x = ev.x + x * Math.cos(turn) - z * Math.sin(turn);
-            muzzle.z = ev.y + x * Math.sin(turn) + z * Math.cos(turn);
+          if (!ev.echoOf && this.playerWeapon === ev.w) {
+            this.player.recoil = Math.min(
+              0.08,
+              this.player.recoil + (def.id === "starSpear" || def.id === "brassShotgun" ? 0.065 : 0.038) * this.motion,
+            );
           }
-          this.player.recoil = Math.min(
-            0.08,
-            this.player.recoil + (def.id === "starSpear" || def.id === "brassShotgun" ? 0.065 : 0.038) * this.motion,
+          // The simulation emits its own spark at the contact point when cover blocks the barrel.
+          if (ev.blocked) break;
+          const muzzle = this.weaponView.captureLaunch(
+            ev,
+            this._poseWorld === world && this.playerWeapon === ev.w ? this.player : null,
           );
           const muzzleKind = WEAPON_EFFECTS[ev.w].muzzle;
           if (muzzleKind === "arc") {
@@ -1057,7 +1051,7 @@ export class Renderer {
                 muzzle.y,
               );
             }
-            this.ring(muzzle.x + dirX * 0.15, muzzle.z + dirZ * 0.15, 0.12, 0.85, color, 0.14);
+            this.ring(muzzle.x + dirX * 0.15, muzzle.z + dirZ * 0.15, 0.12, 0.85, color, 0.14, muzzle.y);
             this.emit(muzzle.x, muzzle.y, muzzle.z, dirX * 5, 0, dirZ * 5, 0.08, 0.42, whiteColor, { drag: 0 });
           } else if (muzzleKind === "backblast") {
             this.line(
@@ -1104,12 +1098,15 @@ export class Renderer {
           if (["lanternGun", "brassShotgun", "emberLauncher", "fireBellows"].includes(def.id)) {
             this.smokeView.emit(muzzle.x, muzzle.y, muzzle.z, def.id === "brassShotgun" ? 0.5 : 0.3, 0x9da7a8, 0.35);
           }
-          this.muzzle = Math.min(1, (this.muzzle || 0) + (def.id === "fireBellows" ? 0.14 : 0.65));
-          this._muzzleCol.copy(color);
+          if (!ev.echoOf) {
+            this.muzzle = Math.min(1, (this.muzzle || 0) + (def.id === "fireBellows" ? 0.14 : 0.65));
+            this._muzzleCol.copy(color);
+          }
           if (!this.lastMuzzleT || this.time - this.lastMuzzleT > 0.05) {
             this.lastMuzzleT = this.time;
             this.flashes.push({
               x: muzzle.x,
+              y: muzzle.y,
               z: muzzle.z,
               r: def.id === "starSpear" ? 3.4 : 2.3,
               i: def.id === "fireBellows" ? 0.4 : 0.6,
@@ -1118,11 +1115,11 @@ export class Renderer {
               muzzle: true,
             });
           }
-          if (def.shake > 0.04 && shakeK) {
+          if (!ev.echoOf && def.shake > 0.04 && shakeK) {
             this.kick = Math.min(0.6, this.kick + def.shake * 2.2 * this.motion);
             this.kickA = ev.a;
           }
-          if (def.starSpear && !ev.blocked) {
+          if (def.starSpear) {
             const len = world.stats.starLance
               ? world.stats.range
               : world.arena.rayLen(ev.x, ev.y, ev.a, world.stats.range);
@@ -1131,7 +1128,7 @@ export class Renderer {
               this.line(muzzle.x, muzzle.z, ev.x + dirX * len, ev.y + dirZ * len, whiteColor, 0.09, 0.03, muzzle.y);
             }
           }
-          this.addShake(def.shake * 0.3 * shakeK);
+          if (!ev.echoOf) this.addShake(def.shake * 0.3 * shakeK);
           break;
         }
         case "wingShot":
@@ -1980,6 +1977,7 @@ export class Renderer {
   }
 
   drawMenuPlayer(dt) {
+    this._poseWorld = null;
     const hero = this.player;
     hero.group.visible = true;
     hero.resetPose?.();
@@ -2024,6 +2022,7 @@ export class Renderer {
     const player = world.player;
     const hero = this.player;
     const dying = !player.alive && world.state === "dead";
+    this._poseWorld = player.alive ? world : null;
     hero.group.visible = player.alive || dying;
     if (this.heroLocator) {
       this.heroLocator.root.visible = player.alive;
@@ -2181,7 +2180,7 @@ export class Renderer {
         this.sprites.colHex(this.sprites.bb(bx, 0.62, bz, 0.78, basis), FINISH.copper, 0.28);
       }
       for (const wing of player.wings) {
-        this.wing.y(wing.x, Math.sin(time * 4 + wing.x) * 0.1, wing.y, player.aim, 1.3);
+        this.wing.y(wing.x, Math.sin(time * 4 + wing.x) * 0.1, wing.y, wing.a ?? player.aim, 1.3);
         this.sprites.colHex(this.sprites.bb(wing.x, 0.9, wing.y, 1.05, basis), weaponDefs[world.weapon].color, 0.55);
         this.shadows.y(wing.x, 0.025, wing.y, 0, 0.9);
       }
@@ -3423,6 +3422,9 @@ export class Renderer {
   }
 
   clearTransient() {
+    this._poseWorld = null;
+    this.muzzle = 0;
+    this.lastMuzzleT = 0;
     this.P.n = 0;
     this.D.clear();
     this.nums.length = 0;
