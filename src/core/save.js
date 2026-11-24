@@ -173,6 +173,7 @@ const SAVE_KEY = "riftline.save.v1",
     assist: true,
     numbers: true,
     frameRate: 60,
+    performanceOverlay: false,
     // the button layout (ui/hud-layout.js): opacity of the buttons, stick size, a fixed move stick, and the places
     // and sizes of the buttons per orientation (null: the default layout)
     hudAlpha: 1,

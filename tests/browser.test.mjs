@@ -286,13 +286,24 @@ test(
     assert.equal(settingsCheck.audit.ok, true, JSON.stringify(settingsCheck.audit.findings));
 
     await page.locator("#hudEditRow").waitFor({ state: "hidden" });
-    assert.equal(await page.locator("#settingsControlsCard .pad-control:visible").count(), 0);
+    assert.equal(await page.locator("#settingsControlsCard").count(), 0);
+    const performanceSetting = page.getByRole("checkbox", { name: /Performance overlay/ });
+    assert.equal(await performanceSetting.isChecked(), false);
+    assert.equal(await page.locator("#performanceOverlay").isVisible(), false);
+    await performanceSetting.check();
+    assert.equal(await page.locator("#performanceOverlay").isVisible(), false);
     await page.keyboard.press("Escape");
     await visible(page, "home");
 
     await press("#playBtn");
     await visible(page, "hud");
     await page.waitForFunction(() => window.__riftTest.game.world?.time > 0.1);
+    const readout = page.locator("#performanceOverlay");
+    await readout.filter({ hasText: /^\d+ FPS · \d+\.\d ms CPU$/ }).waitFor({ state: "visible" });
+    const measuredFps = Number.parseInt(await readout.textContent(), 10);
+    assert.ok(measuredFps > 0 && measuredFps <= 32, `30 FPS cap measured ${measuredFps} FPS`);
+    assert.equal(await page.locator("#pauseBtn .key").count(), 0);
+
     const hudDesktop = await page.evaluate(() => ({
       activeTag: document.activeElement?.tagName,
       dashKey: getComputedStyle(document.querySelector("#dashBtn .key")).display !== "none",
@@ -401,9 +412,13 @@ test(
     // Esc pauses, Pause -> Settings -> Esc returns to Pause, P resumes
     await page.keyboard.press("Escape");
     await visible(page, "pause");
+    assert.equal(await readout.isVisible(), false);
+    assert.equal(await page.locator("#pause .controls-card").count(), 0);
     await press("#pauseSetBtn");
     await visible(page, "settings");
     assert.equal(await page.evaluate(() => document.getElementById("settings").classList.contains("in-run")), true);
+    assert.equal(await performanceSetting.isChecked(), true);
+    await performanceSetting.uncheck();
     await page.keyboard.press("Escape");
     await hidden(page, "settings");
     await visible(page, "pause");
@@ -428,8 +443,9 @@ test(
     await visible(page, "resumeCount");
     await page.waitForFunction(() => !window.__riftTest.game.paused);
     await hidden(page, "resumeCount");
+    assert.equal(await readout.isVisible(), false);
 
-    // Wave clear -> key badges, R reroll, B banish + 1 banish pick, 2 upgrade pick
+    // Wave clear, reroll, seal, and pick with keyboard shortcuts.
     await page.evaluate(() => {
       const w = window.__riftTest.game.world;
       w.rerolls = 2;
@@ -443,16 +459,9 @@ test(
     });
     await visible(page, "choose");
     await page.locator("#cards:not(.locked)").waitFor();
-    const chooseBadges = await page.evaluate(() => ({
-      cards: [...document.querySelectorAll("#cards .card-key")].map((el) => el.textContent),
-      seal: document.querySelector("#sealBtn .card-key")?.textContent,
-      reroll: document.querySelector("#rerollBtn .card-key")?.textContent,
-      audit: window.__riftLayoutAudit(),
-    }));
-    assert.deepEqual(chooseBadges.cards, ["1", "2", "3"]);
-    assert.equal(chooseBadges.seal, "B");
-    assert.equal(chooseBadges.reroll, "R");
-    assert.equal(chooseBadges.audit.ok, true, JSON.stringify(chooseBadges.audit.findings));
+    assert.equal(await page.locator("#choose .card-key").count(), 0);
+    const choiceAudit = await page.evaluate(() => window.__riftLayoutAudit());
+    assert.equal(choiceAudit.ok, true, JSON.stringify(choiceAudit.findings));
 
     const rarityCheck = await page.evaluate(() => {
       const { game, ui } = window.__riftTest;
@@ -527,7 +536,7 @@ test(
       () => window.__riftTest.game.world.wave === 2 && document.getElementById("choose").hidden,
     );
 
-    // End screen R badge & R retry
+    // The keyboard shortcut remains available on the clean end screen.
     await page.evaluate(() => {
       const w = window.__riftTest.game.world;
       w.god = false;
@@ -537,7 +546,7 @@ test(
       w.hurtPlayer(99999, null, null, "devil", true);
     });
     await visible(page, "over");
-    assert.equal(await page.locator("#retryBtn .card-key").textContent(), "R");
+    assert.equal(await page.locator("#over kbd").count(), 0);
     await page.keyboard.press("KeyR");
     await hidden(page, "over");
     await visible(page, "hud");

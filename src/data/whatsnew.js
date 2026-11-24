@@ -4,6 +4,11 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "5.2.1",
+    title: "Cleaner menus",
+    items: ["Settings can show live FPS and CPU frame time during play."],
+  },
+  {
     version: "5.2.0",
     title: "Simpler names and clearer shots",
     items: [
@@ -40,16 +45,6 @@ export const WHATS_NEW = [
       "The Lantern Keeper, all seven handcrafted arms, 25 animated enemies with 3D variant gear, and six multi-phase bosses come alive.",
       "Six per-realm musical arrangements, scale-tuned reward chimes, and handcrafted surface footsteps enrich every expedition.",
       "The Home sanctuary plinth, arm-inspection flourish, relic HUD buffs, and gilded storybook frames complete the overhaul.",
-    ],
-  },
-  {
-    version: "4.6.0",
-    title: "Storybook diorama worlds, crisp craft cards and combat clarity",
-    items: [
-      "Soft shadows, warm lantern lighting, and delicate ink contours bring every miniature arena to life.",
-      "Explore full diorama worlds beyond every arena: canal towns, Nordic lodges, bog huts, astral islands, lava aqueducts, and desert oases.",
-      "Craft cards and menus use high-contrast nocturnal velvet frames, jewel rarity badges, and structured stat pills.",
-      "Calmer walkable floors, a hero foot compass, and hit-drain bars keep dense fights easy to read.",
     ],
   },
 ];

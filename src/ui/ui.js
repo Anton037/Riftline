@@ -11,7 +11,7 @@ import { waveEvents } from "../core/waves.js";
 import { milestones, workshopModules, threatLevels } from "../data/progression.js";
 import { upgradeList, rarityNames, upgradesById } from "../data/upgrades.js";
 import { computeStats, weaponRange, buildStatRows } from "../core/stats.js";
-import { RL_INPUT, setTouchInput } from "./input.js";
+import { setTouchInput } from "./input.js";
 import { WHATS_NEW } from "../data/whatsnew.js";
 import { MUTATORS } from "../core/mutators.js";
 import { markHomeViewDirty } from "../render/renderer.js";
@@ -253,7 +253,7 @@ const getById = (id) => document.getElementById(id),
       this.buffTimed = new Map();
       this.dlgResolve = null;
       this.fillIcons(document);
-      getById("pauseBtn").innerHTML = iconSvg("pause") + '<span class="key" aria-hidden="true">ESC</span>';
+      getById("pauseBtn").innerHTML = iconSvg("pause");
       this.bind();
     }
     fillIcons(root) {
@@ -459,6 +459,7 @@ const getById = (id) => document.getElementById(id),
       bindToggle("setAuto", "autoFire");
       bindToggle("setAssist", "assist");
       bindToggle("setNumbers", "numbers");
+      bindToggle("setPerformance", "performanceOverlay");
       bindToggle("setMuted", "muted");
       const setRangeFill = (input) => {
         if (!input) return;
@@ -1001,6 +1002,7 @@ const getById = (id) => document.getElementById(id),
       getById("setAuto").checked = settings.autoFire;
       getById("setAssist").checked = settings.assist;
       getById("setNumbers").checked = settings.numbers;
+      getById("setPerformance").checked = settings.performanceOverlay;
       if (getById("setMuted")) getById("setMuted").checked = !!settings.muted;
       const masterVal = settings.master ?? 1;
       if (getById("setMaster")) {
@@ -1582,10 +1584,6 @@ const getById = (id) => document.getElementById(id),
       box.innerHTML = chips.map(([text, cls]) => `<span class="nw ${cls}">${escapeHtml(text)}</span>`).join("");
     }
     renderCards(world) {
-      for (const id of ["rerollBtn", "sealBtn"])
-        getById(id)
-          .querySelectorAll(".card-key")
-          .forEach((el) => el.remove());
       const tierCrests = ["", "\u25c7", "\u25c6", "\u25c8", "\u2605", "\u2726", "\u265b"];
       let cards = getById("cards");
       cards.innerHTML = world.offer
@@ -1641,16 +1639,6 @@ const getById = (id) => document.getElementById(id),
       getById("rerollBtn").disabled = world.rerolls <= 0;
       getById("buildStrip").innerHTML = this.buildHtml(world, true);
       if (getById("chooseUpInfo")) getById("chooseUpInfo").hidden = true;
-      if (!RL_INPUT.touch && !RL_INPUT.gamepad) {
-        cards.querySelectorAll("[data-pick]").forEach((card, i) => {
-          card.classList.add("has-key");
-          card.insertAdjacentHTML("beforeend", `<kbd class="card-key" aria-hidden="true">${i + 1}</kbd>`);
-        });
-        if (!getById("sealBtn").hidden) {
-          getById("sealTxt").insertAdjacentHTML("afterend", '<kbd class="card-key inline" aria-hidden="true">B</kbd>');
-        }
-        getById("rerollTxt").insertAdjacentHTML("afterend", '<kbd class="card-key inline" aria-hidden="true">R</kbd>');
-      }
     }
     statDelta(id, world) {
       let player = world.player,
@@ -1762,8 +1750,8 @@ const getById = (id) => document.getElementById(id),
       // 2.4.2: the build in the pause menu explains each craft on tap or click
       const own = upgradeList.filter((upgrade) => world.up[upgrade.id] && !upgrade.repeat),
         info = getById("pauseUpInfo");
-      getById("pauseBuild").innerHTML = own.length ? this.buildHtml(world, true) : this.buildHtml(world, false);
-      info.hidden = !own.length;
+      getById("pauseCrafts").hidden = !own.length;
+      getById("pauseBuild").innerHTML = own.length ? this.buildHtml(world, true) : "";
       info.innerHTML = '<p class="note">Select a craft to see what it does.</p>';
     }
     /* 3.22.0: the numbers behind the build: the value now and, next to it, how far it is from what the weapon has without the
@@ -1850,18 +1838,9 @@ const getById = (id) => document.getElementById(id),
           .map((text) => `<span class="chip">${iconSvg("trophy")} Milestone ready: ${escapeHtml(text)}</span>`)
           .join("");
       this.renderDamage(result);
-      for (const id of ["endlessBtn", "retryBtn"])
-        getById(id)
-          .querySelectorAll(".card-key")
-          .forEach((el) => el.remove());
       getById("endlessBtn").hidden = !result.canEndless;
       getById("retryBtn").hidden = false;
       getById("retryBtn").classList.toggle("primary", !result.canEndless);
-      // 3.45.4: R runs again from the end screen (keyboard players only)
-      if (!RL_INPUT.touch && !RL_INPUT.gamepad) {
-        const targetBtn = getById(result.canEndless ? "endlessBtn" : "retryBtn");
-        targetBtn.insertAdjacentHTML("beforeend", '<kbd class="card-key inline" aria-hidden="true">R</kbd>');
-      }
       overEl.hidden = false;
       this.countUp(getById("payTotal"), result.total);
       this.renderRunExtra();

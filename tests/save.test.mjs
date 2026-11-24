@@ -134,10 +134,12 @@ test("progress and settings survive a store round-trip and settings reset", () =
   const store = new SaveStore();
   store.data.shards = 1234;
   store.data.settings.music = 0.2;
+  store.data.settings.performanceOverlay = true;
   store.save("test");
   const loaded = new SaveStore();
   assert.equal(loaded.data.shards, 1234);
   assert.equal(loaded.data.settings.music, 0.2);
+  assert.equal(loaded.data.settings.performanceOverlay, true);
   loaded.resetSettings();
   assert.equal(new SaveStore().data.shards, 1234);
   assert.deepEqual(new SaveStore().data.settings, newSave().settings);

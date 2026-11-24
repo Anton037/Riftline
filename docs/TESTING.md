@@ -42,7 +42,7 @@ For centre/edge/corner screenshots use `node tools/verify.js visual <tag> tablet
   when storage is full. Failed explicit imports/resets retain old progress; successful ones recover held saves.
 - Choice snapshots keep the RNG through rerolls, banishes and repeated resumes.
 - The desktop flow covers input-specific controls, modifier passthrough, keyboard movement and card shortcuts,
-  mouse aim and right-click dash, buffered actions, and the 0.8 s resume countdown. Backgrounding during the
+  mouse aim and right-click dash, buffered actions, the in-run performance overlay, and the 0.8 s resume countdown. Backgrounding during the
   countdown returns to Pause without advancing the world. A standard Gamepad API fixture tests connection,
   stick dead zones, movement, aiming, abilities, pause, and disconnection.
 - The tablet and landscape phone flows exercise multitouch ownership, pause, settings, resizing and offline run

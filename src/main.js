@@ -891,11 +891,47 @@ if (typeof matchMedia === "function") {
   const motionQuery = matchMedia("(prefers-reduced-motion: reduce)");
   if (motionQuery.addEventListener) motionQuery.addEventListener("change", () => applySettings());
 }
+const performanceOverlay = getById("performanceOverlay");
+let perfWindowAt = 0,
+  perfFrameCount = 0,
+  perfCpuMs = 0;
+
+function updatePerformanceOverlay(now, workMs) {
+  const state = game.world?.state;
+  if (
+    workMs == null ||
+    game.mode !== "game" ||
+    game.paused ||
+    game.overShown ||
+    document.hidden ||
+    (state !== "fight" && state !== "cleared")
+  ) {
+    performanceOverlay.hidden = true;
+    return;
+  }
+  if (performanceOverlay.hidden) {
+    perfWindowAt = now;
+    perfFrameCount = perfCpuMs = 0;
+    performanceOverlay.textContent = "Measuring…";
+    performanceOverlay.hidden = false;
+    return;
+  }
+  perfFrameCount++;
+  perfCpuMs += workMs;
+  const elapsed = now - perfWindowAt;
+  if (elapsed < 500) return;
+  const fps = Math.round((1000 * perfFrameCount) / elapsed);
+  performanceOverlay.textContent = `${fps} FPS · ${(perfCpuMs / perfFrameCount).toFixed(1)} ms CPU`;
+  perfWindowAt = now;
+  perfFrameCount = perfCpuMs = 0;
+}
+
 function applySettings() {
   let settings = store.data.settings,
     master = settings.muted ? 0 : (settings.master ?? 1);
   sound.setVolumes(settings.sfx * master, settings.music * master, settings.ambience * master);
   ui.syncMuteButton();
+  if (!settings.performanceOverlay) performanceOverlay.hidden = true;
   input.stickScale = settings.stickSize;
   input.fixedMove = settings.stickFixed ? (radius) => fixedStickCenter(store.data.settings, radius) : null;
   placeHud();
@@ -952,12 +988,18 @@ function loopTick(now) {
       }
       input.pollGamepad();
       const frameStart = performance.now();
+      const renderStats = store.data.settings.performanceOverlay && renderer?.renderer.info.render;
+      const frameBefore = renderStats?.frame;
       runFrame(dt);
       frameErrorCount = 0;
-      if (RL_MON)
-        try {
-          rlMonFrame(performance.now() - frameStart);
-        } catch {}
+      if (renderStats || RL_MON) {
+        const workMs = performance.now() - frameStart;
+        if (renderStats) updatePerformanceOverlay(now, renderStats.frame > frameBefore ? workMs : null);
+        if (RL_MON)
+          try {
+            rlMonFrame(workMs);
+          } catch {}
+      }
     } catch (err) {
       frameErrorCount++;
       logError("frame", err);
@@ -1530,6 +1572,7 @@ function safeAreaInsets() {
 }
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") {
+    performanceOverlay.hidden = true;
     if (game.mode === "game") {
       game.pause();
     }
