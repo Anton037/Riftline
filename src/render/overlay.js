@@ -2,7 +2,7 @@
 
 import { enemyDefs, bossDefs } from "../data/enemies.js";
 import { clamp } from "../core/util.js";
-import { RL_INPUT } from "../ui/input.js";
+import { touchInput } from "../ui/input.js";
 
 const BIOME_RETICLE = {
   lanternYard: "rgba(130,244,218,0.92)",
@@ -196,8 +196,7 @@ const healthBarTypes = {
       if (target && !target.dead && player.firing && !player.manual && player.alive) return true;
       if (
         input &&
-        !RL_INPUT.touch &&
-        !RL_INPUT.gamepad &&
+        !touchInput &&
         input.mouse &&
         Number.isFinite(input.mouse.x) &&
         Number.isFinite(input.mouse.y) &&
@@ -210,7 +209,7 @@ const healthBarTypes = {
       if (opts.hints) return true;
       if (
         input &&
-        ((input.fixedMove && !input.move?.active && RL_INPUT.touch) || input.move?.active || input.aim?.active)
+        ((input.fixedMove && !input.move?.active && touchInput) || input.move?.active || input.aim?.active)
       ) {
         return true;
       }
@@ -302,8 +301,7 @@ const healthBarTypes = {
       // Custom mouse reticle with crisp recoil-bloom feedback during manual/cursor aim
       if (
         input &&
-        !RL_INPUT.touch &&
-        !RL_INPUT.gamepad &&
+        !touchInput &&
         input.mouse &&
         Number.isFinite(input.mouse.x) &&
         Number.isFinite(input.mouse.y) &&
@@ -641,7 +639,7 @@ const healthBarTypes = {
     drawSticks(input, opts) {
       let ctx = this.g;
       // a fixed move stick shows where it waits while no thumb is on it (only for touch play)
-      if (input.fixedMove && !input.move.active && RL_INPUT.touch) {
+      if (input.fixedMove && !input.move.active && touchInput) {
         let radius = input.radius(),
           center = input.fixedMove(radius);
         ctx.globalAlpha = 0.5;

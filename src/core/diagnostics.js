@@ -2,6 +2,7 @@
 // crash screen's "Copy" and to the tests (window.__riftTest); 3.35.0: the Diagnostics dialog of the settings is gone.
 
 import { GameUI, RL_TOUCH_CLICK_GUARD } from "../ui/ui.js";
+import { touchInput } from "../ui/input.js";
 import { RL_SFX_VOICES, rlShotSfx } from "../audio/sound.js";
 import { scoreBiomes } from "../audio/score.js";
 import { SAVE_KEY, cleanRun } from "./save.js";
@@ -1098,12 +1099,12 @@ function rlUiButtonGuardSelfTest() {
     testUi.click.call(testUi, button, () => count++);
     return button;
   };
-  const touch = (el, id, x, y, type = "touch") => {
+  const touch = (el, id, x, y) => {
     el.dispatchEvent(
       new PointerEvent("pointerdown", {
         bubbles: true,
         pointerId: id,
-        pointerType: type,
+        pointerType: "touch",
         isPrimary: true,
         clientX: x,
         clientY: y,
@@ -1113,7 +1114,7 @@ function rlUiButtonGuardSelfTest() {
       new PointerEvent("pointerup", {
         bubbles: true,
         pointerId: id,
-        pointerType: type,
+        pointerType: "touch",
         isPrimary: true,
         clientX: x,
         clientY: y,
@@ -1122,6 +1123,13 @@ function rlUiButtonGuardSelfTest() {
   };
   const click = (el, x, y) =>
     el.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 1, clientX: x, clientY: y }));
+  if (!touchInput) {
+    const button = make();
+    touch(button, 41, 12, 12);
+    const ignored = count === 0;
+    click(button, 12, 12);
+    return { ok: ignored && count === 1, detail: "Desktop buttons use native clicks and ignore touch gestures" };
+  }
   try {
     RL_TOUCH_CLICK_GUARD.until = 0;
     RL_TOUCH_CLICK_GUARD.key = "";
@@ -1143,7 +1151,7 @@ function rlUiButtonGuardSelfTest() {
       new PointerEvent("pointerdown", {
         bubbles: true,
         pointerId: 50,
-        pointerType: "pen",
+        pointerType: "touch",
         isPrimary: true,
         clientX: 4,
         clientY: 4,
@@ -1153,7 +1161,7 @@ function rlUiButtonGuardSelfTest() {
       new PointerEvent("pointerup", {
         bubbles: true,
         pointerId: 51,
-        pointerType: "pen",
+        pointerType: "touch",
         isPrimary: false,
         clientX: 4,
         clientY: 4,
@@ -1164,12 +1172,13 @@ function rlUiButtonGuardSelfTest() {
       new PointerEvent("pointerup", {
         bubbles: true,
         pointerId: 50,
-        pointerType: "pen",
+        pointerType: "touch",
         isPrimary: true,
         clientX: 4,
         clientY: 4,
       }),
     );
+    if (count !== 3) pass = false;
     click(button, 4, 4);
     if (count !== 3) pass = false;
     steps++;
@@ -1308,7 +1317,10 @@ function rlUiButtonGuardSelfTest() {
   RL_TOUCH_CLICK_GUARD.key = "";
   RL_RT.uiGuardDrops = drops;
   host.remove();
-  return { ok: pass, count, steps };
+  return {
+    ok: pass,
+    detail: `${steps}/9 touch cases · ${count}/10 expected activations · ghost clicks after screen changes are dropped`,
+  };
 }
 
 /* Health checks, all cheap. Concurrent calls share one run so the report never contains duplicates. */
@@ -1484,12 +1496,8 @@ async function rlRunHealthNow({ context = "startup" } = {}) {
   }
   try {
     if (typeof PointerEvent !== "undefined" && typeof MouseEvent !== "undefined") {
-      let guard = rlUiButtonGuardSelfTest();
-      ok(
-        "ui-input-dedupe",
-        guard.ok,
-        `${guard.steps}/9 pointer-gesture cases · ${guard.count}/10 expected activations · ghost clicks after screen changes are dropped`,
-      );
+      const guard = rlUiButtonGuardSelfTest();
+      ok("ui-input-dedupe", guard.ok, guard.detail);
     } else {
       rlHealthAdd("ui-input-dedupe", "WARN", "PointerEvent or MouseEvent unavailable in this browser");
     }

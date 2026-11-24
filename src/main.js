@@ -21,7 +21,7 @@ import {
   logError,
 } from "./core/diagnostics.js";
 import { GameUI, RL_TOUCH_CLICK_GUARD, getById, rlBiomeTitle, escapeHtml } from "./ui/ui.js";
-import { Input, RL_INPUT } from "./ui/input.js";
+import { Input, touchInput } from "./ui/input.js";
 import { HudEditor, applyHudLayout, fitHudLayout, fixedStickCenter } from "./ui/hud-layout.js";
 import { SoundEngine } from "./audio/sound.js";
 import {
@@ -243,7 +243,7 @@ function _scheduleResize(why) {
         }
         overlay.resize();
         // a turn of the phone switches to the button layout of the other orientation
-        if (hudEditor.isOpen) hudEditor.onResize();
+        if (hudEditor?.isOpen) hudEditor.onResize();
         else placeHud();
       } catch (err) {
         logError(_resizeWhy, err);
@@ -822,11 +822,12 @@ function afterProgressReset(message) {
 }
 const ui = new GameUI(game);
 game.ui = ui;
-const hudEditor = new HudEditor({ store, ui, input, onSave: () => game.settingsChanged() });
+const hudEditor = touchInput ? new HudEditor({ store, ui, input, onSave: () => game.settingsChanged() }) : null;
 /* the button layout of the player on the HUD that is on screen; a layout that does not fit this screen gives way to the
    default layout (see fitHudLayout), and the player hears about it once */
 let placeHudRetry = 0;
 function placeHud(retry = 0) {
+  if (!touchInput) return;
   applyHudLayout(store.data.settings);
   const fit = fitHudLayout(store.data.settings, input.radius());
   if (fit === "later") {
@@ -851,6 +852,7 @@ input.isPlaying = () =>
   game.mode === "game" &&
   !game.paused &&
   !game.overShown &&
+  !needsRotate() &&
   (game.world?.state === "fight" || game.world?.state === "cleared");
 input.onDeny = (action) => {
   ui.actionFlash(action, "deny");
@@ -860,11 +862,6 @@ input.onMute = () => game.toggleMute();
 input.onPause = () => {
   if (!getById("dialog").hidden) {
     ui.closeDialog(null);
-    return;
-  }
-  // Esc leaves the button layout editor without saving (P, the other pause key, must not throw the edits away)
-  if (hudEditor.isOpen) {
-    if (input._rlKey === "escape") hudEditor.close(false);
     return;
   }
   // 2.4.2 Esc: back in menu pages; from settings opened in the pause menu back to the pause menu
@@ -946,14 +943,12 @@ function applySettings() {
 }
 let loopFrameId = 0,
   frameErrorCount = 0;
-/* 3.11.0: Riftline plays in landscape on phones during a run. index.html sets needs-rotate on <body> while a phone
-   is held upright in an active run (the rotate screen). Where the browser allows it (an installed app, Android in full
-   screen) the screen is also locked to landscape when a run starts; elsewhere the lock is refused and nothing happens. */
+/* Mobile runs pause in portrait and request landscape where the browser supports orientation lock. */
 function needsRotate() {
   return document.body.classList.contains("needs-rotate");
 }
 function lockLandscape() {
-  if (document.body.dataset.device === "desktop") return;
+  if (!touchInput) return;
   try {
     const lock = screen.orientation && screen.orientation.lock && screen.orientation.lock("landscape");
     if (lock && lock.catch) lock.catch(() => {});
@@ -973,8 +968,7 @@ function loopTick(now) {
   {
     game.last = now;
     dt = Math.min(0.1, Math.max(0, dt));
-    // 3.11.0: a phone held upright during a run shows the rotate screen; a run waits paused behind it (pause() does
-    // nothing outside the fight or when already paused)
+    // A mobile run waits paused behind the rotate screen.
     if (needsRotate()) game.pause();
     try {
       if (game.resumeAt && !document.hidden) {
@@ -986,7 +980,6 @@ function loopTick(now) {
           getById("resumeCountNum").textContent = String(Math.ceil((remaining * 3) / RESUME_MS));
         }
       }
-      input.pollGamepad();
       const frameStart = performance.now();
       const renderStats = store.data.settings.performanceOverlay && renderer?.renderer.info.render;
       const frameBefore = renderStats?.frame;
@@ -1090,7 +1083,7 @@ function runFrame(dt) {
       }
       if (renderer && !staticOverlay) {
         // Touch hints are shown only during the opening tutorial for touch input.
-        let hints = !!game.tut && game.tut.step <= 1 && RL_INPUT.touch;
+        let hints = !!game.tut && game.tut.step <= 1 && touchInput;
         overlay.draw(renderer, world, input, { hints: hints, dt: dt, safe: safeAreaInsets() });
       } else overlay.clear();
     } finally {
@@ -1245,31 +1238,25 @@ function handleWorldEvents(world) {
         if (ev.n === 2) {
           showTipOnce(
             "dash",
-            RL_INPUT.gamepad
-              ? "Tip: press A to dash through danger."
-              : rlKeys()
-                ? "Tip: SPACE or right-click dashes \u2014 you cannot be hit during a dash."
-                : "Tip: DASH dodges through attacks \u2014 you cannot be hit during it.",
+            touchInput
+              ? "Tip: DASH dodges through attacks \u2014 you cannot be hit during it."
+              : "Tip: SPACE or right-click dashes \u2014 you cannot be hit during a dash.",
           );
         }
         if (ev.n === 4) {
           showTipOnce(
             "gravityBell",
-            RL_INPUT.gamepad
-              ? "Tip: press Y or LT to toss a Gravity Bell."
-              : rlKeys()
-                ? "Tip: press G to toss a Gravity Bell. It pulls enemies together and bursts. Charges refill."
-                : "Tip: tap BELL to toss a Gravity Bell at enemies. Hold the right side to aim where it lands.",
+            touchInput
+              ? "Tip: tap BELL to toss a Gravity Bell at enemies. Hold the right side to aim where it lands."
+              : "Tip: press G to toss a Gravity Bell. It pulls enemies together and bursts. Charges refill.",
           );
         }
         if (ev.n === 3) {
           showTipOnce(
             "aim",
-            RL_INPUT.gamepad
-              ? "Tip: aim with the right stick and hold RT to fire."
-              : rlKeys()
-                ? "Tip: hold the left mouse button to aim and fire at the cursor."
-                : "Tip: drag the right side to aim yourself. Holding it fires at the nearest enemy.",
+            touchInput
+              ? "Tip: drag the right side to aim yourself. Holding it fires at the nearest enemy."
+              : "Tip: hold the left mouse button to aim and fire at the cursor.",
           );
         }
         break;
@@ -1301,11 +1288,9 @@ function handleWorldEvents(world) {
       case "novaReady":
         showTipOnce(
           "fireBurst",
-          RL_INPUT.gamepad
-            ? "Fire Burst is charged — press B or RB to unleash it."
-            : rlKeys()
-              ? "Fire Burst is charged \u2014 press E to unleash a wide shockwave."
-              : "Fire Burst is charged \u2014 tap BURST to unleash a wide shockwave.",
+          touchInput
+            ? "Fire Burst is charged \u2014 tap BURST to unleash a wide shockwave."
+            : "Fire Burst is charged \u2014 press E to unleash a wide shockwave.",
         );
         break;
       case "cleared":
@@ -1473,31 +1458,14 @@ function updateHeartbeat(dt, world) {
     sound.play("heart");
   }
 }
-const // 2.3.4: keyboard/mouse players got the touch texts ("drag the left side"), which do nothing
-  // with a mouse, and the keys were explained nowhere. Every step now has both wordings and
-  // follows the input in use (the coach re-reads the text every frame).
-  rlKeys = () => !RL_INPUT.touch && !RL_INPUT.gamepad,
-  tutorialTexts = [
-    () =>
-      RL_INPUT.gamepad
-        ? "Move with the left stick."
-        : rlKeys()
-          ? "Move with W A S D or the arrow keys."
-          : "Drag anywhere on the left side to move.",
-    () =>
-      RL_INPUT.gamepad
-        ? "Aim with the right stick and hold RT to fire."
-        : rlKeys()
-          ? "Enemies ahead! Your weapon shoots automatically \u2014 hold the left mouse button to aim yourself."
-          : "Enemies ahead! Your weapon shoots automatically \u2014 drag the right side to aim yourself.",
-    () =>
-      RL_INPUT.gamepad
-        ? "Press A to dash through danger."
-        : rlKeys()
-          ? "Press SPACE or right-click to dash through danger."
-          : "Tap DASH to dodge through danger.",
-    () => "Collect shards \u2014 spend them on permanent crafts in home.",
-  ];
+const tutorialTexts = [
+  touchInput ? "Drag anywhere on the left side to move." : "Move with W A S D or the arrow keys.",
+  touchInput
+    ? "Enemies ahead! Your weapon shoots automatically \u2014 drag the right side to aim yourself."
+    : "Enemies ahead! Your weapon shoots automatically \u2014 hold the left mouse button to aim yourself.",
+  touchInput ? "Tap DASH to dodge through danger." : "Press SPACE or right-click to dash through danger.",
+  "Collect shards \u2014 spend them on permanent crafts in home.",
+];
 function updateTutorial(dt, world) {
   let tut = game.tut;
   if (tut) {
@@ -1543,7 +1511,7 @@ function updateTutorial(dt, world) {
       store.save("tutorial");
       return;
     }
-    ui.coach(tut.step, tutorialTexts.length, tutorialTexts[tut.step]());
+    ui.coach(tut.step, tutorialTexts.length, tutorialTexts[tut.step]);
   }
 }
 function showTipOnce(key, text) {
@@ -1898,7 +1866,7 @@ function rlRetireToast() {
   });
 
   // ---- the button layout editor
-  ui.click(getById("hudEditBtn"), () => hudEditor.open());
+  if (hudEditor) ui.click(getById("hudEditBtn"), () => hudEditor.open());
 
   // ---- what each craft of the build does (pause menu)
   const info = getById("pauseUpInfo"),

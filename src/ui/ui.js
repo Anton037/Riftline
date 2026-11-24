@@ -11,7 +11,7 @@ import { waveEvents } from "../core/waves.js";
 import { milestones, workshopModules, threatLevels } from "../data/progression.js";
 import { upgradeList, rarityNames, upgradesById } from "../data/upgrades.js";
 import { computeStats, weaponRange, buildStatRows } from "../core/stats.js";
-import { setTouchInput } from "./input.js";
+import { acceptsPointer, touchInput } from "./input.js";
 import { WHATS_NEW } from "../data/whatsnew.js";
 import { MUTATORS } from "../core/mutators.js";
 import { markHomeViewDirty } from "../render/renderer.js";
@@ -282,13 +282,10 @@ const getById = (id) => document.getElementById(id),
       el.addEventListener(
         "pointerdown",
         (ev) => {
-          if (ev.pointerType === "mouse") {
-            if (ev.button === 0 && ev.isTrusted) setTouchInput(false);
-            return;
-          }
+          if (!touchInput || ev.pointerType !== "touch") return;
           // 3.31.0: a second finger may tap a button when no other touch is on it (pause while a thumb holds a stick;
           // browsers send no click for such a tap). A second finger on a button already pressed does not take it over.
-          if ((ev.pointerType === "touch" || ev.pointerType === "pen") && (ev.isPrimary !== false || !touchDown)) {
+          if (ev.isPrimary !== false || !touchDown) {
             startX = ev.clientX;
             startY = ev.clientY;
             pointerId = ev.pointerId;
@@ -300,13 +297,11 @@ const getById = (id) => document.getElementById(id),
       el.addEventListener(
         "pointerup",
         (ev) => {
-          if (!(ev.pointerType === "touch" || ev.pointerType === "pen") || !touchDown || ev.pointerId !== pointerId)
-            return;
+          if (ev.pointerType !== "touch" || !touchDown || ev.pointerId !== pointerId) return;
           let dx = ev.clientX - startX,
             dy = ev.clientY - startY;
           touchDown = 0;
           if (Math.hypot(dx, dy) > 14 || !activate()) return;
-          if (ev.isTrusted) setTouchInput(true);
           ev.preventDefault();
           ev.stopPropagation();
           const now = performance.now();
@@ -359,8 +354,7 @@ const getById = (id) => document.getElementById(id),
       this.click(getById("continueBtn"), () => this.g.startRun({ resume: true }));
       let onPress = (el, action) =>
         el.addEventListener("pointerdown", (ev) => {
-          if (ev.pointerType === "mouse" && ev.button !== 0) return;
-          if (ev.isTrusted) setTouchInput(ev.pointerType !== "mouse");
+          if (!acceptsPointer(ev) || (ev.pointerType === "mouse" && ev.button !== 0)) return;
           ev.preventDefault();
           ev.stopPropagation();
           el.blur?.();
@@ -1620,7 +1614,8 @@ const getById = (id) => document.getElementById(id),
         });
         // 2.7.0: a soft tick when the mouse moves over a card (touch has no hover)
         card.addEventListener("pointerenter", (ev) => {
-          if (ev.pointerType === "mouse" && !cards.classList.contains("locked")) this.g.sound.play("hover");
+          if (!touchInput && ev.pointerType === "mouse" && !cards.classList.contains("locked"))
+            this.g.sound.play("hover");
         });
       }
       // 3.25.0: Seal Cards: shown when the module is owned (or a seal is left in a resumed run)

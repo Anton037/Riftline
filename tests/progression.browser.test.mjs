@@ -67,7 +67,7 @@ test(
   },
 );
 
-test("first-run desktop onboarding uses keyboard/mouse prompts and adapts on hybrid input", { timeout }, async (t) => {
+test("first-run desktop onboarding keeps keyboard and mouse prompts when a touch arrives", { timeout }, async (t) => {
   const { page, press, errors } = await openGame(t, "desktop", { fresh: true });
   await press("#playBtn");
   await page.waitForFunction(() => window.__riftTest.game.tut?.step === 0);
@@ -96,15 +96,13 @@ test("first-run desktop onboarding uses keyboard/mouse prompts and adapts on hyb
   await page.waitForFunction(() => window.__riftTest.game.tut?.step === 2);
   assert.match(await page.locator("#coachText").textContent(), /Press SPACE or right-click to dash/);
 
-  // Switching to touch on a hybrid laptop updates coach text immediately; keyboard restores PC prompts.
+  // A touch on a desktop must neither steer the Keeper nor change the prompts.
   const cdp = await page.context().newCDPSession(page);
   await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: 160, y: 260, id: 1 }] });
-  await page.waitForFunction(() => /Tap DASH/.test(document.getElementById("coachText").textContent));
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: 220, y: 230, id: 1 }] });
+  assert.equal(await page.evaluate(() => window.__riftTest.game.input.move.active), false);
+  assert.match(await page.locator("#coachText").textContent(), /Press SPACE or right-click to dash/);
   await cdp.send("Input.dispatchTouchEvent", { type: "touchCancel", touchPoints: [] });
-  await page.keyboard.press("KeyD");
-  await page.waitForFunction(() =>
-    /Press SPACE or right-click to dash/.test(document.getElementById("coachText").textContent),
-  );
 
   await page.keyboard.press("Space");
   await page.waitForFunction(() => window.__riftTest.game.tut?.step === 3);

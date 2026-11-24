@@ -177,15 +177,23 @@ for (const tablet of [true, false])
         return { x: w.player.x, y: w.player.y, dashes: w.runStats.dashes };
       });
       const cdp = await page.context().newCDPSession(page);
+      await page.keyboard.press("Space");
+      await page.keyboard.press("KeyD");
+      await page.keyboard.press("KeyP");
+      await page.mouse.click(280, 190, { button: "right" });
+      await page.mouse.click(340, 200);
       const ignored = await page.evaluate(() => {
-        const input = window.__riftTest.game.input;
-        for (const id of ["dashBtn", "fireBurstBtn", "gravityBellBtn"])
-          document
-            .getElementById(id)
-            .dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerType: "mouse", button: 2 }));
-        return { ...input.pending, touch: document.body.classList.contains("input-touch") };
+        const { game } = window.__riftTest;
+        return {
+          keys: game.input.keys.size,
+          mouse: game.input.mouse.down || Number.isFinite(game.input.mouse.x),
+          paused: game.paused,
+          dashes: game.world.runStats.dashes,
+          touch: document.documentElement.classList.contains("device-touch"),
+        };
       });
-      assert.deepEqual(ignored, { dash: 0, fireBurst: 0, gravityBell: 0, fire: 0, touch: true });
+      assert.deepEqual(ignored, { keys: 0, mouse: false, paused: false, dashes: start.dashes, touch: true });
+      assert.equal(await page.locator("#dashBtn .key").isVisible(), false);
       await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: 160, y: 260, id: 1 }] });
       await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: 220, y: 230, id: 1 }] });
       try {
@@ -223,10 +231,25 @@ for (const tablet of [true, false])
       assert.equal(await page.evaluate(() => window.__riftTest.game.paused), true);
       await press("#resumeBtn");
       await page.waitForFunction(() => !window.__riftTest.game.paused);
+      const landscape = page.viewportSize();
+      await page.setViewportSize({ width: landscape.height, height: landscape.width });
+      await page.locator("#rotate").waitFor({ state: "visible" });
+      await page.waitForFunction(() => window.__riftTest.game.paused);
+      const pausedAt = await page.evaluate(() => {
+        const { game } = window.__riftTest;
+        game.resume();
+        return { time: game.world.time, resumeAt: game.resumeAt };
+      });
+      assert.equal(pausedAt.resumeAt, 0, "Portrait cannot resume gameplay");
+      await page.setViewportSize(landscape);
+      await page.locator("#rotate").waitFor({ state: "hidden" });
+      await visible(page, "pause");
+      assert.equal(await page.evaluate(() => window.__riftTest.game.world.time), pausedAt.time);
+      await press("#resumeBtn");
+      await page.waitForFunction(() => !window.__riftTest.game.paused);
       phase("move, dash, pause and resume");
 
       if (!tablet) {
-        assert.equal(await page.evaluate(() => window.__gamepadReads), 0);
         assert.deepEqual(errors, []);
         return;
       }
@@ -282,7 +305,6 @@ for (const tablet of [true, false])
       await press("#homeBtn");
       await visible(page, "home");
       assert.equal(await page.evaluate(() => !!window.__riftTest.game.crashed), false);
-      assert.equal(await page.evaluate(() => window.__gamepadReads), 0);
       assert.deepEqual(errors, []);
       phase("death, summary and return home");
     },
@@ -309,7 +331,7 @@ test(
       ui.stepThreat(-1);
       return {
         desktop: document.body.classList.contains("device-desktop"),
-        touchInput: document.body.classList.contains("input-touch"),
+        touchInput: document.documentElement.classList.contains("device-touch"),
         fontsLoaded: loaded.every((faces) => faces.length > 0),
         logoFont: getComputedStyle(document.querySelector("#home .logo")).fontFamily,
         ctaFont: getComputedStyle(document.querySelector("#playBtn")).fontFamily,
@@ -372,7 +394,7 @@ test(
       novaKey: getComputedStyle(document.querySelector("#fireBurstBtn .key")).display !== "none",
       gravityBellKey: getComputedStyle(document.getElementById("gravityBellKey")).display !== "none",
       cursor: getComputedStyle(document.getElementById("touch")).cursor,
-      touchInput: document.body.classList.contains("input-touch"),
+      touchInput: document.documentElement.classList.contains("device-touch"),
       audit: window.__riftLayoutAudit(),
     }));
     assert.equal(hudDesktop.activeTag, "BODY");
@@ -633,71 +655,6 @@ test(
     await visible(page, "hud");
     await page.waitForFunction(() => window.__riftTest.game.world?.wave === 1);
 
-    assert.equal(await page.evaluate(() => window.__gamepadReads), 0);
-    const padStart = await page.evaluate(() => {
-      const { game } = window.__riftTest;
-      game.world.hold = true;
-      game.store.data.settings.autoFire = false;
-      const pad = {
-        index: 0,
-        connected: true,
-        mapping: "standard",
-        axes: [0.08, 0, 0, 0],
-        buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })),
-      };
-      window.__fixturePad = pad;
-      navigator.getGamepads = () => {
-        window.__gamepadReads++;
-        return [pad];
-      };
-      window.dispatchEvent(Object.assign(new Event("gamepadconnected"), { gamepad: pad }));
-      return { x: game.world.player.x, dashes: game.world.runStats.dashes };
-    });
-    await page.waitForFunction(() => window.__gamepadReads > 2);
-    assert.equal(await page.evaluate(() => window.__riftTest.game.world.player.x), padStart.x);
-    await page.evaluate(() => {
-      window.__fixturePad.axes = [1, 0, 1, 0];
-    });
-    await page.waitForFunction((x) => window.__riftTest.game.world.player.x > x + 0.3, padStart.x);
-    assert.ok(await page.locator("#dashBtn .pad-key").isVisible());
-    const pressPad = (button, pressed) =>
-      page.evaluate(
-        ([index, value]) => {
-          window.__fixturePad.buttons[index].pressed = value;
-        },
-        [button, pressed],
-      );
-    assert.equal(await page.evaluate(() => window.__riftTest.game.world.player.firing), false);
-    await pressPad(7, true);
-    await page.waitForFunction(() => window.__riftTest.game.world.player.firing);
-    await pressPad(7, false);
-    await pressPad(0, true);
-    await page.waitForFunction((d) => window.__riftTest.game.world.runStats.dashes === d + 1, padStart.dashes);
-    await pressPad(0, false);
-    await page.evaluate(() => {
-      const { player } = window.__riftTest.game.world;
-      player.gadgetN = 0;
-      player.gadgetT = 0.055;
-      player.fireBurst = 100;
-      window.__fixturePad.buttons[3].pressed = true;
-    });
-    await page.waitForFunction(() => window.__riftTest.game.world.singularities.length > 0);
-    await pressPad(3, false);
-    await pressPad(1, true);
-    await page.waitForFunction(() => window.__riftTest.game.world.player.fireBurst < 100);
-    await pressPad(1, false);
-    await pressPad(9, true);
-    await visible(page, "pause");
-    await pressPad(9, false);
-    const reads = await page.evaluate(() => {
-      const pad = window.__fixturePad;
-      pad.connected = false;
-      window.dispatchEvent(Object.assign(new Event("gamepaddisconnected"), { gamepad: pad }));
-      return window.__gamepadReads;
-    });
-    await page.waitForFunction(() => !document.body.classList.contains("input-gamepad"));
-    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-    assert.equal(await page.evaluate(() => window.__gamepadReads), reads);
     assert.deepEqual(errors, []);
   },
 );

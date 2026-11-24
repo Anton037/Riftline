@@ -1,32 +1,15 @@
-// Keyboard, mouse, touch, and gamepad input.
+// Touch input on mobile and keyboard/mouse input on desktop.
 
 import { RL_RT } from "../core/diagnostics.js";
 import { clamp } from "../core/util.js";
 import { game } from "../main.js";
 import { getById } from "./ui.js";
 
-function initialTouchInput() {
-  if (typeof matchMedia !== "function") return false;
-  return (
-    matchMedia("(pointer: coarse)").matches ||
-    (matchMedia("(any-pointer: coarse)").matches && !matchMedia("(pointer: fine)").matches)
-  );
-}
-
-// The active input mode (touch vs keyboard/mouse), used for hints and PC badges.
+const touchInput = document.documentElement.classList.contains("device-touch");
 const INPUT_BUFFER_MS = 120;
-const RL_INPUT = { touch: initialTouchInput(), gamepad: false };
-
-function setTouchInput(touch) {
-  RL_INPUT.touch = !!touch;
-  RL_INPUT.gamepad = false;
-  if (typeof document !== "undefined" && document.body) {
-    document.body.classList.toggle("input-touch", RL_INPUT.touch);
-    document.body.classList.remove("input-gamepad");
-  }
+function acceptsPointer(ev) {
+  return ev.pointerType === (touchInput ? "touch" : "mouse");
 }
-
-setTouchInput(RL_INPUT.touch);
 
 const Input = class {
   constructor(layer, renderer) {
@@ -37,12 +20,6 @@ const Input = class {
     this.keys = new Set();
     this.mouse = { x: NaN, y: NaN, down: false };
     this.pending = { dash: 0, fireBurst: 0, gravityBell: 0, fire: 0 };
-    this.pads = new Set();
-    this.padButtons = [];
-    this.padMove = [0, 0];
-    this.padAim = [0, 0];
-    this.padFire = false;
-    this.padBlocked = false;
     this.R = 56;
     // the stick size of the player (times the default radius) and, with a fixed move stick, where it sits
     // (a function that returns its centre in px, see ui/hud-layout.js; null: the stick starts where the thumb does)
@@ -60,11 +37,19 @@ const Input = class {
     this._rawId = -1;
     this._rawX = NaN;
     this._rawY = NaN;
-    setTouchInput(RL_INPUT.touch);
     this.bind();
   }
   bind() {
     let layer = this.layer;
+    // Keep native click activation, including keyboard activation of desktop buttons.
+    const app = getById("app");
+    const ignoreOtherPointer = (ev) => {
+      if (!ev.pointerType || acceptsPointer(ev)) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+    };
+    app.addEventListener("pointerdown", ignoreOtherPointer, true);
+    app.addEventListener("click", ignoreOtherPointer, true);
     layer.addEventListener("pointerdown", (ev) => this.down(ev));
     if ("onpointerrawupdate" in window) {
       layer.addEventListener("pointerrawupdate", (ev) => this.moveEv(ev));
@@ -73,41 +58,32 @@ const Input = class {
     layer.addEventListener("pointerup", (ev) => this.up(ev));
     layer.addEventListener("pointercancel", (ev) => this.cancel(ev));
     layer.addEventListener("lostpointercapture", (ev) => this.cancel(ev));
-    layer.addEventListener("mousedown", (ev) => {
-      if (ev.button !== 2 || !ev.isTrusted || !this.isPlaying?.()) return;
-      setTouchInput(false);
-      this.press("dash");
-    });
     layer.addEventListener("contextmenu", (ev) => ev.preventDefault());
-    window.addEventListener("gamepadconnected", ({ gamepad }) => {
-      if (gamepad.mapping === "standard") this.pads.add(gamepad.index);
-    });
-    window.addEventListener("gamepaddisconnected", ({ gamepad }) => this.disconnectPad(gamepad.index));
-    window.addEventListener("keydown", (ev) => this.key(ev, true));
-    window.addEventListener("keyup", (ev) => this.key(ev, false));
     window.addEventListener("blur", () => {
       this.reset(true);
       if (this.onBlur) {
         this.onBlur();
       }
     });
-    window.addEventListener("mousemove", (ev) => {
-      if (Number.isFinite(ev.clientX)) {
-        this.mouse.x = ev.clientX;
-      }
-      if (Number.isFinite(ev.clientY)) {
-        this.mouse.y = ev.clientY;
-      }
-      if (ev.isTrusted && !RL_INPUT.touch) {
-        this.showReticle = true;
-      }
-    });
-    window.addEventListener("mouseup", (ev) => {
-      if (ev.button === 0 || (ev.buttons & 1) === 0) {
-        this.mouse.down = false;
-        this.manualAim = this.aim.active;
-      }
-    });
+    if (!touchInput) {
+      layer.addEventListener("mousedown", (ev) => {
+        if (ev.button === 2 && ev.isTrusted) this.press("dash");
+      });
+      window.addEventListener("keydown", (ev) => this.key(ev, true));
+      window.addEventListener("keyup", (ev) => this.key(ev, false));
+      window.addEventListener("pointermove", (ev) => {
+        if (ev.pointerType !== "mouse") return;
+        if (Number.isFinite(ev.clientX)) this.mouse.x = ev.clientX;
+        if (Number.isFinite(ev.clientY)) this.mouse.y = ev.clientY;
+        if (ev.isTrusted) this.showReticle = true;
+      });
+      window.addEventListener("mouseup", (ev) => {
+        if (ev.button === 0 || (ev.buttons & 1) === 0) {
+          this.mouse.down = false;
+          this.manualAim = false;
+        }
+      });
+    }
   }
   zoneIsMove(x) {
     let rect = this.layer.getBoundingClientRect(),
@@ -116,8 +92,7 @@ const Input = class {
   }
   down(ev) {
     RL_RT.pointerdown++;
-    if (ev.isTrusted && (ev.pointerType !== "mouse" || ev.button === 0)) setTouchInput(ev.pointerType !== "mouse");
-    if (!this.enabled) return;
+    if (!this.enabled || !acceptsPointer(ev)) return;
     if (ev.pointerType === "mouse") {
       if (ev.button === 0) {
         this.mouse.down = true;
@@ -157,6 +132,7 @@ const Input = class {
     } catch {}
   }
   moveEv(ev) {
+    if (!acceptsPointer(ev)) return;
     let coalesced = ev.getCoalescedEvents ? ev.getCoalescedEvents() : null,
       last = coalesced && coalesced.length ? coalesced[coalesced.length - 1] : ev,
       x = Number.isFinite(last.clientX) ? last.clientX : ev.clientX,
@@ -178,10 +154,7 @@ const Input = class {
       if (Number.isFinite(y)) {
         this.mouse.y = y;
       }
-      if (ev.isTrusted) {
-        setTouchInput(false);
-        this.showReticle = true;
-      }
+      if (ev.isTrusted) this.showReticle = true;
       return;
     }
     if (!Number.isFinite(x) || !Number.isFinite(y)) return;
@@ -196,6 +169,7 @@ const Input = class {
     }
   }
   up(ev) {
+    if (!acceptsPointer(ev)) return;
     RL_RT.pointerup++;
     if (ev.pointerType === "mouse") {
       if (ev.button === 0 || (ev.buttons & 1) === 0) {
@@ -212,6 +186,7 @@ const Input = class {
     this.manualAim = this.aim.active || this.mouse.down;
   }
   cancel(ev) {
+    if (!acceptsPointer(ev)) return;
     RL_RT.pointercancel++;
     if (ev.pointerType === "mouse") {
       this.mouse.down = false;
@@ -262,9 +237,6 @@ const Input = class {
       this.keys.delete(name);
     }
     if (!(tag === "INPUT" || tag === "TEXTAREA")) {
-      if (down && ev.isTrusted) {
-        setTouchInput(false);
-      }
       if (down && (name === "escape" || name === "p")) {
         if (name === "p" && dialogOpen) return;
         if (!ev.repeat && this.onPause) {
@@ -340,82 +312,6 @@ const Input = class {
     if (action !== "fire") this.onDeny?.(action);
     return false;
   }
-  disconnectPad(index) {
-    this.pads.delete(index);
-    if (this.padIndex !== index) return;
-    this.padIndex = null;
-    this.padButtons = [];
-    this.padMove = this.padAim = [0, 0];
-    this.padFire = false;
-    if (RL_INPUT.gamepad) setTouchInput(initialTouchInput());
-    this.settle();
-  }
-  pollGamepad() {
-    if (!this.pads.size || document.hidden || !document.hasFocus()) return;
-    const pads = navigator.getGamepads();
-    const currentPad = pads[this.padIndex];
-    const pad = currentPad?.connected
-      ? currentPad
-      : [...this.pads].map((index) => pads[index]).find((item) => item?.connected);
-    if (!pad) return;
-    const buttons = pad.buttons.map((button) => button.pressed || button.value > 0.5);
-    const move = padStick(pad.axes, 0),
-      aim = padStick(pad.axes, 2);
-    if (this.padIndex !== pad.index) {
-      this.padIndex = pad.index;
-      this.padButtons = [];
-    }
-    const pressed = (button) => buttons[button] && !this.padButtons[button];
-    const playing = this.isPlaying?.();
-    if (buttons.some(Boolean) || move[0] || move[1] || aim[0] || aim[1]) {
-      RL_INPUT.gamepad = true;
-      RL_INPUT.touch = false;
-      document.body.classList.remove("input-touch");
-      document.body.classList.add("input-gamepad");
-      this.showReticle = false;
-    }
-    if (this.padBlocked && !buttons.some(Boolean) && !move.some(Boolean) && !aim.some(Boolean)) this.padBlocked = false;
-    if (!this.padBlocked) {
-      if (pressed(9)) {
-        this._rlKey = "escape";
-        this.onPause?.();
-      } else if (playing) {
-        if (pressed(0) || pressed(4)) this.press("dash");
-        if (pressed(1) || pressed(5)) this.press("fireBurst");
-        if (pressed(3) || pressed(6)) this.press("gravityBell");
-        if (pressed(7)) this.press("fire");
-      } else if (RL_INPUT.gamepad) {
-        if (pressed(1)) {
-          this._rlKey = "escape";
-          this.onPause?.();
-        } else if (pressed(0) || [12, 13, 14, 15].some(pressed)) {
-          const screen =
-            document.querySelector("#dialog:not([hidden])") || document.querySelector(".screen:not([hidden])");
-          const targets = [
-            ...(screen?.querySelectorAll("button:not(:disabled), input:not(:disabled), select:not(:disabled)") || []),
-          ].filter((element) => element.getClientRects().length && getComputedStyle(element).visibility !== "hidden");
-          const current = targets.indexOf(document.activeElement);
-          if (pressed(0)) {
-            if (current >= 0) targets[current].click();
-            else targets[0]?.focus();
-          } else {
-            const direction = pressed(12) || pressed(14) ? -1 : 1;
-            const next =
-              current < 0
-                ? direction > 0
-                  ? 0
-                  : targets.length - 1
-                : (current + direction + targets.length) % targets.length;
-            targets[next]?.focus();
-          }
-        }
-      }
-    }
-    this.padButtons = buttons;
-    this.padMove = this.padBlocked ? [0, 0] : move;
-    this.padAim = this.padBlocked ? [0, 0] : aim;
-    this.padFire = !this.padBlocked && !!buttons[7];
-  }
   // Held keyboard movement survives soft resets (pause, upgrade choice, resize); pass `all` when focus/visibility drops.
   reset(all) {
     RL_RT.reset++;
@@ -431,11 +327,6 @@ const Input = class {
     }
     this.mouse.down = false;
     this.manualAim = false;
-    if (all && this.pads.size) {
-      this.padBlocked = true;
-      this.padMove = this.padAim = [0, 0];
-      this.padFire = false;
-    }
     this.settle();
   }
   // Drop one-shot actions during a boss camera pan, but keep held sticks and keys.
@@ -486,11 +377,6 @@ const Input = class {
       my += 1;
       this.usedMove = true;
     }
-    if (RL_INPUT.gamepad) {
-      mx += this.padMove[0];
-      my += this.padMove[1];
-      if (Math.hypot(mx, my) > 0.08) this.usedMove = true;
-    }
     let ax = 0,
       ay = 0,
       aim = false,
@@ -512,17 +398,7 @@ const Input = class {
     let lookX = 0,
       lookY = 0,
       hasLook = false;
-    if (RL_INPUT.gamepad) {
-      [ax, ay] = this.padAim;
-      aim = Math.hypot(ax, ay) > 0.2;
-      fire = this.padFire || bufferedFire;
-      if (aim) this.usedAim = true;
-      else if (fire) {
-        ax = Math.cos(player.aim);
-        ay = Math.sin(player.aim);
-        aim = true;
-      }
-    } else if (RL_INPUT.touch) {
+    if (touchInput) {
       fire ||= bufferedFire;
     } else if (this.r && Number.isFinite(this.mouse.x) && Number.isFinite(this.mouse.y)) {
       fire = this.mouse.down || bufferedFire;
@@ -547,8 +423,7 @@ const Input = class {
       }
     }
     this.manualAim = !!(aim || this.mouse.down || this.aim.active);
-    this.showReticle =
-      !RL_INPUT.touch && !RL_INPUT.gamepad && (this.mouse.down || settings.autoFire === false || this.showReticle);
+    this.showReticle = !touchInput && (this.mouse.down || settings.autoFire === false || this.showReticle);
     return {
       mx,
       my,
@@ -558,7 +433,7 @@ const Input = class {
       aimX,
       aimY,
       fire,
-      aimOnly: (!RL_INPUT.touch || RL_INPUT.gamepad) && !fire,
+      aimOnly: !touchInput && !fire,
       lookX,
       lookY,
       hasLook,
@@ -602,16 +477,8 @@ function overKey(code, key) {
   if (btn && !btn.hidden && !btn.disabled) btn.click();
   return true;
 }
-function padStick(axes, offset) {
-  const x = axes[offset] || 0,
-    y = axes[offset + 1] || 0,
-    magnitude = Math.hypot(x, y);
-  if (magnitude <= 0.18) return [0, 0];
-  const scale = clamp((magnitude - 0.18) / 0.82, 0, 1) / magnitude;
-  return [x * scale, y * scale];
-}
 function newStick() {
   return { active: false, id: -1, ox: 0, oy: 0, x: 0, y: 0, lastEv: 0 };
 }
 
-export { Input, RL_INPUT, setTouchInput };
+export { Input, touchInput, acceptsPointer };

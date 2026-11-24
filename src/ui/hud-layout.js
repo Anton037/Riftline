@@ -201,25 +201,6 @@ class HudEditor {
     zone.addEventListener("pointerup", (ev) => this.up(ev, false));
     zone.addEventListener("pointercancel", (ev) => this.up(ev, true));
     zone.addEventListener("contextmenu", (ev) => ev.preventDefault());
-    window.addEventListener("keydown", (ev) => {
-      if (!this.isOpen || ev.ctrlKey || ev.metaKey || ev.altKey) return;
-      const tag = ev.target && ev.target.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
-      const step = 0.02;
-      if (ev.key === "ArrowLeft") {
-        ev.preventDefault();
-        this.nudge(-step, 0);
-      } else if (ev.key === "ArrowRight") {
-        ev.preventDefault();
-        this.nudge(step, 0);
-      } else if (ev.key === "ArrowUp") {
-        ev.preventDefault();
-        this.nudge(0, -step);
-      } else if (ev.key === "ArrowDown") {
-        ev.preventDefault();
-        this.nudge(0, step);
-      }
-    });
     // the panel follows its title bar
     const grab = getById("heGrab"),
       panel = getById("hePanel");
@@ -409,32 +390,6 @@ class HudEditor {
   /* the spot of a control in a layout */
   spotOf(layout, id) {
     return id === "stick" ? stickOf(layout) : layout[id];
-  }
-  /* arrow-key nudging (±2% of safe-area width/height) for the selected control */
-  nudge(dx, dy) {
-    if (!this.isOpen) return;
-    const orient = hudOrientation(),
-      hadLayout = !!this.draft.layouts[orient],
-      layout = this.ensure(),
-      id = this.sel === "stick" && !this.draft.stickFixed ? "dash" : this.sel,
-      spot = this.spotOf(layout, id),
-      old = { x: spot.x, y: spot.y },
-      box = hudBox(),
-      r = id === "stick" ? this.stickRadius() : circleOf(getById(CONTROL_INFO[id].el)).visR,
-      minX = r / box.w,
-      maxX = id === "stick" ? Math.min(1 - minX, (box.W / 2 - box.l - r) / box.w) : 1 - minX,
-      minY = r / box.h,
-      maxY = 1 - minY;
-    spot.x = round4(clamp(spot.x + dx, minX, Math.max(minX, maxX)));
-    spot.y = round4(clamp(spot.y + dy, minY, Math.max(minY, maxY)));
-    if (this.refused(id)) {
-      if (!hadLayout) this.draft.layouts[orient] = null;
-      else Object.assign(spot, old);
-      this.note = "Not there: it would cover another button or the HP and wave display.";
-    } else {
-      this.note = "";
-    }
-    this.render();
   }
   down(ev) {
     ev.preventDefault();

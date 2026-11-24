@@ -41,13 +41,12 @@ For centre/edge/corner screenshots use `node tools/verify.js visual <tag> tablet
 - Save checks cover round-trip persistence, migration, unknown future fields and corrupt-save recovery
   when storage is full. Failed explicit imports/resets retain old progress; successful ones recover held saves.
 - Choice snapshots keep the RNG through rerolls, banishes and repeated resumes.
-- The desktop flow covers input-specific controls, modifier passthrough, keyboard movement and card shortcuts,
-  mouse aim and right-click dash, buffered actions, the in-run performance overlay, and the 0.8 s resume countdown. Backgrounding during the
-  countdown returns to Pause without advancing the world. A standard Gamepad API fixture tests connection,
-  stick dead zones, movement, aiming, abilities, pause, and disconnection.
-- The tablet and landscape phone flows exercise multitouch ownership, pause, settings, resizing and offline run
-  continuation. The unplugged cases assert zero Gamepad API polls.
-- Empty profiles exercise touch and desktop onboarding, hybrid hints, real WebAudio pause and backgrounding,
+- The desktop flow covers modifier passthrough, keyboard movement and card shortcuts, mouse aim, right-click dash,
+  buffered actions, the in-run performance overlay and the resume countdown. It checks that backgrounding during
+  the countdown returns to Pause without advancing the world.
+- The tablet and phone flows cover landscape multitouch, device-specific input, pause when rotating to portrait,
+  settings, resizing and offline run continuation.
+- Empty profiles exercise touch and desktop onboarding, desktop prompts on touch-capable PCs, real WebAudio pause and backgrounding,
   and safe resume. The menu flow verifies workshop upgrades and milestone rewards, then purchases a repair
   at Roadside Forge and resumes that checkpoint before entering the next realm at a narrow viewport.
 - Combat regressions cover native arm traits, Heat Shatter, Perfect Dash, micro-hitstop, Boss recovery

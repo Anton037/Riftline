@@ -40,11 +40,6 @@ export async function openGame(t, mode, { fresh = false, audio = false, dpr = 1,
   });
   await context.addInitScript(
     ({ draw, fresh, audio }) => {
-      window.__gamepadReads = 0;
-      navigator.getGamepads = () => {
-        window.__gamepadReads++;
-        return [];
-      };
       Object.defineProperty(Navigator.prototype, "webdriver", { get: () => false, configurable: true });
       if (!fresh && !sessionStorage.getItem("test-seeded")) {
         sessionStorage.setItem("test-seeded", "1");

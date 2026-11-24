@@ -8,19 +8,18 @@ Journey across six handcrafted miniature areas as a cloaked **Lantern Keeper** w
 
 ## Controls
 
-| Action | Touch | Mouse and keyboard | Standard gamepad |
-|---|---|---|---|
-| Move | Drag left side | `WASD` / Arrow keys | Left stick |
-| Aim and fire | Drag right side | Hold left mouse button | Right stick + `RT` |
-| Dash | Tap `DASH` | `Space` / `Shift` / Right-click | `A` / `LB` |
-| Fire Burst | Tap `BURST` | `E` / `Q` / `F` | `B` / `RB` |
-| Gravity Bell | Tap `BELL` | `G` | `Y` / `LT` |
-| Pause | Tap Pause | `Esc` / `P` | Start |
-| Menus and craft offers | Tap a card or button | `1`–`5` pick, `B` seal, `R` reroll or retry | D-pad, `A` select, `B` back |
+| Action | Mobile touch | Desktop keyboard and mouse |
+|---|---|---|
+| Move | Drag left side | `WASD` / Arrow keys |
+| Aim and fire | Drag right side | Hold left mouse button |
+| Dash | Tap `DASH` | `Space` / `Shift` / Right-click |
+| Fire Burst | Tap `BURST` | `E` / `Q` / `F` |
+| Gravity Bell | Tap `BELL` | `G` |
+| Pause | Tap Pause | `Esc` / `P` |
+| Menus and craft offers | Tap a card or button | Click a card or button, or use `1`–`5` to pick, `B` to seal, and `R` to reroll or retry |
 
-Touch controls work in landscape and can be moved and resized in Settings. High detail is standard;
-choose a 30, 60 or 120 FPS cap, with 60 FPS as the default. Input switches automatically between touch,
-mouse and keyboard, and connected gamepads as you use them. Press `M` to mute on desktop.
+Mobile runs play in landscape. Move or resize the touch controls in Settings. The FPS limit defaults to 60, with
+30 and 120 also available. Press `M` to mute on desktop.
 
 ## Development
 
@@ -60,7 +59,7 @@ Generated verification output belongs in the ignored `verification-output/` dire
 | `src/engine/` | Custom GPU-First WebGL2 Engine v2 (`std140` `FrameUniforms` UBO, stateless GPU particle/debris rings, compact 48B actor instancing, `aPartMeta` GPU sub-part animation, `256×256` GPU wake map, MSAA HDR, texel-snapped rotated-Poisson PCF shadows, frustum culling, Kawase bloom/ACES) |
 | `src/render/` | Tactile cozy diorama biome worlds, bespoke perimeters & relics, articulated Lantern Keeper, 25 GPU-animated enemies with 3D variant/elite gear, 6 multi-phase bosses and 2D HUD overlay |
 | `src/audio/` | Six per-biome musical arrangements, scale-tuned reward chimes, 6-biome tactile surface foley, acoustic material voices and spatial landmark soundscapes |
-| `src/ui/` | Storybook HUD, Home & Journal/Guide menus, illuminated craft cards, touch, keyboard/mouse and gamepad input |
+| `src/ui/` | Storybook HUD, Home & Journal/Guide menus, illuminated craft cards, mobile touch and desktop keyboard/mouse |
 | `public/` | Fonts, painterly texture atlases, sound bank, app icons and asset notices |
 | `tests/` | Simulation, geometry, shader, browser and worker tests |
 | `tools/`, `scripts/` | Build support, verification and asset generation |

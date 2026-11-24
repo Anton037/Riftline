@@ -357,7 +357,7 @@ button {
 }
 #ov { pointer-events: none; }
 #touch { touch-action: none; z-index: 10; pointer-events: auto; }
-body:not(.input-touch):not(.input-gamepad) #touch { cursor: none; }
+:root:not(.device-touch) #touch { cursor: none; }
 
 #flash {
   position: absolute;
@@ -687,10 +687,10 @@ textarea::-webkit-scrollbar-thumb {
 .arrow[disabled] {
   opacity: 0.38;
 }
-body.device-touch #home .arrow {
+:root.device-touch #home .arrow {
   position: relative;
 }
-body.device-touch #home .arrow::after {
+:root.device-touch #home .arrow::after {
   content: "";
   position: absolute;
   inset: min(0px, calc((100% - 44px) / 2));
@@ -1468,9 +1468,7 @@ body.device-touch #home .arrow::after {
   white-space: nowrap;
   pointer-events: none;
 }
-body:not(.input-touch):not(.input-gamepad) .act-btn .key,
-body.input-gamepad .act-btn .pad-key { display: block; }
-body.input-gamepad .act-btn .key:not(.pad-key) { display: none; }
+:root:not(.device-touch) .act-btn .key { display: block; }
 .act-btn:active { transform: scale(0.94); }
 
 #hud.custom .act, #hud.custom .act-row { display: contents; }
@@ -2492,7 +2490,7 @@ input[type=range]::-moz-range-thumb {
   letter-spacing: 0.2em;
   color: #f2ac90;
 }
-body:not(.input-touch) .cards.banishing .card::after { content: "CLICK TO SEAL"; }
+:root:not(.device-touch) .cards.banishing .card::after { content: "CLICK TO SEAL"; }
 #sealBtn.on {
   border-color: #f29b7e;
   color: #f2ac90;
@@ -3852,8 +3850,7 @@ input[type=range]::-moz-range-thumb {
 body.device-desktop .act {
   bottom: calc(var(--sb) + 18px);
 }
-body.device-desktop:not(.input-touch) #hudEditRow,
-body.input-gamepad #hudEditRow {
+:root:not(.device-touch) #hudEditRow {
   display: none;
 }
 #waveSub:empty { display: none; }
@@ -4229,6 +4226,13 @@ body.input-gamepad #hudEditRow {
 
 <script>
 (() => {
+  const touchDevice = Boolean(
+    navigator.userAgentData?.mobile ||
+    /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ||
+    (matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches)
+  );
+  document.documentElement.classList.toggle('device-touch', touchDevice);
   const init = () => {
     const root = document.documentElement;
     const body = document.body;
@@ -4236,19 +4240,12 @@ body.input-gamepad #hudEditRow {
       const vv = window.visualViewport;
       const w = Math.max(1, Math.round(vv?.width || window.innerWidth || 1));
       const h = Math.max(1, Math.round(vv?.height || window.innerHeight || 1));
-      const coarse =
-        matchMedia('(pointer: coarse)').matches ||
-        (matchMedia('(any-pointer: coarse)').matches && !matchMedia('(pointer: fine)').matches);
-      const phone = coarse && Math.min(w, h) < 600;
-      const tablet = coarse && Math.min(w, h) >= 600;
-      const device = phone ? 'phone' : tablet ? 'tablet' : 'desktop';
-      body.classList.remove('device-phone', 'device-tablet', 'device-desktop', 'device-touch', 'is-portrait', 'is-landscape');
+      const device = touchDevice ? (Math.min(w, h) < 600 ? 'phone' : 'tablet') : 'desktop';
+      body.classList.remove('device-phone', 'device-tablet', 'device-desktop', 'is-portrait', 'is-landscape');
       body.classList.add(`device-${device}`, w >= h ? 'is-landscape' : 'is-portrait');
-      if (coarse) body.classList.add('device-touch');
       body.dataset.device = device;
       body.dataset.orientation = w >= h ? 'landscape' : 'portrait';
-      // Only enforce needs-rotate on phones when in an active run (#hud, #pause, #choose, #hudEdit visible or game.mode === "game"),
-      // allowing players to browse Home, Workshop, Journal, Run History, and Settings comfortably in portrait or landscape.
+      // Allow portrait menu browsing. Mobile runs use a landscape viewport.
       const inRun = Boolean(
         window.__riftTest?.game?.mode === 'game' ||
         ['hud', 'pause', 'choose', 'anvil', 'hudEdit'].some((id) => {
@@ -4256,13 +4253,7 @@ body.input-gamepad #hudEditRow {
           return el && !el.hidden;
         })
       );
-      const so = screen.orientation && screen.orientation.type;
-      const screenUpright = so
-        ? so.startsWith('portrait')
-        : typeof window.orientation === 'number'
-          ? window.orientation % 180 === 0
-          : screen.height >= screen.width || h > w;
-      body.classList.toggle('needs-rotate', device === 'phone' && h > w && screenUpright && inRun);
+      body.classList.toggle('needs-rotate', touchDevice && h > w && inRun);
       root.style.setProperty('--vw', `${w}px`);
       root.style.setProperty('--vh', `${h}px`);
     }
@@ -4358,10 +4349,10 @@ body.input-gamepad #hudEditRow {
     <div id="coach" class="coach" hidden><div id="coachDots" class="coach-dots"></div><p id="coachText"></p></div>
     <div class="act">
       <div class="act-row">
-        <button id="gravityBellBtn" class="act-btn gravityBell" aria-label="Throw Gravity Bell"><span class="ring"></span><svg class="gico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="currentColor"/><path d="M12 3.5a8.5 8.5 0 0 1 8.5 8.5M20.5 12a8.5 8.5 0 0 1-8.5 8.5M12 20.5A8.5 8.5 0 0 1 3.5 12M3.5 12A8.5 8.5 0 0 1 12 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="7 6"/><path d="M12 7.2a4.8 4.8 0 0 1 4.8 4.8M12 16.8A4.8 4.8 0 0 1 7.2 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span class="lbl">BELL</span><span id="gravityBellPips" class="pips" aria-hidden="true"></span><span id="gravityBellKey" class="key" aria-hidden="true">G</span><span class="key pad-key" aria-hidden="true">Y</span></button>
-        <button id="fireBurstBtn" class="act-btn fireBurst" aria-label="Fire Burst"><span class="ring"></span><span class="lbl">BURST</span><span class="key" aria-hidden="true">E</span><span class="key pad-key" aria-hidden="true">B</span></button>
+        <button id="gravityBellBtn" class="act-btn gravityBell" aria-label="Throw Gravity Bell"><span class="ring"></span><svg class="gico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="currentColor"/><path d="M12 3.5a8.5 8.5 0 0 1 8.5 8.5M20.5 12a8.5 8.5 0 0 1-8.5 8.5M12 20.5A8.5 8.5 0 0 1 3.5 12M3.5 12A8.5 8.5 0 0 1 12 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="7 6"/><path d="M12 7.2a4.8 4.8 0 0 1 4.8 4.8M12 16.8A4.8 4.8 0 0 1 7.2 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span class="lbl">BELL</span><span id="gravityBellPips" class="pips" aria-hidden="true"></span><span id="gravityBellKey" class="key" aria-hidden="true">G</span></button>
+        <button id="fireBurstBtn" class="act-btn fireBurst" aria-label="Fire Burst"><span class="ring"></span><span class="lbl">BURST</span><span class="key" aria-hidden="true">E</span></button>
       </div>
-      <button id="dashBtn" class="act-btn dash" aria-label="Dash"><span class="ring"></span><span class="lbl">DASH</span><span id="dashPips" class="pips" aria-hidden="true" hidden></span><span class="key" aria-hidden="true">SPACE</span><span class="key pad-key" aria-hidden="true">A</span></button>
+      <button id="dashBtn" class="act-btn dash" aria-label="Dash"><span class="ring"></span><span class="lbl">DASH</span><span id="dashPips" class="pips" aria-hidden="true" hidden></span><span class="key" aria-hidden="true">SPACE</span></button>
     </div>
   </div>
   <div id="resumeCount" class="resume-count" hidden aria-live="polite"><span id="resumeCountNum">3</span></div>
