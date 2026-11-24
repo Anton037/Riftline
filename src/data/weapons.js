@@ -159,6 +159,7 @@ const weaponOrder = [
 // Model-space dimensions shared by the hero rig, ballistics and the aim guide.
 const weaponMount = { bearingX: 0.02, bearingHeight: 1.16, forward: 0.32, side: 0.36, height: -0.15 };
 const muzzleReach = (weapon) => weaponMount.bearingX + weaponMount.forward + weapon.muzzle[0];
+const muzzleHeight = (weapon) => weaponMount.bearingHeight + weaponMount.height + weapon.muzzle[1];
 
 function muzzlePoint(weapon, x, y, angle) {
   const cos = Math.cos(angle),
@@ -167,7 +168,7 @@ function muzzlePoint(weapon, x, y, angle) {
   return {
     x: x + cos * forward - sin * weaponMount.side,
     y: y + sin * forward + cos * weaponMount.side,
-    height: weaponMount.bearingHeight + weaponMount.height + weapon.muzzle[1],
+    height: muzzleHeight(weapon),
   };
 }
 
@@ -180,4 +181,4 @@ function aimFromMuzzle(weapon, dx, dy) {
     : direction;
 }
 
-export { weaponOrder, weaponDefs, weaponMount, muzzlePoint, aimFromMuzzle };
+export { weaponOrder, weaponDefs, weaponMount, muzzlePoint, muzzleHeight, aimFromMuzzle };

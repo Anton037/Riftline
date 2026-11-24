@@ -1,20 +1,33 @@
 // Riftline service worker – build __RL_VERSION__ (__RL_BUILD__)
 // Scope isolates separate deployments on the same GitHub Pages origin.
-const PREFIX = `riftline:${encodeURIComponent(self.registration.scope)}:`;
+const SCOPE = self.registration.scope;
+const HOME = new URL('index.html', SCOPE).href;
+const PREFIX = `riftline:${encodeURIComponent(SCOPE)}:`;
 const CACHE = PREFIX + 'v__RL_VERSION_DASHED__-__RL_BUILD__-__RL_ASSETS__';
 const FILES = ["index.html","__RL_GAME_FILE__","manifest.webmanifest","audio/physical-bank.wav","textures/terrain-atlas.webp","textures/surface-atlas.webp","textures/vfx-atlas.webp","icon-192.png","icon-512.png","icon-maskable-512.png","apple-touch-icon.png","favicon-48.png","build-info.json","fonts/baskervville-latin-400-normal.woff2","fonts/instrument-sans-latin-500-normal.woff2","fonts/instrument-sans-latin-600-normal.woff2","fonts/instrument-sans-latin-700-normal.woff2"];
-const ASSETS = FILES;
-const INSTALLED = new URL('.riftline-installed', self.registration.scope).href;
+const INFO = new URL('build-info.json', SCOPE).href;
+const INSTALLED = new URL('.riftline-installed', SCOPE).href;
+const pageUrl = (url) => url.split(/[?#]/, 1)[0];
+const isGamePage = (url) => pageUrl(url) === SCOPE || pageUrl(url) === HOME;
+const unavailable = () => new Response('Riftline is unavailable offline.', { status: 503 });
 self.addEventListener('install', (e) => {
   e.waitUntil((async () => {
     const c = await caches.open(CACHE);
-    const results = await Promise.allSettled(ASSETS.map(f => c.add(new Request(f, { cache: 'reload' }))));
-    const failure = results.find((result) => result.status === 'rejected');
-    if (failure) {
+    try {
+      const results = await Promise.allSettled(FILES.map(f => c.add(new Request(f, { cache: 'reload' }))));
+      const failure = results.find((result) => result.status === 'rejected');
+      if (failure) throw failure.reason;
+      const info = await (await c.match(INFO)).json();
+      const html = await (await c.match(HOME)).text();
+      if (info.version !== '__RL_VERSION__' || info.build !== '__RL_BUILD__' || info.assets !== '__RL_ASSETS__' ||
+          !html.includes('src="__RL_GAME_FILE__"')) {
+        throw new Error('The deployment returned a mix of releases');
+      }
+      await c.put(INSTALLED, new Response('complete'));
+    } catch (error) {
       await caches.delete(CACHE);
-      throw failure.reason;
+      throw error;
     }
-    await c.put(INSTALLED, new Response('complete'));
   })());
 });
 self.addEventListener('activate', (e) => {
@@ -24,10 +37,7 @@ self.addEventListener('activate', (e) => {
     const older = [];
     for (const key of await caches.keys()) {
       if (key === CACHE) continue;
-      if (key.startsWith('riftline-v')) {
-        await caches.delete(key);
-        continue;
-      }
+      // Old origin-wide cache names cannot identify which deployment owns them.
       if (!key.startsWith(PREFIX)) continue;
       if (await (await caches.open(key)).match(INSTALLED)) older.push(key);
       else await caches.delete(key);
@@ -46,36 +56,29 @@ async function previousBundle(req) {
     }
   }
 }
-self.addEventListener('message', (e) => { if (e.data === 'skipWaiting') self.skipWaiting(); });
+self.addEventListener('message', (e) => {
+  if (e.data === 'skipWaiting' && e.source?.url && isGamePage(e.source.url)) e.waitUntil(self.skipWaiting());
+});
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
-  if (url.origin !== self.location.origin || !url.href.startsWith(self.registration.scope)) return;
+  if (!url.href.startsWith(SCOPE)) return;
   if (req.mode === 'navigate') {
-    // Serve the atomic installed HTML snapshot from CACHE first so navigation and sub-resources never version-skew.
-    const cached = () =>
-      caches.open(CACHE).then((c) => c.match('index.html', { ignoreSearch: true }).then((hit) => hit || c.match('./', { ignoreSearch: true })));
-    e.respondWith(
-      cached().then((hit) => {
-        if (hit) return hit;
-        const net = fetch(req, { cache: 'no-store' });
-        const good = net.then((res) => (res && res.ok ? res : cached().then((h) => h || res)));
-        const slow = new Promise((resolve) => setTimeout(resolve, 3000)).then(cached).then((h) => h || good);
-        return Promise.race([good, slow]).catch(() => cached());
-      }),
-    );
+    if (!isGamePage(url.href)) return;
+    // Only game navigation uses the installed HTML. Other URLs keep their own response.
+    e.respondWith((async () => {
+      const hit = await (await caches.open(CACHE)).match(HOME);
+      return hit || fetch(req, { cache: 'no-store' });
+    })().catch(unavailable));
     return;
   }
-  if (url.pathname.endsWith('/build-info.json')) {
-    const stored = () => caches.open(CACHE).then(c => c.match('build-info.json', { ignoreSearch: true }));
-    e.respondWith(fetch(req, { cache: 'no-store' }).then((res) => {
-      if (res && res.ok) {
-        return res;
-      }
-      // 3.32.0: an error page of the host is not the build info: the stored one answers (as when offline)
-      return stored().then((hit) => hit || res);
-    }).catch(stored));
+  if (pageUrl(url.href) === INFO) {
+    e.respondWith((async () => {
+      const res = await fetch(req, { cache: 'no-store' }).catch(() => null);
+      if (res?.ok) return res;
+      return await (await caches.open(CACHE)).match(INFO) || res || unavailable();
+    })().catch(unavailable));
     return;
   }
   e.respondWith((async () => {

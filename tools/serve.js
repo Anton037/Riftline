@@ -24,7 +24,7 @@ const TYPES = {
 // `intercept(req, res)` may answer a request itself and return true (tests: a server error page, a dropped connection)
 export function serve(dir, port = 8124, { base = "/", quiet = true, intercept = null } = {}) {
   const root = path.resolve(dir);
-  const server = http.createServer((req, res) => {
+  const server = http.createServer(async (req, res) => {
     if (intercept && intercept(req, res)) return;
     let p;
     try {
@@ -48,24 +48,28 @@ export function serve(dir, port = 8124, { base = "/", quiet = true, intercept = 
     p = p.slice(base.length);
     if (p === "" || p.endsWith("/")) p += "index.html";
     const file = path.join(root, path.normalize("/" + p));
-    if (!file.startsWith(root)) {
-      res.writeHead(403);
-      res.end();
-      return;
-    }
-    fs.readFile(file, (err, data) => {
-      if (err) {
-        res.writeHead(404);
-        res.end("not found");
-        if (!quiet) console.log("404", req.url);
+    let data;
+    try {
+      const [servedRoot, servedFile] = await Promise.all([fs.promises.realpath(root), fs.promises.realpath(file)]);
+      const relative = path.relative(servedRoot, servedFile);
+      if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+        res.writeHead(403);
+        res.end("forbidden");
         return;
       }
-      res.writeHead(200, {
-        "content-type": TYPES[path.extname(file)] || "application/octet-stream",
-        "cache-control": "no-cache",
-      });
-      res.end(data);
+      data = await fs.promises.readFile(servedFile);
+    } catch {
+      res.writeHead(404);
+      res.end("not found");
+      if (!quiet) console.log("404", req.url);
+      return;
+    }
+    res.writeHead(200, {
+      "content-type": TYPES[path.extname(file)] || "application/octet-stream",
+      "cache-control": "no-cache",
+      "x-content-type-options": "nosniff",
     });
+    res.end(data);
   });
   return new Promise((resolve, reject) => {
     server.once("error", reject);

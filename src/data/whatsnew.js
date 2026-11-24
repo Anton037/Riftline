@@ -4,6 +4,17 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "5.2.4",
+    title: "Sharper cues and safer saves",
+    items: [
+      "Right-click while standing still to dash toward the cursor.",
+      "The aim guide and damage markers line up with what happens on screen.",
+      "New runs clear old damage markers and held keys.",
+      "Boss medals are saved alongside progress from another tab.",
+      "Save imports check for bad data, and offline updates check that the game files match.",
+    ],
+  },
+  {
     version: "5.2.3",
     title: "Simple controls",
     items: ["Play with touch in landscape on phones and tablets, or with keyboard and mouse on desktop."],
@@ -34,17 +45,6 @@ export const WHATS_NEW = [
     items: [
       "Weapons, bosses, areas, and crafts have simpler names.",
       "Shots and their flashes now line up with the weapon.",
-    ],
-  },
-  {
-    version: "5.1.1",
-    title: "Seamless waves, unified storybook polish & smoother play",
-    items: [
-      "Wave transitions stay silky smooth on phones and desktop, with every realm prepared ahead of battle.",
-      "Unified Lantern Keeper arms, crafts, Home modules, Endless omens, and Journal Guide entries across the whole game.",
-      "Right-click to dash, and use a perfectly timed dash to graze incoming shots.",
-      "Each arm has a native trait, and every Boss leaves an opening between attacks.",
-      "Spend run shards at Roadside Forge before you enter the next realm.",
     ],
   },
 ];

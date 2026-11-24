@@ -1120,9 +1120,7 @@ export class Renderer {
             this.kickA = ev.a;
           }
           if (def.starSpear) {
-            const len = world.stats.starLance
-              ? world.stats.range
-              : world.arena.rayLen(ev.x, ev.y, ev.a, world.stats.range);
+            const len = world.arena.rayLen(ev.x, ev.y, ev.a, world.stats.range, world.shotsCrossWalls());
             if (len > 0) {
               this.line(muzzle.x, muzzle.z, ev.x + dirX * len, ev.y + dirZ * len, color, 0.22, 0.11, muzzle.y);
               this.line(muzzle.x, muzzle.z, ev.x + dirX * len, ev.y + dirZ * len, whiteColor, 0.09, 0.03, muzzle.y);
@@ -2126,20 +2124,22 @@ export class Renderer {
         const range = Math.min(world.stats.range, 16);
         const reach = mouth.blocked
           ? 0
-          : world.shotsCrossWalls()
-            ? range
-            : world.arena.rayLen(mouth.x, mouth.y, player.aim, range);
+          : world.arena.rayLen(mouth.x, mouth.y, player.aim, range, world.shotsCrossWalls());
         const dx = Math.cos(player.aim),
           dz = Math.sin(player.aim);
+        const offsetX = barrel.x - mouth.x,
+          offsetY = barrel.y - mouth.height,
+          offsetZ = barrel.z - mouth.y;
         for (let along = 0.25; along < reach; along += 1.2) {
           const end = Math.min(reach, along + 0.48);
+          const blend = Math.max(0, 1 - along / 2.5);
           this.beams.colC(
             this.beams.seg(
-              barrel.x + dx * along,
-              barrel.z + dz * along,
-              barrel.x + dx * end,
-              barrel.z + dz * end,
-              barrel.y,
+              mouth.x + offsetX * blend + dx * along,
+              mouth.y + offsetZ * blend + dz * along,
+              mouth.x + offsetX * blend + dx * end,
+              mouth.y + offsetZ * blend + dz * end,
+              mouth.height + offsetY * blend,
               0.055,
               0.022,
             ),
@@ -3402,7 +3402,7 @@ export class Renderer {
     return out;
   }
 
-  groundAt(sx, sy) {
+  groundAt(sx, sy, height) {
     if (!Number.isFinite(sx) || !Number.isFinite(sy)) return null;
     const rect = this.canvas?.getBoundingClientRect ? this.canvas.getBoundingClientRect() : null;
     const w = rect && rect.width > 0 ? rect.width : this.w;
@@ -3414,7 +3414,7 @@ export class Renderer {
     const ndcY = -(((sy - top) / h) * 2 - 1);
     this.camera.unprojectRay(ndcX, ndcY, this._rayO, this._rayD);
     if (Math.abs(this._rayD.y) < 1e-4) return null;
-    const t = (0.75 - this._rayO.y) / this._rayD.y;
+    const t = (height - this._rayO.y) / this._rayD.y;
     if (!(t > 0)) return null;
     this._ground.x = this._rayO.x + this._rayD.x * t;
     this._ground.y = this._rayO.z + this._rayD.z * t;

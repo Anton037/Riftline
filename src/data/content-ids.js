@@ -150,7 +150,7 @@ const EVENT_SEED_IDS = {
   forgewind: "cinder",
 };
 
-const rename = (id, map) => (Object.hasOwn(map, id) ? map[id] : id);
+const rename = (id, map) => (typeof id === "string" && Object.hasOwn(map, id) ? map[id] : id);
 const object = (value) => value && typeof value === "object" && !Array.isArray(value);
 
 export const currentBiomeId = (id) => rename(id, BIOMES);
@@ -185,8 +185,12 @@ const sum = (a, b) => (Number.isFinite(a) && Number.isFinite(b) ? a + b : b),
   bestMedal = (a, b) => {
     if (!object(a)) return b;
     if (!object(b)) return a;
-    if (a.medal !== b.medal) return a.medal > b.medal ? a : b;
-    return (a.secs || Infinity) < (b.secs || Infinity) ? a : b;
+    const medalA = Number.isFinite(a.medal) ? a.medal : 0;
+    const medalB = Number.isFinite(b.medal) ? b.medal : 0;
+    if (medalA !== medalB) return medalA > medalB ? a : b;
+    const secsA = Number.isFinite(a.secs) && a.secs > 0 ? a.secs : Infinity;
+    const secsB = Number.isFinite(b.secs) && b.secs > 0 ? b.secs : Infinity;
+    return secsA < secsB ? a : b;
   };
 
 export function runContentIds(run) {

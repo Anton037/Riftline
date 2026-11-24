@@ -79,6 +79,36 @@ test("off-screen enemy and heal markers point toward their targets", { timeout: 
     assert.ok(marker[`d${axis}`] * sign > 0.8, `${label} pointed the wrong way`);
     assert.ok((marker[axis] - (axis === "x" ? w : h) / 2) * sign > 0, `${label} appeared on the wrong edge`);
   }
+  const cursors = await page.evaluate(() => {
+    const { renderer, overlay } = window.__riftTest;
+    const screenX = renderer.w * 0.7;
+    const screenY = renderer.h * 0.6;
+    const hit = renderer.groundAt(screenX, screenY, 1.06);
+    const point = renderer.project(hit.x, 1.06, hit.y, {});
+    const world = { player: { x: 0, y: 0, alive: true, hp: 100 }, stats: { maxHp: 100 }, enemies: [], pickups: [] };
+    const probe = new overlay.constructor(document.createElement("canvas"));
+    Object.assign(probe, { w: renderer.w, h: renderer.h, dpr: 1 });
+    let angle;
+    probe.g.arc = (_x, _y, _r, start, end) => (angle = (start + end) / 2);
+    probe.addHurt(world, 0, 0);
+    const hasDirectionlessArc = probe.hurts.length > 0;
+    probe.addHurt(world, 3, 4);
+    probe.draw(renderer, world, null);
+    const from = renderer.project(0.6, 0.6, 0.8, {});
+    const origin = renderer.project(0, 0.6, 0, {});
+    const expected = Math.atan2(from.y - origin.y, from.x - origin.x);
+    probe.resetCombat();
+    return {
+      aimError: Math.hypot(point.x - screenX, point.y - screenY),
+      hurtError: Math.abs(angle - expected),
+      hasDirectionlessArc,
+      reset: probe.hurts.length === 0 && probe.c.hidden,
+    };
+  });
+  assert.ok(cursors.aimError < 0.01, "Mouse aim round-trips at shot height");
+  assert.ok(cursors.hurtError < 1e-6, "Damage direction matches the camera projection");
+  assert.equal(cursors.hasDirectionlessArc, false);
+  assert.equal(cursors.reset, true);
   assert.deepEqual(errors, []);
 });
 
@@ -144,6 +174,12 @@ for (const tablet of [true, false])
         // A phone may background while the player fetches a backup from another app.
         await press("#restoreBtn");
         await page.locator("#saveImport").fill('{"game":"riftline","v":1,"shards":123}');
+        await page.locator("#saveFile").setInputFiles({
+          name: "oversized.json",
+          mimeType: "application/json",
+          buffer: Buffer.alloc(1024 * 1024, 32),
+        });
+        await page.getByText("This save file is too large.").waitFor({ state: "visible" });
         const updateState = await page.evaluate(() => {
           let applied = 0;
           const g = window.__riftTest.game;
@@ -463,8 +499,12 @@ test(
       return p.manual && p.firing && Math.abs(Math.atan2(Math.sin(p.aim), Math.cos(p.aim))) < 0.35;
     });
     await page.mouse.up({ button: "left" });
+    await page.evaluate(() => {
+      window.__riftTest.game.world.player.face = Math.PI;
+    });
     await page.mouse.click(aimPoint.x, aimPoint.y, { button: "right" });
     await page.waitForFunction((d) => window.__riftTest.game.world.runStats.dashes === d + 1, start.dashes);
+    assert.ok(await page.evaluate(() => window.__riftTest.game.world.player.dashX > 0.85));
     assert.equal(await page.evaluate(() => window.__riftTest.game.input.mouse.down), false);
     const beforeHudDash = await page.evaluate(() => {
       const { game } = window.__riftTest;
@@ -650,10 +690,26 @@ test(
     });
     await visible(page, "over");
     assert.equal(await page.locator("#over kbd").count(), 0);
+    await page.keyboard.down("KeyW");
     await page.keyboard.press("KeyR");
     await hidden(page, "over");
     await visible(page, "hud");
     await page.waitForFunction(() => window.__riftTest.game.world?.wave === 1);
+    assert.equal(await page.evaluate(() => window.__riftTest.game.input.keys.size), 0);
+    await page.keyboard.up("KeyW");
+    await page.waitForFunction(() => window.__riftTest.game.world.time > 0.2);
+    await page.evaluate(() => {
+      const { game, store } = window.__riftTest;
+      const foreign = JSON.parse(store.text());
+      foreign.shards = 987;
+      localStorage.setItem("riftline.save.v1", JSON.stringify(foreign));
+      store.foreign = true;
+      game.world.emit("bossDown", { id: "bellKeeper", secs: 12, damage: 0 });
+    });
+    await page.waitForFunction(() => window.__riftTest.game.runMedals.some(({ id }) => id === "bellKeeper"));
+    const merged = await page.evaluate(() => JSON.parse(localStorage.getItem("riftline.save.v1")));
+    assert.equal(merged.shards, 987);
+    assert.equal(merged.stats.medals.bellKeeper.medal, 3);
 
     assert.deepEqual(errors, []);
   },

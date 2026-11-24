@@ -131,6 +131,7 @@ test("rays stop exactly at thin/nearby cover and arena edges", () => {
   const close = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-8, `${actual} != ${expected}`);
   a.obs = [{ t: "b", x: 1.025, y: 0, w: 0.025, h: 1 }];
   close(a.rayLen(0, 0, 0, 10), 1);
+  close(a.rayLen(0, 0, 0, a.W + 1, true), a.W);
   close(a.rayLen(0, 0, Math.PI, 10), 10);
   close(a.rayLen(0, 2, 0, 10), 10);
   a.obs = [{ t: "c", x: 0.45, y: 0, r: 0.1 }];

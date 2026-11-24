@@ -38,8 +38,9 @@ For centre/edge/corner screenshots use `node tools/verify.js visual <tag> tablet
   cap concurrent effects and keep the aurora outside the arena at sway extrema.
   Exact rays cover thin/nearby obstacles, diagonal boxes, arena edges and zero reach; live
   beam/gadget checks exercise cover protection.
-- Save checks cover round-trip persistence, migration, unknown future fields and corrupt-save recovery
-  when storage is full. Failed explicit imports/resets retain old progress; successful ones recover held saves.
+- Save checks cover round-trip persistence, migration, unknown future fields, bounded imports and corrupt-save recovery
+  when storage is full. Failed writes retain existing recovery copies and old progress. The desktop flow checks
+  that a boss medal is saved alongside progress from another tab.
 - Choice snapshots keep the RNG through rerolls, banishes and repeated resumes.
 - The desktop flow covers modifier passthrough, keyboard movement and card shortcuts, mouse aim, right-click dash,
   buffered actions, the in-run performance overlay and the resume countdown. It checks that backgrounding during
@@ -51,8 +52,8 @@ For centre/edge/corner screenshots use `node tools/verify.js visual <tag> tablet
   at Roadside Forge and resumes that checkpoint before entering the next realm at a narrow viewport.
 - Combat regressions cover native arm traits, Heat Shatter, Perfect Dash, micro-hitstop, Boss recovery
   windows and phase gates, Master Craft rolls, wave cleanup rewards, and the Endless burst cap.
-- The worker fixture uses the real worker source with small pages. It installs A, rejects an incomplete
-  release, installs B with the same product version/build but different content identity, activates B
+- The worker fixture uses the real worker source with small pages. It installs A, rejects incomplete and mixed
+  releases, preserves unrelated URLs and caches, installs B with the same product version/build but different content identity, activates B
   while the A page stays open, stops the server, fetches A's bundle offline, then reloads offline into B.
   Lifecycle events and an awaited fixture-only message identify the activated B before cutting the network; a transient waiting worker or an
   unrelated controller change cannot be mistaken for completion of the update.

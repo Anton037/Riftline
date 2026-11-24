@@ -157,7 +157,7 @@ const Arena = class {
         return false;
     return true;
   }
-  rayLen(x, y, angle, maxLen) {
+  rayLen(x, y, angle, maxLen, ignoreCover = false) {
     // Analytic intersections cannot step over narrow cover or skip cover close to the muzzle.
     if (maxLen <= 0 || this.outside(x, y)) return 0;
     const dx = Math.cos(angle),
@@ -165,6 +165,7 @@ const Arena = class {
     let reach = maxLen;
     if (Math.abs(dx) > 1e-12) reach = Math.min(reach, ((dx > 0 ? this.W : -this.W) - x) / dx);
     if (Math.abs(dy) > 1e-12) reach = Math.min(reach, ((dy > 0 ? this.H : -this.H) - y) / dy);
+    if (ignoreCover) return Math.max(0, reach);
     for (const ob of this.obs) {
       let hit;
       if (ob.t === "c") {

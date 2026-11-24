@@ -1153,9 +1153,14 @@ const rlStep = 1 / 60,
       if (input.dash && player.dashN > 0 && player.dashT <= 0) {
         let dx = mx,
           dy = my;
-        if (Math.hypot(dx, dy) < 0.2) {
-          dx = Math.cos(player.face);
-          dy = Math.sin(player.face);
+        if (len < 0.2) {
+          const point = input.dashPoint;
+          dx = point ? point.x - player.x : 0;
+          dy = point ? point.y - player.y : 0;
+          if (Math.hypot(dx, dy) < 0.3) {
+            dx = Math.cos(player.face);
+            dy = Math.sin(player.face);
+          }
         }
         let norm = Math.hypot(dx, dy) || 1;
         player.dashX = dx / norm;

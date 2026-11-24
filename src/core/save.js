@@ -12,6 +12,14 @@ import { upgradeList, upgradesById } from "../data/upgrades.js";
 import { BOSS_CARD_CHANCE } from "./boss-cards.js";
 import { HUD_CONTROL_IDS, HUD_LIMITS } from "../data/hud.js";
 
+export const SAVE_TEXT_LIMIT = 262_144;
+
+function readSaveJson(text) {
+  if (typeof text !== "string" || text.length > SAVE_TEXT_LIMIT) return null;
+  // Records are copied into ordinary objects. Reserved keys must never reach those assignments.
+  return JSON.parse(text.trim(), (key, value) => (own(Object.prototype, key) ? undefined : value));
+}
+
 /* Save loading must never brick the game (2.2.2 crashed on every start once a
  save existed). Retry without the unfinished run; null when nothing could be used (3.32.0: the caller backs the
  raw save up and decides what to do: start a fresh profile, or keep this tab's progress). */
@@ -44,9 +52,9 @@ function rlBackupSave(text) {
       if (key && key.startsWith(prefix)) old.push(key);
     }
     old.sort((a, b) => Number(a.slice(prefix.length)) - Number(b.slice(prefix.length)));
-    for (const key of old.slice(0, Math.max(0, old.length - 2))) localStorage.removeItem(key);
-    const backupKey = prefix + Date.now();
+    const backupKey = prefix + Math.max(Date.now(), (Number(old.at(-1)?.slice(prefix.length)) || 0) + 1);
     localStorage.setItem(backupKey, String(text));
+    for (const key of old.slice(0, Math.max(0, old.length - 2))) localStorage.removeItem(key);
     return backupKey;
   } catch (err) {
     logError("backup", err);
@@ -544,9 +552,9 @@ const safeStorage = {
       this.listeners = new Set();
       let data = null,
         text = safeStorage.get(SAVE_KEY);
-      if (text && text.length <= 262144)
+      if (text)
         try {
-          data = JSON.parse(text);
+          data = readSaveJson(text);
         } catch (err) {
           logError("load", err);
         }
@@ -609,7 +617,7 @@ const safeStorage = {
       this.foreign = false;
       let data = null;
       try {
-        data = JSON.parse(safeStorage.get(SAVE_KEY) || "null");
+        data = readSaveJson(safeStorage.get(SAVE_KEY));
       } catch {}
       if (!data || typeof data != "object") return false;
       // 3.32.0: a save of another tab that cannot be used no longer replaces this tab's progress with a fresh profile
@@ -636,6 +644,7 @@ const safeStorage = {
       if (this.kept && this.data.run !== null) this.kept.run = null;
       this.data.savedAt = Date.now();
       let text = this.text();
+      if (text.length > SAVE_TEXT_LIMIT) return false;
       // Explicitly confirmed replacements may recover a held save. Autosaves never overwrite it.
       const written = (!this.held || replacing) && safeStorage.set(SAVE_KEY, text);
       if (written && replacing) this.held = false;
@@ -649,27 +658,24 @@ const safeStorage = {
       return !!written;
     }
     parse(text) {
-      let data,
-        str = String(text ?? "").trim();
-      if (!str || str.length > 262144) return { ok: false };
       try {
-        data = JSON.parse(str);
+        const data = readSaveJson(text);
+        if (!data || data.game !== "riftline" || data.v !== 1) return { ok: false };
+        const notes = { retireNote: null, moduleNote: null };
+        return {
+          ok: true,
+          data: cleanSave(data, false, notes),
+          kept: keptOf(data),
+          retireNote: notes.retireNote,
+          moduleNote: notes.moduleNote,
+        };
       } catch {
         return { ok: false };
       }
-      if (!data || data.game !== "riftline" || data.v !== 1) return { ok: false };
-      const notes = { retireNote: null, moduleNote: null };
-      return {
-        ok: true,
-        data: cleanSave(data, false, notes),
-        kept: keptOf(data),
-        retireNote: notes.retireNote,
-        moduleNote: notes.moduleNote,
-      };
     }
     restore(parsed, reason = "import") {
       if (!parsed?.ok) return false;
-      const previous = { data: this.data, kept: this.kept };
+      const previous = { data: this.data, kept: this.kept, foreign: this.foreign };
       this.data = parsed.data;
       this.kept = parsed.kept || null;
       if (this.save(reason)) {
@@ -679,6 +685,7 @@ const safeStorage = {
       }
       this.data = previous.data;
       this.kept = previous.kept;
+      this.foreign = previous.foreign;
       return false;
     }
     reset() {

@@ -12,7 +12,10 @@ const release = (name) => {
   const html = `<script src="${bundle}"></script><script>navigator.serviceWorker.register('./sw.js')</script>`;
   const worker =
     template
-      .replace(/const FILES = \[[^\]]*\];/, `const FILES = ${JSON.stringify(["./", "index.html", bundle])};`)
+      .replace(
+        /const FILES = \[[^\]]*\];/,
+        `const FILES = ${JSON.stringify(["index.html", bundle, "build-info.json"])};`,
+      )
       .replaceAll("__RL_GAME_FILE__", bundle)
       .replaceAll("__RL_VERSION_DASHED__", "3-61-0")
       .replaceAll("__RL_VERSION__", "3.61.0")
@@ -20,14 +23,26 @@ const release = (name) => {
       .replaceAll("__RL_ASSETS__", name.repeat(16)) +
     // Fixture-only identity readback: installation, activation and fetch routing stay real.
     `\nself.addEventListener('message', e => { if (e.data === 'fixture-release') e.ports[0].postMessage('${name}'); });`;
-  return { bundle, files: { "": html, "index.html": html, "sw.js": worker, [bundle]: `window.release = '${name}'` } };
+  const info = JSON.stringify({ version: "3.61.0", build: "same-build", assets: name.repeat(16) });
+  return {
+    bundle,
+    files: {
+      "": html,
+      "index.html": html,
+      "sw.js": worker,
+      "build-info.json": info,
+      [bundle]: `window.release = '${name}'`,
+    },
+  };
 };
 
 test("updates keep installed snapshots intact and old bundles available offline", { timeout: 20000 }, async (t) => {
   const a = release("a"),
     b = release("b"),
-    broken = release("c");
+    broken = release("c"),
+    mixed = release("d");
   delete broken.files[broken.bundle];
+  mixed.files["index.html"] = a.files["index.html"];
   let current = a;
   const { server, url } = await serve("dist", 0, {
     base: "/Riftline/",
@@ -58,26 +73,35 @@ test("updates keep installed snapshots intact and old bundles available offline"
   page.setDefaultTimeout(5000);
   await page.goto(url);
   await page.waitForFunction(() => navigator.serviceWorker.controller && window.release === "a");
+  const direct = await page.goto(new URL("missing-page", url).href);
+  assert.equal(direct.status(), 404, "Non-game URLs keep their own navigation response");
+  await page.goto(url);
   // A separate deployment on this origin must survive activation and cache cleanup.
   const foreign = `riftline:${encodeURIComponent(new URL("/Preview/", url).href)}:sentinel`;
-  await page.evaluate(async (key) => {
-    await caches.open(key);
-  }, foreign);
-  current = broken;
-  await page.evaluate(async () => {
-    const reg = await navigator.serviceWorker.getRegistration();
-    await reg.update();
-    const worker = reg.installing;
-    if (worker)
-      await new Promise((resolve) => {
-        const changed = () => {
-          if (["redundant", "installed"].includes(worker.state)) resolve();
-        };
-        worker.addEventListener("statechange", changed);
-        changed();
-      });
-    if (reg.waiting) throw Error("Broken release unexpectedly installed");
-  });
+  const legacy = "riftline-v-preview-sentinel";
+  await page.evaluate(
+    async (keys) => {
+      for (const key of keys) await caches.open(key);
+    },
+    [foreign, legacy],
+  );
+  for (const incomplete of [broken, mixed]) {
+    current = incomplete;
+    await page.evaluate(async () => {
+      const reg = await navigator.serviceWorker.getRegistration();
+      await reg.update();
+      const worker = reg.installing;
+      if (worker)
+        await new Promise((resolve) => {
+          const changed = () => {
+            if (["redundant", "installed"].includes(worker.state)) resolve();
+          };
+          worker.addEventListener("statechange", changed);
+          changed();
+        });
+      if (reg.waiting) throw Error("Incomplete release unexpectedly installed");
+    });
+  }
   current = b;
   await page.evaluate(async () => {
     await (await navigator.serviceWorker.getRegistration()).update();
@@ -193,5 +217,6 @@ test("updates keep installed snapshots intact and old bundles available offline"
   }
   const keys = await page.evaluate(() => caches.keys());
   assert.ok(keys.includes(foreign));
+  assert.ok(keys.includes(legacy));
   assert.equal(keys.filter((k) => k.includes("same-build-")).length, 2, "Only the two complete snapshots survive");
 });

@@ -51,7 +51,8 @@ function copyDir(from, to) {
     const a = path.join(from, e.name),
       b = path.join(to, e.name);
     if (e.isDirectory()) copyDir(a, b);
-    else fs.copyFileSync(a, b);
+    else if (e.isFile()) fs.copyFileSync(a, b);
+    else throw new Error(`Public assets must be regular files or directories: ${path.relative(ROOT, a)}`);
   }
 }
 

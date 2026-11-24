@@ -142,16 +142,20 @@ const healthBarTypes = {
       }
     }
     addHurt(world, x, y) {
-      if (x == null || !world) return;
-      let angle = Math.atan2(y - world.player.y, x - world.player.x);
+      if (!world || !Number.isFinite(x) || !Number.isFinite(y)) return;
+      const dx = x - world.player.x;
+      const dy = y - world.player.y;
+      const length = Math.hypot(dx, dy);
+      if (length < 0.01) return;
       if (this.hurts.length < 6) {
-        this.hurts.push({ a: angle, life: 0.8 });
+        this.hurts.push({ dx: dx / length, dy: dy / length, life: 0.8 });
       } else {
         let oldest = 0;
         for (let i = 1; i < this.hurts.length; i++) {
           if (this.hurts[i].life < this.hurts[oldest].life) oldest = i;
         }
-        this.hurts[oldest].a = angle;
+        this.hurts[oldest].dx = dx / length;
+        this.hurts[oldest].dy = dy / length;
         this.hurts[oldest].life = 0.8;
       }
     }
@@ -188,6 +192,11 @@ const healthBarTypes = {
       this.g.clearRect(0, 0, this.w, this.h);
       this._isClean = true;
       if (!this.c.hidden) this.c.hidden = true;
+    }
+    resetCombat() {
+      this.hurts.length = 0;
+      this.callouts.length = 0;
+      this.clear();
     }
     _hasActiveContent(renderer, world, input, opts) {
       if (renderer.biomeFadeT > 0) return true;
@@ -245,6 +254,7 @@ const healthBarTypes = {
         this.clear();
         return;
       }
+      if (!world.boss) this.callouts.length = 0;
       let dt = opts.dt || 0.016;
       this.time += dt;
       if (!this._hasActiveContent(renderer, world, input, opts)) {
@@ -577,17 +587,20 @@ const healthBarTypes = {
           hurt.life -= dt;
           if (hurt.life > 0) {
             this.hurts[keepHurts++] = hurt;
+            const from = renderer.project(player.x + hurt.dx, 0.6, player.y + hurt.dy, this.tmp2);
+            if (pos.behind || from.behind) continue;
+            const angle = Math.atan2(from.y - pos.y, from.x - pos.x);
             ctx.globalAlpha = Math.min(1, hurt.life / 0.5) * 0.85;
             ctx.strokeStyle = "#e04a3e";
             ctx.lineWidth = 6.5;
             ctx.lineCap = "round";
             ctx.beginPath();
-            ctx.arc(pos.x, pos.y, radius, hurt.a - 0.42, hurt.a + 0.42);
+            ctx.arc(pos.x, pos.y, radius, angle - 0.42, angle + 0.42);
             ctx.stroke();
             ctx.lineWidth = 2;
             ctx.strokeStyle = "#ffe0c8";
             ctx.beginPath();
-            ctx.arc(pos.x, pos.y, radius - 6.5, hurt.a - 0.25, hurt.a + 0.25);
+            ctx.arc(pos.x, pos.y, radius - 6.5, angle - 0.25, angle + 0.25);
             ctx.stroke();
           }
         }

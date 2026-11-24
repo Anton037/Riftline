@@ -28,6 +28,7 @@ import {
   RL_RETIRE_NOTE,
   SaveStore,
   SAVE_KEY,
+  SAVE_TEXT_LIMIT,
   rlRecordRun,
   set_RL_RETIRE_NOTE,
   RL_MODULE_NOTE,
@@ -365,7 +366,7 @@ const overlay = new Overlay(elementById("ov")),
         ui.showHud(true);
         window.__riftUpdateDeviceProfile?.();
         placeHud();
-        input.reset();
+        input.reset(true);
         input.enabled = true;
         game.tut =
           !store.data.seen.tutorial && !resume && this.world.wave === 1
@@ -375,6 +376,7 @@ const overlay = new Overlay(elementById("ov")),
           this.world.hold = true;
         }
         ui.coach(null);
+        overlay.resetCombat();
         if (renderer) {
           renderer.clearTransient();
           renderer.resetCamera();
@@ -578,6 +580,7 @@ const overlay = new Overlay(elementById("ov")),
       this._pausedFromChoose = false;
       this._pausedFromAnvil = false;
       this._settledOverlayFrames = 0;
+      overlay.resetCombat();
       if (renderer) renderer.clearTransient();
       ui.hideOver();
       ui.hideChoose();
@@ -783,9 +786,10 @@ function awardBossMedal(ev, world) {
   try {
     const def = bossDefs[ev.id];
     if (!def) return;
-    const medal = bossMedal(ev.id, ev.secs, ev.damage, world.stats.maxHp, threatMods(world.threat).boss),
-      stats = store.data.stats;
+    const medal = bossMedal(ev.id, ev.secs, ev.damage, world.stats.maxHp, threatMods(world.threat).boss);
     if (!medal) return;
+    store.syncForeign();
+    const stats = store.data.stats;
     stats.medals = stats.medals || {};
     const old = stats.medals[ev.id],
       better = !old || medal > old.medal || (medal === old.medal && ev.secs < old.secs);
@@ -1672,7 +1676,7 @@ document.addEventListener(
   const importSave = async function () {
     const result = await ui.dialog({
       title: "Import save",
-      body: '<p>Choose a Riftline <code>.json</code> save file or paste your save export below. Importing replaces local progress on this device.</p><p><label class="btn small" style="display:inline-flex;cursor:pointer">Choose .json file<input id="saveFile" type="file" accept=".json,application/json,text/plain" hidden></label></p><textarea id="saveImport" class="log" spellcheck="false" placeholder="Paste save JSON here"></textarea>',
+      body: `<p>Choose a Riftline <code>.json</code> save file or paste your save export below. Importing replaces local progress on this device.</p><p><label class="btn small" style="display:inline-flex;cursor:pointer">Choose .json file<input id="saveFile" type="file" accept=".json,application/json,text/plain" hidden></label></p><textarea id="saveImport" class="log" spellcheck="false" maxlength="${SAVE_TEXT_LIMIT}" placeholder="Paste save JSON here"></textarea>`,
       buttons: [
         { label: "Cancel", value: null, cls: "ghost" },
         { label: "Restore", value: "restore", cls: "primary" },
@@ -1681,13 +1685,30 @@ document.addEventListener(
         const fileEl = getById("saveFile"),
           area = getById("saveImport");
         if (fileEl && area) {
+          let selection = 0;
           fileEl.addEventListener("change", () => {
-            const file = fileEl.files && fileEl.files[0];
+            const request = ++selection;
+            const file = fileEl.files?.[0];
             if (!file) return;
+            const stillOpen = () => request === selection && area.isConnected && !getById("dialog").hidden;
+            // A UTF-8 save can use up to three bytes per UTF-16 code unit, plus its optional BOM.
+            if (file.size > SAVE_TEXT_LIMIT * 3 + 3) {
+              ui.toast("This save file is too large.", "warn");
+              return;
+            }
             const reader = new FileReader();
             reader.onload = () => {
-              area.value = String(reader.result || "");
+              if (!stillOpen()) return;
+              const text = String(reader.result ?? "");
+              if (text.length > SAVE_TEXT_LIMIT) {
+                ui.toast("This save file is too large.", "warn");
+                return;
+              }
+              area.value = text;
               ui.toast(`Loaded ${file.name}`, "good", 2000);
+            };
+            reader.onerror = () => {
+              if (stillOpen()) ui.toast("Could not read the save file.", "warn");
             };
             reader.readAsText(file);
           });

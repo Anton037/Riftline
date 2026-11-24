@@ -2,6 +2,7 @@
 
 import { RL_RT } from "../core/diagnostics.js";
 import { clamp } from "../core/util.js";
+import { muzzleHeight } from "../data/weapons.js";
 import { game } from "../main.js";
 import { getById } from "./ui.js";
 
@@ -20,6 +21,7 @@ const Input = class {
     this.keys = new Set();
     this.mouse = { x: NaN, y: NaN, down: false };
     this.pending = { dash: 0, fireBurst: 0, gravityBell: 0, fire: 0 };
+    this.dashPoint = null;
     this.R = 56;
     // the stick size of the player (times the default radius) and, with a fixed move stick, where it sits
     // (a function that returns its centre in px, see ui/hud-layout.js; null: the stick starts where the thumb does)
@@ -67,7 +69,9 @@ const Input = class {
     });
     if (!touchInput) {
       layer.addEventListener("mousedown", (ev) => {
-        if (ev.button === 2 && ev.isTrusted) this.press("dash");
+        if (ev.button !== 2 || !ev.isTrusted) return;
+        const point = this.r?.groundAt(ev.clientX, ev.clientY, 0);
+        this.press("dash", point ? { x: point.x, y: point.y } : null);
       });
       window.addEventListener("keydown", (ev) => this.key(ev, true));
       window.addEventListener("keyup", (ev) => this.key(ev, false));
@@ -298,9 +302,10 @@ const Input = class {
       }
     }
   }
-  press(action) {
+  press(action, dashPoint = null) {
     if (this.enabled && (!this.isPlaying || this.isPlaying())) {
       this.pending[action] = performance.now() + INPUT_BUFFER_MS;
+      if (action === "dash") this.dashPoint = dashPoint;
     }
   }
   consume(action, ready, now) {
@@ -332,6 +337,7 @@ const Input = class {
   // Drop one-shot actions during a boss camera pan, but keep held sticks and keys.
   settle() {
     this.pending.dash = this.pending.fireBurst = this.pending.gravityBell = this.pending.fire = 0;
+    this.dashPoint = null;
   }
   /* the radius of the sticks in px: a share of the screen, times the stick size of the player (scale: another size) */
   radius(scale = this.stickScale) {
@@ -342,6 +348,8 @@ const Input = class {
       player = world.player,
       fighting = world.state === "fight";
     const dash = this.consume("dash", player.dashT <= 0 && (player.dashN > 0 || player.dashCdT <= dt), now);
+    const dashPoint = dash ? this.dashPoint : null;
+    if (!this.pending.dash) this.dashPoint = null;
     const fireBurst = this.consume("fireBurst", fighting && player.fireBurst >= 100, now);
     const gravityBell = this.consume("gravityBell", fighting && (player.gadgetN > 0 || player.gadgetT <= dt), now);
     const bufferedFire = this.consume("fire", player.fireT <= dt, now);
@@ -402,7 +410,7 @@ const Input = class {
       fire ||= bufferedFire;
     } else if (this.r && Number.isFinite(this.mouse.x) && Number.isFinite(this.mouse.y)) {
       fire = this.mouse.down || bufferedFire;
-      let ground = this.r.groundAt(this.mouse.x, this.mouse.y);
+      let ground = this.r.groundAt(this.mouse.x, this.mouse.y, muzzleHeight(world.stats.weapon));
       if (ground) {
         let dx = ground.x - world.player.x,
           dy = ground.y - world.player.y,
@@ -440,6 +448,7 @@ const Input = class {
       auto: settings.autoFire !== false,
       assist: settings.assist !== false,
       dash,
+      dashPoint,
       fireBurst,
       gravityBell,
     };

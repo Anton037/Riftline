@@ -19,7 +19,7 @@ globalThis.localStorage = {
   },
   removeItem: (k) => entries.delete(k),
 };
-const { SaveStore, SAVE_KEY, newSave, cleanRun } = await import("../src/core/save.js");
+const { SaveStore, SAVE_KEY, SAVE_TEXT_LIMIT, newSave, cleanRun } = await import("../src/core/save.js");
 const reset = (raw) => {
   entries.clear();
   blocked = false;
@@ -166,6 +166,31 @@ test("an older build preserves unknown data written by a future build", () => {
   assert.deepEqual(saved.cosmetics, future.cosmetics);
 });
 
+test("save reads and imports discard reserved record keys and preserve valid progress", () => {
+  const progress = newSave();
+  progress.shards = 42;
+  progress.stats.medals = Object.fromEntries([
+    ["__proto__", { medal: 1, secs: 60 }],
+    ["constructor", { medal: 1, secs: 60 }],
+    ["colossus", { medal: {}, secs: [] }],
+    ["emberKing", { medal: 2, secs: 51 }],
+  ]);
+  progress.run = { v: 1, seed: 2, weapon: ["pulse"], wave: 5, hp: 100 };
+  const text = JSON.stringify(progress);
+  reset(text);
+  const store = new SaveStore();
+  const imported = store.parse(text);
+  assert.equal(imported.ok, true);
+  for (const data of [store.data, imported.data]) {
+    assert.equal(data.shards, 42);
+    assert.equal(Object.getPrototypeOf(data.stats.medals), Object.prototype);
+    assert.deepEqual(data.stats.medals, { emberKing: { medal: 2, secs: 51, damage: 0 } });
+    assert.equal(data.run, null);
+  }
+  assert.deepEqual(store.parse(text.padEnd(SAVE_TEXT_LIMIT + 1)), { ok: false });
+  assert.equal(entries.get(SAVE_KEY), text);
+});
+
 test("corrupt saves are backed up, or held untouched when storage is full", () => {
   const broken = '{"v":1,"game":"riftline","shards":';
   reset(broken);
@@ -179,6 +204,21 @@ test("corrupt saves are backed up, or held untouched when storage is full", () =
   held.save("test");
   assert.equal(entries.get(SAVE_KEY), broken);
   assert.equal(held.storageOk, false);
+});
+
+test("a failed corrupt-save backup preserves the existing recovery copies", () => {
+  const broken = '{"v":1,';
+  reset(broken);
+  for (let i = 1; i <= 3; i++) entries.set(`${SAVE_KEY}.backup-${i}`, `backup ${i}`);
+  const previous = [...entries];
+  blocked = true;
+  try {
+    const held = new SaveStore();
+    assert.equal(held.held, true);
+    assert.deepEqual([...entries], previous);
+  } finally {
+    blocked = false;
+  }
 });
 
 test("confirmed import and reset recover held saves; failed replacements preserve progress", () => {
