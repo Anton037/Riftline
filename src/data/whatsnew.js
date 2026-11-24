@@ -4,6 +4,16 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "5.2.6",
+    title: "Easier reward picks",
+    items: [
+      "Small touch screens show when there are more reward cards to swipe to.",
+      "Swiping keeps the offer open, and pausing or turning your phone keeps your place.",
+      "Rerolls only spend a charge when they turn up a new card.",
+      "Long Endless builds scroll separately so your reward cards stay in view.",
+    ],
+  },
+  {
     version: "5.2.5",
     title: "Faster craft picks",
     items: [
@@ -36,15 +46,6 @@ export const WHATS_NEW = [
       "Shots stay on course during quick turns, and Echo Shot repeats from the original spot.",
       "Back Shot respects cover, and helper wisps turn toward what they shoot.",
       "Star Hall and Star Heart use their own portal and aiming effects again.",
-    ],
-  },
-  {
-    version: "5.2.1",
-    title: "Cleaner menus",
-    items: [
-      "Settings and menus have fewer shortcut labels, and the shortcuts still work.",
-      "Settings can show live FPS and CPU frame time during play.",
-      "Screen-edge arrows point toward enemies and healing pickups.",
     ],
   },
 ];

@@ -7,6 +7,7 @@ import { openGame } from "./support/game.mjs";
 globalThis.__RL_VERSION__ ??= "test";
 globalThis.__RL_BUILD__ ??= "test";
 const { bossPatterns, OVERDRIVE } = await import("../src/core/ai.js");
+const { upgradeList } = await import("../src/data/upgrades.js");
 
 const visible = (page, id) =>
   page.waitForFunction((id) => {
@@ -19,6 +20,47 @@ const hidden = (page, id) =>
     const e = document.getElementById(id);
     return !e || e.hidden;
   }, id);
+
+test("a long Endless build still leaves room to see and pick reward cards", { timeout: 60000 }, async (t) => {
+  const { page, press, errors } = await openGame(t, "desktop", { viewport: { width: 900, height: 565 } });
+  await press("#playBtn");
+  await page.evaluate(
+    (build) => {
+      const w = window.__riftTest.game.world;
+      w.endless = true;
+      w.startWave(76);
+      w.up = build;
+      w.state = "cleared";
+      w.stateT = 3;
+    },
+    Object.fromEntries(
+      upgradeList.filter(({ id }) => id !== "heal").map(({ id, max }) => [id, max - +(id === "pierce")]),
+    ),
+  );
+  await visible(page, "choose");
+  const build = page.locator("#buildStrip");
+  assert.equal(await build.evaluate((el) => el.scrollHeight > el.clientHeight), true);
+  await build.locator("[data-up]").last().click();
+  await visible(page, "chooseUpInfo");
+  for (const viewport of [
+    { width: 900, height: 565 },
+    { width: 1280, height: 720 },
+    { width: 650, height: 600 },
+  ]) {
+    await page.setViewportSize(viewport);
+    const results = await page.evaluate(() => ({
+      cardSpace: document.getElementById("cards").clientHeight,
+      ...window.__riftLayoutAudit(),
+    }));
+    assert.ok(results.cardSpace > 64, `Reward cards were clipped at ${viewport.width}×${viewport.height}`);
+    assert.equal(results.ok, true, JSON.stringify(results.findings));
+  }
+  await press("#cards [data-pick]");
+  await page.waitForFunction(
+    () => window.__riftTest.game.world.wave === 77 && document.getElementById("choose").hidden,
+  );
+  assert.deepEqual(errors, []);
+});
 
 test("off-screen enemy and heal markers point toward their targets", { timeout: 60000 }, async (t) => {
   const { page, errors } = await openGame(t, "desktop");

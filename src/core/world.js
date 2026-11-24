@@ -752,8 +752,10 @@ const rlStep = 1 / 60,
     }
     reroll() {
       if (this.state !== "choose" || this.rerolls <= 0) return false;
+      const offer = this.makeOffer(this.offer);
+      if (!offer.some((id) => !this.offer.includes(id))) return false;
       this.rerolls--;
-      this.offer = this.makeOffer(this.offer || []);
+      this.offer = offer;
       this.emit("reroll");
       return true;
     }

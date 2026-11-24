@@ -96,6 +96,32 @@ test("saved choices preserve rerolls and banishes, including after another resum
     assert.equal(cleanRun({ ...old, offerRng: invalid }).offerRng, undefined);
 });
 
+test("reroll keeps the last craft and its charge if there is nothing new to offer", () => {
+  const initial = new World({ seed: 1, weapon: "lanternGun", threat: 0 });
+  const snap = initial.snapshot();
+  snap.wave = 42;
+  snap.endless = true;
+  snap.up = Object.fromEntries(upgradeList.map(({ id, max }) => [id, max]));
+  snap.up.hp--;
+  snap.up.heal = 0;
+  snap.banished = ["hp"];
+  const world = new World({ snap });
+  world.player.hp = (world.stats.maxHp * 7) / 10;
+  world.beginChoice();
+  assert.deepEqual(world.offer, ["heal"]);
+  assert.equal(world.reroll(), false);
+  assert.equal(world.rerolls, 1);
+
+  // A checkpoint rounds HP to a whole number, which can put the resumed run above the healing card threshold.
+  const resumed = new World({ snap: cleanRun(world.snapshot()) });
+  assert.ok(resumed.player.hp / resumed.stats.maxHp > 0.7);
+  assert.equal(resumed.reroll(), false);
+  assert.equal(resumed.rerolls, 1);
+  assert.deepEqual(resumed.offer, ["heal"]);
+  assert.equal(resumed.choose("heal"), true);
+  assert.equal(resumed.wave, 43);
+});
+
 test("Armor Core reduces enemy hits but never stacks on map hazard resistance", () => {
   const w = new World({ seed: 42, weapon: "lanternGun", threat: 0, ws: { armor: 5 } });
   const loss = (source) => {

@@ -247,6 +247,7 @@ const getById = (id) => document.getElementById(id),
       this.recTab = "milestones";
       this.codexTab = "areas";
       this.banishMode = false;
+      this.chooseScroll = { left: 0, top: 0 };
       this.hudCache = {};
       // 3.46.0: the buff row and its step bars are cached per frame (see buffs)
       this.buffRow = null;
@@ -270,16 +271,18 @@ const getById = (id) => document.getElementById(id),
     }
     click(el, action, { sound = true } = {}) {
       if (!el) return;
-      let touchDown = 0,
+      let touchDown = false,
+        dragged = false,
         startX = 0,
         startY = 0,
-        pointerId = 0,
-        activate = () => {
-          if (el.disabled || el.hidden) return false;
-          if (sound) this.g.sound.play("click");
-          action();
-          return true;
-        };
+        pointerId = 0;
+      const withinTapSlop = (ev) => Math.hypot(ev.clientX - startX, ev.clientY - startY) <= 14;
+      const activate = () => {
+        if (el.disabled || !el.isConnected || el.closest("[hidden]")) return false;
+        if (sound) this.g.sound.play("click");
+        action();
+        return true;
+      };
       el.addEventListener(
         "pointerdown",
         (ev) => {
@@ -290,19 +293,26 @@ const getById = (id) => document.getElementById(id),
             startX = ev.clientX;
             startY = ev.clientY;
             pointerId = ev.pointerId;
-            touchDown = 1;
+            touchDown = true;
+            dragged = false;
           }
         },
         { passive: false },
       );
       el.addEventListener(
+        "pointermove",
+        (ev) => {
+          if (touchDown && ev.pointerId === pointerId && !withinTapSlop(ev)) dragged = true;
+        },
+        { passive: true },
+      );
+      el.addEventListener(
         "pointerup",
         (ev) => {
           if (ev.pointerType !== "touch" || !touchDown || ev.pointerId !== pointerId) return;
-          let dx = ev.clientX - startX,
-            dy = ev.clientY - startY;
-          touchDown = 0;
-          if (Math.hypot(dx, dy) > 14 || !activate()) return;
+          touchDown = false;
+          if (!dragged && withinTapSlop(ev) && !activate()) return;
+          // Suppress the compatibility click even if the finger dragged and then returned.
           ev.preventDefault();
           ev.stopPropagation();
           const now = performance.now();
@@ -313,15 +323,11 @@ const getById = (id) => document.getElementById(id),
         },
         { passive: false },
       );
-      el.addEventListener(
-        "pointercancel",
-        (ev) => {
-          if (ev.pointerId === pointerId) {
-            touchDown = 0;
-          }
-        },
-        { passive: true },
-      );
+      const cancelTouch = (ev) => {
+        if (ev.pointerId === pointerId) touchDown = false;
+      };
+      el.addEventListener("pointercancel", cancelTouch, { passive: true });
+      el.addEventListener("lostpointercapture", cancelTouch, { passive: true });
       el.addEventListener("click", (ev) => {
         const now = performance.now(),
           guard = RL_TOUCH_CLICK_GUARD,
@@ -382,6 +388,23 @@ const getById = (id) => document.getElementById(id),
         }
       });
       this.click(getById("rerollBtn"), () => this.g.reroll());
+      {
+        const cards = getById("cards");
+        cards.addEventListener(
+          "scroll",
+          () => {
+            // A portrait resize can reset the scroller before the pause screen opens.
+            if (!cards.clientWidth || (touchInput && innerHeight > innerWidth)) return;
+            this.chooseScroll = { left: cards.scrollLeft, top: cards.scrollTop };
+            this.updateChooseScrollHint();
+          },
+          { passive: true },
+        );
+        if (touchInput) {
+          const updateScrollHint = () => this.updateChooseScrollHint();
+          new ResizeObserver(() => requestAnimationFrame(updateScrollHint)).observe(cards);
+        }
+      }
       this.click(getById("anvilContinueBtn"), () => this.g.leaveAnvil());
       this.click(getById("anvilPauseBtn"), () => this.g.pause());
       this.click(getById("claimAllBtn"), () => this.claimAll());
@@ -1563,9 +1586,9 @@ const getById = (id) => document.getElementById(id),
       getById("chooseHp").style.transform = `scaleX(${hpFrac})`;
       getById("chooseHpNum").textContent = `${Math.ceil(world.player.hp)}/${world.stats.maxHp}`;
       this.renderNextWave(world);
-      this.renderCards(world);
       this.coverHud(true);
       getById("choose").hidden = false;
+      this.renderCards(world, { resetScroll: true });
     }
     renderNextWave(world) {
       const box = getById("nextWave");
@@ -1579,9 +1602,33 @@ const getById = (id) => document.getElementById(id),
       if (next.traps) chips.push(["Arena traps active", ""]);
       box.innerHTML = chips.map(([text, cls]) => `<span class="nw ${cls}">${escapeHtml(text)}</span>`).join("");
     }
-    renderCards(world) {
+    updateChooseScrollHint() {
+      if (!touchInput) return;
+      const cards = getById("cards");
+      const hint = getById("chooseScrollHint");
+      const width = cards.clientWidth;
+      const max = cards.scrollWidth - width;
+      const hidden = width === 0 || max <= 1;
+      if (hint.hidden !== hidden) hint.hidden = hidden;
+      if (hidden) return;
+      const left = cards.scrollLeft > 1;
+      const right = cards.scrollLeft < max - 1;
+      const text = `${left ? "← " : ""}Swipe for more${right ? " →" : ""}`;
+      if (hint.textContent !== text) hint.textContent = text;
+    }
+    restoreChooseScroll() {
+      getById("cards").scrollTo(this.chooseScroll);
+      this.updateChooseScrollHint();
+    }
+    resumeChoose() {
+      getById("choose").hidden = false;
+      this.restoreChooseScroll();
+      this.coverHud(true);
+    }
+    renderCards(world, { resetScroll = false } = {}) {
       const tierCrests = ["", "\u25c7", "\u25c6", "\u25c8", "\u2605", "\u2726", "\u265b"];
       const cards = getById("cards");
+      this.chooseScroll = resetScroll ? { left: 0, top: 0 } : { left: cards.scrollLeft, top: cards.scrollTop };
       const sealButton = getById("sealBtn");
       sealButton.hidden = !(world.ws.seal > 0 || world.banishes > 0);
       sealButton.disabled = world.banishes <= 0 || world.offer.length < 2;
@@ -1612,13 +1659,10 @@ const getById = (id) => document.getElementById(id),
           return `<button class="card r${up.rarity}" data-pick="${id}"${protectedReward ? " disabled" : ""}>${seal}<span class="cico">${iconSvg(up.icon)}</span><span><span class="ctop"><b>${escapeHtml(up.name)}</b><span class="lv">${escapeHtml(tag)}</span></span><p>${escapeHtml(up.desc(level))}</p>${delta}${evo}</span></button>`;
         })
         .join("");
-      const choose = getById("choose");
       for (let card of cards.querySelectorAll("[data-pick]")) {
         this.click(
           card,
           () => {
-            // Reroll and Seal replace the card nodes. Pause only hides the screen.
-            if (!card.isConnected || choose.hidden) return;
             if (this.banishMode) this.g.seal(card.dataset.pick);
             else this.g.choose(card.dataset.pick);
           },
@@ -1633,6 +1677,7 @@ const getById = (id) => document.getElementById(id),
       getById("rerollBtn").disabled = world.rerolls <= 0;
       getById("buildStrip").innerHTML = this.buildHtml(world, true);
       if (getById("chooseUpInfo")) getById("chooseUpInfo").hidden = true;
+      this.restoreChooseScroll();
     }
     statDelta(id, world) {
       let player = world.player,

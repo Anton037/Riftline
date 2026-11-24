@@ -29,6 +29,7 @@ test("a phone can pick its first craft while a movement thumb is still down", { 
       for (const e of [...w.enemies]) w.killEnemy(e);
     });
     await page.locator("#chooseFirstHint").waitFor({ state: "visible" });
+    assert.equal(await page.locator("#chooseScrollHint").isVisible(), false);
     const craft = page.locator("#cards [data-pick]").last();
     await craft.waitFor({ state: "visible" });
     const id = await craft.getAttribute("data-pick");
@@ -39,6 +40,15 @@ test("a phone can pick its first craft while a movement thumb is still down", { 
     await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [move, slide] });
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [slide] });
     assert.equal(await page.evaluate(() => window.__riftTest.game.world.state), "choose");
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [move, tap] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [move, slide] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [move, tap] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [tap] });
+    assert.equal(
+      await page.evaluate(() => window.__riftTest.game.world.state),
+      "choose",
+      "A swipe returning to the starting point must not pick a craft",
+    );
     await page.evaluate(() => {
       document.addEventListener(
         "pointerup",
@@ -67,6 +77,90 @@ test("a phone can pick its first craft while a movement thumb is still down", { 
   } finally {
     await cdp.send("Input.dispatchTouchEvent", { type: "touchCancel", touchPoints: [] });
   }
+  assert.deepEqual(errors, []);
+});
+
+test("a short phone can browse, reroll and resume a five-card boss offer", { timeout }, async (t) => {
+  const landscape = { width: 568, height: 320 };
+  const { page, press, errors } = await openGame(t, false, { viewport: landscape });
+  await press("#playBtn");
+  await page.waitForFunction(() => window.__riftTest.game.mode === "game");
+  await page.evaluate(() => {
+    const w = window.__riftTest.game.world;
+    w.seed = 706;
+    w.startWave(5);
+    w.state = "cleared";
+    w.stateT = 2.8;
+    w.offerBoss = true;
+    w.rerolls = 2;
+    w.ws.extraChoice = 1;
+    w.banishes = 2;
+  });
+  const cards = page.locator("#cards");
+  const picks = cards.locator("[data-pick]");
+  const hint = page.locator("#chooseScrollHint");
+  await hint.waitFor({ state: "visible" });
+  assert.equal(await picks.count(), 5);
+  assert.equal(await hint.textContent(), "Swipe for more →");
+  const layout = await page.evaluate(() => window.__riftLayoutAudit());
+  assert.equal(layout.ok, true, JSON.stringify(layout.findings));
+  const readOffer = () => picks.evaluateAll((nodes) => nodes.map((card) => card.dataset.pick));
+  const original = await readOffer();
+  const cdp = await page.context().newCDPSession(page);
+  const touch = (type, touchPoints) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints });
+  const swipeToEnd = async () => {
+    const box = await cards.boundingBox();
+    const point = { x: Math.round(box.x + box.width - 40), y: Math.round(box.y + box.height / 2), id: 1 };
+    await touch("touchStart", [point]);
+    await touch("touchMove", [{ ...point, x: point.x - 100 }]);
+    await touch("touchMove", [{ ...point, x: point.x - 325 }]);
+    await touch("touchEnd", []);
+    await hint.filter({ hasText: /^← Swipe for more$/ }).waitFor();
+  };
+  await swipeToEnd();
+  assert.deepEqual(await readOffer(), original);
+  assert.equal(await page.evaluate(() => window.__riftTest.game.world.state), "choose");
+
+  await press("#sealBtn");
+  assert.equal(await picks.first().isDisabled(), true);
+  assert.equal(await hint.textContent(), "← Swipe for more");
+  await page.setViewportSize({ width: landscape.height, height: landscape.width });
+  await page.locator("#rotate").waitFor({ state: "visible" });
+  await page.locator("#pause").waitFor({ state: "visible" });
+  await page.setViewportSize(landscape);
+  await page.locator("#rotate").waitFor({ state: "hidden" });
+  await press("#resumeBtn");
+  await hint.waitFor({ state: "visible" });
+  assert.deepEqual(await readOffer(), original);
+  assert.equal(await picks.first().isDisabled(), true);
+  assert.equal(await hint.textContent(), "← Swipe for more");
+  await press("#rerollBtn");
+  assert.equal(await page.locator("#rerollTxt").textContent(), "Reroll (1)");
+  assert.equal(await page.locator("#sealBtn").getAttribute("aria-pressed"), "false");
+  assert.equal(await cards.evaluate((el) => el.scrollLeft), 0);
+  assert.equal(await hint.textContent(), "Swipe for more →");
+  const rerolled = await readOffer();
+  assert.equal(rerolled[0], original[0]);
+  assert.ok(rerolled.some((id) => !original.includes(id)));
+
+  await page.setViewportSize({ width: 844, height: 390 });
+  await hint.waitFor({ state: "hidden" });
+  await page.setViewportSize(landscape);
+  await hint.waitFor({ state: "visible" });
+  await page.waitForFunction(() => navigator.serviceWorker.controller);
+  await page.context().setOffline(true);
+  assert.equal((await page.reload()).fromServiceWorker(), true);
+  await press("#continueBtn");
+  await hint.waitFor({ state: "visible" });
+  assert.deepEqual(await readOffer(), rerolled);
+  assert.equal(await page.locator("#rerollTxt").textContent(), "Reroll (1)");
+  assert.equal(await hint.textContent(), "Swipe for more →");
+  await swipeToEnd();
+  await picks.last().tap();
+  await page.locator("#anvil").waitFor({ state: "visible" });
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("riftline.save.v1")).run);
+  assert.equal(saved.up[rerolled.at(-1)], 1);
+  assert.deepEqual(saved.anvil, []);
   assert.deepEqual(errors, []);
 });
 

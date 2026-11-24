@@ -445,13 +445,15 @@ const overlay = new Overlay(elementById("ov")),
       }
     },
     reroll() {
-      let world = this.world;
-      if (world && world.reroll()) {
-        ui.renderCards(world);
-        // the "reroll" event plays the shuffle sound
-        store.data.run = world.snapshot();
-        store.save("reroll");
+      const world = this.world;
+      if (world?.state !== "choose" || world.rerolls <= 0) return;
+      if (world.reroll()) {
+        ui.banishMode = false;
+        ui.renderCards(world, { resetScroll: true });
+      } else {
+        ui.toast("No new crafts this time. Reroll kept.", "", 1800);
       }
+      this.saveCheckpoint("reroll");
     },
     toggleMute() {
       const settings = store.data.settings;
@@ -513,8 +515,7 @@ const overlay = new Overlay(elementById("ov")),
       this.paused = false;
       if (this._pausedFromChoose) {
         this._pausedFromChoose = false;
-        getById("choose").hidden = false;
-        ui.coverHud(true);
+        ui.resumeChoose();
       } else if (this._pausedFromAnvil) {
         this._pausedFromAnvil = false;
         getById("anvil").hidden = false;

@@ -1078,9 +1078,8 @@ function rlAuditReportLines(out) {
     out.push(`  [${check.st}]${" ".repeat(Math.max(1, 5 - check.st.length))}${check.id}: ${check.msg}`);
 }
 function rlUiButtonGuardSelfTest() {
-  // Runs on a detached host: no document-level listeners fire, so the test
-  // cannot unlock audio or pollute the runtime counters shown in the log.
-  const host = document.createElement("div");
+  // Keep the buttons connected in a separate document so events stay out of the live game.
+  const host = document.implementation.createHTMLDocument().body;
   host.setAttribute("data-rift-ui-test", "1");
   const fake = { sound: { play: () => {} }, store: { data: {} }, input: {} },
     testUi = { g: fake };

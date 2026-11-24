@@ -2223,6 +2223,13 @@ input[type=range]::-moz-range-thumb {
   font-size: 13px;
   text-align: center;
 }
+.choose-scroll-hint {
+  margin: 0;
+  color: var(--dim);
+  font-size: 12px;
+  line-height: 1.2;
+  flex: none;
+}
 .cards {
   display: flex;
   flex-direction: column;
@@ -2509,6 +2516,16 @@ input[type=range]::-moz-range-thumb {
   gap: 6px;
   justify-content: center;
   max-width: 460px;
+}
+#buildStrip {
+  max-width: min(100%, 860px);
+  max-height: min(112px, 18dvh);
+  min-height: 0;
+  padding: 2px 4px;
+  align-content: flex-start;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 .bi {
   display: inline-flex;
@@ -3528,6 +3545,7 @@ body.device-phone.is-landscape #app:has(#hud:not([hidden])) .toast {
     overflow-x: auto;
     overflow-y: auto;
     touch-action: pan-x pan-y;
+    overscroll-behavior: contain;
   }
   #choose .card {
     min-width: 0;
@@ -4076,6 +4094,7 @@ body.device-desktop .act {
 }
 #chooseUpInfo {
   max-width: 560px;
+  max-height: 18dvh;
   width: 100%;
   margin: 4px auto 0;
   padding: 8px 12px;
@@ -4085,6 +4104,7 @@ body.device-desktop .act {
   font-size: 13px;
   color: var(--text);
   text-align: center;
+  overflow-y: auto;
 }
 #chooseUpInfo[hidden] { display: none; }
 
@@ -4553,6 +4573,7 @@ body.device-desktop .act {
       <div class="choose-hp"><div class="bar hp small"><i id="chooseHp"></i></div><span id="chooseHpNum" class="num"></span></div>
     </div>
     <div id="cards" class="cards"></div>
+    <p id="chooseScrollHint" class="choose-scroll-hint" hidden></p>
     <div class="choose-foot">
       <button id="rerollBtn" class="btn ghost"><span data-icon="reroll"></span><span id="rerollTxt">Reroll</span></button>
       <button id="sealBtn" class="btn ghost" hidden><span data-icon="skull"></span><span id="sealTxt">Seal</span></button>
