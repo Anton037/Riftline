@@ -221,7 +221,13 @@ const Input = class {
       name = key.toLowerCase();
     this._rlKey = name;
     const tag = ev.target && ev.target.tagName;
-    if (down && !ev.repeat && tag !== "INPUT" && tag !== "TEXTAREA" && (chooseKey(code, name) || overKey(code, name))) {
+    if (
+      down &&
+      !ev.repeat &&
+      tag !== "INPUT" &&
+      tag !== "TEXTAREA" &&
+      (chooseKey(code, name) || anvilKey(code, name) || overKey(code, name))
+    ) {
       ev.preventDefault();
       return;
     }
@@ -491,6 +497,21 @@ function chooseKey(code, key) {
     if (!getById("rerollBtn").disabled) {
       game.reroll();
     }
+    return true;
+  }
+  return false;
+}
+function anvilKey(code, key) {
+  if (!game.anvilShown || game.overShown || !getById("dialog").hidden || getById("anvil").hidden) return false;
+  const match = /^(?:Digit|Numpad)([1-3])$/.exec(code) || /^([1-3])$/.exec(key);
+  if (match) {
+    const btn = getById("anvilOffers")?.querySelectorAll("[data-anvil]")[+match[1] - 1];
+    if (btn && !btn.disabled) btn.click();
+    return true;
+  }
+  if (key === "enter" || key === " ") {
+    const cont = getById("anvilContinueBtn");
+    if (cont && !cont.hidden && !cont.disabled) cont.click();
     return true;
   }
   return false;

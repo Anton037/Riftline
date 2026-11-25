@@ -412,3 +412,23 @@ test("SENTINEL_BEAMS covers every biome, flames use the flame shader, and boss p
     }
   }
 });
+
+test("enemies and Champions carry matching spawnDur and emit facing/knockback on kill", () => {
+  const w = world();
+  w.startWave(2);
+  const grunt = w.spawnEnemy("smallBug", 3, 2);
+  assert.equal(grunt.spawnDur, grunt.spawnT);
+  const champ = w.spawnEnemy("ironGolem", -3, 2, { elite: true, champion: true });
+  assert.equal(champ.spawnT, 0.8);
+  assert.equal(champ.spawnDur, 0.8);
+  grunt.face = 1.25;
+  grunt.kx = 4.5;
+  grunt.ky = -2.25;
+  w.fx.length = 0;
+  w.killEnemy(grunt);
+  const killEv = w.fx.find((e) => e.k === "kill");
+  assert.ok(killEv, "expected kill event");
+  assert.equal(killEv.face, 1.25);
+  assert.equal(killEv.kx, 4.5);
+  assert.equal(killEv.ky, -2.25);
+});

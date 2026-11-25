@@ -1883,6 +1883,7 @@ const rlStep = 1 / 60,
           ta: 0,
           flash: 0,
           spawnT: 0.35,
+          spawnDur: 0.35,
           slowT: 0,
           burnT: 0,
           burnDps: 0,
@@ -1912,6 +1913,7 @@ const rlStep = 1 / 60,
         enemy.speed *= 0.9;
         enemy.dmg *= 1.2;
         enemy.spawnT = 0.8;
+        enemy.spawnDur = 0.8;
       }
       let variant = biomeVariants[this.arena.biome.id];
       if (
@@ -2483,6 +2485,9 @@ const rlStep = 1 / 60,
         elite: enemy.elite,
         boss: enemy.boss,
         r: enemy.r,
+        face: enemy.face || 0,
+        kx: enemy.kx || 0,
+        ky: enemy.ky || 0,
       });
       if (enemy.type === "sporePod")
         for (let i = 0; i < 3; i++) {
@@ -3809,6 +3814,7 @@ const rlStep = 1 / 60,
           const auto = this.spawnEnemy("supplyKite", cx, cy, { elite: true, hpF: 0.7, noVariant: true });
           auto.caravan = true;
           auto.spawnT = 0.4;
+          auto.spawnDur = 0.4;
           this.caravan = { enemy: auto, dir, dropT: 0.9, done: false };
           this.emit("spawn", { x: cx, y: cy, type: "supplyKite", elite: true });
           break;

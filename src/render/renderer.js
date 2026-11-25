@@ -1108,7 +1108,10 @@ export class Renderer {
               existing.v += ev.v;
               existing.crit = existing.crit || ev.crit;
               existing.superCrit = existing.superCrit || !!ev.superCrit;
-              if (ev.burn) existing.life = 0.6;
+              existing.t0 = this.time;
+              existing.life = ev.burn
+                ? 0.6
+                : Math.max(existing.life, existing.superCrit ? 0.95 : existing.crit ? 0.8 : 0.6);
             } else {
               const num = {
                 id: ev.id,
@@ -1324,13 +1327,17 @@ export class Renderer {
             2.6 + scale * 1.7,
           );
           if (!ev.boss && this.corpses.length < 40 && enemyDefs[ev.type]) {
+            const kLen = Math.hypot(ev.kx || 0, ev.ky || 0);
+            const kScale = kLen > 9 ? 9 / kLen : 1;
             this.corpses.push({
               type: ev.type,
               x: ev.x,
               z: ev.y,
+              vx: (ev.kx || 0) * kScale * 0.42,
+              vz: (ev.ky || 0) * kScale * 0.42,
               r: ev.r / enemyDefs[ev.type].r,
-              a: Math.random() * TAU,
-              spin: (Math.random() < 0.5 ? -1 : 1) * (7 + Math.random() * 5),
+              a: Number.isFinite(ev.face) ? ev.face : Math.random() * TAU,
+              spin: (Math.random() < 0.5 ? -1 : 1) * (5.5 + Math.random() * 4),
               t: 0,
               elite: !!ev.elite,
             });
@@ -2011,7 +2018,10 @@ export class Renderer {
       hero.base.rotation.z = -hero.lean;
       hero.base.rotation.x = hero.bank;
       if (this.heroLocator) this.heroLocator.compass.rotation.y = faceYaw;
-      const strideDir = localFwd < -0.25 ? -1 : 1;
+      if (this._backpedal == null) this._backpedal = false;
+      if (localFwd < -0.35) this._backpedal = true;
+      else if (localFwd > -0.15) this._backpedal = false;
+      const strideDir = this._backpedal ? -1 : 1;
       if (moving && speed > 0.6) {
         let moveAng = Math.atan2(player.vy, player.vx);
         if (strideDir < 0) moveAng += Math.PI;
@@ -2019,7 +2029,14 @@ export class Renderer {
       } else {
         hero.setStrafeYaw?.(0, dt);
       }
-      const body = hero.setWalk((player.stride / STEP_LEN) * Math.PI * strideDir, amount, jump, time);
+      const dStride = this._prevStride == null ? 0 : player.stride - this._prevStride;
+      this._prevStride = player.stride;
+      if (Math.abs(dStride) < STEP_LEN * 4) {
+        this._walkPhase = (this._walkPhase || 0) + (dStride / STEP_LEN) * Math.PI * strideDir;
+      } else {
+        this._walkPhase = (player.stride / STEP_LEN) * Math.PI * strideDir;
+      }
+      const body = hero.setWalk(this._walkPhase, amount, jump, time);
       hero.group.position.set(player.x, body + jump * 0.6, player.y);
       if (player.dashT > 0) {
         if (this._dashPrevX != null) {
@@ -2199,7 +2216,7 @@ export class Renderer {
       }
       const pools = this.enemyPools[enemy.type];
       if (!pools) continue;
-      const grow = enemy.spawnT > 0 ? 1 - enemy.spawnT / 0.35 : 1;
+      const grow = enemy.spawnT > 0 ? 1 - enemy.spawnT / (enemy.spawnDur || 0.35) : 1;
       let scale = (enemy.r / enemyDefs[enemy.type].r) * easeOutBack(clamp(grow, 0, 1));
       let scaleY = scale;
       let lift = 0;
@@ -2711,6 +2728,13 @@ export class Renderer {
         const k = c.t / 0.3;
         if (k >= 1) continue;
         list[keep++] = c;
+        if (c.vx || c.vz) {
+          c.x += c.vx * dt;
+          c.z += c.vz * dt;
+          const damp = Math.exp(-5.5 * dt);
+          c.vx *= damp;
+          c.vz *= damp;
+        }
         const pools = this.enemyPools[c.type];
         const shrink = (1 - k) * (1 - k);
         const size = c.r * (1 + k * 0.25) * shrink + 0.001;
@@ -3399,6 +3423,9 @@ export class Renderer {
     this._portalGlideT = 0;
     this._dashPrevX = null;
     this._dashPrevZ = null;
+    this._walkPhase = 0;
+    this._prevStride = null;
+    this._backpedal = false;
     this.rlAuroraK = 0;
     this.rlWarmK = 0;
     this.rlDarkK = 0;

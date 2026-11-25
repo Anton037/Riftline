@@ -426,6 +426,8 @@ const healthBarTypes = {
       if (player.alive && renderer.project(player.x, 0.9, player.y, this.tmp2).vis) {
         heroScreen = { x: this.tmp2.x, y: this.tmp2.y };
       }
+      const placedNums = this._placedNums || (this._placedNums = []);
+      placedNums.length = 0;
       for (let num of renderer.nums) {
         if (num.life <= 0 || !project(num.x, num.y, num.z)) continue;
         let nx = pos.x,
@@ -445,6 +447,16 @@ const healthBarTypes = {
             }
           }
         }
+        // Light screen-space separation prevents simultaneous shotgun/AoE numbers from stacking into a blur
+        for (let pi = 0; pi < placedNums.length; pi += 2) {
+          const dx = nx - placedNums[pi],
+            dy = ny - placedNums[pi + 1];
+          if (Math.abs(dx) < 28 && Math.abs(dy) < 18) {
+            ny = placedNums[pi + 1] - 18;
+            nx += dx < 0 ? -6 : 6;
+          }
+        }
+        placedNums.push(nx, ny);
         let alpha = clamp(num.life / 0.35, 0, 1),
           pop = 1 + Math.max(0, 1 - (renderer.time - num.t0) / 0.16) * (num.superCrit ? 0.68 : num.crit ? 0.52 : 0.36),
           fontSize = Math.round(
@@ -510,6 +522,8 @@ const healthBarTypes = {
             enemy.type === "bogHopper" ||
             enemy.type === "watchTower" ||
             enemy.type === "wildBoar" ||
+            enemy.type === "mineCart" ||
+            enemy.type === "bombMaker" ||
             enemy.type === "burrowMole" ||
             enemy.type === "crystalTower" ||
             enemy.type === "starSpider");
@@ -619,9 +633,9 @@ const healthBarTypes = {
           const tw = ctx.measureText(callout.t).width;
           const pw = tw + 24,
             ph = 28;
-          // Clamp callout pill inside visible viewport even when boss is near/off edge
+          // Clamp callout pill inside visible viewport and clear of the top boss health bar
           const bx = pos.vis ? clamp(pos.x, safe.l + pw * 0.5 + 12, this.w - safe.r - pw * 0.5 - 12) : this.w * 0.5;
-          const by = pos.vis ? clamp(pos.y, safe.t + topHud + 34, this.h - safe.b - botHud - 24) : safe.t + topHud + 54;
+          const by = pos.vis ? clamp(pos.y, safe.t + topHud + 62, this.h - safe.b - botHud - 24) : safe.t + topHud + 66;
           ctx.save();
           ctx.globalAlpha = alpha;
           ctx.fillStyle = "rgba(20, 14, 10, 0.88)";

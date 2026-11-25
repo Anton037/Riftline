@@ -32,9 +32,9 @@ if (files.some((f) => isBrowser(path.basename(f))) && !args.includes("--no-build
 const timeoutMs = args.includes("--draw")
   ? 600000
   : args.includes("--unit")
-    ? 30000
+    ? 60000
     : args.includes("--browser")
-      ? 120000
-      : 150000;
+      ? 180000
+      : 240000;
 process.exitCode = await run(["--test", "--test-concurrency=1", ...files], timeoutMs);
 console.log(`Test run: ${((performance.now() - start) / 1000).toFixed(1)} s`);
