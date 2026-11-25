@@ -429,6 +429,12 @@ const SoundEngine = class {
   resume() {
     try {
       if (this.ctx && this.ctx.state !== "running") {
+        if (this.master && !this.offline) {
+          const now = this.ctx.currentTime;
+          this.master.gain.cancelScheduledValues(now);
+          this.master.gain.setValueAtTime(0.001, now);
+          this.master.gain.linearRampToValueAtTime(0.82, now + 0.045);
+        }
         this.ctx.resume().catch(() => {});
       }
       if (this.ctx && !this.offline && !this.timer) {
@@ -951,6 +957,22 @@ const SoundEngine = class {
           bell(m(4, 36), 0.14, "celesta", 0.032, 0.105, 0.22, 5200);
         }
         break;
+      case "anvil":
+        // Warm Roadside Forge welcome: hearth marimba interval + clear ringing brass anvil overtone
+        if (this.gate("chime:anvil", 0.25)) {
+          bell(m(0, 12), 0.24, "marimba", 0.046, 0, -0.14, 2100);
+          bell(m(4, 24), 0.34, "celesta", 0.044, 0.075, 0.08, 4800);
+          bell(m(7, 24), 0.28, "celesta", 0.032, 0.14, 0.2, 5400);
+        }
+        break;
+      case "mutator":
+        // Dramatic Endless mutator escalation: resonant low brass fifth + crystalline shimmer
+        if (this.gate("chime:mutator", 0.3)) {
+          bell(m(0, 0), 0.55, "brass", 0.046, 0, -0.16, 1700);
+          bell(m(4, 12), 0.48, "brass", 0.038, 0.09, 0.16, 2200);
+          bell(m(6, 24), 0.36, "celesta", 0.03, 0.18, 0, 4200);
+        }
+        break;
       case "bounty":
       case "forgeGift":
         // Descending gilded coin cascade panning across the stereo field
@@ -1235,6 +1257,16 @@ const SoundEngine = class {
           }
           this.play("offer");
           break;
+        case "anvil":
+          if (this.muffleState) {
+            this.muffleState.choosing = true;
+            this._syncMuffle?.();
+          }
+          this.play("anvil");
+          break;
+        case "mutator":
+          this.play("mutator");
+          break;
         case "maxed":
           this.play("heal");
           break;
@@ -1483,7 +1515,13 @@ const SoundEngine = class {
       this.cutScheduled(now);
       this.quietOld(now);
       this.nextT = now + 0.03;
-      this.fade.gain.cancelScheduledValues(now);
+      const fadeGain = this.fade.gain;
+      if (fadeGain.cancelAndHoldAtTime) fadeGain.cancelAndHoldAtTime(now);
+      else {
+        const curFade = Math.max(0.0001, fadeGain.value);
+        fadeGain.cancelScheduledValues(now);
+        fadeGain.setValueAtTime(curFade, now);
+      }
       this.mixFor(kind);
       if (track && this.delay) {
         // Tempo-sync dotted-eighth stereo echo to the active track's BPM
@@ -1493,20 +1531,19 @@ const SoundEngine = class {
       this.stopMusicBed();
       if (track) this.startMusicBed(kind, biome);
       if (resumed) {
-        this.fade.gain.setValueAtTime(0.0001, now);
-        this.fade.gain.linearRampToValueAtTime(gain, now + 0.6);
+        fadeGain.linearRampToValueAtTime(0.0001, now + 0.025);
+        fadeGain.linearRampToValueAtTime(gain, now + 0.6);
       } else if (from === "boss" && kind === "fight") {
-        this.fade.gain.setValueAtTime(1.1, now);
-        this.fade.gain.linearRampToValueAtTime(0.0001, now + 0.9);
-        this.fade.gain.linearRampToValueAtTime(gain, now + 4.1);
+        fadeGain.linearRampToValueAtTime(0.0001, now + 0.9);
+        fadeGain.linearRampToValueAtTime(gain, now + 4.1);
         this.nextT = now + 0.9;
         if (this.live() && this.musVol > 0) musicResolve(this, biome, 0);
       } else if (from !== "off" && kind !== "off") {
-        this.fade.gain.setValueAtTime(0.0001, now);
-        this.fade.gain.linearRampToValueAtTime(gain, now + 0.35);
+        fadeGain.linearRampToValueAtTime(0.0001, now + 0.025);
+        fadeGain.linearRampToValueAtTime(gain, now + 0.38);
         if (kind === "boss" && from === "fight" && this.live() && this.musVol > 0) musicImpact(this, biome, 0);
       } else {
-        this.fade.gain.setValueAtTime(gain, now);
+        fadeGain.linearRampToValueAtTime(gain, now + 0.025);
       }
       this.trackFailT = 0;
     } catch (err) {
@@ -1565,9 +1602,16 @@ const SoundEngine = class {
       } catch {}
     }
     try {
-      this.fb.gain.cancelScheduledValues(now);
-      this.fb.gain.setValueAtTime(0, now);
-      this.fb.gain.setValueAtTime(0.32, now + 0.7);
+      const fbGain = this.fb.gain;
+      if (fbGain.cancelAndHoldAtTime) fbGain.cancelAndHoldAtTime(now);
+      else {
+        const curFb = fbGain.value;
+        fbGain.cancelScheduledValues(now);
+        fbGain.setValueAtTime(curFb, now);
+      }
+      fbGain.linearRampToValueAtTime(0, now + 0.025);
+      fbGain.setValueAtTime(0, now + 0.65);
+      fbGain.linearRampToValueAtTime(0.32, now + 0.73);
       if (this.verbIn && this.verbPool) {
         let old = this.verb,
           oldOut = this.verbOut,
