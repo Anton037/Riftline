@@ -16,7 +16,7 @@ Journey across six miniature areas as a cloaked **Lantern Keeper** with seven we
 | Fire Burst | Tap `BURST` | `E` / `Q` / `F` |
 | Gravity Bell | Tap `BELL` | `G` |
 | Pause | Tap Pause | `Esc` / `P` |
-| Menus and craft offers | Tap a card or button | Click a card or button, or use `1`–`5` to pick, `B` to seal, and `R` to reroll or retry |
+| Menus, crafts & Forge | Tap a card or button | Click a card or button, `1`–`5` to pick (`1`–`3` / `Enter` at Forge), `B` to seal, `R` to reroll or retry |
 
 Mobile runs play in landscape. Move or resize the touch controls in Settings. The FPS limit defaults to 60, with
 30 and 120 also available. Press `M` to mute on desktop.

@@ -25,7 +25,7 @@ These fixtures protect existing progress and world generation.
 The painterly terrain, surface and VFX atlases (`terrain-atlas.webp`, `surface-atlas.webp`, `vfx-atlas.webp`) and
 install icons are generated with `python tools/build-art.py` using Python 3, Pillow and NumPy. Arena biomes, bespoke
 perimeter architecture, corner landmarks, sculpted cover, exterior dioramas, articulated hero & weapon rigs, 25 GPU-animated
-enemies with 3D variant/elite attachments, 6 multi-phase guardians and combat VFX are assembled in `src/render/` on top
+enemies with 3D variant/elite attachments, 6 multi-phase bosses and combat VFX are assembled in `src/render/` on top
 of `src/engine/` and respect the existing simulation footprints.
 
 The 25-clip synthesized sample bank and its clip offsets are generated with

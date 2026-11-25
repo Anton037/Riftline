@@ -7,11 +7,11 @@ export const WHATS_NEW = [
     version: "5.3.0",
     title: "Craft polish and fixes",
     items: [
-      "Fire Burst now erupts in warm ember flame, and Fire Bellows and Star Hall beams render with their full shaders.",
-      "Polished enemy, boss, and Keeper models, including Star Heart's core, Bell Keeper's visor, Star Spider legs, and smoother cloak drape.",
-      "Refined arena props and hazards across Snow Ridge, Moss Bog, Ember Hill, and Sun Dunes, with faster desert rendering.",
-      "Boss phase transitions play cleanly once, and buffered dashes stay reliable during frame drops.",
-      "Corrupt-save backups stay readable after reload, and craft, HUD, and Guide labels match across the game.",
+      "Fire Burst now erupts in warm ember flame, and Fire Bellows, Star Hall beams, and arena props received a visual polish pass.",
+      "Refined enemy, boss, and Keeper models, smoother strafe/corpse motion, cleaner damage numbers, and clearer boss callouts.",
+      "Added desktop keyboard shortcuts for the Roadside Forge (1–3 and Enter), refined HUD spacing, and unified craft and Guide labels.",
+      "Added Roadside Forge arrival and Endless shift chimes alongside smoother, click-free music and resume transitions.",
+      "Hardened save parsing and corrupt-save recovery so backups stay readable after reload and oversized imports stay safely bounded.",
     ],
   },
   {

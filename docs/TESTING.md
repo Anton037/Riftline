@@ -4,10 +4,10 @@ The routine gate runs focused Node contracts and sequential browser checks.
 
 | Command | Coverage | Deadline |
 |---|---|---|
-| `npm run check` | Formatting, lint, build and standard tests | Test subprocess 150 s |
-| `npm test` | Node contracts, desktop & tablet/phone flows, onboarding, progression and worker update | Build 30 s; tests 150 s |
-| `npm run test:unit` | Saves, deterministic simulation, data and render geometry | 30 s |
-| `npm run e2e` | Desktop KB/mouse, touch, onboarding/audio, progression and worker update | Game flows 25–35 s; worker 20 s; process 120 s |
+| `npm run check` | Formatting, lint, build and standard tests | Test subprocess 240 s |
+| `npm test` | Node contracts, desktop & tablet/phone flows, onboarding, progression and worker update | Build 30 s; tests 240 s |
+| `npm run test:unit` | Saves, deterministic simulation, data and render geometry | 60 s |
+| `npm run e2e` | Desktop KB/mouse, touch, onboarding/audio, progression and worker update | Game flows 25–35 s; worker 20 s; process 180 s |
 | `npm run test:render` | Same browser checks with actual drawing | Game flows 180 s each; process 600 s |
 | `npm run audit:visual` | Six biomes and bosses on tablet and landscape phone, High | 240 s per layout |
 | `node tools/verify.js equipment <tag>` | Seven weapons, all 25 enemies, smoke/rockets and FPS controls | 240 s |
@@ -33,15 +33,15 @@ For centre/edge/corner screenshots use `node tools/verify.js visual <tag> tablet
   bounds, `freezeStatic()` zero-matrix-update invariants, O(1) GPU particle ring expiration, 3D variant/elite gear
   bounds, and the 1,800-triangle enemy / 6,500-triangle hero & boss kit budgets (`aPartMeta` GPU sub-part channels
   enforced across all 25 enemies). Combat contracts exercise actual AI for every boss pattern/phase and all ranged enemies,
-  preserve source identity through effects/sound, reject orphan content and bound Arc Caster rendering at 420 shots.
-  Power contracts follow actual Nova/Singularity/Aegis events, deduplicate Nova sound, preserve enemy-warning pools,
+  preserve source identity through effects/sound, reject orphan content and bound Spark Wand rendering at 420 shots.
+  Power contracts follow actual Fire Burst/Gravity Bell/Shield events, deduplicate Fire Burst sound, preserve enemy-warning pools,
   cap concurrent effects and keep the aurora outside the arena at sway extrema.
   Exact rays cover thin/nearby obstacles, diagonal boxes, arena edges and zero reach; live
   beam/gadget checks exercise cover protection.
 - Save checks cover round-trip persistence, migration, unknown future fields, bounded imports and corrupt-save recovery
   when storage is full. Failed writes retain existing recovery copies and old progress. The desktop flow checks
   that a boss medal is saved alongside progress from another tab.
-- Choice snapshots keep the RNG through rerolls, banishes and repeated resumes.
+- Choice snapshots keep the RNG through rerolls, seals and repeated resumes.
 - The desktop flow covers modifier passthrough, keyboard movement and card shortcuts, mouse aim, right-click dash,
   buffered actions, the in-run performance overlay and the resume countdown. It checks that backgrounding during
   the countdown returns to Pause without advancing the world.
@@ -49,7 +49,7 @@ For centre/edge/corner screenshots use `node tools/verify.js visual <tag> tablet
   settings, resizing and offline run continuation.
 - Empty profiles exercise touch and desktop onboarding, desktop prompts on touch-capable PCs, real WebAudio pause and backgrounding,
   and safe resume. The menu flow verifies workshop upgrades and milestone rewards, then purchases a repair
-  at Roadside Forge and resumes that checkpoint before entering the next realm at a narrow viewport.
+  at Roadside Forge and resumes that checkpoint before entering the next area at a narrow viewport.
 - Combat regressions cover native arm traits, Heat Shatter, Perfect Dash, micro-hitstop, Boss recovery
   windows and phase gates, Master Craft rolls, wave cleanup rewards, and the Endless burst cap.
 - The worker fixture uses the real worker source with small pages. It installs A, rejects incomplete and mixed
