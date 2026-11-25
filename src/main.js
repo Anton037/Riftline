@@ -528,6 +528,9 @@ const overlay = new Overlay(elementById("ov")),
         this._pausedFromAnvil = false;
         getById("anvil").hidden = false;
         ui.coverHud(true);
+      } else {
+        ui.coverHud(false);
+        placeHud();
       }
       input.reset();
       this.last = performance.now();
@@ -859,6 +862,25 @@ function placeHud(retry = 0) {
       5000,
     );
 }
+if (hudEditor && typeof ResizeObserver === "function") {
+  const hud = getById("hud");
+  let fitFrame = 0;
+  const observer = new ResizeObserver(() => {
+    if (fitFrame || !hud.classList.contains("custom")) return;
+    // Applying a fallback resizes the readouts too. Let the observer finish its current delivery first.
+    fitFrame = requestAnimationFrame(() => {
+      fitFrame = 0;
+      if (hud.classList.contains("custom") && !hud.hidden && hud.style.visibility !== "hidden" && !hudEditor.isOpen) {
+        placeHud();
+      }
+    });
+  });
+  for (const readout of hud.querySelectorAll(
+    ".hp-block, .wave-block, #bossBar, #shardChip, #performanceOverlay, #hudFeedback",
+  )) {
+    observer.observe(readout);
+  }
+}
 input.onBlur = () => {
   if (game.mode === "game") {
     game.pause();
@@ -912,7 +934,6 @@ let perfWindowAt = 0,
 function updatePerformanceOverlay(now, workMs) {
   const state = game.world?.state;
   if (
-    workMs == null ||
     game.mode !== "game" ||
     game.paused ||
     game.overShown ||
@@ -927,12 +948,14 @@ function updatePerformanceOverlay(now, workMs) {
     perfFrameCount = perfCpuMs = 0;
     performanceOverlay.textContent = "Measuring…";
     performanceOverlay.hidden = false;
-    return;
+    return; // The starting frame sets the clock for the first measurement.
   }
-  perfFrameCount++;
-  perfCpuMs += workMs;
+  if (workMs != null) {
+    perfFrameCount++;
+    perfCpuMs += workMs;
+  }
   const elapsed = now - perfWindowAt;
-  if (elapsed < 500) return;
+  if (elapsed < 500 || !perfFrameCount) return;
   const fps = Math.round((1000 * perfFrameCount) / elapsed);
   performanceOverlay.textContent = `${fps} FPS · ${(perfCpuMs / perfFrameCount).toFixed(1)} ms CPU`;
   perfWindowAt = now;
@@ -1249,7 +1272,7 @@ function handleWorldEvents(world) {
           showTipOnce("portal", "Portals warp you across the arena. Shots fly through them too.");
         }
         if (!ev.boss && world.arena.devils && world.arena.devils.length) {
-          showTipOnce("devil", "Dust devils pull you around \u2014 shoot sun pillars to calm them.");
+          showTipOnce("devil", "Whirlwinds pull you off course. Dash clear when they drift close.");
         }
         sound.setMusic("fight", biome.id);
         if (ev.n === 2) {

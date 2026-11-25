@@ -28,6 +28,8 @@ const CONTROL_INFO = {
     ["#hud .wave-block", 26],
     ["#shardChip", 0],
     ["#bossBar", 0],
+    ["#performanceOverlay", 0],
+    ["#hudFeedback", 0],
   ],
   /* where a fixed move stick sits until it is moved */
   DEFAULT_STICK = { portrait: { x: 0.2, y: 0.74 }, landscape: { x: 0.16, y: 0.66 } };
@@ -237,7 +239,7 @@ class HudEditor {
       this.render();
     });
     getById("heStickSize").addEventListener("input", () => this.setStickSize(+getById("heStickSize").value));
-    getById("heFixed").addEventListener("change", () => {
+    this.ui.bindCheckbox(getById("heFixed"), () => {
       this.draft.stickFixed = getById("heFixed").checked;
       if (this.draft.stickFixed) this.sel = "stick";
       else if (this.sel === "stick") this.sel = "dash";

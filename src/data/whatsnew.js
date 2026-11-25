@@ -4,6 +4,17 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "5.2.12",
+    title: "Clearer HUD and settings",
+    items: [
+      "Settings switches respond to taps on Safari, including after restoring defaults.",
+      "The performance readout sits under the pause button, clear of boss health.",
+      "Tutorial tips and combat notices take turns, and reward feedback leaves the cards clear.",
+      "If a saved touch layout covers a readout, the default buttons are used for that screen.",
+      "The wave counter shows the correct number of enemies when a group arrives in stages.",
+    ],
+  },
+  {
     version: "5.2.11",
     title: "Clearer arenas",
     items: [
@@ -36,14 +47,6 @@ export const WHATS_NEW = [
     items: [
       "A shorter brim and a pale clasp make it easier to see which way the Keeper is facing.",
       "The ground arrow and the weapon preview stay lined up with the Keeper as they turn.",
-    ],
-  },
-  {
-    version: "5.2.7",
-    title: "Movement follows your thumb",
-    items: [
-      "The mobile movement stick follows long drags so you can change direction quickly.",
-      "You can save either movement stick style from Button layout.",
     ],
   },
 ];

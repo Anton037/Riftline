@@ -269,7 +269,7 @@ const getById = (id) => document.getElementById(id),
     get save() {
       return this.g.store.data;
     }
-    click(el, action, { sound = true } = {}) {
+    click(el, action, { sound = true, touchOnly = false } = {}) {
       if (!el) return;
       let touchDown = false,
         dragged = false,
@@ -341,6 +341,7 @@ const getById = (id) => document.getElementById(id),
           ev.stopPropagation();
           return;
         }
+        if (touchOnly) return;
         const now = performance.now(),
           guard = RL_TOUCH_CLICK_GUARD,
           dx = Number(ev.clientX) - guard.x,
@@ -360,6 +361,21 @@ const getById = (id) => document.getElementById(id),
         guard.key = "";
         activate();
       });
+    }
+    bindCheckbox(input, change) {
+      input.addEventListener("change", change);
+      if (!touchInput) return;
+      // WebKit can report a tap's click as a mouse click. Use the same tap handling
+      // as buttons and keep native change events for keyboard activation.
+      this.click(
+        input.closest("label") || input,
+        () => {
+          if (input.disabled) return;
+          input.checked = !input.checked;
+          input.dispatchEvent(new Event("change", { bubbles: true }));
+        },
+        { sound: false, touchOnly: true },
+      );
     }
     bind() {
       for (let el of document.querySelectorAll("[data-go]")) this.click(el, () => this.show(el.dataset.go));
@@ -477,19 +493,19 @@ const getById = (id) => document.getElementById(id),
       this.click(getById("crashHome"), () => this.g.recover());
       this.click(getById("crashCopy"), () => this.copy(getById("crashLog").value));
       let settings = () => this.save.settings,
-        bindToggle = (id, key) => {
+        bindToggle = (id, key, afterChange) => {
           let input = getById(id);
           if (!input) return;
-          input.addEventListener("change", () => {
+          this.bindCheckbox(input, () => {
             settings()[key] = input.checked;
             this.g.settingsChanged();
-            this.syncMuteButton();
+            afterChange?.();
           });
         };
       bindToggle("setAuto", "autoFire");
       bindToggle("setAssist", "assist");
       bindToggle("setNumbers", "numbers");
-      bindToggle("setPerformance", "performanceOverlay");
+      bindToggle("setPerformance", "performanceOverlay", () => this.renderPerformanceSetting());
       bindToggle("setMuted", "muted");
       const setRangeFill = (input) => {
         if (!input) return;
@@ -1049,7 +1065,7 @@ const getById = (id) => document.getElementById(id),
       getById("setAuto").checked = settings.autoFire;
       getById("setAssist").checked = settings.assist;
       getById("setNumbers").checked = settings.numbers;
-      getById("setPerformance").checked = settings.performanceOverlay;
+      this.renderPerformanceSetting();
       if (getById("setMuted")) getById("setMuted").checked = !!settings.muted;
       const masterVal = settings.master ?? 1;
       if (getById("setMaster")) {
@@ -1085,6 +1101,15 @@ const getById = (id) => document.getElementById(id),
       getById("hudLayoutNote").textContent = ownLayout
         ? "Your own layout is active."
         : "Move and resize the touch buttons and sticks.";
+    }
+    renderPerformanceSetting() {
+      const on = this.save.settings.performanceOverlay;
+      getById("setPerformance").checked = on;
+      getById("performanceSettingStatus").textContent = on
+        ? this.rlFromPause
+          ? "On. FPS and CPU time appear when you resume."
+          : "On. FPS and CPU time appear during play."
+        : "Off. Show FPS and CPU time during play.";
     }
     async copy(text) {
       let ok = false;
@@ -1176,21 +1201,27 @@ const getById = (id) => document.getElementById(id),
       });
     }
     toast(text, cls = "", ms = 2900) {
-      let box = getById("toasts"),
-        el = document.createElement("div");
-      for (
-        el.className = "toast " + cls,
-          el.style.animationDuration = ms + "ms",
-          el.textContent = text,
-          box.appendChild(el);
-        box.children.length > 3;
-      )
-        box.firstChild.remove();
+      const hud = getById("hud");
+      let box = getById("toasts");
+      if (!getById("settings").hidden) box = getById("settingsNotices");
+      else if (!getById("choose").hidden) box = getById("chooseNotices");
+      else if (!hud.hidden && hud.style.visibility !== "hidden" && !this.g.paused && !hud.classList.contains("editing"))
+        box = getById("hudNotices");
+      const el = document.createElement("div");
+      el.className = "toast " + cls;
+      el.style.animationDuration = ms + "ms";
+      el.textContent = text;
+      if (box.id === "toasts") {
+        box.appendChild(el);
+        if (box.children.length > 3) box.firstChild.remove();
+      } else {
+        box.replaceChildren(el);
+      }
       setTimeout(() => el.remove(), ms + 50);
     }
     banner(big, small, cls = "", ms = 2200) {
       let el = getById("banner");
-      el.innerHTML = `<div class="bn ${cls}" style="animation-duration:${ms}ms"><div class="small">${escapeHtml(small || "")}</div><div class="big">${escapeHtml(big)}</div></div>`;
+      el.innerHTML = `<div class="bn ${cls}" style="animation-duration:${ms}ms"><div class="big">${escapeHtml(big)}</div><div class="small">${escapeHtml(small || "")}</div></div>`;
       clearTimeout(this.bannerT);
       this.bannerT = setTimeout(() => {
         el.innerHTML = "";
@@ -1202,7 +1233,7 @@ const getById = (id) => document.getElementById(id),
       let el = document.createElement("div");
       el.className = "combo-pop";
       el.textContent = `\xD7${combo} COMBO  +${bonus}`;
-      getById("hud").appendChild(el);
+      getById("hudFeedback").appendChild(el);
       this.comboPopEl = el;
       setTimeout(() => {
         if (this.comboPopEl === el) this.comboPopEl = null;
@@ -1236,6 +1267,8 @@ const getById = (id) => document.getElementById(id),
       if (!on) {
         getById("bossBar").hidden = true;
       }
+      getById("hudNotices").replaceChildren();
+      this.comboPopEl?.remove();
       window.__riftUpdateDeviceProfile?.();
       this.hudCache = {};
       // 2.5.0 D: the end of a run hides the title cards like the banner
@@ -1315,7 +1348,10 @@ const getById = (id) => document.getElementById(id),
       let foesLeft = 0;
       if (showProg) {
         foesLeft = world.enemies.length + world.markers.length;
-        for (let i = world.planIdx; i < world.plan.length; i++) foesLeft += world.plan[i].members.length;
+        for (let i = world.planIdx; i < world.plan.length; i++) {
+          const group = world.plan[i];
+          foesLeft += group.members.length - (group.placed || 0);
+        }
         let progress = clamp(1 - foesLeft / Math.max(world.planTotal, foesLeft), 0, 1);
         update("prog", Math.round(progress * 50), () => {
           getById("waveProgFill").style.transform = `scaleX(${progress})`;
@@ -1449,35 +1485,6 @@ const getById = (id) => document.getElementById(id),
       let player = world.player,
         stats = world.stats,
         chips = [];
-      if (stats.killStreak && player.rushN > 0) {
-        chips.push(["rush", `HASTE \xD7${player.rushN}`, "#f08e70", player.rushT / 4]);
-      }
-      if (player.grazeT > 0) {
-        chips.push(["graze", "PERFECT GRAZE", "#ffd872", player.grazeT / 1.5]);
-      }
-      if (world.chronoT > 0) {
-        chips.push(["timeDash", "SLOW TIME", "#bacfd9", world.chronoT / 1.5]);
-      }
-      if ((world.ws.revive || 0) > 0 && !world.revived) {
-        chips.push(["life", "SECOND WIND", "#abd397", -1]);
-      }
-      if (world.barrierT > 0) {
-        chips.push(["barrier", "AEGIS", "#b5dcdc", world.barrierT / Math.max(1, stats.barrierT || 1)]);
-      }
-      if (world.attuned && world.state === "fight") {
-        chips.push(["attune", "TRAP BOOST", "#ffb86b", -1]);
-      }
-      if (world.event && world.state === "fight") {
-        chips.unshift(["event", waveEvents[world.event].name, world.event === "goldCart" ? "#ffc84a" : "#a7d1bf", -1]);
-      }
-      for (const [id, level] of Object.entries(world.mods || {}))
-        if (MUTATORS[id])
-          chips.push([
-            "mut-" + id,
-            MUTATORS[id].name.toUpperCase() + (level > 1 ? " " + "I".repeat(level) : ""),
-            MUTATORS[id].color,
-            -1,
-          ]);
       if (player.onIce && world.state === "fight") {
         chips.push(["ice", "ICE", "#bff4ff", -1]);
       }
@@ -1503,6 +1510,35 @@ const getById = (id) => document.getElementById(id),
         else if (player.slowKind === "glass") chips.push(["glassSlow", "GLARED", "#ffe59e", player.slowT / 1.3]);
         else chips.push(["chill", "CHILLED", "#aee8ff", player.slowT / 1.6]);
       }
+      if (stats.killStreak && player.rushN > 0) {
+        chips.push(["rush", `HASTE \xD7${player.rushN}`, "#f08e70", player.rushT / 4]);
+      }
+      if (player.grazeT > 0) {
+        chips.push(["graze", "PERFECT GRAZE", "#ffd872", player.grazeT / 1.5]);
+      }
+      if (world.chronoT > 0) {
+        chips.push(["timeDash", "SLOW TIME", "#bacfd9", world.chronoT / 1.5]);
+      }
+      if ((world.ws.revive || 0) > 0 && !world.revived) {
+        chips.push(["life", "SECOND WIND", "#abd397", -1]);
+      }
+      if (world.barrierT > 0) {
+        chips.push(["barrier", "AEGIS", "#b5dcdc", world.barrierT / Math.max(1, stats.barrierT || 1)]);
+      }
+      if (world.attuned && world.state === "fight") {
+        chips.push(["attune", "TRAP BOOST", "#ffb86b", -1]);
+      }
+      if (world.event && world.state === "fight") {
+        chips.push(["event", waveEvents[world.event].name, world.event === "goldCart" ? "#ffc84a" : "#a7d1bf", -1]);
+      }
+      for (const [id, level] of Object.entries(world.mods || {}))
+        if (MUTATORS[id])
+          chips.push([
+            "mut-" + id,
+            MUTATORS[id].name.toUpperCase() + (level > 1 ? " " + "I".repeat(level) : ""),
+            MUTATORS[id].color,
+            -1,
+          ]);
       let key = chips.map((chip) => chip[0] + chip[1]).join("|"),
         // 3.46.0: the row element is cached (it is static in the page); the step bars are cached
         // with it and die with the row on a rebuild (the bars used to be re-queried every frame)
@@ -1604,6 +1640,7 @@ const getById = (id) => document.getElementById(id),
     }
     showChoose(world) {
       this.banishMode = false;
+      getById("chooseNotices").replaceChildren();
       let bossReward = world.offerBoss;
       getById("chooseEyebrow").textContent = bossReward
         ? `${bossDefs[world.bossKills[world.bossKills.length - 1]] ? bossDefs[world.bossKills[world.bossKills.length - 1]].name : "Boss"} Defeated`
@@ -1784,11 +1821,11 @@ const getById = (id) => document.getElementById(id),
     coverHud(on) {
       getById("hud").style.visibility = on ? "hidden" : "";
       if (on) {
+        getById("hudNotices").replaceChildren();
+        this.comboPopEl?.remove();
+        getById("performanceOverlay").hidden = true;
         getById("banner").innerHTML = "";
         clearTimeout(this.bannerT);
-      }
-      // 2.5.0 D: the upgrade choice and the pause menu hide the title cards like the banner
-      if (on) {
         this.clearTitleCard();
       }
     }
@@ -1848,9 +1885,6 @@ const getById = (id) => document.getElementById(id),
       closePauseSettings(this);
       getById("pause").hidden = true;
       getById("settings").hidden = true;
-      if (!this.g.chooseShown && !this.g.anvilShown) {
-        this.coverHud(false);
-      }
     }
     // 2.4.2: settings from the pause menu (without backup and reset)
     openPauseSettings() {
@@ -2125,25 +2159,10 @@ function rlBiomeCardInfo(biome) {
   };
 }
 
-function titleCardLayer() {
-  let el = getById("titleCard");
-  if (!el) {
-    el = document.createElement("div");
-    el.id = "titleCard";
-    el.setAttribute("aria-live", "polite");
-    const banner = getById("banner");
-    if (banner) {
-      banner.after(el);
-    } else {
-      getById("app").appendChild(el);
-    }
-  }
-  return el;
-}
 // The card starts after the next frame is on screen: the first frame of a new arena or boss can
 // take long on slow devices (shader compiles), and the card must not run out during that stall.
 function showTitleCard(ui, html, ms) {
-  const el = titleCardLayer(),
+  const el = getById("titleCard"),
     token = (ui.titleCardN = (ui.titleCardN || 0) + 1);
   clearTimeout(ui.titleCardT);
   el.innerHTML = "";
