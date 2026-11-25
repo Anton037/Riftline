@@ -1409,21 +1409,21 @@ textarea::-webkit-scrollbar-thumb {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1px;
-  padding-bottom: 10px;
+  gap: 2px;
+  padding-bottom: 11px;
   color: var(--violet);
   border-color: color-mix(in oklab, var(--violet) 68%, var(--hud-border));
 }
 .act-btn.gravityBell .gico {
   position: relative;
   z-index: 2;
-  width: 19px;
-  height: 19px;
-  margin-top: 1px;
+  width: 15px;
+  height: 15px;
+  margin-top: 2px;
 }
 .act-btn.gravityBell .lbl {
-  font-size: 10px;
-  letter-spacing: 0.10em;
+  font-size: 9.5px;
+  letter-spacing: 0.11em;
 }
 .act-btn.gravityBell .ring {
   position: absolute;
@@ -1439,7 +1439,7 @@ textarea::-webkit-scrollbar-thumb {
   z-index: 2;
   left: 0;
   right: 0;
-  bottom: 5px;
+  bottom: 6px;
   display: flex;
   justify-content: center;
   gap: 3px;
@@ -3475,11 +3475,11 @@ body.device-phone.is-landscape #hud .act {
 body.device-phone.is-landscape #hud .act-row { gap: 15px; }
 body.device-phone.is-landscape #hud .act-btn { width: 58px; height: 58px; }
 body.device-phone.is-landscape #hud .act-btn.fireBurst { width: 50px; height: 50px; margin-right: 24px; }
-body.device-phone.is-landscape #hud .act-btn.gravityBell { width: 50px; height: 50px; padding-bottom: 8px; }
-body.device-phone.is-landscape #hud .act-btn.gravityBell .gico { width: 16px; height: 16px; margin-top: 0; }
-body.device-phone.is-landscape #hud .act-btn.gravityBell .lbl { font-size: 10px; letter-spacing: 0.06em; }
+body.device-phone.is-landscape #hud .act-btn.gravityBell { width: 50px; height: 50px; padding-bottom: 9px; }
+body.device-phone.is-landscape #hud .act-btn.gravityBell .gico { width: 13px; height: 13px; margin-top: 1px; }
+body.device-phone.is-landscape #hud .act-btn.gravityBell .lbl { font-size: 9px; letter-spacing: 0.08em; }
 body.device-phone.is-landscape #hud .act-btn.gravityBell .pips,
-body.device-phone.is-landscape #hud .act-btn.dash .pips { bottom: 4px; }
+body.device-phone.is-landscape #hud .act-btn.dash .pips { bottom: 5px; }
 body.device-phone.is-landscape .coach p { font-size: 14px; margin-top: 4px; }
 body.device-phone.is-landscape .boss-bar {
   margin: 0;
@@ -3870,8 +3870,29 @@ body.device-desktop .act {
   color: rgba(242, 232, 212, 0.8);
 }
 .auto-pill {
-  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(223, 186, 106, 0.14);
+  border: 1px solid rgba(223, 186, 106, 0.36);
+  font-size: 9px;
+  line-height: 1.25;
+  letter-spacing: 0.12em;
   color: var(--amber);
+}
+.kbd-hint {
+  display: none;
+  margin-left: 6px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  border: 1px solid rgba(224, 186, 118, 0.38);
+  background: rgba(20, 15, 11, 0.55);
+  font: 700 10px/1.2 var(--display);
+  letter-spacing: 0.08em;
+  color: var(--amber);
+  vertical-align: middle;
+}
+:root:not(.device-touch) .kbd-hint {
+  display: inline-block;
 }
 #pauseBtn {
   position: relative;
@@ -4588,7 +4609,7 @@ body.device-desktop .act {
         <div class="choose-hp"><div class="bar hp small"><i id="anvilHp"></i></div><span id="anvilHpNum" class="num"></span></div>
       </div>
       <div id="anvilOffers" class="anvil-grid"></div>
-      <button id="anvilContinueBtn" class="btn primary">Continue</button>
+      <button id="anvilContinueBtn" class="btn primary">Continue<span class="kbd-hint" aria-hidden="true">ENTER</span></button>
     </div>
   </section>
 

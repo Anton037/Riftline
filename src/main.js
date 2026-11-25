@@ -737,6 +737,7 @@ const overlay = new Overlay(elementById("ov")),
           // 3.39.0: the boss medals earned in this run (name, medal, time and the par they were measured against)
           medals: (this.runMedals || []).splice(0),
           canEndless: win && !world.endless,
+          endless: !!world.endless,
           killer: win || abandoned ? null : world.lastHit,
           // 3.21.0: the recap of a lost run: the last hits (seconds before the end, the final one last) and the damage taken
           lastHits: win || abandoned ? [] : world.hitLog.map((h) => ({ ...h, ago: Math.max(0, world.time - h.t) })),

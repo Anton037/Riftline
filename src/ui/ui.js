@@ -987,7 +987,7 @@ const getById = (id) => document.getElementById(id),
                 : kills
                   ? `${kills} felled`
                   : "Unbeaten";
-            return `<div class="codex-card"><div class="codex-head"><b>${escapeHtml(biome.name)}</b><span class="codex-tag">${escapeHtml(biome.tag || "Realm")}</span></div><p>${escapeHtml(RL_BIOME_CARD[biome.id] || "")}</p><div class="codex-meta">Boss: ${escapeHtml(boss ? boss.name : "\u2014")} \xB7 ${escapeHtml(medalText)}</div></div>`;
+            return `<div class="codex-card"><div class="codex-head"><b>${escapeHtml(biome.name)}</b><span class="codex-tag">${escapeHtml(biome.tag || "Area")}</span></div><p>${escapeHtml(RL_BIOME_CARD[biome.id] || "")}</p><div class="codex-meta">Boss: ${escapeHtml(boss ? boss.name : "\u2014")} \xB7 ${escapeHtml(medalText)}</div></div>`;
           })
           .join("");
       } else if (sub === "enemies") {
@@ -1713,7 +1713,7 @@ const getById = (id) => document.getElementById(id),
             crest = tierCrests[up.rarity] || "",
             tierName = (rarityNames[up.rarity] || "").toUpperCase(),
             tag = up.boss
-              ? `${crest} ${bossDefs[up.boss] ? bossDefs[up.boss].name.toUpperCase() : "BOSS"} \xB7 RELIC`
+              ? `${crest} ${bossDefs[up.boss] ? bossDefs[up.boss].name.toUpperCase() : "BOSS"} \xB7 BOSS REWARD`
               : up.evo
                 ? `${crest} MASTER CRAFT`
                 : up.repeat
@@ -1808,7 +1808,7 @@ const getById = (id) => document.getElementById(id),
       grid.innerHTML = world.anvilOffers
         .map((offer, i) => {
           const disabled = offer.bought || !offer.available || world.shards < offer.cost;
-          return `<div class="anvil-card${offer.bought ? " bought" : ""}"><b>${escapeHtml(offer.name)}</b><p>${escapeHtml(offer.desc)}</p><button class="btn buy small" data-anvil="${i}" ${disabled ? "disabled" : ""}>${offer.bought ? "FORGED" : `<span class="shard-ico"></span>${offer.cost}`}</button></div>`;
+          return `<div class="anvil-card${offer.bought ? " bought" : ""}"><b>${escapeHtml(offer.name)}<span class="kbd-hint" aria-hidden="true">${i + 1}</span></b><p>${escapeHtml(offer.desc)}</p><button class="btn buy small" data-anvil="${i}" ${disabled ? "disabled" : ""}>${offer.bought ? "FORGED" : `<span class="shard-ico"></span>${offer.cost}`}</button></div>`;
         })
         .join("");
       for (const btn of grid.querySelectorAll("[data-anvil]")) {
@@ -1904,7 +1904,7 @@ const getById = (id) => document.getElementById(id),
       overEl.classList.toggle("is-lose", !result.win);
       getById("overEyebrow").textContent = result.win
         ? `${threatLevels[result.threat].name} \xB7 All ${20} Waves`
-        : `${weaponDefs[result.weapon].name} \xB7 ${threatLevels[result.threat].name}`;
+        : `${result.endless ? "Endless \xB7 " : ""}${weaponDefs[result.weapon].name} \xB7 ${threatLevels[result.threat].name}`;
       let title = getById("overTitle");
       title.textContent = result.win ? "Victory" : result.abandoned ? "Expedition Ended" : "Fallen";
       title.className = "over-title " + (result.win ? "win" : "lose");
@@ -2041,16 +2041,19 @@ const getById = (id) => document.getElementById(id),
       getById("over").hidden = true;
     }
     countUp(el, total) {
+      if (el._countRaf) cancelAnimationFrame(el._countRaf);
       let start = performance.now(),
         duration = 900,
         step = (now) => {
           let k = clamp((now - start) / duration, 0, 1);
           el.textContent = formatCount(Math.round(total * (1 - Math.pow(1 - k, 3))));
           if (k < 1) {
-            requestAnimationFrame(step);
+            el._countRaf = requestAnimationFrame(step);
+          } else {
+            el._countRaf = 0;
           }
         };
-      requestAnimationFrame(step);
+      el._countRaf = requestAnimationFrame(step);
     }
     showCrash(log) {
       for (let id of ["choose", "anvil", "pause", "over"]) {
@@ -2103,7 +2106,7 @@ const getById = (id) => document.getElementById(id),
       holdTitleCard(
         this,
         "boss",
-        `<div class="tcard boss hold" data-boss="${escapeHtml(id)}" style="--bc:${rlHex(boss.color)}"><div class="tc-panel"><i class="tc-accent"></i><div class="tc-eye">Guardian${biome ? " \xB7 " + escapeHtml(biome.name) : ""}</div><div class="tc-name">${escapeHtml(boss.name)}</div><i class="tc-line"></i><div class="tc-title">${escapeHtml(boss.title)}</div></div></div>`,
+        `<div class="tcard boss hold" data-boss="${escapeHtml(id)}" style="--bc:${rlHex(boss.color)}"><div class="tc-panel"><i class="tc-accent"></i><div class="tc-eye">Boss${biome ? " \xB7 " + escapeHtml(biome.name) : ""}</div><div class="tc-name">${escapeHtml(boss.name)}</div><i class="tc-line"></i><div class="tc-title">${escapeHtml(boss.title)}</div></div></div>`,
         2800,
         ms,
       );
