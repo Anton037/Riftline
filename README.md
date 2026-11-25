@@ -31,8 +31,8 @@ npm run build
 npm run serve
 ```
 
-The server prints its address. `npm run dev` watches source, assets and package metadata; run
-`npm run serve` in a separate terminal (note that `npm run dev` builds into `dist/` without serving).
+The server prints its address. `npm run dev` watches source, assets and package metadata and serves `dist/`
+on `http://localhost:8124`.
 Serve the game over HTTP or HTTPS so assets, saves and the service worker behave correctly.
 
 | Command | Purpose |

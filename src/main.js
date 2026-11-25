@@ -1216,11 +1216,7 @@ function handleWorldEvents(world) {
   // 2.5.0 B: the events of the new modules
   for (const ev of world.fx) {
     if (ev.k === "kit") {
-      ui.toast(
-        `Traveler's Satchel · ${ev.ids.map((id) => upgradesById[id]?.name || id).join(", ")}`,
-        "good hint",
-        3200,
-      );
+      ui.toast(`Starter Pack · ${ev.ids.map((id) => upgradesById[id]?.name || id).join(", ")}`, "good hint", 3200);
     } else {
       if (ev.k === "barrier") {
         ui.banner("Emergency Shield", "Low HP — shield activated", "good", 1400);
@@ -1304,7 +1300,7 @@ function handleWorldEvents(world) {
       case "trapWarn":
         showTipOnce(
           "trap",
-          "Arena traps warn before they trigger \u2014 lure enemies in, or shoot armed charges to detonate them!",
+          "Arena traps warn before they trigger \u2014 lure enemies in, or shoot mines to clear them safely.",
         );
         break;
       case "gadgetReady":
@@ -1405,7 +1401,7 @@ function handleWorldEvents(world) {
         if (world.player.alive) awardBossMedal(ev, world);
         break;
       case "revive":
-        ui.banner("Second Wind", "Back in the fight!", "good", 1600);
+        ui.banner("Second Chance", "Back in the fight!", "good", 1600);
         break;
       case "die":
         game.slowMo = 0.55;
@@ -1504,7 +1500,7 @@ const tutorialTexts = [
     ? "Enemies ahead! Your weapon shoots automatically \u2014 drag the right side to aim yourself."
     : "Enemies ahead! Your weapon shoots automatically \u2014 hold the left mouse button to aim yourself.",
   touchInput ? "Tap DASH to dodge through danger." : "Press SPACE or right-click to dash through danger.",
-  "Collect shards \u2014 spend them on permanent crafts in home.",
+  "Collect shards \u2014 spend them on permanent upgrades in the Workshop.",
 ];
 function updateTutorial(dt, world) {
   let tut = game.tut;
@@ -1660,9 +1656,10 @@ document.addEventListener(
   };
   const latestCorruptRaw = function () {
     if (store.corruptBackupRaw) return { key: store.corruptBackupKey, raw: store.corruptBackupRaw };
-    const keys = store.listBackups();
-    if (!keys.length) return null;
-    return { key: keys[0], raw: store.getBackup(keys[0]) || "" };
+    const entries = store.listBackups();
+    if (!entries.length) return null;
+    const latestKey = entries[0].key;
+    return { key: latestKey, raw: store.getBackup(latestKey) || "" };
   };
   const inspectCorruptBackup = async function () {
     const entry = latestCorruptRaw();
@@ -2007,6 +2004,8 @@ function rlApplyUpdateWhenIdle(why) {
 }
 registerServiceWorker((apply) => {
   game.pendingUpdate = apply;
+  const upBtn = getById("updateReadyBtn");
+  if (upBtn) upBtn.hidden = false;
   rlApplyUpdateWhenIdle("found");
 });
 document.addEventListener("visibilitychange", () => {
@@ -2024,7 +2023,10 @@ window.addEventListener("storage", (ev) => {
     store.syncForeign(false);
     applySettings();
     ui.homeInit = false;
-    if (ui.screen === "home") ui.show("home");
+    if (ui.screen === "home") ui.renderHome();
+    else if (ui.screen === "workshop") ui.renderWorkshop();
+    else if (ui.screen === "records") ui.renderRecords();
+    else if (ui.screen === "settings") ui.renderSettings();
     return;
   }
   if (!rlForeignWarned) {

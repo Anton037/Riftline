@@ -374,3 +374,41 @@ test("current area names preserve pre-update seeded routes and map geometry", as
     );
   }
 });
+
+test("SENTINEL_BEAMS covers every biome, flames use the flame shader, and boss phase shifts emit one cue", async () => {
+  const { SENTINEL_BEAMS } = await import("../src/data/combat-effects.js");
+  const { biomeList } = await import("../src/data/biomes.js");
+  for (const b of biomeList) {
+    assert.ok(SENTINEL_BEAMS[b.id], `${b.id}: missing Crystal Tower beam skin`);
+  }
+  assert.equal(SENTINEL_BEAMS.starHall, "rift");
+
+  const view = new WeaponEffectsView({ scene: new Group(), time: 1 }, Pool);
+  const flames = view.flames();
+  assert.equal(flames.mesh.material.shader, "flame");
+  flames.mesh.geometry.dispose();
+  flames.mesh.material.dispose();
+
+  for (const id of keys(bossDefs)) {
+    const w = world();
+    w.startWave(5);
+    w.spawnBoss(id);
+    w.boss.spawnT = 0;
+    w.fx.length = 0;
+    w.boss.hp = w.boss.maxHp * 0.4;
+    updateBoss(w, w.boss, 0.05);
+    const phaseCues = w.fx.filter((e) => e.k === "phase" || e.k === "enrage");
+    assert.equal(phaseCues.length, 1, `${id}: expected one phase/enrage cue, got ${phaseCues.map((e) => e.k)}`);
+    assert.equal(phaseCues[0].k, id === "starHeart" ? "phase" : "enrage", id);
+    if (id === "starHeart") {
+      assert.equal(phaseCues[0].n, 2);
+      w.fx.length = 0;
+      w.boss.hp = w.boss.maxHp * 0.2;
+      updateBoss(w, w.boss, 0.05);
+      const p3 = w.fx.filter((e) => e.k === "phase" || e.k === "enrage");
+      assert.equal(p3.length, 1, "starHeart phase 3 should emit one cue");
+      assert.equal(p3[0].k, "phase");
+      assert.equal(p3[0].n, 3);
+    }
+  }
+});

@@ -120,7 +120,7 @@ export class WeaponEffectsView {
   flames() {
     if (!this.flamePool) {
       this.flameMaterial = new Material({
-        shader: "fireBellows",
+        shader: "flame",
         transparent: true,
         additive: false,
         depthWrite: false,

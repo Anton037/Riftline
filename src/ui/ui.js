@@ -156,7 +156,14 @@ const getById = (id) => document.getElementById(id),
   formatPercent = (value) => Math.round(value * 100) + "%",
   formatCooldown = (value) => (value > 0 ? formatTenths(value) + " s" : "off"),
   statRows = [
-    ["Damage", (stats) => (stats.weapon.dmg + (stats.weapon.explodeDmg || 0)) * stats.dmgMul, formatTenths],
+    [
+      "Damage",
+      (stats) =>
+        (stats.weapon.dmg + (stats.weapon.explodeDmg || 0)) *
+        stats.dmgMul *
+        (stats.weapon.id === "ringBlade" && stats.twinRings ? 1.35 : 1),
+      formatTenths,
+    ],
     ["Fire rate", (stats) => stats.weapon.rate * stats.rateMul, (value) => formatTenths(value) + "/s"],
     ["Shots", (stats) => stats.weapon.count + (stats.weapon.cone ? stats.extra * 2 : stats.extra), String],
     ["Pierce", (stats) => (stats.pierce > 99 ? 0 : stats.pierce), String],
@@ -170,7 +177,7 @@ const getById = (id) => document.getElementById(id),
     ["Dash cooldown", (stats) => stats.dashCd, formatCooldown],
     ["Mirror Shield", (stats) => stats.shieldCd, formatCooldown],
     ["HP regen", (stats) => stats.regen, (value) => formatTenths(value) + " HP/s"],
-    ["Sunblades", (stats) => stats.orbit, String],
+    ["Spinning Blades", (stats) => stats.orbit, String],
     ["Blade damage", (stats) => (stats.orbit ? stats.orbitDmg * stats.dmgMul : 0), formatTenths],
     ["Frost chance", (stats) => stats.iceShot, formatPercent],
     ["Spark Chain", (stats) => stats.arc, formatPercent],
@@ -183,9 +190,9 @@ const getById = (id) => document.getElementById(id),
     ["Burn bonus", (stats) => stats.burningShot, formatPercent],
     ["Blast Shot", (stats) => stats.payloadF, formatPercent],
     ["Gravity Bells", (stats) => stats.gadgetMax, String],
-    ["Chime cooldown", (stats) => stats.gadgetCd, formatCooldown],
-    ["Chime power", (stats) => stats.gadgetDmg, (value) => "\u00d7" + formatTenths(value)],
-    ["Soul Mend", (stats) => stats.siphonCh, formatPercent],
+    ["Bell cooldown", (stats) => stats.gadgetCd, formatCooldown],
+    ["Bell power", (stats) => stats.gadgetDmg, (value) => "\u00d7" + formatTenths(value)],
+    ["Healing Drops", (stats) => stats.siphonCh, formatPercent],
     ["Fire Burst reach", (stats) => stats.novaR, (value) => formatTenths(value) + " m"],
     ["Fire Burst charge", (stats) => stats.novaMul, (value) => "\u00d7" + formatTenths(value)],
     ["Helper Wisps", (stats) => stats.wingmen, String],
@@ -228,8 +235,8 @@ const getById = (id) => document.getElementById(id),
     crucible: ["Forge blast", "#ff8438"],
     bellCage: ["Bell Cage", "#f08e70"],
     shard: ["Ice Shards", "#bacfd9"],
-    fang: ["Sand Dragon Fang", "#ffd98a"],
-    mossHelpers: ["Spore Brood", "#c1d291"],
+    fang: ["Dragon Fang", "#ffd98a"],
+    mossHelpers: ["Moss Helpers", "#c1d291"],
     other: ["Other", "#93a2bf"],
   },
   escapeHtml = (text) =>
@@ -1310,8 +1317,7 @@ const getById = (id) => document.getElementById(id),
       if (cache.hpVal != null && player.hp > cache.hpVal + 0.5) {
         let bar = getById("hpFill").parentElement;
         bar.classList.remove("heal");
-        bar.offsetWidth;
-        bar.classList.add("heal");
+        requestAnimationFrame(() => bar.classList.add("heal"));
       }
       cache.hpVal = player.hp;
       this.buffs(world);
@@ -1320,15 +1326,13 @@ const getById = (id) => document.getElementById(id),
       });
       update("shards", world.shards, (shards) => {
         getById("runShards").textContent = formatCount(shards);
-        // 3.45.0: the bump re-reads the layout - at most twice a second; the number itself always moves
         let chip = getById("shardChip");
         if (cache.shardsSeen) {
           let now = performance.now();
           if (now - (cache.shardBump || 0) > 450) {
             cache.shardBump = now;
             chip.classList.remove("bump");
-            chip.offsetWidth;
-            chip.classList.add("bump");
+            requestAnimationFrame(() => chip.classList.add("bump"));
           }
         }
         cache.shardsSeen = true;
@@ -1407,7 +1411,8 @@ const getById = (id) => document.getElementById(id),
         }
       });
       if (combo) {
-        update("comboT", Math.round(world.comboT * 20), (value) => {
+        const comboMax = 2.2 + 0.5 * (stats.surge || 0);
+        update("comboT", Math.round((world.comboT / comboMax) * 44), (value) => {
           getById("comboBar").style.transform = `scaleX(${clamp(value / 44, 0, 1)})`;
         });
       }
@@ -1439,8 +1444,7 @@ const getById = (id) => document.getElementById(id),
         let cooling = dashN <= 0 && dashPct > 0;
         if (btn.classList.contains("cooling") && !cooling) {
           btn.classList.remove("pop");
-          btn.offsetWidth;
-          btn.classList.add("pop");
+          requestAnimationFrame(() => btn.classList.add("pop"));
           if (world.state === "fight") {
             this.g.sound.play("ready");
           }
@@ -1517,13 +1521,13 @@ const getById = (id) => document.getElementById(id),
         chips.push(["graze", "PERFECT GRAZE", "#ffd872", player.grazeT / 1.5]);
       }
       if (world.chronoT > 0) {
-        chips.push(["timeDash", "SLOW TIME", "#bacfd9", world.chronoT / 1.5]);
+        chips.push(["timeDash", "SLOW TIME", "#bacfd9", world.chronoT / 1.1]);
       }
       if ((world.ws.revive || 0) > 0 && !world.revived) {
-        chips.push(["life", "SECOND WIND", "#abd397", -1]);
+        chips.push(["life", "SECOND CHANCE", "#abd397", -1]);
       }
       if (world.barrierT > 0) {
-        chips.push(["barrier", "AEGIS", "#b5dcdc", world.barrierT / Math.max(1, stats.barrierT || 1)]);
+        chips.push(["barrier", "SHIELD", "#b5dcdc", world.barrierT / Math.max(1, stats.barrierT || 1)]);
       }
       if (world.attuned && world.state === "fight") {
         chips.push(["attune", "TRAP BOOST", "#ffb86b", -1]);
@@ -2063,8 +2067,7 @@ const getById = (id) => document.getElementById(id),
     actionFlash(action, kind) {
       const btn = getById(action + "Btn");
       btn.classList.remove(kind);
-      btn.offsetWidth;
-      btn.classList.add(kind);
+      requestAnimationFrame(() => btn.classList.add(kind));
     }
     hurtFlash() {
       let el = getById("flash");
@@ -2130,7 +2133,7 @@ const getById = (id) => document.getElementById(id),
     }
   };
 // HUD chips for timed upgrades and biome effects, managed next to the chips of GameUI.buffs.
-const timedBuffChips = ["heat", "slip", "skate", "ingot", "leyline", "rime", "spore", "gild", "fest"];
+const timedBuffChips = ["heat", "slip", "ingot", "leyline", "rime", "spore", "gild", "fest"];
 function closePauseSettings(ui) {
   ui.rlFromPause = false;
   getById("settings").hidden = true;

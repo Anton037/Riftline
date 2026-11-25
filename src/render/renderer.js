@@ -240,7 +240,7 @@ export class Renderer {
       "emissive_inst",
       "emissive_compact",
       ...Object.values(RL_BIOME_LOOK).map((look) => `floor_${look.style}`),
-      "snowWind",
+      "aurora",
       "aegis",
       "flame_inst",
       "abilityWave_inst",

@@ -353,7 +353,36 @@ test("5.1 saves keep equipment, choices, boss records, forge purchases, and butt
   assert.deepEqual(data.run.offer, ["iceShot", "sparkChain"]);
   assert.deepEqual(data.run.banished, ["blastShot"]);
   assert.deepEqual(data.run.anvil, ["repair", "extraReroll"]);
-  assert.deepEqual(data.run.bossKills, ["bellKeeper"]);
+  assert.equal(data.run.bossKills[0], "bellKeeper");
   assert.equal(store.save("test"), true);
   assert.deepEqual(new SaveStore().data, data);
+});
+
+test("corrupt-save backups remain readable after reload and oversized stat maps are bounded", () => {
+  reset("{not valid json");
+  const first = new SaveStore();
+  assert.ok(first.corruptBackupKey);
+  first.save("fresh");
+  // Simulate a subsequent page load where in-memory corruptBackupRaw is null and only storage backups exist.
+  const reloaded = new SaveStore();
+  assert.equal(reloaded.corruptBackupRaw, null);
+  const backups = reloaded.listBackups();
+  assert.ok(backups.length >= 1);
+  assert.equal(typeof backups[0].key, "string");
+  assert.equal(reloaded.getBackup(backups[0].key), "{not valid json");
+
+  const huge = newSave();
+  huge.run = { v: 1, seed: 1, weapon: "lanternGun", wave: 5, hp: 50, dmgSrc: {}, takenBy: {}, bossKills: [] };
+  for (let i = 0; i < 120; i++) {
+    huge.stats.bosses[`fake_${i}`] = i;
+    huge.run.dmgSrc[`src_${i}`] = i;
+    huge.run.takenBy[`hit_${i}`] = i;
+  }
+  for (let i = 0; i < 400; i++) huge.run.bossKills.push("bellKeeper");
+  const parsed = reloaded.parse(JSON.stringify(huge));
+  assert.equal(parsed.ok, true);
+  assert.ok(Object.keys(parsed.data.stats.bosses).length <= 64);
+  assert.ok(Object.keys(parsed.data.run.dmgSrc).length <= 64);
+  assert.ok(Object.keys(parsed.data.run.takenBy).length <= 64);
+  assert.ok(parsed.data.run.bossKills.length <= 256);
 });

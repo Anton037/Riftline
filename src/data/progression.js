@@ -118,7 +118,7 @@ const workshopModules = [
     group: "ward",
     name: "Light Armor",
     icon: "shield",
-    desc: "-4% damage from enemies and -8% realm hazard damage per level",
+    desc: "-4% damage from enemies and -8% area hazard damage per level",
     costs: [220, 420, 760, 1180],
   },
   {
@@ -166,7 +166,7 @@ const workshopModules = [
     group: "ward",
     name: "Emergency Shield",
     icon: "shield",
-    desc: "Once per wave below 30% HP: gain a 1 s ward and mend 8% HP per level",
+    desc: "Once per wave below 30% HP: gain a 1 s shield and mend 8% HP per level",
     costs: [900, 2200],
   },
 ];
@@ -343,7 +343,7 @@ const milestones = [
   {
     id: "evolve3",
     name: "3 Master Crafts",
-    desc: "Forge 3 Masterworks",
+    desc: "Forge 3 Master Crafts",
     reward: 450,
     test: (save) => save.stats.evolved >= 3,
   },
@@ -399,7 +399,7 @@ const milestones = [
   {
     id: "weaponClear10",
     name: "Win With Four Weapons",
-    desc: "Complete expeditions with at least 4 different arms",
+    desc: "Complete expeditions with at least 4 different weapons",
     reward: 600,
     test: (save) => Object.values(save.stats.clearsBy).filter((count) => count > 0).length >= 4,
   },
@@ -413,7 +413,7 @@ const milestones = [
   {
     id: "evolve10",
     name: "10 Master Crafts",
-    desc: "Forge 10 Masterworks",
+    desc: "Forge 10 Master Crafts",
     reward: 1200,
     test: (save) => save.stats.evolved >= 10,
   },
@@ -433,7 +433,7 @@ const anvilGoods = [
   {
     id: "charge",
     name: "Fire Burst Charge",
-    desc: "Add 50 points of Fire Burst charge.",
+    desc: "Add 50% Fire Burst charge.",
     cost: 10,
     available: (world) => world.player.fireBurst < 100,
     apply: (world) => world.addNova(50, true),

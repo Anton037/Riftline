@@ -122,7 +122,7 @@ export const SENTINEL_BEAMS = {
   lanternYard: "laser",
   snowRidge: "iceShot",
   mossBog: "acid",
-  starHeart: "rift",
+  starHall: "rift",
   emberHill: "fireBellows",
   sunDunes: "sun",
 };

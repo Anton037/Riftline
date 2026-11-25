@@ -15,7 +15,7 @@ const upgradeList = [
     rarity: 1,
     max: 6,
     icon: "wing",
-    desc: () => "+10% move speed, -8% dash and ward cooldown",
+    desc: () => "+10% move speed, -8% dash and Mirror Shield cooldown",
   },
   {
     id: "crit",
@@ -224,7 +224,7 @@ const upgradeList = [
     max: 3,
     icon: "target",
     desc: (level, count = level + 1) =>
-      `+${5 + 15 * count}% damage against elites, champions, bosses, and enemies below 35% HP (2\u00d7 to wards)`,
+      `+${5 + 15 * count}% damage against elites, champions, bosses, and enemies below 35% HP (2\u00d7 to shields)`,
   },
   {
     id: "echo",
@@ -353,7 +353,7 @@ const upgradeList = [
     max: 1,
     icon: "burst",
     evo: { blastShot: 2, seeker: 1 },
-    desc: () => "Powder blasts scatter 2 seeking ember bomblets that burst in a 1.5 m area (38% damage).",
+    desc: () => "Blast Shot bursts scatter 2 seeking ember bomblets that burst in a 1.5 m area (38% damage).",
   },
   {
     id: "storm",
@@ -400,7 +400,7 @@ const upgradeList = [
     icon: "collapse",
     evo: { extraBells: 1, wideBell: 2 },
     desc: () =>
-      "Gravity Bell pulls 40% wider and fires 8 weapon bolts outward on collapse. Fire Burst drops a free Chime.",
+      "Gravity Bell pulls 40% wider and fires 8 weapon bolts outward on collapse. Fire Burst drops a free Gravity Bell.",
   },
   {
     id: "sunGun",
@@ -452,7 +452,7 @@ const upgradeList = [
     icon: "burst",
     weapon: "emberLauncher",
     evo: { blastShot: 1, dmg: 2 },
-    desc: () => "Mortar blasts are 35% wider and ignite every enemy caught in the burst.",
+    desc: () => "Ember Launcher blasts are 35% wider and ignite every enemy caught in the burst.",
   },
   {
     id: "twinRings",
@@ -462,7 +462,7 @@ const upgradeList = [
     icon: "orbit",
     weapon: "ringBlade",
     evo: { rate: 2, crit: 1 },
-    desc: () => "Chakrams are 40% larger, deal 35% more damage, and curve toward enemies.",
+    desc: () => "Ring Blades are 40% larger, deal 35% more damage, and curve toward enemies.",
   },
   {
     id: "dragon",

@@ -4,6 +4,17 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "5.3.0",
+    title: "Craft polish and fixes",
+    items: [
+      "Fire Bellows flames and Star Hall Crystal Tower beams render with their intended visual effects.",
+      "Fixed misaligned parts on Small Bugs, Bog Hoppers, Blink Blades, Supply Kites, Dart Sprites, and the Moss Queen.",
+      "Boss phase transitions play cleanly once, and buffered dashes stay reliable during frame drops.",
+      "Corrupt-save backups stay readable and downloadable after reloading.",
+      "Unified craft, HUD, and Guide labels across the whole game.",
+    ],
+  },
+  {
     version: "5.2.12",
     title: "Clearer HUD and settings",
     items: [
@@ -39,14 +50,6 @@ export const WHATS_NEW = [
       "Continue tells you when you're returning to a reward choice or the Roadside Forge.",
       "On tablets, you can swipe through a long list of your crafts while choosing a reward.",
       "When no crafts are available, the reward shows how much HP you actually recovered.",
-    ],
-  },
-  {
-    version: "5.2.8",
-    title: "A clearer Keeper",
-    items: [
-      "A shorter brim and a pale clasp make it easier to see which way the Keeper is facing.",
-      "The ground arrow and the weapon preview stay lined up with the Keeper as they turn.",
     ],
   },
 ];

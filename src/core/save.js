@@ -322,18 +322,30 @@ function cleanRun(raw) {
   }
   const rawBoss = Array.isArray(raw.bossKills) ? raw.bossKills : [];
   // This is an event list: Endless can defeat the same boss more than once.
-  run.bossKills = rawBoss.filter((id) => typeof id === "string" && bossOrder.includes(id));
+  run.bossKills = rawBoss.filter((id) => typeof id === "string" && bossOrder.includes(id)).slice(0, 256);
   const rawStats = asObject(raw.runStats);
   run.runStats.dmgTaken = Math.floor(cleanNumber(rawStats.dmgTaken, 0, 0, 1e12));
   run.runStats.dashes = Math.floor(cleanNumber(rawStats.dashes, 0, 0, 1e7));
   run.runStats.critHits = Math.floor(cleanNumber(rawStats.critHits, 0, 0, 1e9));
   const src = asObject(raw.dmgSrc);
-  for (const key in src)
-    if (/^[A-Za-z0-9_-]{1,24}$/.test(key)) run.dmgSrc[key] = Math.floor(cleanNumber(src[key], 0, 0, 1e12));
+  let srcCount = 0;
+  for (const key in src) {
+    if (srcCount >= 64) break;
+    if (/^[A-Za-z0-9_-]{1,24}$/.test(key)) {
+      run.dmgSrc[key] = Math.floor(cleanNumber(src[key], 0, 0, 1e12));
+      srcCount++;
+    }
+  }
   // 3.46.0: the recap ("?" is the source of a hit that came with none)
   const taken = asObject(raw.takenBy);
-  for (const key in taken)
-    if (/^[A-Za-z0-9_?-]{1,24}$/.test(key)) run.takenBy[key] = cleanNumber(taken[key], 0, 0, 1e12);
+  let takenCount = 0;
+  for (const key in taken) {
+    if (takenCount >= 64) break;
+    if (/^[A-Za-z0-9_?-]{1,24}$/.test(key)) {
+      run.takenBy[key] = cleanNumber(taken[key], 0, 0, 1e12);
+      takenCount++;
+    }
+  }
   if (Array.isArray(raw.hitLog))
     for (const h of raw.hitLog) {
       if (run.hitLog.length >= 12) break;
@@ -414,21 +426,28 @@ function cleanSave(input, recordNote = true, notesOut = null) {
   stats.bestClearThreat = Math.floor(cleanNumber(rawStats.bestClearThreat, -1, -1, 5));
   for (let key of ["bosses", "clearsBy", "bestBy"]) {
     let rawMap = asObject(rawStats[key]);
+    let count = 0;
     for (let id in rawMap) {
+      if (count >= 64) break;
       if (/^[A-Za-z0-9_-]{2,24}$/.test(id)) {
         stats[key][id] = cleanNumber(rawMap[id], 0, 0, 1e9);
+        count++;
       }
     }
   }
   // 3.24.0: the best medal of every boss
   {
     const rawMedals = asObject(rawStats.medals);
+    let count = 0;
     for (const id in rawMedals) {
+      if (count >= 64) break;
       if (!/^[A-Za-z0-9_-]{2,24}$/.test(id)) continue;
       const m = asObject(rawMedals[id]),
         medal = Math.floor(cleanNumber(m.medal, 0, 0, 3));
-      if (medal >= 1)
+      if (medal >= 1) {
         stats.medals[id] = { medal, secs: cleanNumber(m.secs, 0, 0, 1e5), damage: cleanNumber(m.damage, 0, 0, 1e9) };
+        count++;
+      }
     }
   }
   // 2.8.1: per-weapon records of retired weapons count for the weapon that took them over (clears are

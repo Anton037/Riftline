@@ -14,7 +14,7 @@ import { getById } from "./ui.js";
 const CONTROL_INFO = {
     dash: { el: "dashBtn", name: "DASH", min: 40 },
     fireBurst: { el: "fireBurstBtn", name: "BURST", min: 40 },
-    gravityBell: { el: "gravityBellBtn", name: "CHIME", min: 40 },
+    gravityBell: { el: "gravityBellBtn", name: "BELL", min: 40 },
     pause: { el: "pauseBtn", name: "PAUSE", min: 36 },
   },
   HUD_CONTROLS = HUD_CONTROL_IDS.map((id) => ({ id, ...CONTROL_INFO[id] })),

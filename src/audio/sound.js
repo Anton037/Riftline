@@ -1387,7 +1387,7 @@ const SoundEngine = class {
           break;
         case "phase":
           this.play("phase", ev.src);
-          this.bossPush(1);
+          this.bossPush(ev.n >= 3 ? 2 : 1);
           break;
         case "bossDown":
           this.bossEnd();

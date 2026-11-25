@@ -7,7 +7,7 @@ import { game } from "../main.js";
 import { getById } from "./ui.js";
 
 const touchInput = document.documentElement.classList.contains("device-touch");
-const INPUT_BUFFER_MS = 120;
+const INPUT_BUFFER_S = 0.14;
 function acceptsPointer(ev) {
   return ev.pointerType === (touchInput ? "touch" : "mouse");
 }
@@ -313,16 +313,23 @@ const Input = class {
   }
   press(action, dashPoint = null) {
     if (this.enabled && (!this.isPlaying || this.isPlaying())) {
-      this.pending[action] = performance.now() + INPUT_BUFFER_MS;
+      this.pending[action] = INPUT_BUFFER_S;
       if (action === "dash") this.dashPoint = dashPoint;
     }
   }
-  consume(action, ready, now) {
-    const until = this.pending[action];
-    if (!until) return false;
-    if (until >= now && !ready) return false;
+  consume(action, ready, dt) {
+    const left = this.pending[action];
+    if (!(left > 0)) return false;
+    if (ready) {
+      this.pending[action] = 0;
+      return true;
+    }
+    const next = left - (dt || 1 / 60);
+    if (next > 0) {
+      this.pending[action] = next;
+      return false;
+    }
     this.pending[action] = 0;
-    if (until >= now) return true;
     if (action !== "fire") this.onDeny?.(action);
     return false;
   }
@@ -353,15 +360,19 @@ const Input = class {
     return clamp(Math.min(window.innerWidth, window.innerHeight) * 0.14, 44, 72) * (scale || 1);
   }
   sample(world, settings, dt) {
-    const now = performance.now(),
+    const stepDt = dt || 1 / 60,
       player = world.player,
       fighting = world.state === "fight";
-    const dash = this.consume("dash", player.dashT <= 0 && (player.dashN > 0 || player.dashCdT <= dt), now);
+    const dash = this.consume("dash", player.dashT <= 0 && (player.dashN > 0 || player.dashCdT <= stepDt), stepDt);
     const dashPoint = dash ? this.dashPoint : null;
     if (!this.pending.dash) this.dashPoint = null;
-    const fireBurst = this.consume("fireBurst", fighting && player.fireBurst >= 100, now);
-    const gravityBell = this.consume("gravityBell", fighting && (player.gadgetN > 0 || player.gadgetT <= dt), now);
-    const bufferedFire = this.consume("fire", player.fireT <= dt, now);
+    const fireBurst = this.consume("fireBurst", fighting && player.fireBurst >= 100, stepDt);
+    const gravityBell = this.consume(
+      "gravityBell",
+      fighting && (player.gadgetN > 0 || player.gadgetT <= stepDt),
+      stepDt,
+    );
+    const bufferedFire = this.consume("fire", player.fireT <= stepDt, stepDt);
     let radius = (this.R = this.radius()),
       mx = 0,
       my = 0;

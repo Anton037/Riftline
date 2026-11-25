@@ -1,8 +1,28 @@
-// Fresh browser/context/server per flow, bounded waits and optional pixel rendering.
+// Fresh browser context and server per flow, bounded waits and optional pixel rendering.
+import { after } from "node:test";
 import { chromium } from "playwright";
 import { serve } from "../../tools/serve.js";
 import { launchOptions } from "../../tools/browser.js";
 import { fileURLToPath } from "node:url";
+
+let sharedBrowserPromise = null;
+function getBrowser() {
+  if (!sharedBrowserPromise) {
+    sharedBrowserPromise = chromium.launch(launchOptions()).then((b) => {
+      b.on("disconnected", () => {
+        sharedBrowserPromise = null;
+      });
+      return b;
+    });
+  }
+  return sharedBrowserPromise;
+}
+after(async () => {
+  const pending = sharedBrowserPromise;
+  sharedBrowserPromise = null;
+  if (pending) await (await pending).close().catch(() => {});
+});
+
 export async function openGame(t, mode, { fresh = false, audio = false, dpr = 1, viewport } = {}) {
   const profile = mode === true ? "tablet" : mode === false ? "phone" : mode || "phone";
   const isDesktop = profile === "desktop";
@@ -19,25 +39,25 @@ export async function openGame(t, mode, { fresh = false, audio = false, dpr = 1,
     server.closeAllConnections();
     return new Promise((resolve) => server.close(resolve));
   };
-  let browser;
+  let context;
   t.after(async () => {
-    await browser?.close();
+    await context?.close().catch(() => {});
     await stopServer();
   });
-  browser = await chromium.launch(launchOptions());
-  t.signal.addEventListener(
-    "abort",
-    () => {
-      void browser.close().catch(() => {});
-    },
-    { once: true },
-  );
-  const context = await browser.newContext({
+  const browser = await getBrowser();
+  context = await browser.newContext({
     viewport: viewport || defaultViewport,
     deviceScaleFactor: dpr,
     hasTouch: !isDesktop,
     isMobile: !isDesktop,
   });
+  t.signal.addEventListener(
+    "abort",
+    () => {
+      void context?.close().catch(() => {});
+    },
+    { once: true },
+  );
   await context.addInitScript(
     ({ draw, fresh, audio }) => {
       Object.defineProperty(Navigator.prototype, "webdriver", { get: () => false, configurable: true });

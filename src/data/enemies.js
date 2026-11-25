@@ -54,16 +54,16 @@ const RL_ENEMY_TIPS = {
   firePot: "Fire Pots explode up close. Shoot them early or dash away before they blow up.",
   sporePod: "Spore Pods split into three smaller enemies when killed.",
   ironGolem: "Iron Golems line up and charge forward. Dodge sideways — hitting a pillar stuns them.",
-  longshot: "Long-Glass Marksmen show an aim line before shooting. Move behind cover or dash.",
+  longshot: "Longshots show an aim line before shooting. Move behind cover or dash.",
   mushroomNest: "Mushroom Nests keep spawning mites until you destroy them.",
   shieldGuard: "Shield Guards block shots from the front. Circle behind them or break their shield.",
   blinkBlade: "Blink Blades teleport near you — watch the ring showing where they will land.",
   bellCannon: "Bell Cannons fire bombs where you are walking. Change direction often.",
   mossHealer: "Moss Healers heal nearby enemies. Take them out first.",
   bogHopper: "Bog Hoppers jump over obstacles and splash acid when they land.",
-  watchTower: "Watch-Belfries lock in place to fire twin shots and a close shockwave.",
+  watchTower: "Watch Towers lock in place to fire twin shots and a close shockwave.",
   wildBoar: "Wild Boars charge across the arena and bounce off the first wall they hit.",
-  mineCart: "Mine Carts drop bombs on the floor — shoot the bombs to blow up nearby enemies.",
+  mineCart: "Mine Carts drop bombs on the floor — shoot the bombs to clear them safely.",
   bombMaker: "Bomb Makers throw timed bombs to your side. Keep moving.",
   starGhost: "Star Ghosts turn ghostly and flank you quickly before attacking.",
   crystalTower: "Crystal Towers sweep a wide prism beam across the arena. Move behind them.",
@@ -72,6 +72,7 @@ const RL_ENEMY_TIPS = {
   burrowMole: "Burrow Moles dig underground where shots miss, then pop out of a warning ring.",
   healingStone: "Healing Stones project golden beams that shield and heal nearby enemies.",
   starSpider: "Star Spiders leave glowing beams along their teleport path that slow you if touched.",
+  littlePod: "Little Pods hatch when a Spore Pod splits and rush toward you in packs.",
 };
 
 const enemyDefs = {
@@ -86,7 +87,7 @@ const enemyDefs = {
     cost: 1,
     shards: 1,
     from: 1,
-    color: 16727423,
+    color: 0xd94e3f,
   },
   kettleGuard: {
     id: "kettleGuard",

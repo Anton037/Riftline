@@ -99,9 +99,10 @@ function triggerPhaseTransition(game, boss, nextPhase) {
   shiftBossArenaHazards(game, boss);
   if (typeof game.triggerHitstop === "function") game.triggerHitstop(0.032);
   else game.hitstopT = Math.max(game.hitstopT || 0, 0.032);
-  game.emit("phase", { n: nextPhase, x: boss.x, y: boss.y, src: boss.type });
-  if (boss.type !== "starHeart") {
-    game.emit("enrage", { id: boss.type, x: boss.x, y: boss.y, src: boss.type });
+  if (boss.type === "starHeart") {
+    game.emit("phase", { n: nextPhase, x: boss.x, y: boss.y, src: boss.type });
+  } else {
+    game.emit("enrage", { id: boss.type, n: nextPhase, x: boss.x, y: boss.y, src: boss.type });
     if (REINFORCE[boss.type]) bossReinforce(game, boss);
   }
   endBossAttack(boss, 1.0, false);

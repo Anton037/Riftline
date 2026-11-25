@@ -842,7 +842,7 @@ function buildEnemyParts(type, accent) {
       // Teardrop jewel-moth / scarab dart with GPU-buzzing gossamer wings, segmented thorax & curled antennae
       body.push(
         part(G_BUG, accent, {
-          x: -0.06,
+          x: -0.6,
           y: 0.44,
           rz: -Math.PI / 2,
           sx: 0.56,
@@ -850,7 +850,7 @@ function buildEnemyParts(type, accent) {
           sz: 0.62,
           anim: [4, 0.44, -0.06, -1.0],
         }),
-        part(G_TOR_SM, BRASS, { x: 0.14, y: 0.45, ry: Math.PI / 2, sx: 0.46, sy: 0.46, sz: 0.46 }),
+        part(G_TOR_SM, BRASS, { x: 0.18, y: 0.45, ry: Math.PI / 2, sx: 0.46, sy: 0.46, sz: 0.46 }),
         part(G_DOME, CHITIN_DARK, { x: 0.36, y: 0.34, sx: 0.35, sy: 0.31, sz: 0.39 }),
         // Mode 1 GPU-buzzing moth-scarab forewings & hindwings
         part(G_OCT, PARCHMENT, {
@@ -998,7 +998,7 @@ function buildEnemyParts(type, accent) {
     case "bogHopper":
       // Coiled springy rift-lynx critter with GPU-striding haunches & forepaws, brass collar, tufted ears & sweeping tail
       body.push(
-        part(G_BUG, CHITIN_DARK, { x: -0.08, y: 0.6, rz: -1.35, sx: 0.54, sy: 1.12, sz: 0.58 }),
+        part(G_BUG, CHITIN_DARK, { x: -0.56, y: 0.48, rz: -1.35, sx: 0.54, sy: 1.12, sz: 0.58 }),
         part(G_TOR_SM, BRASS, { x: 0.22, y: 0.68, rz: 0.3, ry: Math.PI / 2, sx: 0.48, sy: 0.48, sz: 0.48 }),
         part(G_DOME, accent, { x: 0.32, y: 0.72, sx: 0.45, sy: 0.37, sz: 0.45 }),
         part(G_BUG, LEATHER, {
@@ -1302,7 +1302,7 @@ function buildEnemyParts(type, accent) {
     case "blinkBlade":
       // Swept-wing porcelain-and-indigo crescent duelist with GPU-fluttering razor V-scythes, dorsal crest & tail fin
       body.push(
-        part(G_BUG, IRON, { x: -0.06, y: 0.78, rz: -Math.PI / 2, sx: 0.48, sy: 1.14, sz: 0.52 }),
+        part(G_BUG, IRON, { x: -0.63, y: 0.78, rz: -Math.PI / 2, sx: 0.48, sy: 1.14, sz: 0.52 }),
         part(G_HOOD, IVORY, { x: 0.04, y: 0.92, rz: 0.65, sx: 0.44, sy: 0.5, sz: 0.4 }),
         part(G_CONE6, BRASS, { x: -0.18, y: 1.18, rz: 0.85, sx: 0.14, sy: 0.54, sz: 0.12 }),
         part(G_OCT, COPPER, { x: -0.58, y: 0.84, sx: 0.36, sy: 0.28, sz: 0.08 }),
@@ -1844,8 +1844,8 @@ function buildEnemyParts(type, accent) {
         part(G_LANTERN, PARCHMENT, { x: 0.04, y: 0.84, sx: 0.78, sy: 0.52, sz: 0.78, anim: [4, 0.95, 0.04, -1.5] }),
         part(G_CONE6, BRASS, { x: -0.06, y: 1.5, sx: 0.72, sy: 0.32, sz: 0.72 }),
         part(G_CONE6, BRASS, { x: 0.78, y: 0.78, rz: -1.35, sx: 0.12, sy: 0.54, sz: 0.12 }),
-        part(G_BUG, NAVY_ROBE, { x: 0.12, y: 0.84, z: -0.82, rz: -Math.PI / 2, sx: 0.32, sy: 1.36, sz: 0.34 }),
-        part(G_BUG, NAVY_ROBE, { x: 0.12, y: 0.84, z: 0.82, rz: -Math.PI / 2, sx: 0.32, sy: 1.36, sz: 0.34 }),
+        part(G_BUG, NAVY_ROBE, { x: -0.56, y: 0.84, z: -0.82, rz: -Math.PI / 2, sx: 0.32, sy: 1.36, sz: 0.34 }),
+        part(G_BUG, NAVY_ROBE, { x: -0.56, y: 0.84, z: 0.82, rz: -Math.PI / 2, sx: 0.32, sy: 1.36, sz: 0.34 }),
         part(G_BOX, COPPER, { x: 0.08, y: 0.84, sx: 0.12, sy: 0.08, sz: 1.62 }),
         // Spinning 4-blade brass propellers on both pontoons
         part(G_BOX, BRASS, { x: -0.58, y: 0.84, z: -0.82, sx: 0.06, sy: 0.52, sz: 0.09, anim: [5, 0.84, -0.82, 13.0] }),
@@ -1861,7 +1861,7 @@ function buildEnemyParts(type, accent) {
     case "dartSprite":
       // Sleek brass-ringed clockwork dragonfly with tandem filigree wings, segmented tail & spinning gyro ring
       body.push(
-        part(G_LANTERN, PARCHMENT, { x: -0.04, y: 0.86, rz: -Math.PI / 2, sx: 0.48, sy: 0.64, sz: 0.48 }),
+        part(G_LANTERN, PARCHMENT, { x: -0.36, y: 0.86, rz: -Math.PI / 2, sx: 0.48, sy: 0.64, sz: 0.48 }),
         part(G_CONE6, COPPER, { x: -0.56, y: 0.86, rz: Math.PI / 2, sx: 0.18, sy: 0.54, sz: 0.18 }),
         part(G_OCT, BRASS, {
           x: 0.04,
@@ -2330,7 +2330,7 @@ export function buildBossModel(type, accentHex = 0xff6644) {
     abdomen.add(
       new MeshNode(
         mergeGeometries([
-          part(G_BUG, 0x1d3b2e, { x: -0.1, y: 0, rz: -Math.PI / 2, sx: 1.72, sy: 2.62, sz: 2.26 }),
+          part(G_BUG, 0x1d3b2e, { x: -1.18, y: 0, rz: -Math.PI / 2, sx: 1.72, sy: 2.62, sz: 2.26 }),
           part(G_TOR_SM, BRASS, { x: 0.25, y: 0.08, ry: Math.PI / 2, sx: 1.65, sy: 1.65, sz: 1.65 }),
         ]),
         bodyMat,
