@@ -7,11 +7,11 @@ export const WHATS_NEW = [
     version: "5.3.0",
     title: "Craft polish and fixes",
     items: [
-      "Fire Bellows flames and Star Hall Crystal Tower beams render with their intended visual effects.",
-      "Fixed misaligned parts on Small Bugs, Bog Hoppers, Blink Blades, Supply Kites, Dart Sprites, and the Moss Queen.",
+      "Fire Burst now erupts in warm ember flame, and Fire Bellows and Star Hall beams render with their full shaders.",
+      "Polished enemy, boss, and Keeper models, including Star Heart's core, Bell Keeper's visor, Star Spider legs, and smoother cloak drape.",
+      "Refined arena props and hazards across Snow Ridge, Moss Bog, Ember Hill, and Sun Dunes, with faster desert rendering.",
       "Boss phase transitions play cleanly once, and buffered dashes stay reliable during frame drops.",
-      "Corrupt-save backups stay readable and downloadable after reloading.",
-      "Unified craft, HUD, and Guide labels across the whole game.",
+      "Corrupt-save backups stay readable after reload, and craft, HUD, and Guide labels match across the game.",
     ],
   },
   {

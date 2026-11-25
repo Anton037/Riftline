@@ -485,20 +485,20 @@ export function buildPlayerModel(weapon = "lanternGun", weaponColor = 0x5ce8ff) 
 
   // 2-Stage Articulated Travel Cloak (`cloak` -> `cloakHem`) & Woven Explorer Scarf (`scarf` -> `scarfTail`)
   const cloak = new Node();
-  cloak.position.set(-0.2, 1.14, 0);
+  cloak.position.set(-0.22, 1.12, 0);
   cloak.add(
     new MeshNode(
-      mergeGeometries([part(G_BEV, CLOAK_TEAL, { x: -0.11, y: -0.17, rz: -0.26, sx: 0.11, sy: 0.36, sz: 0.54 })]),
+      mergeGeometries([part(G_BEV, CLOAK_TEAL, { x: -0.05, y: -0.18, rz: -0.1, sx: 0.095, sy: 0.36, sz: 0.52 })]),
       clothMat,
     ),
   );
   const cloakHem = new Node();
-  cloakHem.position.set(-0.17, -0.33, 0);
+  cloakHem.position.set(-0.08, -0.35, 0);
   cloakHem.add(
     new MeshNode(
       mergeGeometries([
-        part(G_BEV, CLOAK_TEAL, { x: -0.11, y: -0.15, rz: -0.34, sx: 0.1, sy: 0.34, sz: 0.62 }),
-        part(G_BEV, CLOAK_TRIM, { x: -0.18, y: -0.31, rz: -0.38, sx: 0.095, sy: 0.09, sz: 0.65 }),
+        part(G_BEV, CLOAK_TEAL, { x: -0.04, y: -0.16, rz: -0.12, sx: 0.088, sy: 0.34, sz: 0.58 }),
+        part(G_BEV, CLOAK_TRIM, { x: -0.07, y: -0.33, rz: -0.14, sx: 0.085, sy: 0.085, sz: 0.61 }),
       ]),
       clothMat,
     ),
@@ -507,15 +507,15 @@ export function buildPlayerModel(weapon = "lanternGun", weaponColor = 0x5ce8ff) 
   base.add(cloak);
 
   const scarf = new Node();
-  scarf.position.set(-0.15, 1.18, -0.14);
+  scarf.position.set(-0.16, 1.17, -0.14);
   const scarfTail = new Node();
-  scarfTail.position.set(-0.14, -0.1, 0);
+  scarfTail.position.set(-0.1, -0.11, 0);
   scarfTail.add(
     new MeshNode(
       mergeGeometries([
-        part(G_BEV, CLOAK_TRIM, { x: -0.02, y: -0.02, rz: -0.44, sx: 0.08, sy: 0.34, sz: 0.21 }),
-        part(G_BEV, CLOAK_TRIM, { x: -0.18, y: -0.2, rz: -0.68, sx: 0.07, sy: 0.3, sz: 0.18 }),
-        part(G_CONE6, BRASS, { x: -0.3, y: -0.32, rz: 1.12, sx: 0.1, sy: 0.15, sz: 0.13 }),
+        part(G_BEV, CLOAK_TRIM, { x: -0.02, y: -0.06, rz: -0.22, sx: 0.072, sy: 0.3, sz: 0.19 }),
+        part(G_BEV, CLOAK_TRIM, { x: -0.1, y: -0.26, rz: -0.34, sx: 0.065, sy: 0.26, sz: 0.16 }),
+        part(G_CONE6, BRASS, { x: -0.17, y: -0.4, rz: 0.48, sx: 0.09, sy: 0.14, sz: 0.12 }),
       ]),
       clothMat,
     ),
@@ -695,18 +695,18 @@ export function buildPlayerModel(weapon = "lanternGun", weaponColor = 0x5ce8ff) 
       const runRipple = Math.sin(phase * 2) * 0.09 * amount;
 
       // 2-stage billowing travel cloak + flaring hem during Dash & Fire Burst cast
-      cloak.rotation.z = -0.1 - amount * 0.38 - flare * 0.52 - flinchK * 0.28 + breeze + runRipple;
+      cloak.rotation.z = -0.05 - amount * 0.26 - flare * 0.38 - flinchK * 0.22 + breeze + runRipple;
       cloak.rotation.y = Math.sin(time * 2.1 + phase * 0.5) * (0.06 + amount * 0.08);
       cloakHem.rotation.z =
-        -0.08 - amount * 0.28 - flare * 0.44 + Math.sin(time * 4.2 - 0.85) * (0.07 + amount * 0.09 + flare * 0.14);
-      cloakHem.scale.set(1 + flare * 0.28, 1, 1 + flare * 0.32);
+        -0.04 - amount * 0.2 - flare * 0.3 + Math.sin(time * 4.2 - 0.85) * (0.06 + amount * 0.08 + flare * 0.12);
+      cloakHem.scale.set(1 + flare * 0.22, 1, 1 + flare * 0.26);
 
       // 2-stage flowing scarf + phase-lagged tail whip
-      scarf.rotation.z = -0.14 - amount * 0.46 - flare * 0.58 + Math.sin(time * 3.8 + 0.6) * (0.08 + amount * 0.07);
+      scarf.rotation.z = -0.08 - amount * 0.32 - flare * 0.42 + Math.sin(time * 3.8 + 0.6) * (0.07 + amount * 0.06);
       scarf.rotation.y = Math.cos(time * 2.7) * (0.08 + amount * 0.12) - this.bank * 0.8;
       scarfTail.rotation.z =
-        -0.1 - amount * 0.34 - flare * 0.48 + Math.sin(time * 5.6 - 0.7) * (0.09 + amount * 0.11 + flare * 0.15);
-      scarfTail.scale.set(1 + flare * 0.22, 1, 1 + flare * 0.18);
+        -0.06 - amount * 0.24 - flare * 0.34 + Math.sin(time * 5.6 - 0.7) * (0.08 + amount * 0.09 + flare * 0.13);
+      scarfTail.scale.set(1 + flare * 0.18, 1, 1 + flare * 0.14);
 
       // Guiding lantern lifts on Fire Burst cast, swings forward on Gravity Bell throw
       lantern.position.set(
@@ -1931,10 +1931,37 @@ function buildEnemyParts(type, accent) {
       );
       break;
     case "starSpider":
-      // 6-armed spinning celestial loom wheel framing a slender indigo weaver core
+      // 6-armed spinning celestial loom wheel framing a slender indigo weaver core on 4 splayed brass-jointed spider legs
       body.push(
-        part(G_ROBE, PLUM_ROBE, { x: 0.12, y: 0.34, sx: 0.52, sy: 0.96, sz: 0.52 }),
-        part(G_HOOD, NAVY_ROBE, { x: 0.1, y: 1.24, rz: 0.3, sx: 0.42, sy: 0.44, sz: 0.42 }),
+        part(G_ROBE, PLUM_ROBE, { x: 0.12, y: 0.38, sx: 0.54, sy: 0.92, sz: 0.54 }),
+        part(G_HOOD, NAVY_ROBE, { x: 0.12, y: 1.24, rz: 0.3, sx: 0.42, sy: 0.44, sz: 0.42 }),
+        ...[-1, 1].flatMap((side) =>
+          [-0.22, 0.36].flatMap((ox, idx) => {
+            const zKnee = side * (idx ? 0.62 : 0.68);
+            const zFoot = side * (idx ? 0.92 : 1.02);
+            return [
+              part(G_CYL6, NAVY_ROBE, {
+                x: ox + 0.05,
+                y: 0.62,
+                z: side * 0.36,
+                rx: side * 0.95,
+                sx: 0.09,
+                sy: 0.62,
+                sz: 0.09,
+              }),
+              part(G_OCT, BRASS, { x: ox + 0.08, y: 0.72, z: zKnee, sx: 0.16, sy: 0.16, sz: 0.16 }),
+              part(G_CYL6, COPPER, {
+                x: ox + 0.1,
+                y: 0.36,
+                z: (zKnee + zFoot) * 0.5,
+                rx: -side * 0.42,
+                sx: 0.075,
+                sy: 0.72,
+                sz: 0.075,
+              }),
+            ];
+          }),
+        ),
         // Giant vertical 6-armed brass loom wheel behind the weaver spinning continuously around X-axis (Mode 5)
         part(G_TOR, BRASS, {
           x: -0.24,
@@ -2224,8 +2251,9 @@ export function buildBossModel(type, accentHex = 0xff6644) {
       part(G_DOME, 0x243b4c, { y: 2.28, z: 1.62, rx: -0.22, sx: 1.54, sy: 0.86, sz: 1.04 }),
       part(G_CONE6, BRASS, { y: 3.14, z: -1.62, sx: 1.16, sy: 0.46, sz: 1.16 }),
       part(G_CONE6, BRASS, { y: 3.14, z: 1.62, sx: 1.16, sy: 0.46, sz: 1.16 }),
-      // Crested sentinel porcelain helm + brass pagoda finial
+      // Crested sentinel porcelain helm + bronze brow ridge + brass pagoda finial
       part(G_DOME, IVORY, { x: 0.24, y: 2.66, sx: 1.1, sy: 0.8, sz: 1.14 }),
+      part(G_BEV, BRONZE, { x: 0.68, y: 3.04, sx: 0.28, sy: 0.1, sz: 0.78 }),
       part(G_CONE6, 0x1e3242, { x: 0.22, y: 3.5, sx: 0.88, sy: 0.44, sz: 0.88 }),
       part(G_CONE6, BRASS, { x: 0.22, y: 3.88, sx: 0.24, sy: 0.48, sz: 0.24 }),
     ]);
@@ -2276,7 +2304,7 @@ export function buildBossModel(type, accentHex = 0xff6644) {
     pose.armR = makeArm(1);
 
     const glowGeo = mergeGeometries([
-      part(G_BOX, 0xffffff, { x: 0.84, y: 2.94, sx: 0.18, sy: 0.22, sz: 0.92 }),
+      part(G_BEV, 0xffffff, { x: 0.68, y: 2.91, sx: 0.22, sy: 0.16, sz: 0.68 }),
       part(G_OCT, 0xffffff, { x: 1.3, y: 1.96, sx: 0.52, sy: 0.74, sz: 0.78 }),
       part(G_LANTERN, 0xffffff, { y: 2.74, z: -1.62, sx: 0.56, sy: 0.38, sz: 0.56 }),
       part(G_LANTERN, 0xffffff, { y: 2.74, z: 1.62, sx: 0.56, sy: 0.38, sz: 0.56 }),
@@ -2539,7 +2567,8 @@ export function buildBossModel(type, accentHex = 0xff6644) {
     const coreBody = new Node();
     coreBody.position.set(0, 2.4, 0);
     const plinth = mergeGeometries([
-      part(G_OCT, 0x20163e, { y: 0, sx: 2.02, sy: 2.45, sz: 2.02 }),
+      part(G_CONE6, 0x20163e, { y: -1.16, rx: Math.PI, sx: 1.18, sy: 0.95, sz: 1.18 }),
+      part(G_TOR_SM, BRASS, { y: -0.76, rx: Math.PI / 2, sx: 1.24, sy: 1.24, sz: 1.24 }),
       ...Array.from({ length: 4 }, (_, i) => {
         const a = (i / 4) * TAU + Math.PI / 4;
         return part(G_OCT, BRASS, {

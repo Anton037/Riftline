@@ -8,6 +8,7 @@ import { COLLAPSE_TIME } from "../core/boss-cards.js";
 import { hexColor } from "./materials.js";
 
 const CYAN = hexColor(0x62f2d8);
+const EMBER = hexColor(0xff7838);
 const VIOLET = hexColor(0xb87cff);
 const GOLD = hexColor(0xffbe66);
 
@@ -126,17 +127,17 @@ export class AbilityEffectsView {
         0.85,
         kind === 0 ? 24 : 16,
         kind === 1 ? 4.2 : 9.4,
-        kind === 0 ? CYAN : kind === 1 ? VIOLET : GOLD,
+        kind === 0 ? EMBER : kind === 1 ? VIOLET : GOLD,
         0.46,
         0.15,
         { spark: true, up: 3.4, drag: 3.6, grav: 2 },
       );
       if (kind === 0) {
-        r.emit(ev.x, 0.9, ev.y, 0, 0, 0, 0.14, ev.r * 0.72, CYAN, { drag: 0 });
+        r.emit(ev.x, 0.9, ev.y, 0, 0, 0, 0.14, ev.r * 0.72, EMBER, { drag: 0 });
       } else if (kind === 1) {
         r.emit(ev.x, 1.1, ev.y, 0, 0, 0, 0.14, ev.r * 0.58, VIOLET, { drag: 0 });
       }
-      r.flash(ev.x, ev.y, ev.r * 1.15, kind === 0 ? 1.0 : 0.7, kind === 0 ? CYAN : kind === 1 ? VIOLET : GOLD, 5.5);
+      r.flash(ev.x, ev.y, ev.r * 1.15, kind === 0 ? 1.0 : 0.7, kind === 0 ? EMBER : kind === 1 ? VIOLET : GOLD, 5.5);
       r.addShake((kind === 0 ? 0.38 : kind === 1 ? 0.24 : 0.12) * shake);
       return true;
     }

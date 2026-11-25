@@ -39,21 +39,24 @@ const inscribed = (color, r, w, y, segs = 24) => meshPart(torus(r, w, 5, segs), 
 const baseDisk = (color, r, h, y, segs = 12) => meshPart(cylinder(r * 0.91, r, h, segs), color, { y });
 
 const MODELS = {
-  // Caldera: chunky dark volcanic basalt crater rim with nestled ember crevices
+  // Caldera: chunky dark volcanic basalt crater rim with organically varied boulders & ember crevices
   nozzle: () => ({
     body: [
       inscribed(0x28191a, 0.93, 0.12, 0.06, 16),
-      ...Array.from({ length: 10 }, (_, i) => {
-        const a = (i * TAU) / 10;
-        const h = i % 2 ? 0.11 : 0.08;
-        return meshPart(icosahedron(0.19, 0), i % 3 ? 0x352020 : 0x4d2a24, {
-          x: Math.cos(a) * 0.93,
-          z: Math.sin(a) * 0.93,
-          y: h,
-          ry: -a,
-          sx: 0.85,
-          sy: 0.62,
-          sz: 1.35,
+      ...Array.from({ length: 11 }, (_, i) => {
+        const jitter = Math.sin(i * 2.39996);
+        const a = (i * TAU) / 11 + jitter * 0.16;
+        const rad = 0.91 + Math.cos(i * 3.1) * 0.07;
+        const sz = 0.85 + Math.abs(jitter) * 0.55;
+        return meshPart(icosahedron(0.18, 0), i % 3 === 0 ? 0x4b2a24 : i % 3 === 1 ? 0x321e1f : 0x261718, {
+          x: Math.cos(a) * rad,
+          z: Math.sin(a) * rad,
+          y: 0.06 + (i % 3) * 0.025,
+          ry: -a + jitter * 0.5,
+          rx: jitter * 0.18,
+          sx: 0.82 + (i % 2) * 0.28,
+          sy: 0.48 + (i % 3) * 0.16,
+          sz: 1.05 * sz,
         });
       }),
     ],
@@ -119,26 +122,36 @@ const MODELS = {
     body: [meshPart(dustRibbon(0.16), 0x8e643c), meshPart(dustRibbon(Math.PI * 0.85), 0xbe9058)],
     glow: [meshPart(dustRibbon(Math.PI * 1.46), 0xe2bc7e)],
   }),
-  // Marsh: rounded mossy bog-stones & floating lily-pad tufts
+  // Marsh: organic clustered mossy bog-stones & floating lily-pad tufts with tiny lotus buds
   bank: () => ({
     body: [
-      ...Array.from({ length: 12 }, (_, i) => {
-        const a = (i * TAU) / 12;
-        const r = i % 2 ? 1.03 : 0.99;
-        return meshPart(icosahedron(0.18, 0), i % 3 === 0 ? 0x264c38 : i % 3 === 1 ? 0x326246 : 0x1e3c2e, {
+      ...Array.from({ length: 11 }, (_, i) => {
+        const jitter = Math.sin(i * 2.13);
+        const a = (i * TAU) / 11 + jitter * 0.2;
+        const r = 0.96 + Math.cos(i * 2.7) * 0.08;
+        const size = 0.14 + (i % 3) * 0.04;
+        return meshPart(icosahedron(size, 0), i % 3 === 0 ? 0x264c38 : i % 3 === 1 ? 0x326246 : 0x1e3c2e, {
           x: Math.cos(a) * r,
           z: Math.sin(a) * r,
-          y: 0.055,
-          ry: -a,
-          sx: 1.05,
-          sy: 0.42,
-          sz: 1.35,
+          y: 0.045 + (i % 2) * 0.02,
+          ry: -a + jitter * 0.6,
+          sx: 0.9 + (i % 3) * 0.22,
+          sy: 0.38 + (i % 2) * 0.14,
+          sz: 1.05 + Math.abs(jitter) * 0.45,
         });
       }),
       ...Array.from({ length: 4 }, (_, i) => {
-        const a = (i * TAU) / 4 + 0.4;
-        return baseDisk(0x3b8654, 0.24, 0.032, 0.045, 7).translate(Math.cos(a) * 0.88, 0, Math.sin(a) * 0.88);
-      }),
+        const a = (i * TAU) / 4 + 0.42 + (i % 2) * 0.24;
+        const px = Math.cos(a) * (0.82 + (i % 2) * 0.07);
+        const pz = Math.sin(a) * (0.82 + (i % 2) * 0.07);
+        const padR = 0.2 + (i % 2) * 0.05;
+        return [
+          baseDisk(i % 2 ? 0x3b8654 : 0x2f7448, padR, 0.032, 0.044, 7).translate(px, 0, pz),
+          ...(i % 2 === 0
+            ? [meshPart(octahedron(0.065), 0xf4a8bc, { x: px + 0.03, y: 0.085, z: pz - 0.02, sy: 0.85 })]
+            : []),
+        ];
+      }).flat(),
     ],
   }),
   bubble: () => ({ glow: [meshPart(icosahedron(1, 0), 0xffffff, { sy: 0.84 })] }),

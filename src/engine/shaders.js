@@ -663,18 +663,31 @@ void main() {
     albedo = mix(albedo * 0.90, albedo * 1.10, mossTuft * detailAmt);
     albedo = mix(albedo, vec3(0.015, 0.046, 0.044), clamp(bogWater * 0.66 + wakeTrack * 0.26, 0.0, 0.78) * inside);
     albedo = mix(albedo, albedo * 0.78, gridLine * 0.16 * inside);
-    // Weathered boards cross the dry ground at the wave entrance.
+    // Weathered bogwood boardwalk planks crossing the dry ground at the wave entrance.
     vec2 walk = p - vec2(0.0, 2.0);
     float along = dot(walk, vec2(0.948, 0.318));
     float across = dot(walk, vec2(-0.318, 0.948));
     float progress = along * 1.7 + 0.5;
-    float plank = hash21(vec2(floor(progress), 17.0));
-    float edge = 0.88 + 0.15 * plank;
-    float boards = (1.0 - smoothstep(edge - 0.07, edge, abs(across))) *
-      (1.0 - smoothstep(4.15, 4.46, abs(along))) * inside;
-    float seam = smoothstep(0.03, 0.10, min(fract(progress), 1.0 - fract(progress)));
-    vec3 grain = mix(vec3(0.12, 0.083, 0.056), vec3(0.23, 0.161, 0.098), plank);
-    albedo = mix(albedo, grain * (0.44 + 0.56 * seam) * (0.80 + 0.26 * n2), boards);
+    float pIdx = floor(progress);
+    float plank = hash21(vec2(pIdx, 17.0));
+    float plank2 = hash21(vec2(pIdx, 43.0));
+    float edge = 0.86 + 0.14 * plank;
+    float boards = (1.0 - smoothstep(edge - 0.06, edge, abs(across))) *
+      (1.0 - smoothstep(4.12, 4.44, abs(along))) * inside;
+    float boardShadow = (1.0 - smoothstep(edge - 0.02, edge + 0.24, abs(across))) *
+      (1.0 - smoothstep(4.24, 4.68, abs(along))) * inside * (1.0 - boards);
+    albedo *= 1.0 - boardShadow * 0.38;
+    float pf = fract(progress);
+    float seam = smoothstep(0.035, 0.11, min(pf, 1.0 - pf));
+    float fiber = 0.5 + 0.5 * sin(across * 15.0 + plank * 19.0 + sin(along * 4.0) * 1.4);
+    float knot = exp(-pow(length(vec2(pf - 0.5, across - (plank2 - 0.5) * 0.9)) * 7.5, 2.0));
+    float nailDist = length(vec2((pf - 0.5) * 0.85, abs(across) - 0.62));
+    float nail = 1.0 - smoothstep(0.032, 0.068, nailDist);
+    vec3 woodCol = mix(vec3(0.062, 0.046, 0.031), vec3(0.118, 0.084, 0.052), plank * 0.65 + fiber * 0.35);
+    woodCol *= (0.42 + 0.58 * seam) * (0.86 + 0.20 * n2) * (1.0 - knot * 0.24) * (1.0 - nail * 0.52);
+    float edgeMoss = smoothstep(0.56, 0.96, abs(across) / max(edge, 0.1)) * smoothstep(0.32, 0.74, mossTuft + plank2 * 0.25);
+    woodCol = mix(woodCol, vec3(0.038, 0.095, 0.056), edgeMoss * 0.58);
+    albedo = mix(albedo, woodCol, boards);
     float wakeVein = vein * (1.0 + wakeGlow * 1.8) + max(0.0, ripWave) * (0.35 + 0.65 * bogWater);
     emissive += uFloorAccent * (wakeVein * tide * (1.0 - bogWater * 0.45) * 0.20 + wakeGlow * 0.14) * inside * (1.0 - boards);
     specBoost = mix(0.05, 0.42, clamp(bogWater + wakeRip * 0.4, 0.0, 1.0) * inside) * (1.0 - boards * 0.8);
@@ -1202,13 +1215,17 @@ in vec3 vState;
 out vec4 fragColor;
 void main() {
   float age = vState.r, h = vUv.y, orbit = vUv.x * 6.2831853;
-  float lead = exp(-pow((h - 0.15) * 14.0, 2.0));
-  float echo = exp(-pow((h - 0.42) * 20.0, 2.0)) * 0.52;
-  float arcs = smoothstep(-0.15, 0.2, cos(orbit * 8.0 - uTime * 4.0)) * exp(-pow((h - 0.62) * 10.0, 2.0));
-  float alpha = (lead + echo + arcs * 0.36) * pow(1.0 - age, 1.2) * smoothstep(0.0, 0.05, age) * vState.b;
+  float lead = exp(-pow((h - 0.14) * 14.0, 2.0));
+  float echo = exp(-pow((h - 0.40) * 18.0, 2.0)) * 0.56;
+  float flameLick = 0.5 + 0.5 * sin(orbit * 7.0 + uTime * 7.0) * cos(orbit * 4.0 - uTime * 4.5 + h * 5.0);
+  float arcs = vState.g < 0.5
+    ? smoothstep(0.18, 0.78, flameLick) * exp(-pow((h - 0.54) * 7.5, 2.0)) * 0.52
+    : smoothstep(-0.15, 0.2, cos(orbit * 8.0 - uTime * 4.0)) * exp(-pow((h - 0.62) * 10.0, 2.0)) * 0.36;
+  float alpha = (lead + echo + arcs) * pow(1.0 - age, 1.15) * smoothstep(0.0, 0.05, age) * vState.b;
   if (alpha < 0.01) discard;
-  vec3 hue = vState.g < 0.5 ? vec3(0.16, 0.88, 0.82) : vState.g < 1.5 ? vec3(0.72, 0.32, 1.12) : vec3(1.12, 0.56, 0.16);
-  vec3 col = mix(hue, vec3(1.18, 1.14, 0.96), lead * 0.45);
+  vec3 hue = vState.g < 0.5 ? vec3(1.16, 0.34, 0.09) : vState.g < 1.5 ? vec3(0.72, 0.32, 1.12) : vec3(1.12, 0.68, 0.18);
+  vec3 crest = vState.g < 0.5 ? vec3(1.30, 0.88, 0.36) : vec3(1.18, 1.14, 0.96);
+  vec3 col = mix(hue, crest, lead * 0.58 + (vState.g < 0.5 ? echo * 0.24 : 0.0));
   fragColor = vec4(col, alpha);
 }`;
   return { vs, fs };
@@ -1299,10 +1316,12 @@ layout(location=8) in vec3 aInstCol;
 ${COMMON_UNIFORMS}
 uniform mat4 uModel;
 out vec2 vP;
+${fire ? "out vec3 vLocal;" : ""}
 out vec3 vI;
 out vec3 vWorldPos;
 void main() {
-  vP = ${fire ? "vec2(atan(aPos.z, aPos.x) / 6.2831853 + 0.5, aPos.y)" : "aPos.xz"};
+  vP = ${fire ? "vec2(0.0, aPos.y)" : "aPos.xz"};
+  ${fire ? "vLocal = aPos;" : ""}
   vI = aInstCol;
   vec4 wp = uModel * aInstMat * vec4(aPos, 1.0);
   vWorldPos = wp.xyz;
@@ -1330,19 +1349,25 @@ void main() {
       col = mix(dark, magma, clamp((cracks * 0.74 + heart * 0.84 + rim * 0.36) * strength, 0.0, 1.0));
     `,
     ice: `
-      // Deep translucent glacier pond with crisp crystalline fracture veins & sculpted cool sapphire-frost rim
-      float w1 = sin(vP.x * 4.5 + vP.y * 3.2 + seed);
-      float w2 = cos(vP.x * 3.6 - vP.y * 5.1 + seed * 1.7);
-      float crackA = 1.0 - smoothstep(0.015, 0.056, abs(sin(a * 3.0 + w1 * 1.4 + seed) * r));
-      float crackB = 1.0 - smoothstep(0.02, 0.064, abs(r - 0.52 + w2 * 0.12));
-      float gloss = smoothstep(0.35, 0.85, 0.5 + 0.5 * (w1 * 0.6 + w2 * 0.4));
-      float frostRim = smoothstep(0.83, 0.97, r);
-      vec3 deepIce = vec3(0.055, 0.21, 0.38);
-      vec3 paleIce = vec3(0.20, 0.45, 0.64);
-      vec3 snowEdge = vec3(0.32, 0.58, 0.76);
-      col = mix(deepIce, paleIce, clamp(gloss * 0.50 + crackA * 0.36 + crackB * 0.24, 0.0, 1.0));
-      col = mix(col, snowEdge, clamp(frostRim * 0.58 + rim * 0.32, 0.0, 1.0));
-      alpha *= 0.86;
+      // Translucent glacier ice sheet with organic snow-feathered shore & delicate off-center crystalline fractures
+      float cs = cos(seed), sn = sin(seed);
+      vec2 ip = vec2(vP.x * cs - vP.y * sn, vP.x * sn + vP.y * cs);
+      float rWarp = r + 0.055 * sin(a * 3.0 + seed) + 0.032 * cos(a * 5.0 - seed * 1.3);
+      if (rWarp > 1.0) discard;
+      float w1 = sin(ip.x * 4.2 + ip.y * 2.9 + seed);
+      float w2 = cos(ip.x * 3.1 - ip.y * 4.6 + seed * 1.7);
+      float crackA = 1.0 - smoothstep(0.012, 0.042, abs(ip.x * 0.8 + ip.y * 0.55 - 0.14 + w1 * 0.09));
+      float crackB = 1.0 - smoothstep(0.012, 0.046, abs(ip.y * 0.92 - ip.x * 0.42 + 0.22 + w2 * 0.08));
+      float crackC = 1.0 - smoothstep(0.015, 0.050, abs(rWarp - 0.58 + w2 * 0.08));
+      float sheen = smoothstep(0.28, 0.86, 0.5 + 0.5 * (ip.x * 0.75 - ip.y * 0.65 + w1 * 0.35));
+      float snowBank = smoothstep(0.76, 0.97, rWarp);
+      vec3 deepIce = vec3(0.055, 0.22, 0.40);
+      vec3 midIce = vec3(0.15, 0.39, 0.59);
+      vec3 paleFrost = vec3(0.30, 0.55, 0.73);
+      float cracks = max(max(crackA * 0.44, crackB * 0.36), crackC * 0.22) * (1.0 - snowBank * 0.7);
+      col = mix(deepIce, midIce, clamp(sheen * 0.58 + cracks * 0.65, 0.0, 1.0));
+      col = mix(col, paleFrost, clamp(snowBank * 0.48 + cracks * 0.32, 0.0, 1.0));
+      alpha = (1.0 - smoothstep(0.80, 0.99, rWarp)) * 0.84;
     `,
     acid: `
       // Moody translucent bioluminescent emerald bog pool with gentle swirling jade ripples
@@ -1371,16 +1396,22 @@ void main() {
     ? `${HEADER}
 ${COMMON_UNIFORMS}
 in vec2 vP;
+in vec3 vLocal;
 in vec3 vI;
 in vec3 vWorldPos;
 out vec4 fragColor;
 void main() {
   float h = vP.y;
-  float lat = pow(0.5 + 0.5 * cos(vP.x * 44.0 - h * 13.0 + uTime * 11.0), 2.4);
-  float pulse = 0.65 + 0.35 * cos(h * 16.0 - uTime * 6.0);
-  float fall = (1.0 - smoothstep(0.22, 0.99, h)) * smoothstep(0.0, 0.06, h);
-  vec3 c = mix(vec3(0.92, 0.18, 0.04), vec3(1.28, 0.82, 0.30), h * 0.45 + lat * 0.55);
-  fragColor = vec4(c * vI.r * (0.28 + lat * 0.68) * fall * pulse, 1.0);
+  float ang = atan(vLocal.z, vLocal.x);
+  float seed = vI.g * 6.2831853;
+  float w1 = 0.5 + 0.5 * cos(ang * 5.0 - h * 7.5 + uTime * 8.5 + seed);
+  float w2 = 0.5 + 0.5 * sin(ang * 3.0 + h * 11.0 - uTime * 6.2 - seed * 0.7);
+  float wisps = pow(clamp(w1 * 0.62 + w2 * 0.38, 0.0, 1.0), 1.65);
+  float tipMask = 1.0 - smoothstep(0.28 + wisps * 0.46, 0.98, h);
+  float baseFade = smoothstep(0.0, 0.10, h);
+  float pulse = 0.78 + 0.22 * sin(h * 10.0 - uTime * 7.5 + seed);
+  vec3 c = mix(vec3(0.95, 0.22, 0.04), vec3(1.30, 0.84, 0.32), clamp((1.0 - h) * 0.42 + wisps * 0.68, 0.0, 1.0));
+  fragColor = vec4(c * vI.r * (0.24 + wisps * 0.72) * tipMask * baseFade * pulse, 1.0);
 }`
     : `${HEADER}
 ${COMMON_UNIFORMS}

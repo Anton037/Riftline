@@ -431,7 +431,7 @@ function buildCover(view, biomeId, obstacles, rng) {
         place(props, cylinder(0.14, 0.16, 0.34, 6), glowMat(0xffbe64, 1.32), lx, 1.46, lz);
         place(props, cone(0.2, 0.16, 6), baseMat("metal", FINISH.copper), lx, 1.7, lz);
       } else {
-        // Carved Glacier Arch
+        // Carved Glacier Arch with stepped plinth feet, copper brackets & hanging frost lantern
         const h = isCircle ? 2.28 : 1.98;
         const alongX = !isCircle && obs.w >= obs.h;
         const span = (isCircle ? rad : alongX ? obs.w : obs.h) * 0.52;
@@ -441,25 +441,50 @@ function buildCover(view, biomeId, obstacles, rng) {
           const pz = obs.y + (!alongX && !isCircle ? s * span : 0);
           place(
             props,
-            cylinder(pillarR * 0.88, pillarR, h * 0.78, 7).toFlatShaded(),
+            cylinder(pillarR * 1.12, pillarR * 1.24, 0.24, 7).toFlatShaded(),
+            baseMat("stone", 0x2c4e72),
+            px,
+            0.12,
+            pz,
+          );
+          place(
+            props,
+            cylinder(pillarR * 0.82, pillarR * 0.98, h * 0.72, 7).toFlatShaded(),
             baseMat("ice", 0x3b7ca8),
             px,
-            h * 0.39,
+            0.22 + h * 0.36,
+            pz,
+          );
+          place(
+            props,
+            cylinder(pillarR * 1.04, pillarR * 0.86, 0.12, 7),
+            baseMat("metal", FINISH.copper),
+            px,
+            h * 0.72,
             pz,
           );
         }
-        const lintelW = alongX || isCircle ? (span + pillarR * 0.85) * 2 : pillarR * 2.1;
-        const lintelD = !alongX && !isCircle ? (span + pillarR * 0.85) * 2 : pillarR * 2.1;
-        place(props, beveledBox(lintelW, 0.38, lintelD, 0.09), baseMat("ice", 0x54a2cc), obs.x, h * 0.84, obs.y);
+        const lintelW = alongX || isCircle ? (span + pillarR * 0.86) * 2 : pillarR * 2.1;
+        const lintelD = !alongX && !isCircle ? (span + pillarR * 0.86) * 2 : pillarR * 2.1;
         place(
           props,
-          beveledBox(lintelW * 0.94, 0.14, lintelD * 0.94, 0.05),
-          baseMat("stone", 0xd8f0fc),
+          beveledBox(lintelW * 0.94, 0.16, lintelD * 0.92, 0.05),
+          baseMat("wood", 0x483226),
           obs.x,
-          h * 0.97,
+          h * 0.77,
           obs.y,
         );
-        place(props, octahedron(rad * 0.2), glowMat(look.trim, 1.18), obs.x, h * 0.62, obs.y);
+        place(props, beveledBox(lintelW, 0.3, lintelD, 0.08), baseMat("ice", 0x4e9cc6), obs.x, h * 0.88, obs.y);
+        place(
+          props,
+          beveledBox(lintelW * 0.82, 0.16, lintelD * 0.82, 0.05),
+          baseMat("stone", 0xd8f0fc),
+          obs.x,
+          h * 1.01,
+          obs.y,
+        );
+        place(props, cylinder(0.035, 0.035, 0.24, 6), baseMat("metal", FINISH.copper), obs.x, h * 0.68, obs.y);
+        place(props, octahedron(rad * 0.21), glowMat(look.trim, 1.22), obs.x, h * 0.56, obs.y, 0, 0.9, 1.35, 0.9);
       }
     } else if (biomeId === "mossBog") {
       // 4 Archetypes: 0 = Spotted Velvet Toadstool Colony, 1 = Hollow Mossy Log Shrine,
@@ -814,7 +839,7 @@ function buildCover(view, biomeId, obstacles, rng) {
           );
         }
       } else if (variant === 2) {
-        // Ancient Brass Sun-Compass & Amphora under Cloth Canopy
+        // Ancient Brass Sun-Compass & Amphora under Woven Terracotta-Striped Canopy
         place(
           props,
           cylinder(rad * 0.68, rad * 0.74, 0.14, 10),
@@ -824,32 +849,71 @@ function buildCover(view, biomeId, obstacles, rng) {
           obs.y,
         );
         place(props, octahedron(rad * 0.24), glowMat(look.accent, 1.2), obs.x, h * 0.62, obs.y, 0, 1, 1.35, 1);
-        const canW = isCircle ? rad * 1.26 : w * 0.82;
-        const canD = isCircle ? rad * 1.26 : d * 0.82;
+        const canW = isCircle ? rad * 1.24 : w * 0.82;
+        const canD = isCircle ? rad * 1.24 : d * 0.82;
+        const tilt = 0.08;
+        const roofY = h * 0.44 + 1.06;
         for (const px of [-1, 1]) {
           for (const pz of [-1, 1]) {
+            const zOff = pz * canD * 0.36;
+            const poleTop = roofY - zOff * Math.sin(tilt) - 0.04;
+            const poleH = Math.max(0.55, poleTop - h * 0.4);
             place(
               props,
-              cylinder(0.05, 0.06, 1.05, 6),
+              cylinder(0.048, 0.058, poleH, 6),
               baseMat("wood", 0x6e4e32),
               obs.x + px * canW * 0.36,
-              h * 0.44 + 0.52,
-              obs.y + pz * canD * 0.36,
+              h * 0.4 + poleH * 0.5,
+              obs.y + zOff,
             );
           }
         }
+        // Layered woven awning: warm cream-ochre canvas + terracotta runner stripes + decorative front valance
         place(
           props,
-          beveledBox(canW, 0.08, canD, 0.03),
-          baseMat("organic", 0xe8dcc4),
+          beveledBox(canW, 0.11, canD, 0.04),
+          baseMat("organic", 0xead4a8),
           obs.x,
-          h * 0.44 + 1.04,
+          roofY,
           obs.y,
           0,
           1,
           1,
           1,
-          0.1,
+          tilt,
+        );
+        const stripeCount = canW >= 2.2 ? 3 : 2;
+        for (let st = 0; st < stripeCount; st++) {
+          const t = stripeCount === 2 ? (st === 0 ? -0.24 : 0.24) : (st - 1) * 0.3;
+          place(
+            props,
+            beveledBox(canW * 0.16, 0.05, canD * 0.96, 0.02),
+            baseMat("organic", 0xb85234),
+            obs.x + t * canW,
+            roofY + 0.045,
+            obs.y,
+            0,
+            1,
+            1,
+            1,
+            tilt,
+          );
+        }
+        place(
+          props,
+          beveledBox(canW * 0.98, 0.12, 0.08, 0.02),
+          baseMat("organic", 0xb85234),
+          obs.x,
+          roofY - canD * 0.47 * Math.sin(tilt) - 0.06,
+          obs.y + canD * 0.47,
+        );
+        place(
+          props,
+          beveledBox(canW * 0.98, 0.07, 0.09, 0.02),
+          baseMat("metal", FINISH.brass),
+          obs.x,
+          roofY + canD * 0.46 * Math.sin(tilt) + 0.04,
+          obs.y - canD * 0.46,
         );
       } else {
         // Vitrified Fulgurite Arch
@@ -2114,7 +2178,8 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
     const brassMat = mat("metal", FINISH.brass);
     const palmTrunk = mat("wood", 0x6e4e32);
     const palmFrond = mat("organic", 0x3e8858);
-    const clothMat = worldMaterial({ color: FINISH.ivory, surface: "organic", doubleSide: true });
+    const clothMat = worldMaterial({ color: 0xe6bf7c, surface: "organic", doubleSide: true });
+    const terracottaMat = mat("organic", 0xb85234);
     const turquoiseGlow = glow(look.trim, 1.12);
     const sunGoldGlow = glow(look.accent, 1.16);
     const bannerParts = [];
@@ -2232,16 +2297,19 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
       }
     }
 
-    // Perimeter Sun-Bleached Banner Poles
+    // Perimeter Sun-Bleached Banner Poles with brass crossbars, terracotta trims & turquoise finials
     for (const s of [-1, 1]) {
       for (const k of [-0.56, 0.56]) {
         const bx = k * W,
           bz = s * (H + 2.45);
         place(props, cylinder(0.1, 0.15, 3.6, 6), brassMat, bx, 1.8, bz);
+        place(props, octahedron(0.2), turquoiseGlow, bx, 3.74, bz, 0, 0.9, 1.35, 0.9);
         if (safeExterior(bx + 0.45, bz, 1.1, W, H, 0.4)) {
+          place(props, cylinder(0.045, 0.045, 1.02, 5), brassMat, bx + 0.48, 3.44, bz, 0, 1, 1, 1, 0, Math.PI / 2);
+          place(props, box(0.92, 0.18, 0.05), terracottaMat, bx + 0.46, 2.16, bz);
           bannerParts.push({
             side: s < 0 ? 0 : 1,
-            geo: plane(0.92, 1.35, 1, 2).translate(0.46, 2.75, 0).translate(bx, 0, bz),
+            geo: plane(0.92, 1.28, 1, 2).translate(0.46, 2.78, 0).translate(bx, 0, bz),
           });
         }
       }
@@ -2254,9 +2322,9 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
       }
     }
 
-    // Helper: Oasis Palm Tree with curved segmented trunk & layered wind-swaying fan-frond crown
+    // Helper: Oasis Palm Tree with curved segmented trunk & batched radially-arched fan-frond crown
     let palmIdx = 0;
-    const palmFrondBright = mat("organic", 0x54a266);
+    const palmFrondBright = mat("organic", 0x56a468);
     const buildPalm = (px, pz, scale = 1, lean = 0.18, rot = 0) => {
       if (!safeExterior(px, pz, 2.5 * scale, W, H, 0.55)) return;
       const h = 3.8 * scale;
@@ -2266,39 +2334,33 @@ function buildArchitectureAndVistas(view, biome, W, H, rng) {
       const topY = h * 0.94;
       const crown = new Node();
       crown.position.set(topX, topY, topZ);
-      // Lower drooping fronds + upper arched bright fronds
+      const lowerParts = [];
+      const upperParts = [];
+      // Lower drooping fronds + upper arched bright fronds radiating cleanly outward (batched to 2 draw calls!)
       for (let f = 0; f < 6; f++) {
         const fa = (f / 6) * TAU + rot;
-        place(
-          crown,
-          cone(0.42 * scale, 1.9 * scale, 4).toFlatShaded(),
-          palmFrond,
-          Math.cos(fa) * 0.72 * scale,
-          -0.14 * scale,
-          Math.sin(fa) * 0.72 * scale,
-          fa,
-          0.65,
-          1,
-          1,
-          1.26,
+        lowerParts.push(
+          rawCone(0.42 * scale, 1.9 * scale, 4)
+            .toFlatShaded()
+            .scale(0.65, 1, 0.45)
+            .rotateX(1.22)
+            .rotateY(Math.PI * 0.5 - fa)
+            .translate(Math.cos(fa) * 0.86 * scale, -0.14 * scale, Math.sin(fa) * 0.86 * scale),
         );
       }
       for (let f = 0; f < 5; f++) {
         const fa = (f / 5) * TAU + rot + 0.35;
-        place(
-          crown,
-          cone(0.32 * scale, 1.45 * scale, 4).toFlatShaded(),
-          palmFrondBright,
-          Math.cos(fa) * 0.5 * scale,
-          0.16 * scale,
-          Math.sin(fa) * 0.5 * scale,
-          fa,
-          0.62,
-          1,
-          1,
-          0.88,
+        upperParts.push(
+          rawCone(0.32 * scale, 1.48 * scale, 4)
+            .toFlatShaded()
+            .scale(0.62, 1, 0.44)
+            .rotateX(0.86)
+            .rotateY(Math.PI * 0.5 - fa)
+            .translate(Math.cos(fa) * 0.56 * scale, 0.22 * scale, Math.sin(fa) * 0.56 * scale),
         );
       }
+      crown.add(new MeshNode(mergeGeometries(lowerParts), palmFrond));
+      crown.add(new MeshNode(mergeGeometries(upperParts), palmFrondBright));
       props.add(crown);
       view.rlAnim.push({ o: crown, k: "sway", s: 1.65 + (palmIdx % 4) * 0.22, a: 0.085, ph: palmIdx * 1.15 });
       palmIdx++;
