@@ -16,22 +16,22 @@ parting foliage), a texel-snapped 1024×1024 (high-DPR up to 2048) rotated-Poiss
 rendering (with a 5-tap edge-smoothing fallback), smooth adaptive `renderScale`, 8 dynamic combat point lights,
 2-step Kawase selective bloom, ACES filmic tone mapping and context-loss recovery.
 
-Keep gameplay randomness in the seeded simulation (including deterministic interactive biome relic placement in
-`src/core/arena.js` and `src/core/world.js`). Cosmetic randomness belongs in rendering and audio.
+Keep gameplay randomness in the seeded simulation. Geometry and placement checks live in
+`src/core/arena.js`, with trap and enemy placement in `src/core/traps.js` and `src/core/world.js`.
+Cosmetic randomness belongs in rendering and audio.
 Save compatibility and stable seeded layouts have active regression fixtures in `tests/fixtures/`.
 These fixtures protect existing progress and world generation.
 
 The painterly terrain, surface and VFX atlases (`terrain-atlas.webp`, `surface-atlas.webp`, `vfx-atlas.webp`) and
 install icons are generated with `python tools/build-art.py` using Python 3, Pillow and NumPy. Arena biomes, bespoke
-perimeter architecture & corner landmarks, 24 sculpted cover archetypes, interactive biome relics
-(`src/render/biome-props-view.js`), multi-ring exterior diorama worlds, articulated hero & weapon rigs, 25 GPU-animated
+perimeter architecture, corner landmarks, sculpted cover, exterior dioramas, articulated hero & weapon rigs, 25 GPU-animated
 enemies with 3D variant/elite attachments, 6 multi-phase guardians and combat VFX are assembled in `src/render/` on top
 of `src/engine/` and respect the existing simulation footprints.
 
 The 25-clip synthesized sample bank and its clip offsets are generated with
 `python tools/build-audio-bank.py` using Python 3. `src/audio/score.js` defines the cozy title theme and six distinct
 per-biome fight/boss musical arrangements plus `scoreScaleMidi`, `src/audio/physical-voices.js` and `src/audio/sound.js`
-define 6-biome tactile surface foley, enemy/construct material voices and scale-keyed UI/reward/relic chimes, and
+define 6-biome tactile surface foley, enemy/construct material voices and scale-keyed UI and reward chimes, and
 `src/audio/place.js` drives spatial landmark and hazard soundscapes. Asset credits and third-party notices ship under
 `public/`.
 

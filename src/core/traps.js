@@ -120,6 +120,38 @@ function trapCount(fam, wave) {
 
 const pace = (wave, storm = 0) => (wave > 20 ? { cd: 0.8 * (1 - 0.12 * storm), warn: 0.85 } : { cd: 1, warn: 1 });
 
+function trapRadius(skin) {
+  if (skin.fam === "beam") return 1.25;
+  // Mines have a wider blast when shot. Spore mines also leave a slightly wider pool.
+  return skin.fam === "mine" ? skin.r * 1.15 * Math.max(1, skin.poolScale || 1) : skin.r;
+}
+
+function trapFootprints(traps, except) {
+  return traps
+    .filter((trap) => trap !== except && trap.st !== "gone")
+    .map((trap) => ({ x: trap.x, y: trap.y, r: trapRadius(TRAP_SKINS[trap.skin]) + 0.25 }));
+}
+
+function findTrapSite(arena, skin, rng, reserved) {
+  const radius = trapRadius(skin) + 0.45;
+  const inset = Math.max(2.8, radius);
+  for (let attempt = 0; attempt < 96; attempt++) {
+    const x = rng.range(-arena.W + inset, arena.W - inset),
+      y = rng.range(-arena.H + inset, arena.H - inset);
+    if (Math.hypot(x, y - 2) < Math.max(6.5, 4.6 + radius)) continue;
+    if (!arena.clearForPlacement(x, y, radius, reserved)) continue;
+    if (skin.fam === "beam") {
+      // Mount sweepers on the outside and point them across open floor.
+      if (Math.min(arena.W - Math.abs(x), arena.H - Math.abs(y)) > Math.min(arena.W, arena.H) * 0.4) continue;
+      const a = Math.atan2(2 - y, -x) + rng.range(-0.5, 0.5);
+      if (arena.rayLen(x, y, a, skin.len) < 7) continue;
+      return { x, y, a };
+    }
+    return { x, y, a: rng.next() * TAU };
+  }
+  return null;
+}
+
 function rlPlanTraps(world, wave, boss) {
   const traps = [];
   if ((boss && wave < 15) || wave < TRAP_FROM.floor) return traps;
@@ -129,19 +161,6 @@ function rlPlanTraps(world, wave, boss) {
   const rng = makeRng(hashString(world.seed + ":traps:" + wave)),
     arena = world.arena,
     taken = [];
-  let nextId = 1;
-  const place = (pad) => {
-    for (let k = 0; k < 60; k++) {
-      const x = rng.range(-arena.W + 3, arena.W - 3),
-        y = rng.range(-arena.H + 3, arena.H - 3);
-      if (arena.blocked(x, y, pad + 0.6) || arena.featureBlocked(x, y, pad * 0.3)) continue;
-      if (Math.hypot(x, y - 2) < 6.5) continue;
-      if (taken.some((spot) => Math.hypot(x - spot.x, y - spot.y) < 4.5)) continue;
-      taken.push({ x, y });
-      return { x, y };
-    }
-    return null;
-  };
   const storm = (world.mods && world.mods.extraTraps) || 0;
   for (const fam of boss ? ["floor"] : ["floor", "beam", "mine"]) {
     const skinName = skins[fam];
@@ -150,26 +169,35 @@ function rlPlanTraps(world, wave, boss) {
       base = trapCount(fam, wave) + (base0(fam, wave) ? storm : 0),
       count = boss ? Math.ceil(base / 2) : base;
     for (let i = 0; i < count; i++) {
-      const spot = place(skin.r || 1.2);
+      const spot = findTrapSite(arena, skin, rng, taken);
       if (!spot) break;
+      taken.push({ x: spot.x, y: spot.y, r: trapRadius(skin) + 0.25 });
       const trap = {
-        id: nextId++,
+        id: traps.length + 1,
         fam,
         skin: skinName,
-        x: spot.x,
-        y: spot.y,
+        ...spot,
         r: skin.r || skin.w,
         st: fam === "mine" ? "unarmed" : "idle",
         t: 0,
         wait: 3 + rng.next() * 3 + i * 0.9,
         hunt: fam === "floor" && wave >= 40 && i % 2 === 1,
-        a: rng.next() * TAU,
         dir: rng.chance(0.5) ? 1 : -1,
       };
       traps.push(trap);
     }
   }
   return traps;
+}
+
+function layTrapResidue(patches, trap, residue) {
+  const ownPatch = patches.find((patch) => patch.trapId === trap.id && patch.x === trap.x && patch.y === trap.y);
+  if (ownPatch) {
+    ownPatch.life = Math.max(ownPatch.life, residue.life);
+    ownPatch.r = Math.max(ownPatch.r, residue.r);
+  } else if (patches.every((patch) => Math.hypot(patch.x - trap.x, patch.y - trap.y) >= patch.r + residue.r)) {
+    patches.push({ x: trap.x, y: trap.y, trapId: trap.id, ...residue });
+  }
 }
 
 const base0 = (fam, wave) => wave >= TRAP_FROM[fam];
@@ -270,21 +298,20 @@ function trapStrike(world, trap, skin, radius, enemyMul = 1, shotDetonated = fal
   });
   // Moss Bog bog spout / spore vessel leaves a corrosive bog pool
   if (
+    !shotDetonated &&
     skin.special === "acid" &&
     !world.markers.some((marker) => Math.hypot(marker.x - trap.x, marker.y - trap.y) < radius * 0.85 + 0.8)
   ) {
     const scale = skin.poolScale || 0.85;
-    world.arena.acid.push({ x: trap.x, y: trap.y, r: radius * scale, life: trap.fam === "mine" ? 8.5 : 7 });
+    layTrapResidue(world.arena.acid, trap, { r: radius * scale, life: trap.fam === "mine" ? 8.5 : 7 });
   }
   // Snow Ridge frost vessel leaves a temporary ice patch
-  if (skin.icePatch && world.arena.ice && world.arena.ice.length < 8) {
-    world.arena.ice.push({ x: trap.x, y: trap.y, r: radius * 0.72, life: 5.5 });
+  if (!shotDetonated && skin.icePatch && world.arena.ice && world.arena.ice.length < 8) {
+    layTrapResidue(world.arena.ice, trap, { r: radius * 0.72, life: 5.5 });
   }
   // Caldera slag fissure / ember vessel leaves a hostile smoldering ember pool that singes both enemies and the player
-  if (skin.special === "burn" && world.burnPools && world.burnPools.length < 10) {
-    world.burnPools.push({
-      x: trap.x,
-      y: trap.y,
+  if (!shotDetonated && skin.special === "burn" && world.burnPools && world.burnPools.length < 10) {
+    layTrapResidue(world.burnPools, trap, {
       r: radius * (trap.fam === "mine" ? 0.92 : 0.82),
       life: skin.poolLife || 2.5,
       dps: 16 * (world.stats.dmgMul || 1),
@@ -320,7 +347,15 @@ function trapStrike(world, trap, skin, radius, enemyMul = 1, shotDetonated = fal
     }
   }
   world.emit("boom", { x: trap.x, y: trap.y, r: radius, kind: "trap" });
-  world.emit("trapFire", { id: trap.id, fam: trap.fam, skin: trap.skin, x: trap.x, y: trap.y, r: radius });
+  world.emit("trapFire", {
+    id: trap.id,
+    fam: trap.fam,
+    skin: trap.skin,
+    x: trap.x,
+    y: trap.y,
+    r: radius,
+    shot: shotDetonated,
+  });
 }
 
 // Tactical vessel-sniping: player shots detonate armed proximity vessels (and enemy ember-pots / crucible bombs)
@@ -330,7 +365,7 @@ function rlShootTrap(world, bullet, prevX, prevY) {
     segDy = bullet.y - prevY,
     segLen2 = segDx * segDx + segDy * segDy;
   for (const trap of world.traps) {
-    if (trap.fam !== "mine" || trap.st !== "armed") continue;
+    if (trap.fam !== "mine" || (trap.st !== "armed" && trap.st !== "fuse")) continue;
     const along = segLen2 > 1e-8 ? clamp(((trap.x - prevX) * segDx + (trap.y - prevY) * segDy) / segLen2, 0, 1) : 0;
     const cx = prevX + segDx * along - trap.x,
       cy = prevY + segDy * along - trap.y,
@@ -373,8 +408,13 @@ function rlUpdateTraps(world, dt) {
     if (trap.fam === "floor") {
       if (trap.st === "idle" && trap.t >= trap.wait) {
         if (trap.hunt && player.alive) {
-          trap.x = clamp(player.x + player.vx * 0.5, -world.arena.W + 2, world.arena.W - 2);
-          trap.y = clamp(player.y + player.vy * 0.5, -world.arena.H + 2, world.arena.H - 2);
+          const spot = findHuntingTrapSite(world, trap, skin);
+          if (!spot) {
+            trap.t = 0;
+            trap.wait = 1;
+            continue;
+          }
+          Object.assign(trap, spot);
         }
         trap.st = "warn";
         trap.t = 0;
@@ -486,29 +526,31 @@ function rlUpdateTraps(world, dt) {
           trap.respawn = (world.wave > 20 ? 9 : 14) + trap.id * 0.7;
         }
       } else if (trap.st === "gone" && trap.t >= trap.respawn) {
-        const spot = rlPlaceAgain(world, trap);
-        if (spot) {
-          trap.x = spot.x;
-          trap.y = spot.y;
-        }
-        trap.st = "unarmed";
+        const rng = makeRng(
+          hashString(world.seed + ":mine:" + world.wave + ":" + trap.id + ":" + Math.floor(world.time)),
+        );
+        const reserved = world.placementReservations(trap);
+        reserved.push({ x: player.x, y: player.y, r: 3 }, ...world.enemies.filter((enemy) => !enemy.dead));
+        const spot = findTrapSite(world.arena, skin, rng, reserved);
         trap.t = 0;
+        if (!spot) {
+          trap.respawn = 1.5;
+          continue;
+        }
+        Object.assign(trap, spot);
+        trap.st = "unarmed";
       }
     }
   }
 }
 
-function rlPlaceAgain(world, trap) {
-  const arena = world.arena,
-    rng = makeRng(hashString(world.seed + ":mine:" + world.wave + ":" + trap.id + ":" + Math.floor(world.time)));
-  for (let k = 0; k < 30; k++) {
-    const x = rng.range(-arena.W + 3, arena.W - 3),
-      y = rng.range(-arena.H + 3, arena.H - 3);
-    if (arena.blocked(x, y, 1.6) || arena.featureBlocked(x, y, 0.5)) continue;
-    if (Math.hypot(x - world.player.x, y - world.player.y) < 6) continue;
-    return { x, y };
-  }
-  return null;
+function findHuntingTrapSite(world, trap, skin) {
+  const { arena, player } = world;
+  const reserved = world.placementReservations(trap);
+  const radius = trapRadius(skin) + 0.45;
+  const tx = clamp(player.x + player.vx * 0.5, -arena.W + radius, arena.W - radius);
+  const ty = clamp(player.y + player.vy * 0.5, -arena.H + radius, arena.H - radius);
+  return arena.nearbyPoint(tx, ty, radius, 5.3, reserved, trap.id * 2.4);
 }
 
-export { TRAP_SKINS, TRAP_FROM, rlPlanTraps, rlUpdateTraps, rlShootTrap };
+export { TRAP_SKINS, TRAP_FROM, rlPlanTraps, rlUpdateTraps, rlShootTrap, trapFootprints };

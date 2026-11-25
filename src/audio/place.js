@@ -162,14 +162,6 @@ const CORNER_VOICE = {
   emberHill: ["fumarole", 4.5, 9],
   sunDunes: ["crystals", 5, 10],
 };
-const RELIC_VOICE = {
-  lantern: "galleryChime",
-  rime: "iceTink",
-  puffball: "drip",
-  iceCrystal: "shimmer",
-  crucible: "emberPop",
-  sunglass: "glassPing",
-};
 function nearestProp(arena, player) {
   let best = null;
   let bestD = PROP_HEAR;
@@ -182,11 +174,6 @@ function nearestProp(arena, player) {
   };
   const biome = arena.biome.id;
   for (const ob of arena.obs) take(ob.x, ob.y, COVER_VOICE[biome], 5, 10);
-  if (arena.props) {
-    for (const p of arena.props) {
-      if (p.cd <= 0 && p.fuse <= 0 && RELIC_VOICE[p.kind]) take(p.x, p.y, RELIC_VOICE[p.kind], 4.5, 9);
-    }
-  }
   const cv = CORNER_VOICE[biome];
   if (cv) {
     for (const sx of [-1, 1]) {
@@ -196,7 +183,7 @@ function nearestProp(arena, player) {
     }
   }
   if (biome === "lanternYard") {
-    // The tall lamps in biome-props occur on every third section of the exterior sill.
+    // The tall lamps sit on every third section of the exterior sill.
     for (const alongX of [true, false]) {
       const length = alongX ? arena.W : arena.H;
       const edge = alongX ? arena.H : arena.W;

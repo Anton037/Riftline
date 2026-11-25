@@ -816,7 +816,7 @@ export class AttackView {
     const basis = r.B;
     for (const shot of world.eb) {
       if (shot.life <= 0) continue;
-      const launch = BOSS_EFFECTS[shot.src]?.height || ENEMY_EFFECTS[shot.src]?.height || 0.85;
+      const launch = shot.launchHeight ?? BOSS_EFFECTS[shot.src]?.height ?? ENEMY_EFFECTS[shot.src]?.height ?? 0.85;
       const h = 1.05 + (launch - 1.05) * Math.exp(-shot.age * 6);
       const kind = shot.kind;
       const color = shot.frost ? FROST_SHOT : SHOT[kind] || SHOT.orb;
@@ -833,6 +833,7 @@ export class AttackView {
         case "watchTower": {
           const heavy = kind === "watchTower";
           const len = shot.r * (kind === "fast" ? 5.6 : heavy ? 3.8 : 3.1);
+          const trail = shot.launchHeight ? Math.min(len, Math.hypot(shot.vx, shot.vy) * shot.age) : len;
           r.ebCore.colC(r.ebCore.y(shot.x, h, shot.y, angle, len * 0.94, shot.r * 0.78, shot.r * 0.78), color, 1.32);
           r.ebCore.col(
             r.ebCore.y(
@@ -848,11 +849,13 @@ export class AttackView {
             0.96,
             0.9,
           );
-          r.beams.colC(
-            r.beams.seg(shot.x - ca * len, shot.y - sa * len, shot.x, shot.y, h, heavy ? 0.095 : 0.055, 0.055),
-            color,
-            0.82,
-          );
+          if (trail > 0.02) {
+            r.beams.colC(
+              r.beams.seg(shot.x - ca * trail, shot.y - sa * trail, shot.x, shot.y, h, heavy ? 0.095 : 0.055, 0.055),
+              color,
+              0.82,
+            );
+          }
           if (heavy && chance(7)) r.emit(shot.x, h, shot.y, 0, 0.3, 0, 0.16, 0.1, color, { spark: true, drag: 5 });
           break;
         }

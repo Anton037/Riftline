@@ -32,13 +32,16 @@ export class ActorEffectsView {
             : Math.atan2((world?.player.y || 0) - ev.y, (world?.player.x || 0) - ev.x);
         const reach = identity?.reach ?? 0.45;
         const height = identity?.height || 1;
-        const x = ev.x + Math.cos(angle) * reach;
-        const z = ev.y + Math.sin(angle) * reach;
-        r.burst(x, z, height, boss ? 5 : 2, 2.2, color, 0.15, 0.09, {
-          spark: source !== "mossQueen" && source !== "supplyKite",
-          drag: 5,
-        });
-        if (boss) r.flash(x, z, 1.6, 0.28, color, 12);
+        const origins = ev.muzzles ?? [
+          { x: ev.x + Math.cos(angle) * reach, y: ev.y + Math.sin(angle) * reach, height },
+        ];
+        for (const muzzle of origins) {
+          r.burst(muzzle.x, muzzle.y, muzzle.height, boss ? 5 : 2, 2.2, color, 0.15, 0.09, {
+            spark: source !== "mossQueen" && source !== "supplyKite",
+            drag: 5,
+          });
+          if (boss) r.flash(muzzle.x, muzzle.y, 1.6, 0.28, color, 12);
+        }
         return true;
       }
       case "pop":

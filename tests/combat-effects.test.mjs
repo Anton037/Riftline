@@ -135,6 +135,49 @@ test("every ranged enemy uses its own projectile and shot voice in actual AI", (
   }
 });
 
+test("barrel openings determine enemy shot and flash origins, including off-centre volleys", () => {
+  const gun = (type, elite = false) => {
+    const w = world();
+    w.arena.obs = [];
+    w.player.x = 0;
+    w.player.y = 10;
+    const enemy = w.spawnEnemy(type, 0, 0, { elite, noVariant: true });
+    Object.assign(enemy, { spawnT: 0, st: 1, t2: 0.001, ta: Math.PI / 2, anchored: true, los: true });
+    return { w, enemy };
+  };
+  const close = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-7, `${actual} != ${expected}`);
+  const fired = (w) => w.fx.find(({ k }) => k === "eshot");
+
+  const brass = gun("brassGuard");
+  updateEnemy(brass.w, brass.enemy, 1 / 60);
+  close(brass.w.eb[0].x, 0.38);
+  close(brass.w.eb[0].y, 0.96);
+  close(brass.w.eb[0].launchHeight, 0.76);
+  assert.equal(brass.enemy.vx, 0);
+  assert.equal(brass.enemy.vy, 0);
+  Object.assign(brass.enemy, { st: 1, t2: 0.001 });
+  updateEnemy(brass.w, brass.enemy, 1 / 60);
+  close(brass.w.eb[1].x, -0.38);
+
+  const tower = gun("watchTower", true);
+  updateEnemy(tower.w, tower.enemy, 1 / 60);
+  assert.equal(tower.w.eb.length, 3);
+  assert.equal(fired(tower.w).muzzles.length, 2);
+  close(tower.w.eb[0].x, 0.24 * 1.3);
+  close(tower.w.eb[2].x, -0.24 * 1.3);
+  close(tower.w.eb[0].y, 1.16 * 1.3);
+  for (const shot of tower.w.eb)
+    assert.ok(fired(tower.w).muzzles.some((m) => m.x === shot.x && m.y === shot.y && m.height === shot.launchHeight));
+
+  const sniper = gun("longshot");
+  updateEnemy(sniper.w, sniper.enemy, 1 / 60);
+  close(sniper.w.eb[0].y, 1.66);
+  sniper.w.arena.obs = [{ t: "b", x: 0, y: 0.75, w: 0.35, h: 0.1 }];
+  Object.assign(sniper.enemy, { st: 1, t2: 0.001 });
+  updateEnemy(sniper.w, sniper.enemy, 1 / 60);
+  assert.equal(sniper.w.eb.length, 1, "a barrel cannot skip cover between it and its owner");
+});
+
 test("explicit attack sources override ambient context and matching surfaces drive both sound and look", () => {
   const w = world();
   w._src = "bellKeeper";

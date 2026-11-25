@@ -503,7 +503,6 @@ const RL_EVENT_FIELDS = {
   portal: ["x", "y"],
   dmg: ["x", "y"],
   devilNear: ["x", "y"],
-  biomeProp: ["x", "y", "r"],
   chain: ["pts"],
 };
 function rlEventPayloadError(event) {
@@ -1805,4 +1804,3 @@ for (const kind of [
 ])
   RL_EVENT_KINDS.add(kind);
 RL_EVENT_KINDS.add("barrier");
-RL_EVENT_KINDS.add("biomeProp");

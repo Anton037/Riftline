@@ -172,6 +172,14 @@ function buildCover(view, biomeId, obstacles, rng) {
 
   const coreGemPartsA = [];
   const coreGemPartsB = [];
+  const workshop =
+    biomeId === "lanternYard"
+      ? obstacles.reduce(
+          (nearest, ob) =>
+            !nearest || Math.hypot(ob.x + 2, ob.y + 5) < Math.hypot(nearest.x + 2, nearest.y + 5) ? ob : nearest,
+          null,
+        )
+      : null;
 
   for (let i = 0; i < obstacles.length; i++) {
     const obs = obstacles[i];
@@ -189,6 +197,47 @@ function buildCover(view, biomeId, obstacles, rng) {
         ? cylinder(rad * 0.91, rad * 0.96, 0.34, 8)
         : beveledBox(w * 0.95, 0.34, d * 0.95, 0.1);
       place(props, slateBase, baseMat("stone", 0x1a2836), obs.x, 0.17, obs.y);
+
+      if (obs === workshop) {
+        // One bell maker's stall takes up an existing cover footprint.
+        const width = w * (isCircle ? 0.71 : 0.91);
+        const depth = d * (isCircle ? 0.59 : 0.86);
+        const wood = baseMat("wood", 0x6c4532);
+        const roof = baseMat("metal", 0x406f70);
+        const bronze = baseMat("metal", 0xb07740);
+        const paper = glowMat(0xffcb88, 0.52);
+        place(props, beveledBox(width * 0.9, 0.48, depth * 0.76, 0.06), wood, obs.x, 0.58, obs.y);
+        place(props, beveledBox(width, 0.13, depth * 0.9, 0.04), wood, obs.x, 0.88, obs.y);
+        place(props, beveledBox(width * 0.8, 0.68, 0.08, 0.02), paper, obs.x, 1.28, obs.y - depth * 0.36);
+        for (const side of [-1, 1]) {
+          place(
+            props,
+            beveledBox(0.12, 0.93, 0.12, 0.025),
+            wood,
+            obs.x + side * width * 0.38,
+            1.27,
+            obs.y + depth * 0.26,
+          );
+          place(
+            props,
+            beveledBox(width, 0.14, depth * 0.52, 0.045),
+            roof,
+            obs.x,
+            1.8,
+            obs.y + side * depth * 0.24,
+            0,
+            1,
+            1,
+            1,
+            side * 0.34,
+          );
+        }
+        place(props, beveledBox(width * 0.92, 0.11, 0.12, 0.025), bronze, obs.x, 1.93, obs.y);
+        const bell = Math.min(width * 0.24, depth * 0.29);
+        place(props, cylinder(bell * 0.45, bell, 0.49, 10), bronze, obs.x, 1.34, obs.y + depth * 0.08);
+        place(props, cylinder(bell, bell, 0.08, 10), baseMat("metal", FINISH.brass), obs.x, 1.09, obs.y + depth * 0.08);
+        continue;
+      }
 
       if (variant === 0) {
         const h = isCircle ? 2.48 : 2.04;
@@ -2417,6 +2466,7 @@ function buildEdgeDressing(view, biome, W, H, obstacles, rng) {
   });
   const trimMat = worldMaterial({ color: FINISH.brass, surface: "metal" });
   const glowMat = emissiveMaterial({ color: look.accent, emissiveIntensity: 1.1 });
+  const accents = [];
 
   for (let i = 0; i < count; i++) {
     const side = i % 4;
@@ -2425,6 +2475,8 @@ function buildEdgeDressing(view, biome, W, H, obstacles, rng) {
     const px = side < 2 ? u * (W - 0.8) : (side === 2 ? -1 : 1) * (W - inset);
     const pz = side >= 2 ? u * (H - 0.8) : (side === 0 ? -1 : 1) * (H - inset);
     if (Math.hypot(px, pz - 2) < 3.6 || !clearOfObstacles(obstacles, px, pz, 0.9)) continue;
+    if (accents.some((spot) => Math.hypot(spot.x - px, spot.z - pz) < 1.6)) continue;
+    accents.push({ x: px, z: pz });
     const rot = rng.range(0, TAU);
 
     if (biome.id === "lanternYard") {
@@ -2664,7 +2716,7 @@ export class ArenaView {
     this.uniforms.uStyle.value = look.style;
 
     this.groundOcclusion?.dispose();
-    this.groundOcclusion = createGroundOcclusion(layout.W, layout.H, layout.obs, layout.props || []);
+    this.groundOcclusion = createGroundOcclusion(layout.W, layout.H, layout.obs);
     this.uniforms.uOcclusion.value = this.groundOcclusion;
     if (this.engine) this.engine.textures.occlusion = this.groundOcclusion;
 

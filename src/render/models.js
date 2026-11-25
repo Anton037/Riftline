@@ -23,6 +23,7 @@ import { worldMaterial, emissiveMaterial, aegisMaterial, enemySurface } from "./
 import { FINISH } from "./palette.js";
 import { weaponDefs, weaponMount as mount } from "../data/weapons.js";
 import { enemyDefs } from "../data/enemies.js";
+import { ENEMY_MUZZLES } from "../data/combat-effects.js";
 import { TAU, angleDiff, dampFactor } from "../core/util.js";
 
 export { meshPart };
@@ -1355,7 +1356,8 @@ function buildEnemyParts(type, accent) {
     // ------------------------------------------------------------------------
     // FAMILY C — HOODED MARKSMEN & ARTILLERY (Tall cowls, brass optics, recoiling barrels & spider tripods)
     // ------------------------------------------------------------------------
-    case "brassGuard":
+    case "brassGuard": {
+      const muzzle = ENEMY_MUZZLES.brassGuard;
       // Hooded burgundy-plum artificer with marching boots, cloaked bracing arms, brass goggles, copper keg & twin blunderbusses
       body.push(
         part(G_DOME, IRON, { x: 0.04, y: 0.0, z: -0.2, sx: 0.28, sy: 0.22, sz: 0.22, anim: [2, 0.28, 0.04, 0.0] }),
@@ -1369,9 +1371,9 @@ function buildEnemyParts(type, accent) {
         part(G_SPH, LEATHER, { x: 0.28, y: 0.76, z: -0.38, sx: 0.16, sy: 0.15, sz: 0.16 }),
         part(G_SPH, LEATHER, { x: 0.28, y: 0.76, z: 0.38, sx: 0.16, sy: 0.15, sz: 0.16 }),
         part(G_BELL, BRASS, {
-          x: 0.28,
-          y: 0.76,
-          z: -0.38,
+          x: muzzle.forward - 0.68,
+          y: muzzle.height,
+          z: -muzzle.side,
           rz: -Math.PI / 2,
           sx: 0.34,
           sy: 0.68,
@@ -1379,9 +1381,9 @@ function buildEnemyParts(type, accent) {
           anim: [4, 0.76, 0.28, 0.0],
         }),
         part(G_BELL, BRASS, {
-          x: 0.28,
-          y: 0.76,
-          z: 0.38,
+          x: muzzle.forward - 0.68,
+          y: muzzle.height,
+          z: muzzle.side,
           rz: -Math.PI / 2,
           sx: 0.34,
           sy: 0.68,
@@ -1392,11 +1394,29 @@ function buildEnemyParts(type, accent) {
       glow.push(
         part(G_OCT, 0xffffff, { x: 0.22, y: 1.14, z: -0.1, sx: 0.12, sy: 0.12, sz: 0.12 }),
         part(G_OCT, 0xffffff, { x: 0.22, y: 1.14, z: 0.1, sx: 0.12, sy: 0.12, sz: 0.12 }),
-        part(G_OCT, 0xffffff, { x: 0.98, y: 0.76, z: -0.38, sx: 0.16, sy: 0.16, sz: 0.16, anim: [4, 0.76, 0.28, 0.0] }),
-        part(G_OCT, 0xffffff, { x: 0.98, y: 0.76, z: 0.38, sx: 0.16, sy: 0.16, sz: 0.16, anim: [4, 0.76, 0.28, 0.0] }),
+        part(G_OCT, 0xffffff, {
+          x: muzzle.forward,
+          y: muzzle.height,
+          z: -muzzle.side,
+          sx: 0.16,
+          sy: 0.16,
+          sz: 0.16,
+          anim: [4, 0.76, 0.28, 0.0],
+        }),
+        part(G_OCT, 0xffffff, {
+          x: muzzle.forward,
+          y: muzzle.height,
+          z: muzzle.side,
+          sx: 0.16,
+          sy: 0.16,
+          sz: 0.16,
+          anim: [4, 0.76, 0.28, 0.0],
+        }),
       );
       break;
-    case "longshot":
+    }
+    case "longshot": {
+      const muzzle = ENEMY_MUZZLES.longshot;
       // Tall peaked-cowl mystic marksman on GPU-striding brass tripod stilts with braced arms & recoiling telescope sun-lance
       body.push(
         ...[-1, 0, 1].map((i) => {
@@ -1438,8 +1458,8 @@ function buildEnemyParts(type, accent) {
           anim: [4, 1.12, 0.4, 0.0],
         }),
         part(G_BELL, BRASS, {
-          x: 1.38,
-          y: 1.12,
+          x: muzzle.forward - 0.28,
+          y: muzzle.height,
           rz: -Math.PI / 2,
           sx: 0.22,
           sy: 0.28,
@@ -1462,6 +1482,7 @@ function buildEnemyParts(type, accent) {
         part(G_OCT, 0xffffff, { x: 0.78, y: 1.28, sx: 0.11, sy: 0.11, sz: 0.11, anim: [4, 1.28, 0.4, 0.0] }),
       );
       break;
+    }
     case "bellCannon":
       // Squat brass-and-oak spider-howitzer with 4 GPU-striding legs & recoiling flared bell-mortar
       body.push(
@@ -1497,7 +1518,8 @@ function buildEnemyParts(type, accent) {
         part(G_BOX, 0xffffff, { x: 0.48, y: 0.64, sx: 0.1, sy: 0.14, sz: 0.38 }),
       );
       break;
-    case "watchTower":
+    case "watchTower": {
+      const muzzle = ENEMY_MUZZLES.watchTower;
       // Carved stone-and-brass clockwork watchtower with spinning gear-ring & GPU-recoiling twin long cannons
       body.push(
         part(G_ROBE, NAVY_ROBE, { y: 0.0, sx: 1.26, sy: 0.64, sz: 1.26 }),
@@ -1536,9 +1558,9 @@ function buildEnemyParts(type, accent) {
           anim: [4, 0.88, 0.4, 0.0],
         }),
         part(G_BELL, BRASS, {
-          x: 0.92,
-          y: 0.88,
-          z: -0.24,
+          x: muzzle.forward - 0.24,
+          y: muzzle.height,
+          z: -muzzle.side,
           rz: -Math.PI / 2,
           sx: 0.28,
           sy: 0.24,
@@ -1546,9 +1568,9 @@ function buildEnemyParts(type, accent) {
           anim: [4, 0.88, 0.4, 0.0],
         }),
         part(G_BELL, BRASS, {
-          x: 0.92,
-          y: 0.88,
-          z: 0.24,
+          x: muzzle.forward - 0.24,
+          y: muzzle.height,
+          z: muzzle.side,
           rz: -Math.PI / 2,
           sx: 0.28,
           sy: 0.24,
@@ -1561,6 +1583,7 @@ function buildEnemyParts(type, accent) {
         part(G_OCT, 0xffffff, { y: 1.44, sx: 0.24, sy: 0.28, sz: 0.24, anim: [3, 1.44, 0, -2.0] }),
       );
       break;
+    }
     case "crystalTower":
       // Tall tri-pillar floating obelisk: towering carved monolith flanked by 3 orbiting obelisk spires & Cyclops prism eye
       body.push(

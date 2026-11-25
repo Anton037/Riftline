@@ -39,7 +39,6 @@ import {
   RL_DEATH_FAMILY,
   RL_FLOOD,
   RL_OVERDRIVE,
-  RL_PROP_VOICE,
   RL_SFX_VOICES,
   RL_TRAP_SOUND,
   ROOM_TONE_LEVEL,
@@ -977,33 +976,6 @@ const SoundEngine = class {
           bell(m(lift % 7, 24), 0.16, "kalimba", 0.04, 0, null);
         }
         break;
-      case "propArm":
-        if (this.gate("chime:propArm", 0.08)) {
-          bell(m(2, 24), 0.14, "kalimba", 0.032, 0, null);
-        }
-        break;
-      case "propLantern":
-      case "propRime":
-      case "propPuffball":
-      case "propPrism":
-      case "propCrucible":
-      case "propSunglass":
-        // Single resonant pedal note inheriting the relic's world stereo position
-        if (this.gate("chime:prop", 0.08)) {
-          const inst =
-            id === "propRime"
-              ? "celesta"
-              : id === "propPuffball"
-                ? "marimba"
-                : id === "propCrucible"
-                  ? "brass"
-                  : id === "propLantern"
-                    ? "ceramic"
-                    : "harp";
-          const oct = id === "propCrucible" || id === "propPuffball" ? 12 : 24;
-          bell(m(0, oct), 0.34, inst, 0.036, 0, null, 3200);
-        }
-        break;
       case "wave":
         if (this.gate("chime:wave", 0.2)) {
           bell(m(0, 12), 0.34, "brass", 0.044, 0, -0.15, 2400);
@@ -1399,9 +1371,6 @@ const SoundEngine = class {
           if (!this.gate || this.gate("sfx:spark", 0.055)) {
             this.play(RL_BIOME_SPARK[this.biome] || "sparkCourtyard");
           }
-          break;
-        case "biomeProp":
-          this.play(ev.state === "arm" ? "propArm" : RL_PROP_VOICE[ev.kind] || "propLantern", ev);
           break;
         case "boss":
           this.play("bossIntro", ev.id);

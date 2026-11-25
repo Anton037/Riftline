@@ -1557,8 +1557,7 @@ const getById = (id) => document.getElementById(id),
         want.push(["gild", "SHARD BOOST", "#ffd872", player.gildT / 3.2]);
       }
       if (on && player.festT > 0) {
-        if (world.arena?.biome?.id === "starHall") want.push(["fest", "STAR BOOST", "#e0b4ff", player.festT / 3.0]);
-        else want.push(["fest", "WARMTH", "#ffb86c", player.festT / 3.0]);
+        want.push(["fest", "STAR BOOST", "#e0b4ff", player.festT / 3.0]);
       }
       const row = buffRow;
       if (!row) return;
@@ -2096,7 +2095,7 @@ const getById = (id) => document.getElementById(id),
       );
     }
   };
-// 2.5.0 A: HUD chips of the timed upgrades and biome relics, managed next to the chips of GameUI.buffs
+// HUD chips for timed upgrades and biome effects, managed next to the chips of GameUI.buffs.
 const timedBuffChips = ["heat", "slip", "skate", "ingot", "leyline", "rime", "spore", "gild", "fest"];
 function closePauseSettings(ui) {
   ui.rlFromPause = false;
@@ -2105,12 +2104,12 @@ function closePauseSettings(ui) {
 }
 
 const RL_BIOME_CARD = {
-  lanternYard: "Shock pads zap enemies · shoot lanterns to stun nearby enemies",
-  snowRidge: "Slippery ice floor · shoot ice crystals to freeze enemies and get better grip",
-  mossBog: "Acid pools weaken enemies · shoot spore bulbs for a quick speed boost",
-  starHall: "Portals move you and your shots · shoot crystals to boost shots and slow enemy fire",
-  emberHill: "Lava vents erupt · shoot forge pots to break enemy armor",
-  sunDunes: "Whirlwinds pull you off course · shoot pillars to fire bolts and calm the wind",
+  lanternYard: "Shoot a charging bell to stun enemies. Shooting a mine clears it safely.",
+  snowRidge: "Ice patches make you slide.",
+  mossBog: "Acid pools weaken enemies and hurt you.",
+  starHall: "Portals carry you and your shots across the hall.",
+  emberHill: "Glowing vents warn before they erupt.",
+  sunDunes: "Whirlwinds pull you off course.",
 };
 const rlHex = (color) => "#" + ((Number(color) >>> 0) & 0xffffff).toString(16).padStart(6, "0");
 function rlBiomeCardInfo(biome) {

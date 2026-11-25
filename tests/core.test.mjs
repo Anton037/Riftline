@@ -171,91 +171,6 @@ test("damage events retain the target type for material-specific hit feedback", 
   assert.equal(w.fx.find((e) => e.k === "dmg")?.shield, true);
 });
 
-test("all six interactive biome props trigger deterministically from shots and dashes without Math.random", async () => {
-  const { Arena, buildLayout } = await import("../src/core/arena.js");
-  const { biomesById } = await import("../src/data/biomes.js");
-  const random = Math.random;
-  Math.random = () => {
-    throw new Error("Interactive biome props used Math.random");
-  };
-  try {
-    const expectedKind = {
-      lanternYard: "lantern",
-      snowRidge: "rime",
-      mossBog: "puffball",
-      starHall: "iceCrystal",
-      emberHill: "crucible",
-      sunDunes: "sunglass",
-    };
-    for (const [id, kind] of Object.entries(expectedKind)) {
-      const biome = biomesById[id];
-      const layoutA = buildLayout(biome, 4242, 4, false);
-      const layoutB = buildLayout(biome, 4242, 4, false);
-      const arenaA = new Arena(biome, layoutA);
-      const arenaB = new Arena(biome, layoutB);
-      assert.equal(arenaA.props.length, 3, `${id}: expected 3 props`);
-      assert.deepEqual(arenaA.props, arenaB.props, `${id}: prop placement must be deterministic`);
-      for (const p of arenaA.props) {
-        assert.equal(p.kind, kind);
-        assert.equal(arenaA.blocked(p.x, p.y, p.r), false, `${id}: prop overlaps obstacle`);
-        assert.equal(arenaA.outside(p.x, p.y, p.r + 0.5), false, `${id}: prop outside arena`);
-      }
-
-      const w = new World({ seed: 4242, weapon: "lanternGun", threat: 0, ws: {} });
-      w.arena = arenaA;
-      w.enemies.length = 0;
-      w.fx.length = 0;
-      const prop = w.arena.props[0];
-      const foe = w.spawnEnemy("kettleGuard", prop.x + 1.1, prop.y, {});
-      foe.hp = foe.maxHp = 500;
-      w.hash.build(w.enemies);
-
-      if (kind === "puffball") {
-        w.player.x = prop.x;
-        w.player.y = prop.y;
-        w.player.dashT = 0.2;
-        w.player.slowT = 1.0;
-        w.updateBiomeProps(1 / 60);
-        assert.ok(w.player.hopT > 2.5, "marsh puffball grants spore hop");
-        assert.equal(w.player.slowT, 0, "marsh puffball clears slow");
-        assert.equal(foe.corrode, true, "marsh puffball marks nearby enemy");
-      } else if (kind === "crucible") {
-        assert.equal(w.triggerBiomeProp(prop), true);
-        assert.ok(prop.fuse > 0.5, "caldera crucible arms telegraph fuse");
-        assert.equal(w.fx.find((e) => e.k === "biomeProp")?.state, "arm");
-        w.fx.length = 0;
-        w.updateBiomeProps(0.65);
-        assert.ok(foe.weakenT > 4.0, "caldera crucible weakens enemy armor");
-        assert.equal(w.fx.find((e) => e.k === "biomeProp")?.state, "fire");
-        const hp0 = foe.hp;
-        w.hurtEnemy(foe, 40, 1, 0, 0, false);
-        assert.equal(hp0 - foe.hp, 50, "weakened enemy takes 1.25x damage");
-      } else {
-        if (kind === "sunglass") {
-          w.arena.devils = [{ x: prop.x + 1.2, y: prop.y, r: 2.2, vx: 1, vy: 0, a: 0, calmT: 0 }];
-        }
-        assert.equal(w.triggerBiomeProp(prop), true);
-        assert.equal(w.fx.find((e) => e.k === "biomeProp")?.state, "fire", id);
-        if (kind === "lantern") {
-          assert.ok(prop.auraT > 4.5 && foe.slowT >= 1.3);
-        } else if (kind === "rime") {
-          assert.ok(w.player.tractionT > 3.5 && foe.slowT >= 2.5);
-        } else if (kind === "iceCrystal") {
-          assert.ok(prop.auraT > 2.5 && foe.hp < 500);
-          w.eb.push({ x: prop.x, y: prop.y, vx: 10, vy: 0, r: 0.2, dmg: 5, life: 2 });
-          w.updateEBullets(0.1);
-          assert.ok(w.eb[0].x < prop.x + 0.5, "core prism aura slows enemy projectiles");
-        } else if (kind === "sunglass") {
-          assert.ok(w.arena.devils[0].calmT >= 4.9, "flats sunglass calms nearby dust devil");
-        }
-      }
-      assert.ok((w.dmgSrc.prop || 0) > 0, `${id}: prop damage recorded under 'prop'`);
-    }
-  } finally {
-    Math.random = random;
-  }
-});
-
 test("reworked cozy wave events and shot-detonated proximity vessels are deterministic and functional", () => {
   const random = Math.random;
   Math.random = () => {
@@ -422,44 +337,7 @@ test("reimagined biome traps apply distinct mechanics across all six realms", as
   assert.ok(foeMagma.burnT > 0, "Dragon-Kiln trap beam must burn non-boss foes in its path");
 });
 
-test("relic auras, bountyPulse amounts and Frost Prism splinter damage attribution stay accurate", async () => {
-  // 1. Star Hall prism aura empowers passing player bolts by 25%
-  const wPrism = new World({ seed: 501, weapon: "lanternGun", threat: 0, ws: {} });
-  wPrism.arena.obs = [];
-  wPrism.arena.props = [{ kind: "iceCrystal", x: 3, y: 0, r: 0.8, auraT: 4, cd: 0 }];
-  wPrism.pb.push({
-    id: 1,
-    x: 2.5,
-    y: 0,
-    vx: 15,
-    vy: 0,
-    a: 0,
-    r: 0.17,
-    dmg: 20,
-    life: 1,
-    pierce: 0,
-    bounce: 0,
-    hits: [],
-    w: "lanternGun",
-  });
-  wPrism.updatePBullets(1 / 60);
-  assert.equal(wPrism.pb[0].prismBoost, true, "bolt passing lit prism aura is marked empowered");
-  assert.equal(wPrism.pb[0].dmg, 25, "prism aura empowers passing bolt by +25%");
-
-  // 2. Sun Dunes sunglass fires a 5-lance solar fan
-  const wSun = new World({ seed: 502, weapon: "lanternGun", threat: 0, ws: {} });
-  wSun.arena.obs = [];
-  wSun.enemies.length = 0;
-  wSun.pb.length = 0;
-  const foe = wSun.spawnEnemy("ironGolem", 6, 0, { noVariant: true });
-  foe.spawnT = 0;
-  const prop = { kind: "sunglass", x: 0, y: 0, r: 0.8, auraT: 0, cd: 0 };
-  wSun.arena.props = [prop];
-  wSun.hash.build(wSun.enemies);
-  assert.equal(wSun.triggerBiomeProp(prop), true);
-  assert.equal(wSun.pb.length, 5, "Sun Dunes sunglass relic must launch a 5-lance solar fan");
-
-  // 3. Gold Cart elite kill emits bountyPulse with numeric amount > 0 (never undefined)
+test("bountyPulse amounts and Frost Prism splinter damage attribution stay accurate", async () => {
   const wGild = new World({ seed: 503, weapon: "lanternGun", threat: 0, ws: {} });
   wGild.event = "goldCart";
   wGild.fx.length = 0;
@@ -471,7 +349,7 @@ test("relic auras, bountyPulse amounts and Frost Prism splinter damage attributi
     "bountyPulse must carry numeric amount",
   );
 
-  // 4. Frost Prism splinters credit 'shard', not Glasswyrm 'fang'
+  // Frost Prism splinters credit 'shard', not Glasswyrm 'fang'
   const { updateBossCards } = await import("../src/core/boss-cards.js");
   const wShard = new World({ seed: 504, weapon: "lanternGun", threat: 0, ws: {} });
   wShard.arena.obs = [];
@@ -593,38 +471,24 @@ test("regression: Glasswyrm diveT sets ghost=true and mirage/rise resolve inside
   assert.equal(w.arena.outside(boss.x, boss.y, boss.r * 0.5), false, "Glasswyrm mirage must stay inside arena bounds");
 });
 
-test("regression: Moss Bog puffball and trap corrodeT persist across updateFeatures ticks", async () => {
+test("regression: Moss Bog trap corrosion persists across updateFeatures ticks", async () => {
   const { rlUpdateTraps } = await import("../src/core/traps.js");
   const w = new World({ seed: 703, weapon: "lanternGun", threat: 0, ws: {} });
   w.arena.obs = [];
   w.arena.acid = [];
-  w.enemies.length = 0;
-  const foe = w.spawnEnemy("ironGolem", 1.0, 0, { noVariant: true });
+  const foe = w.spawnEnemy("ironGolem", 5.0, 0, { noVariant: true });
   foe.spawnT = 0;
-  w.hash.build(w.enemies);
-  const prop = { kind: "puffball", x: 0, y: 0, r: 0.9, cd: 0, fuse: 0 };
-  w.arena.props = [prop];
-  w.triggerBiomeProp(prop);
-  assert.equal(foe.corrode, true, "puffball must corrode nearby foe");
-  assert.ok(foe.corrodeT >= 3.5, "puffball must set timed corrodeT");
-  // Step updateFeatures + statusTick for 1 second with NO acid pools present — corrode must persist!
-  for (let i = 0; i < 60; i++) {
-    w.statusTick(foe, 1 / 60);
-    w.updateFeatures(1 / 60);
-  }
-  assert.equal(foe.corrode, true, "puffball corrodeT must not be wiped by updateFeatures when no pools exist");
-  // Also verify trap corrodeT persists across updateFeatures
-  const foe2 = w.spawnEnemy("ironGolem", 5.0, 0, { noVariant: true });
-  foe2.spawnT = 0;
   w.hash.build(w.enemies);
   w.traps = [
     { id: 2, fam: "floor", skin: "geyser", x: 4.8, y: 0, st: "warn", t: 0.01, delay: 0.02, a: 0, dir: 1, wait: 0 },
   ];
   rlUpdateTraps(w, 0.05);
   w.arena.acid.length = 0;
-  w.statusTick(foe2, 1 / 60);
-  w.updateFeatures(1 / 60);
-  assert.equal(foe2.corrode, true, "geyser trap corrodeT must persist across updateFeatures");
+  for (let i = 0; i < 60; i++) {
+    w.statusTick(foe, 1 / 60);
+    w.updateFeatures(1 / 60);
+  }
+  assert.equal(foe.corrode, true, "geyser trap corrodeT must persist across updateFeatures");
 });
 
 test("regression: shardfield splinters and fang lances pierce across kills", async () => {

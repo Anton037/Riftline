@@ -373,12 +373,13 @@ export class HazardView {
     const pillar = this.get("inlayProng", MAX.prong);
     for (const vent of world.arena.vents) {
       const vs = this.ventState(world, vent);
-      const state = vs.state,
-        k = vs.k;
+      const bossCharge = world.state === "fight" && vent.bossTollT > 0;
+      const state = bossCharge ? "warn" : vs.state,
+        k = bossCharge ? clamp((1.15 - vent.bossTollT) / 0.95, 0, 1) : vs.k;
       const { x, y: z, r: radius } = vent;
       const rot = seedOf(x, z) * TAU;
       const sc = Math.min(radius * 0.96, 1.05);
-      const friendly = (vent.rungT || 0) > 0;
+      const friendly = !bossCharge && (vent.rungT || 0) > 0;
       const live = state === "erupt" && !friendly;
       const warn = state === "warn" && !friendly;
       const charge = live ? 1 : warn ? k : friendly ? Math.min(1, vent.rungT / 0.7) : 0;
@@ -394,10 +395,10 @@ export class HazardView {
 
       // Octagonal shrine basin
       collar.body.y(x, 0, z, rot, sc, 1, sc);
-      collar.glow.colC(collar.glow.y(x, 0, z, rot, sc, 1, sc), glowCol, 0.28 + charge * 0.68);
+      collar.glow.colC(collar.glow.y(x, 0, z, rot, sc, 1, sc), glowCol, 0.12 + charge * 0.78);
       // Swinging suspended bronze temple bell
       cover.body.yr(x, lift, z, rot, sc, sc, sc, sway, 0);
-      cover.glow.colC(cover.glow.yr(x, lift, z, rot, sc, sc, sc, sway, 0), glowCol, 0.34 + charge * 0.66);
+      cover.glow.colC(cover.glow.yr(x, lift, z, rot, sc, sc, sc, sway, 0), glowCol, 0.19 + charge * 0.81);
       // 4 permanent corner brass lantern-pillars around the shrine rim
       const postDist = sc * 0.88;
       for (let i = 0; i < 4; i++) {
@@ -410,7 +411,7 @@ export class HazardView {
         pillar.glow.colC(
           pillar.glow.yr(px, 0.02, pz, angle, pScale, pScale, pScale, 0, 0),
           glowCol,
-          0.42 + charge * 0.58,
+          0.18 + charge * 0.82,
         );
       }
 

@@ -1,7 +1,7 @@
 // Unified, modular enemy behavior dispatch. Every enemy role has a self-contained state machine handler.
 
 import { clamp, TAU, turnToward } from "./util.js";
-import { SENTINEL_BEAMS as SENTINEL_SKIN } from "../data/combat-effects.js";
+import { enemyMuzzlePoint, SENTINEL_BEAMS as SENTINEL_SKIN } from "../data/combat-effects.js";
 
 const RL_KITERS = new Set([
   "brassGuard",
@@ -44,9 +44,28 @@ function updateWalker(game, enemy, dt, ctx) {
   enemy.vy = ctx.cdy * ctx.speed;
 }
 
+function fireBarrels(game, enemy, angle, speed, damage, volley, radius) {
+  const muzzles = [];
+  for (const [side, spread] of volley) {
+    const muzzle = enemyMuzzlePoint(enemy, angle, side);
+    if (game.arena.outside(muzzle.x, muzzle.y, radius) || !game.arena.los(enemy.x, enemy.y, muzzle.x, muzzle.y, 0.08))
+      continue;
+    const shot = game.shoot(muzzle.x, muzzle.y, angle + spread, speed, damage, {
+      r: radius,
+      src: enemy.type,
+      launchHeight: muzzle.height,
+    });
+    if (shot && !muzzles.some((origin) => origin.x === muzzle.x && origin.y === muzzle.y)) muzzles.push(muzzle);
+  }
+  if (!muzzles.length) return;
+  enemy.recoilT = 0.25;
+  game.emit("eshot", { ...muzzles[0], muzzles, type: enemy.type, frost: enemy.variant === "frost" });
+}
+
 function updateGunner(game, enemy, dt, ctx) {
   const { dx, dy, dist, ang, cdx, cdy, speed, alive } = ctx;
   if (enemy.st === 0) {
+    enemy.face = turnToward(enemy.face, ang, 8 * dt);
     if (dist > 11 || !enemy.los) {
       enemy.vx = cdx * speed;
       enemy.vy = cdy * speed;
@@ -65,22 +84,25 @@ function updateGunner(game, enemy, dt, ctx) {
       game.emit("charge", { x: enemy.x, y: enemy.y, type: enemy.type });
     }
   } else {
-    enemy.vx *= 0.8;
-    enemy.vy *= 0.8;
+    enemy.vx = 0;
+    enemy.vy = 0;
+    if (enemy.t2 > 0.13) enemy.face = turnToward(enemy.face, ang, 10 * dt);
     enemy.t2 -= dt;
     if (enemy.t2 <= 0) {
-      const shots = enemy.elite ? 3 : 1,
-        shotSpeed = 8.2 + game.wave * 0.06;
-      for (let k = 0; k < shots; k++) {
-        game.shoot(enemy.x, enemy.y, ang + (k - (shots - 1) / 2) * 0.2, shotSpeed, enemy.dmg);
-      }
-      enemy.recoilT = 0.25;
-      game.emit("eshot", { x: enemy.x, y: enemy.y, type: "brassGuard", frost: enemy.variant === "frost" });
+      const side = enemy.barrel ?? -1;
+      const volley = enemy.elite
+        ? [
+            [-1, -0.2],
+            [side, 0],
+            [1, 0.2],
+          ]
+        : [[side, 0]];
+      fireBarrels(game, enemy, enemy.face, 8.2 + game.wave * 0.06, enemy.dmg, volley, 0.24);
+      enemy.barrel = -side;
       enemy.st = 0;
       enemy.t = 2.2 + game.rng.next() * 0.9;
     }
   }
-  enemy.face = turnToward(enemy.face, ang, 8 * dt);
   return true;
 }
 
@@ -181,7 +203,7 @@ function updateSniper(game, enemy, dt, ctx) {
     if (enemy.t <= 0 && enemy.los && dist < 19 && alive) {
       enemy.st = 1;
       enemy.t2 = 1.25;
-      enemy.ta = ang;
+      enemy.ta = enemy.face;
       game.emit("aim", { x: enemy.x, y: enemy.y });
     }
   } else {
@@ -190,17 +212,14 @@ function updateSniper(game, enemy, dt, ctx) {
     if (enemy.t2 > 0.35) enemy.ta = turnToward(enemy.ta, ang, 3 * dt);
     enemy.t2 -= dt;
     if (enemy.t2 <= 0) {
-      game.shoot(enemy.x + Math.cos(enemy.ta) * 0.7, enemy.y + Math.sin(enemy.ta) * 0.7, enemy.ta, 22, enemy.dmg, {
-        kind: "fast",
-        r: 0.2,
-      });
-      enemy.recoilT = 0.25;
-      game.emit("eshot", { x: enemy.x, y: enemy.y, type: "longshot", frost: enemy.variant === "frost" });
+      fireBarrels(game, enemy, enemy.ta, 22, enemy.dmg, [[0, 0]], 0.2);
+      enemy.face = enemy.ta;
       enemy.st = 0;
       enemy.t = 3 + game.rng.next() * 1.2;
+      return true;
     }
   }
-  enemy.face = turnToward(enemy.face, enemy.st === 1 ? enemy.ta : ang, 8 * dt);
+  enemy.face = enemy.st === 1 ? enemy.ta : turnToward(enemy.face, ang, 8 * dt);
   return true;
 }
 
@@ -440,14 +459,17 @@ function updateTurret(game, enemy, dt, ctx) {
     enemy.face = enemy.ta;
     enemy.t2 -= dt;
     if (enemy.t2 <= 0) {
-      const mx = enemy.x + Math.cos(enemy.ta) * 0.7,
-        my = enemy.y + Math.sin(enemy.ta) * 0.7;
-      for (const off of enemy.elite ? [-0.14, 0, 0.14] : [-0.08, 0.08]) {
-        game.shoot(mx, my, enemy.ta + off, 19, enemy.dmg * 0.9, {
-          kind: "watchTower",
-          r: 0.21,
-        });
-      }
+      const volley = enemy.elite
+        ? [
+            [-1, -0.14],
+            [-1, 0],
+            [1, 0.14],
+          ]
+        : [
+            [-1, -0.08],
+            [1, 0.08],
+          ];
+      fireBarrels(game, enemy, enemy.ta, 19, enemy.dmg * 0.9, volley, 0.21);
       // 3.2m radial brass shock-ring around the anchored belfry
       game.hazard({
         x: enemy.x,
@@ -457,8 +479,6 @@ function updateTurret(game, enemy, dt, ctx) {
         dmg: enemy.dmg * 0.65,
         kind: "stomp",
       });
-      enemy.recoilT = 0.25;
-      game.emit("eshot", { x: enemy.x, y: enemy.y, type: "watchTower" });
       enemy.st = 0;
       enemy.t = 2.4 + game.rng.next() * 1.0;
     }
@@ -468,6 +488,7 @@ function updateTurret(game, enemy, dt, ctx) {
 
 function updateMender(game, enemy, dt, ctx) {
   const { dx, dy, dist, ang, cdx, cdy, speed } = ctx;
+  enemy.mendT = Math.max(0, (enemy.mendT || 0) - dt);
   if (dist > 13 || !enemy.los) {
     enemy.vx = cdx * speed;
     enemy.vy = cdy * speed;
@@ -501,7 +522,9 @@ function updateMender(game, enemy, dt, ctx) {
     });
     if (target) {
       target.hp = Math.min(target.maxHp, target.hp + target.maxHp * (enemy.elite ? 0.22 : 0.15));
-      game.emit("mend", { x: enemy.x, y: enemy.y, tx: target.x, ty: target.y });
+      target.healFlash = 0.36;
+      enemy.mendT = 0.4;
+      game.emit("mend", { x: enemy.x, y: enemy.y, tx: target.x, ty: target.y, type: "mossHealer" });
     }
   }
   enemy.face = turnToward(enemy.face, ang, 5 * dt);

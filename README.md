@@ -4,7 +4,7 @@ A **Tactile Cozy Diorama** 3D arena roguelite for desktop (mouse and keyboard) a
 
 [Play Riftline](https://anton037.github.io/Riftline/)
 
-Journey across six handcrafted miniature areas as a cloaked **Lantern Keeper** wielding seven bespoke arms, interactive realm relics, evolving master craft crafts, Home progression, and Journal bounties. Each realm features its own perimeter architecture, corner landmarks, boss boss, interactive hazards, wave events, tactile surface foley, and modal musical score. Complete the 20-wave expedition or venture into Endless Mode. Saves and installed game assets work offline after the first load.
+Journey across six miniature areas as a cloaked **Lantern Keeper** with seven weapons, Master Crafts, Home progression, and Journal bounties. Each area has its own landmarks, boss, traps, wave events, and music. Complete the 20-wave expedition or venture into Endless Mode. Saves and installed game assets work offline after the first load.
 
 ## Controls
 
@@ -54,10 +54,10 @@ Generated verification output belongs in the ignored `verification-output/` dire
 
 | Path | Contents |
 |---|---|
-| `src/core/` | Deterministic simulation, combat, interactive biome relics, waves, maps and saves |
+| `src/core/` | Deterministic simulation, combat, hazards, waves, maps and saves |
 | `src/data/` | Weapons, actors, biomes, crafts and progression |
 | `src/engine/` | Custom GPU-First WebGL2 Engine v2 (`std140` `FrameUniforms` UBO, stateless GPU particle/debris rings, compact 48B actor instancing, `aPartMeta` GPU sub-part animation, `256×256` GPU wake map, MSAA HDR, texel-snapped rotated-Poisson PCF shadows, frustum culling, Kawase bloom/ACES) |
-| `src/render/` | Tactile cozy diorama biome worlds, bespoke perimeters & relics, articulated Lantern Keeper, 25 GPU-animated enemies with 3D variant/elite gear, 6 multi-phase bosses and 2D HUD overlay |
+| `src/render/` | Diorama biomes and landmarks, articulated Lantern Keeper, 25 GPU-animated enemies, 6 multi-phase bosses and 2D HUD overlay |
 | `src/audio/` | Six per-biome musical arrangements, scale-tuned reward chimes, 6-biome tactile surface foley, acoustic material voices and spatial landmark soundscapes |
 | `src/ui/` | Storybook HUD, Home & Journal/Guide menus, illuminated craft cards, mobile touch and desktop keyboard/mouse |
 | `public/` | Fonts, painterly texture atlases, sound bank, app icons and asset notices |

@@ -663,9 +663,21 @@ void main() {
     albedo = mix(albedo * 0.90, albedo * 1.10, mossTuft * detailAmt);
     albedo = mix(albedo, vec3(0.015, 0.046, 0.044), clamp(bogWater * 0.66 + wakeTrack * 0.26, 0.0, 0.78) * inside);
     albedo = mix(albedo, albedo * 0.78, gridLine * 0.16 * inside);
+    // Weathered boards cross the dry ground at the wave entrance.
+    vec2 walk = p - vec2(0.0, 2.0);
+    float along = dot(walk, vec2(0.948, 0.318));
+    float across = dot(walk, vec2(-0.318, 0.948));
+    float progress = along * 1.7 + 0.5;
+    float plank = hash21(vec2(floor(progress), 17.0));
+    float edge = 0.88 + 0.15 * plank;
+    float boards = (1.0 - smoothstep(edge - 0.07, edge, abs(across))) *
+      (1.0 - smoothstep(4.15, 4.46, abs(along))) * inside;
+    float seam = smoothstep(0.03, 0.10, min(fract(progress), 1.0 - fract(progress)));
+    vec3 grain = mix(vec3(0.12, 0.083, 0.056), vec3(0.23, 0.161, 0.098), plank);
+    albedo = mix(albedo, grain * (0.44 + 0.56 * seam) * (0.80 + 0.26 * n2), boards);
     float wakeVein = vein * (1.0 + wakeGlow * 1.8) + max(0.0, ripWave) * (0.35 + 0.65 * bogWater);
-    emissive += uFloorAccent * (wakeVein * tide * (1.0 - bogWater * 0.45) * 0.20 + wakeGlow * 0.14) * inside;
-    specBoost = mix(0.05, 0.42, clamp(bogWater + wakeRip * 0.4, 0.0, 1.0) * inside);
+    emissive += uFloorAccent * (wakeVein * tide * (1.0 - bogWater * 0.45) * 0.20 + wakeGlow * 0.14) * inside * (1.0 - boards);
+    specBoost = mix(0.05, 0.42, clamp(bogWater + wakeRip * 0.4, 0.0, 1.0) * inside) * (1.0 - boards * 0.8);
 
     if (outMask > 0.001) {
       float islet = smoothstep(0.58, 0.74, n1 + smoothstep(6.8, 11.5, outDist) * 0.26);
@@ -688,13 +700,13 @@ void main() {
     albedo = mix(albedo, albedo * 0.72, gridLine * 0.28 * inside);
     float rChart = length(p);
     float brassChart = (exp(-pow((rChart - 5.5) * 8.0, 2.0)) + exp(-pow((rChart - 10.5) * 7.0, 2.0))) * inside;
-    albedo = mix(albedo, vec3(0.32, 0.22, 0.12), brassChart * 0.34);
+    albedo = mix(albedo, vec3(0.32, 0.22, 0.12), brassChart * 0.16);
     float riftMask = smoothstep(0.38, 0.72, n1);
     float riftEdge = sharedCrack;
     float rift = (1.0 - smoothstep(0.011, 0.052, riftEdge)) * (0.16 + 0.84 * riftMask);
     float starDust = smoothstep(0.93, 0.99, vnoise(p * 1.85 + vec2(1.7, -2.3))) * (0.5 + 0.5 * sin(uTime * 2.5 + n2 * 8.0));
-    emissive += mix(uFloorTrim, uFloorAccent, n2) * (rift * 0.38 * beat + max(0.0, ripWave) * 0.24) * inside;
-    emissive += (uFloorTrim * starDust * 0.15 + vec3(0.55, 0.38, 0.18) * brassChart * 0.16 * beat + uFloorAccent * wakeGlow * 0.18) * inside;
+    emissive += mix(uFloorTrim, uFloorAccent, n2) * (rift * 0.23 * beat + max(0.0, ripWave) * 0.20) * inside;
+    emissive += (uFloorTrim * starDust * 0.12 + vec3(0.55, 0.38, 0.18) * brassChart * 0.04 * beat + uFloorAccent * wakeGlow * 0.18) * inside;
     specBoost = (0.18 + wakeRip * 0.22) * inside;
 
     if (outMask > 0.001) {
@@ -733,7 +745,7 @@ void main() {
     float emberGlow = 0.78 + 0.22 * sin(uTime * 2.2 + p.x * 0.35 - p.y * 0.28);
     vec3 lavaCol = mix(vec3(0.80, 0.12, 0.015), vec3(1.32, 0.50, 0.065), smoothstep(0.24, 0.88, magma * emberGlow));
     albedo *= 1.0 - wakeTrack * 0.22 * inside;
-    emissive += (lavaCol * magma * 0.68 + vec3(1.10, 0.36, 0.05) * (wakeTrack * 0.18 + wakeGlow * 0.22)) * inside;
+    emissive += (lavaCol * magma * 0.26 + vec3(1.10, 0.36, 0.05) * (wakeTrack * 0.10 + wakeGlow * 0.15)) * inside;
     specBoost = (0.11 + wakeTrack * 0.12) * inside;
 
     if (outMask > 0.001) {

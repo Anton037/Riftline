@@ -28,7 +28,7 @@ For centre/edge/corner screenshots use `node tools/verify.js visual <tag> tablet
 
 ## Standard contracts
 
-- Node checks cover seeded finite combat for each weapon, deterministic interactive biome relics across all six biomes,
+- Node checks cover seeded finite combat for each weapon, deterministic hazard and trap placement across all six biomes,
   snapshot restoration, biome/boss/hazard references, upgrade data, release notes, atmosphere budgeting, static mesh
   bounds, `freezeStatic()` zero-matrix-update invariants, O(1) GPU particle ring expiration, 3D variant/elite gear
   bounds, and the 1,800-triangle enemy / 6,500-triangle hero & boss kit budgets (`aPartMeta` GPU sub-part channels

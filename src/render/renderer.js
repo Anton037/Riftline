@@ -31,7 +31,6 @@ import { ActorEffectsView } from "./actor-effects-view.js";
 import { TrapView } from "./traps-view.js";
 import { BossCardView } from "./boss-cards-view.js";
 import { HazardView } from "./hazards-view.js";
-import { BiomePropsView } from "./biome-props-view.js";
 import { AttackView, MARK_LOOK } from "./attacks-view.js";
 import { ArenaView, RL_BIOME_LOOK, RL_BIOME_TINT, rlAmbient, rlSkinParticles } from "./arena-view.js";
 import {
@@ -59,7 +58,7 @@ import {
 } from "./materials.js";
 import { FINISH } from "./palette.js";
 
-import { BOSS_EFFECTS, WEAPON_EFFECTS } from "../data/combat-effects.js";
+import { BOSS_EFFECTS, WEAPON_EFFECTS, enemyMuzzlePoint } from "../data/combat-effects.js";
 import { actorMaterial } from "../data/materials.js";
 import { AMBIENT_POOL_SHARE } from "../data/atmosphere.js";
 import { enemyDefs, eliteAffixes, bossDefs, biomeVariants } from "../data/enemies.js";
@@ -325,7 +324,6 @@ export class Renderer {
     this.trapView = new TrapView(this, InstancePool);
     this.bossCardView = new BossCardView(this, InstancePool);
     this.hazardView = new HazardView(this, InstancePool);
-    this.biomePropsView = new BiomePropsView(this);
     this.attackView = new AttackView(this, InstancePool);
 
     this._needsResize = true;
@@ -781,49 +779,7 @@ export class Renderer {
     const sorted = this._flashSort;
     sorted.length = 0;
     for (let i = 0; i < flashes.length; i++) sorted.push(flashes[i]);
-    let lanternRelief = 0;
     const player = world?.player;
-
-    // Nearby active biome props / braziers / lanterns
-    const props = world?.arena?.props;
-    if (props && props.length) {
-      this._lanternLights ||= [
-        { x: 0, z: 0, r: 4.8, i: 0, col: hexColor(0xffcf78) },
-        { x: 0, z: 0, r: 4.8, i: 0, col: hexColor(0xffcf78) },
-        { x: 0, z: 0, r: 4.8, i: 0, col: hexColor(0xffcf78) },
-      ];
-      let li = 0;
-      const propLightColors = {
-        lantern: hexColor(0xffcf78),
-        rime: hexColor(0x9ce6ff),
-        puffball: healColor,
-        iceCrystal: hexColor(0xc8a4ff),
-        crucible: hexColor(0xff8c42),
-        sunglass: hexColor(0xffe092),
-      };
-      for (const prop of props) {
-        if (li >= 3) break;
-        const activeAura = prop.auraT > 0;
-        const col = propLightColors[prop.kind];
-        const glowingProp = !prop.dead && !!col;
-        if (!activeAura && !glowingProp) continue;
-        if (player && Math.hypot(player.x - prop.x, player.y - prop.y) > 16) continue;
-        const fade = activeAura ? Math.min(1, prop.auraT / 1.0) : 0.62;
-        const ll = this._lanternLights[li++];
-        ll.x = prop.x;
-        ll.y = 1.15;
-        ll.z = prop.y;
-        ll.r = activeAura ? 4.6 : 3.4;
-        ll.i = activeAura ? 1.15 * fade : 0.68;
-        ll.col = col || hexColor(0xffcf78);
-        sorted.push(ll);
-        if (player && activeAura) {
-          const d = Math.hypot(player.x - prop.x, player.y - prop.y);
-          if (d < 6.5) lanternRelief = Math.max(lanternRelief, (1 - d / 6.5) * 0.68 * fade);
-        }
-      }
-    }
-
     // Living Guardian boss core point light
     if (world?.boss && !world.boss.dead && !world.boss.ghost) {
       const b = world.boss;
@@ -915,7 +871,7 @@ export class Renderer {
       lights[0].intensity = 0;
     }
 
-    // Slots 1..7: strongest 7 active combat flashes, biome braziers, boss core & major projectiles
+    // Slots 1..7: strongest 7 active combat flashes, boss core & major projectiles
     for (let i = 0; i < 7; i++) {
       const f = sorted[i];
       const slot = lights[i + 1];
@@ -936,7 +892,7 @@ export class Renderer {
     const warm = this.rlWarmK || 0;
     this.scene.darkness = this.rlDarkK || 0;
     if (warm > 0) {
-      this.scene.hemiIntensity *= 1 + 0.14 * warm + 0.12 * lanternRelief;
+      this.scene.hemiIntensity *= 1 + 0.14 * warm;
       this.scene.fillIntensity *= 1 + 0.22 * warm;
     }
   }
@@ -1677,7 +1633,8 @@ export class Renderer {
             this.ring(ev.x, ev.y, 0.5, ev.r || 6, mend, 0.5);
             this.burst(ev.x, ev.y, 1, 10, 2, mend, 0.5, 0.15, { up: 2 });
           } else {
-            this.line(ev.x, ev.y, ev.tx, ev.ty, mend, 0.35, 0.07, 0.9, 0.14);
+            this.line(ev.x, ev.y, ev.tx, ev.ty, mend, 0.38, 0.14, 1.35, 0.24);
+            this.ring(ev.tx, ev.ty, 0.35, 1.5, mend, 0.34);
             this.burst(ev.tx, ev.ty, 0.8, 6, 2, mend, 0.4, 0.14, { up: 2 });
           }
           break;
@@ -1708,9 +1665,6 @@ export class Renderer {
           this.flash(ev.x, ev.y, 2.6, 1, ember, 2);
           break;
         }
-        case "biomeProp":
-          this.biomePropsView.consume(ev);
-          break;
         case "erupt":
           if (world?.arena?.biome?.id === "lanternYard") {
             const brass = hexColor(FINISH.brass);
@@ -1923,7 +1877,6 @@ export class Renderer {
     for (const pool of pools) pool.begin();
     for (const pool of this.trapView.list) pool.begin();
     for (const pool of this.hazardView.list) pool.begin();
-    for (const pool of this.biomePropsView.list) pool.begin();
     for (const pool of this.attackView.list) pool.begin();
     for (const pool of this.weaponView.list) pool.begin();
     for (const pool of this.abilityView.list) pool.begin();
@@ -1950,7 +1903,6 @@ export class Renderer {
     for (const pool of this.weaponView.list) pool.end();
     for (const pool of this.abilityView.list) pool.end();
     for (const pool of this.hazardView.list) pool.end();
-    for (const pool of this.biomePropsView.list) pool.end();
     for (const pool of this.trapView.list) pool.end();
     for (const pool of pools) pool.end();
     for (const type in this.enemyPools) {
@@ -2289,6 +2241,15 @@ export class Renderer {
         scale *= 1 + enemy.flash * 0.16;
         scaleY *= 1 - enemy.flash * 0.2;
       }
+      if (enemy.type === "brassGuard" && enemy.st === 1) {
+        scaleY *= 1 - 0.11 * clamp((0.45 - enemy.t2) / 0.18, 0, 1);
+        pitch = 0;
+      }
+      const mendPulse = enemy.mendT > 0 ? Math.sin(Math.PI * clamp(enemy.mendT / 0.4, 0, 1)) : 0;
+      if (mendPulse > 0) {
+        lift += mendPulse * 0.32;
+        scaleY *= 1 + mendPulse * 0.12;
+      }
       if (enemy.type === "starGhost" && enemy.ghost) {
         scale *= 0.86;
         scaleY *= 1.12;
@@ -2414,7 +2375,7 @@ export class Renderer {
         actionK,
       );
 
-      let glowK = 1.05;
+      let glowK = 1.05 + mendPulse * 0.72;
       if (
         (["brassGuard", "longshot", "wildBoar", "burrowMole", "starSpider", "crystalTower"].includes(enemy.type) &&
           enemy.st === 1) ||
@@ -2634,8 +2595,10 @@ export class Renderer {
           { drag: 1 },
         );
 
-      if (enemy.type === "longshot" && enemy.st === 1)
-        this.aimLine(world, enemy.x, enemy.y, enemy.ta, enemy.t2 < 0.35, 1 - enemy.t2 / 1.25);
+      if (enemy.type === "longshot" && enemy.st === 1) {
+        const muzzle = enemyMuzzlePoint(enemy, enemy.ta, 0);
+        this.aimLine(world, muzzle.x, muzzle.y, enemy.ta, enemy.t2 < 0.35, 1 - enemy.t2 / 1.25);
+      }
       if (enemy.type === "ironGolem" && enemy.st === 1)
         this.chargeLine(enemy.x, enemy.y, enemy.ta, 9.5, 1.7, 1 - enemy.t2 / 0.8);
       if (enemy.type === "bogHopper" && enemy.st === 1)
@@ -2646,20 +2609,26 @@ export class Renderer {
         this.discs.colC(this.discs.y(enemy.x, 0.04, enemy.y, 0, 2.6 * k), warnColor, 0.28);
       }
       if (enemy.type === "brassGuard" && enemy.st === 1) {
-        this.sprites.colC(
-          this.sprites.bb(
-            enemy.x + Math.cos(enemy.face) * 0.95,
-            0.62,
-            enemy.y + Math.sin(enemy.face) * 0.95,
-            0.5 + (1 - enemy.t2 / 0.45) * 0.9,
-            basis,
-          ),
-          pools.color,
-          1,
-        );
+        const barrels = enemy.elite ? [-1, 1] : [enemy.barrel ?? -1];
+        for (const side of barrels) {
+          const muzzle = enemyMuzzlePoint(enemy, angle, side);
+          this.sprites.colC(
+            this.sprites.bb(
+              muzzle.x,
+              lift + (muzzle.height * scaleY) / (enemy.r / enemy.def.r),
+              muzzle.y,
+              0.5 + (1 - enemy.t2 / 0.45) * 0.8,
+              basis,
+            ),
+            pools.color,
+            0.86,
+          );
+        }
       }
-      if (enemy.type === "watchTower" && enemy.st === 1)
-        this.aimLine(world, enemy.x, enemy.y, enemy.ta, enemy.t2 < 0.22, 1 - enemy.t2 / 0.62);
+      if (enemy.type === "watchTower" && enemy.st === 1) {
+        const muzzle = enemyMuzzlePoint(enemy, enemy.ta, 0);
+        this.aimLine(world, muzzle.x, muzzle.y, enemy.ta, enemy.t2 < 0.22, 1 - enemy.t2 / 0.58);
+      }
       if (enemy.type === "wildBoar" && enemy.st === 1)
         this.chargeLine(enemy.x, enemy.y, enemy.ta, 9.5, 1.35, 1 - enemy.t2 / 0.48);
       if (enemy.type === "burrowMole" && enemy.st === 1)
@@ -2874,15 +2843,6 @@ export class Renderer {
         this.rlHazardErr = true;
       }
     }
-    try {
-      this.biomePropsView.draw(dt, world);
-    } catch (err) {
-      if (!this.rlBiomePropErr) {
-        logError("biomeProps", err);
-        this.rlBiomePropErr = true;
-      }
-    }
-
     for (const marker of world.markers) {
       const k = clamp(marker.t / marker.dur, 0, 1);
       const color = marker.fake

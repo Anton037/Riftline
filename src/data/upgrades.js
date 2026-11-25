@@ -116,7 +116,7 @@ const upgradeList = [
     max: 2,
     icon: "fireBellows",
     desc: (level, count = level + 1) =>
-      `Triggering a realm relic, dashing near a hazard, or taking hazard damage grants +${count === 1 ? 25 : 45}% fire rate for 4.5 s and +${count === 1 ? 12 : 18}% Fire Burst charge`,
+      `Set off a charging bell or vent, dash near an active hazard, or take hazard damage for +${count === 1 ? 25 : 45}% fire rate for 4.5 s and +${count === 1 ? 12 : 18}% Fire Burst charge`,
   },
   {
     id: "shieldPulse",

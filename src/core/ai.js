@@ -699,11 +699,8 @@ function updateBoss(game, boss, dt) {
                 : ["starSpider", "starGhost", "blinkBlade", "starSpider"];
           const room = Math.max(0, 74 - game.enemies.length - game.markers.length);
           types = types.slice(0, room);
-          for (const type of types) {
-            const spot = game.arena.freePoint(game.rng, player.x, player.y, 7, 1);
-            game.markers.push({ x: spot.x, y: spot.y, t: 0, dur: 1, type, elite: false, done: false, boss: boss.type });
-          }
-          game.emit("portal", { x: boss.x, y: boss.y, n: types.length, src: "starHeart" });
+          const placed = types.filter((type) => game.queueEnemySpawn(type, { dur: 1, boss: boss.type })).length;
+          if (placed) game.emit("portal", { x: boss.x, y: boss.y, n: placed, src: "starHeart" });
         }
         if (boss.t > 1) endBossAttack(boss, 1.2);
         return;
@@ -1075,13 +1072,12 @@ function bossReinforce(game, boss) {
   if (game.enemies.length > 60) return;
   const count = 2 + Math.min(3, Math.floor((boss.tier || 0) / 2)),
     biome = game.arena.biome.id;
+  let placed = 0;
   for (let k = 0; k < count; k++) {
-    const spot = game.arena.freePoint(game.rng, game.player.x, game.player.y, 7, 1.2);
-    if (!spot) continue;
     const type = game.championType(biome, game.wave, game.rng);
-    game.markers.push({ x: spot.x, y: spot.y, t: 0, dur: 1.3, type, elite: false, done: false, boss: boss.type });
+    if (game.queueEnemySpawn(type, { dur: 1.3, boss: boss.type })) placed++;
   }
-  game.emit("portal", { x: boss.x, y: boss.y, n: count, src: boss.type });
+  if (placed) game.emit("portal", { x: boss.x, y: boss.y, n: placed, src: boss.type });
 }
 
 /* The six Guardian Crescendo attacks (CRESCENDO / OVERDRIVE) */
@@ -1495,15 +1491,12 @@ function spawnSunglassSpires(game, boss) {
   if (!arena || !arena.obs) return;
   // Remove excess expired or old spires so at most 4 exist
   arena.obs = arena.obs.filter((ob) => !ob.glassSpire);
+  const reserved = [...game.placementReservations(), ...game.enemies.filter((enemy) => !enemy.dead), game.player];
   for (const side of [-1, 1]) {
     const a = (boss.ta || 0) + side * (Math.PI * 0.55),
       sx = clamp(boss.x + Math.cos(a) * 3.4, -arena.W + 2.2, arena.W - 2.2),
       sy = clamp(boss.y + Math.sin(a) * 3.4, -arena.H + 2.2, arena.H - 2.2);
-    if (
-      Math.hypot(sx - boss.x, sy - boss.y) > boss.r + 1.0 &&
-      Math.hypot(sx - game.player.x, sy - game.player.y) > game.player.r + 1.1 &&
-      !arena.blocked(sx, sy, 0.9)
-    ) {
+    if (arena.clearForPlacement(sx, sy, 1.1, reserved)) {
       arena.obs.push({ t: "c", x: sx, y: sy, r: 0.72, glassSpire: true, life: 6.0 });
     }
   }

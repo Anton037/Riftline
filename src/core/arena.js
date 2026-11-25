@@ -30,15 +30,6 @@ const Arena = class {
     // 3.53.0: the Sun Dunes' dust devils - the first hazards that move (World steps them)
     this.devils = (features.devils || []).map((devil) => ({ ...devil }));
     this.flow = new FlowField(this);
-    this.props = placeBiomeProps(this);
-  }
-  resetProps() {
-    if (!this.props) return;
-    for (const prop of this.props) {
-      prop.cd = 0;
-      prop.fuse = 0;
-      prop.auraT = 0;
-    }
   }
   ventState(vent, time) {
     let cycle = (time + vent.phase) % vent.period,
@@ -194,21 +185,46 @@ const Arena = class {
     };
     for (let vent of this.vents) if (near(vent.x, vent.y, vent.r, 0.7)) return true;
     for (let patch of this.ice) if (near(patch.x, patch.y, patch.r, 0.45)) return true;
-    for (let puddle of this.acid) if (near(puddle.x, puddle.y, puddle.r, 0.55)) return true;
+    for (const puddle of this.acid) if (near(puddle.x, puddle.y, featureRadius(puddle), 0.55)) return true;
     for (let devil of this.devils || []) if (near(devil.x, devil.y, devil.r, 0.55)) return true;
-    for (let portal of this.portals)
+    for (const portal of this.portals) {
       if (near(portal.ax, portal.ay, 1, 0.45) || near(portal.bx, portal.by, 1, 0.45)) return true;
+      if (
+        portal.next &&
+        (near(portal.next.ax, portal.next.ay, 1, 0.45) || near(portal.next.bx, portal.next.by, 1, 0.45))
+      )
+        return true;
+    }
     return false;
   }
-  freePoint(rng, x, y, minDist, rad = 1) {
+  clearForPlacement(x, y, radius, reserved = []) {
+    return (
+      !this.outside(x, y, radius) &&
+      !this.blocked(x, y, radius) &&
+      !this.featureBlocked(x, y, radius) &&
+      circlesClear(x, y, radius, reserved)
+    );
+  }
+  nearbyPoint(x, y, radius, reach, reserved, turn = 0) {
+    for (let i = 0; i < 36; i++) {
+      const angle = turn + i * 2.399963;
+      const distance = reach * Math.sqrt(i / 35);
+      const px = x + Math.cos(angle) * distance;
+      const py = y + Math.sin(angle) * distance;
+      if (this.clearForPlacement(px, py, radius, reserved)) return { x: px, y: py };
+    }
+    return null;
+  }
+  freePoint(rng, x, y, minDist, rad = 1, reserved = []) {
     let best = null,
       bestScore = -1e9,
       far = null,
       farDist = -1;
+    const inset = Math.max(1.5, rad + 0.4);
     for (let k = 0; k < 72; k++) {
-      let px = rng.range(-this.W + 1.5, this.W - 1.5),
-        py = rng.range(-this.H + 1.5, this.H - 1.5);
-      if (this.blocked(px, py, rad + 0.4) || this.featureBlocked(px, py, rad * 0.3)) continue;
+      let px = rng.range(-this.W + inset, this.W - inset),
+        py = rng.range(-this.H + inset, this.H - inset);
+      if (!this.clearForPlacement(px, py, rad + 0.4, reserved)) continue;
       let dx = px - x,
         dy = py - y,
         d2 = dx * dx + dy * dy,
@@ -226,33 +242,26 @@ const Arena = class {
       }
     }
     if (best) return best;
-    for (let corner of [
-      [0, -this.H + 2],
-      [0, this.H - 2],
-      [-this.W + 2, 0],
-      [this.W - 2, 0],
-      [-this.W + 2, -this.H + 2],
-      [this.W - 2, -this.H + 2],
-      [-this.W + 2, this.H - 2],
-      [this.W - 2, this.H - 2],
-    ]) {
-      if (this.blocked(corner[0], corner[1], rad + 0.4) || this.featureBlocked(corner[0], corner[1], rad * 0.3))
-        continue;
-      let dist = Math.hypot(corner[0] - x, corner[1] - y);
-      if (dist >= minDist) return { x: corner[0], y: corner[1] };
-      if (dist > farDist) {
+    // A bounded scan catches narrow gaps the random sample missed. Every fallback still needs clearance.
+    for (let py = -this.H + inset; py <= this.H - inset; py += 2)
+      for (let px = -this.W + inset; px <= this.W - inset; px += 2) {
+        const dist = Math.hypot(px - x, py - y);
+        if (dist <= farDist || !this.clearForPlacement(px, py, rad + 0.4, reserved)) continue;
         farDist = dist;
-        far = { x: corner[0], y: corner[1] };
+        far = { x: px, y: py };
       }
-    }
-    if (far) return far;
-    const px = x > 0 ? -this.W + 2 : this.W - 2,
-      py = y > 0 ? -this.H + 2 : this.H - 2;
-    return this.blocked(px, py, rad + 0.1) || this.featureBlocked(px, py, rad * 0.1)
-      ? { x: 0, y: 0 }
-      : { x: px, y: py };
+    return far;
   }
 };
+
+function circlesClear(x, y, radius, spots) {
+  return spots.every((spot) => (spot.x - x) ** 2 + (spot.y - y) ** 2 >= (radius + spot.r) ** 2);
+}
+
+function featureRadius(feature) {
+  return Math.max(feature.r ?? 0.8, feature.grow?.to ?? 0);
+}
+
 function segmentHitsBox(x0, y0, x1, y1, minX, minY, maxX, maxY) {
   let tMin = 0,
     tMax = 1,
@@ -785,12 +794,7 @@ function rlAddWaveObstacles(layout, biome, seed, wave, boss) {
         cand = rng.chance(0.45)
           ? { t: "c", x, y, r: rng.range(0.58, 1.0) }
           : { t: "b", x, y, w: rng.range(0.6, 1.25), h: rng.range(0.6, 1.25) };
-      if (
-        !canPlaceObstacle(cand, obs, layout.W, layout.H) ||
-        obs.some((ob) => obstacleDistance(cand, ob) < OBSTACLE_GAP) ||
-        featureOverlap(cand)
-      )
-        continue;
+      if (!canPlaceObstacle(cand, obs, layout.W, layout.H) || featureOverlap(cand)) continue;
       const next = obs.concat(cand);
       if (!isConnected(next, layout.W, layout.H)) continue;
       placed = cand;
@@ -1153,59 +1157,6 @@ function placeFeatures(rng, biomeId, obs, W, H) {
   return features;
 }
 
-const BIOME_PROP_SPEC = {
-  lanternYard: { kind: "lantern", maxCd: 7.5 },
-  snowRidge: { kind: "rime", maxCd: 7.5 },
-  mossBog: { kind: "puffball", maxCd: 7.0 },
-  starHall: { kind: "iceCrystal", maxCd: 6.5 },
-  emberHill: { kind: "crucible", maxCd: 8.5 },
-  sunDunes: { kind: "sunglass", maxCd: 7.0 },
-};
-
-function placeBiomeProps(arena) {
-  const spec = BIOME_PROP_SPEC[arena.biome?.id] || BIOME_PROP_SPEC.lanternYard;
-  const rng = makeRng(hashString(`${arena.key}:cozy-props`));
-  const props = [];
-  const rad = 0.56;
-  const baseTurn = rng.next() * TAU;
-  for (let slot = 0; slot < 3; slot++) {
-    let best = null,
-      bestScore = -1e9;
-    const prefAngle = baseTurn + (slot / 3) * TAU;
-    for (let tries = 0; tries < 56; tries++) {
-      const ang = prefAngle + rng.range(-0.62, 0.62);
-      const reach = Math.min(arena.W - 2.6, arena.H - 2.6);
-      if (reach < 4.2) break;
-      const dist = rng.range(Math.max(4.6, reach * 0.48), Math.max(5.2, reach * 0.86));
-      const px = clamp(Math.cos(ang) * dist, -(arena.W - 2.6), arena.W - 2.6);
-      const py = clamp(Math.sin(ang) * dist, -(arena.H - 2.6), arena.H - 2.6);
-      if (Math.hypot(px, py - 2) < 5.0 || Math.hypot(px, py) < 3.8) continue;
-      if (arena.blocked(px, py, rad + 0.85) || arena.featureBlocked(px, py, 0.85)) continue;
-      if (props.some((p) => Math.hypot(p.x - px, p.y - py) < 5.4)) continue;
-      const wallRoom = Math.min(arena.W - Math.abs(px), arena.H - Math.abs(py));
-      const score = Math.min(4.5, wallRoom) * 0.8 - Math.abs(angleDiff(Math.atan2(py, px), prefAngle)) * 1.4;
-      if (score > bestScore) {
-        bestScore = score;
-        best = { x: Math.round(px * 100) / 100, y: Math.round(py * 100) / 100 };
-      }
-    }
-    if (best) {
-      props.push({
-        id: slot,
-        kind: spec.kind,
-        x: best.x,
-        y: best.y,
-        r: rad,
-        cd: 0,
-        maxCd: spec.maxCd,
-        fuse: 0,
-        auraT: 0,
-      });
-    }
-  }
-  return props;
-}
-
 export { placeObstacles, mapTemplates, hitsObstacle, Arena, buildLayout, SpatialHash };
 
 // ---- 2.5.0 C: stronger biomes. A hazard wave now has about five hazards (was ~3.3), each about
@@ -1226,10 +1177,12 @@ const RL_HAZARD_OBS_GAP_250 = 0.95,
 function rlHazardTaken250(features) {
   const taken = [];
   for (const k of ["vents", "ice", "acid", "devils"])
-    for (const hz of features[k] || []) taken.push({ x: hz.x, y: hz.y, r: hz.r || 0.8 });
+    for (const hz of features[k] || []) taken.push({ x: hz.x, y: hz.y, r: featureRadius(hz) });
   for (const portal of features.portals || []) {
     taken.push({ x: portal.ax, y: portal.ay, r: 1.4 });
     taken.push({ x: portal.bx, y: portal.by, r: 1.4 });
+    if (portal.next)
+      taken.push({ x: portal.next.ax, y: portal.next.ay, r: 1.4 }, { x: portal.next.bx, y: portal.next.by, r: 1.4 });
   }
   return taken;
 }
@@ -1249,7 +1202,7 @@ function rlHazardPoint250(rng, obs, W, H, features, size, opt = {}) {
     if (Math.abs(x) > W - 2.6 - rad || Math.abs(y) > H - 2.6 - rad) continue;
     if (hitsObstacle(obs, x, y, rad + RL_HAZARD_OBS_GAP_250)) continue;
     if (taken.some((spot) => Math.hypot(x - spot.x, y - spot.y) < rad + spot.r + RL_HAZARD_LANE_250)) continue;
-    if (avoid.some((spot) => Math.hypot(x - spot.x, y - spot.y) < rad + spot.r)) continue;
+    if (!circlesClear(x, y, rad, avoid)) continue;
     return { x, y, r: rad };
   }
   return null;
@@ -1276,20 +1229,19 @@ function rlAddHazard250(features, kind, rng, obs, W, H, opt = {}) {
 // One more portal pair: both ends 7.1+ from the spawn, 2.3 off obstacles, inside the safe bounds,
 // 4.4 from every other portal end and 7.4 apart (the diagnostics ask for 7.0 and 4.0).
 function rlPortalPair250(rng, obs, W, H, features, opt = {}) {
-  const used = [];
-  for (const portal of features.portals || [])
-    used.push({ x: portal.ax, y: portal.ay }, { x: portal.bx, y: portal.by });
+  const used = rlHazardTaken250(features);
   const avoid = opt.avoid || [],
     ok = (pt) =>
       Math.abs(pt.x) <= W - 3.6 &&
       Math.abs(pt.y) <= H - 3.6 &&
       !hitsObstacle(obs, pt.x, pt.y, 2.3) &&
       Math.hypot(pt.x - spawnZone.x, pt.y - spawnZone.y) > 7.1 &&
-      used.every((spot) => Math.hypot(pt.x - spot.x, pt.y - spot.y) >= 4.4) &&
-      avoid.every((spot) => Math.hypot(pt.x - spot.x, pt.y - spot.y) >= spot.r);
+      circlesClear(pt.x, pt.y, 3, used) &&
+      circlesClear(pt.x, pt.y, 1.4, avoid);
+  const reach = opt.avoid ? 13.5 : 10.5;
   let endA = null;
   for (let k = 0; k < 96 && !endA; k++) {
-    const dist = rng.range(7.4, 10.5),
+    const dist = rng.range(7.4, reach),
       angle = rng.next() * TAU,
       cand = { x: spawnZone.x + Math.cos(angle) * dist, y: spawnZone.y + Math.sin(angle) * dist };
     if (ok(cand)) {
@@ -1299,7 +1251,7 @@ function rlPortalPair250(rng, obs, W, H, features, opt = {}) {
   if (!endA) return null;
   const back = Math.atan2(endA.y - spawnZone.y, endA.x - spawnZone.x) + Math.PI;
   for (let k = 0; k < 96; k++) {
-    const dist = rng.range(7.4, 10.5),
+    const dist = rng.range(7.4, reach),
       angle = back + rng.range(-0.9, 0.9),
       endB = { x: spawnZone.x + Math.cos(angle) * dist, y: spawnZone.y + Math.sin(angle) * dist };
     if (ok(endB) && Math.hypot(endB.x - endA.x, endB.y - endA.y) >= Math.max(7.4, Math.max(W, H) * 0.6))
@@ -1316,6 +1268,15 @@ function rlHazardRoom250(arena, hazard, want) {
     arena.H - 1.6 - Math.abs(hazard.y),
     Math.hypot(hazard.x - spawnZone.x, hazard.y - spawnZone.y) - spawnZone.r,
   );
+  for (const kind of ["vents", "ice", "acid", "devils"]) {
+    for (const other of arena[kind]) {
+      if (other === hazard) continue;
+      rad = Math.min(
+        rad,
+        Math.hypot(other.x - hazard.x, other.y - hazard.y) - featureRadius(other) - RL_HAZARD_LANE_250,
+      );
+    }
+  }
   while (rad > hazard.r && hitsObstacle(arena.obs, hazard.x, hazard.y, rad + 0.85)) rad -= 0.05;
   return Math.max(hazard.r, rad);
 }

@@ -47,7 +47,7 @@ const waveEvents = {
   festival: {
     id: "festival",
     name: "Lantern Festival",
-    desc: "Lanterns make you fire faster · bells ring in order · shards +25%",
+    desc: "Shock pads fire in sequence · shards +25%",
     shardMul: 1.25,
     biome: "lanternYard",
     plan: {},

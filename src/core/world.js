@@ -22,7 +22,7 @@ import { upgradesById, upgradeList } from "../data/upgrades.js";
 import { Arena, buildLayout, SpatialHash, rlAddHazard250 } from "./arena.js";
 import { computeStats } from "./stats.js";
 import { BURST_WINDOW, burstFraction, endlessHpBoost } from "./difficulty.js";
-import { rlPlanTraps, rlUpdateTraps, rlShootTrap, TRAP_FROM } from "./traps.js";
+import { rlPlanTraps, rlUpdateTraps, rlShootTrap, trapFootprints, TRAP_FROM } from "./traps.js";
 import { walkStep } from "./walk.js";
 import {
   bossCardOffer,
@@ -46,9 +46,6 @@ import {
   courtyardBellPulse,
   overpressureFumarole,
   updateFeatures,
-  triggerBiomeProp,
-  fireBiomeProp,
-  updateBiomeProps,
   updateHazards,
   startBiomeEvent,
   tickBiomeEvent,
@@ -57,6 +54,11 @@ import {
 function rlCacheShards(world, value) {
   return Math.round(value * Math.max(1, world.stats.cacheValue || 1));
 }
+
+function enemySpawnRadius({ type, elite, champion }) {
+  return (enemyDefs[type]?.r ?? 0.8) * (elite ? 1.3 : 1) * (champion ? 1.3 : 1);
+}
+
 const RL_HAZARD_SRC = new Set(["lava", "shock", "acid", "trap", "devil"]);
 const SHORT_R = 1.6,
   SHORT_DELAY = 1.1;
@@ -326,10 +328,6 @@ const rlStep = 1 / 60,
     // `nova`: the saved charge of a resumed run (null for a new wave); `resumed`: the wave is rebuilt
     // from a snapshot of its start, so it gets the same caches and bonus group as the first time
     startWave(wave, fireBurst, resumed = false) {
-      // 2.5.0 C: an arena changed by a biome event is never reused (startWave of the same wave again)
-      if (this.arena && this.arena.rlEvent) {
-        this.arena.key += ":used";
-      }
       this.bioEv = null;
       // 2.5.0 B: a fresh run (not a resumed one: that passes its saved Nova charge) gets its Starter
       // Kit before the first wave is set up, so shield or HP upgrades from the kit count from the start
@@ -359,12 +357,8 @@ const rlStep = 1 / 60,
           ahead = this.nextLayout && this.nextLayout.wave === wave ? this.nextLayout : null,
           layout = ahead ? ahead.layout : buildLayout(biome, this.seed, wave, wave === 1 || !!this.bossFor(wave));
         this.nextLayout = null;
-        if (!this.arena || this.arena.key !== layout.key) {
-          this.arena = ahead ? ahead.arena : new Arena(biome, layout);
-          this.hash = ahead ? ahead.hash : new SpatialHash(layout.W, layout.H, 2.5);
-        } else {
-          this.arena.resetProps?.();
-        }
+        this.arena = ahead ? ahead.arena : new Arena(biome, layout);
+        this.hash = ahead ? ahead.hash : new SpatialHash(layout.W, layout.H, 2.5);
         this.enemies = [];
         this.pb = [];
         this.eb = [];
@@ -373,6 +367,7 @@ const rlStep = 1 / 60,
         this.hazards = [];
         this.markers = [];
         this.trails = [];
+        this.traps = [];
         resetBossCards(this);
         this.boss = null;
         this.combo = 0;
@@ -435,6 +430,8 @@ const rlStep = 1 / 60,
           }
         }
         this.event = this.eventFor(wave);
+        const eventDef = this.event && waveEvents[this.event];
+        if (!boss && eventDef?.biome === biome.id) this.startBiomeEvent(this.event, wave);
         this.rainT = 1.5;
         this.champion = null;
         let champRng = makeRng(hashString(this.seed + ":champ:" + wave));
@@ -462,6 +459,7 @@ const rlStep = 1 / 60,
         this.waveMode = mode;
         this.waveIntensity = director?.intensity || 0;
         const fresh = fireBurst == null || resumed;
+        const reserved = trapFootprints(this.traps);
         if (fresh && !this.bossPending && !this.boss && wave >= 2) {
           const count = wave % 6 === 0 ? 2 : 1;
           for (let i = 0; i < count; i++) {
@@ -471,6 +469,7 @@ const rlStep = 1 / 60,
               player.y,
               6.2,
               0.35,
+              reserved,
             );
             if (!spot) continue;
             const value = this.rng.chance(0.12) ? 25 : this.rng.chance(0.35) ? 10 : 5,
@@ -480,6 +479,7 @@ const rlStep = 1 / 60,
             pickup.vy = 0;
             pickup.cache = true;
             this.pickups.push(pickup);
+            reserved.push({ ...spot, r: 0.8 });
           }
         }
         if (fresh && !this.bossPending && !this.boss && wave >= 2) {
@@ -490,7 +490,7 @@ const rlStep = 1 / 60,
             (wave % 9 === 0 ? 1 : 0);
           const cacheRng = makeRng(hashString(this.seed + ":cache22:" + wave));
           for (let i = 0; i < extra; i++) {
-            const spot = this.arena.freePoint(cacheRng, player.x, player.y, 6.2, 0.35);
+            const spot = this.arena.freePoint(cacheRng, player.x, player.y, 6.2, 0.35, reserved);
             if (!spot) continue;
             const kind = cacheRng.chance(0.18) ? "heal" : "shard",
               value = kind === "heal" ? 20 : rlCacheShards(this, 5);
@@ -499,6 +499,7 @@ const rlStep = 1 / 60,
             pickup.vy = 0;
             pickup.cache = true;
             this.pickups.push(pickup);
+            reserved.push({ ...spot, r: 0.8 });
           }
           const bonusPool =
             {
@@ -528,11 +529,6 @@ const rlStep = 1 / 60,
       }
       if (given && given.length) {
         this.emit("kit", { ids: given });
-      }
-      // 2.5.0 C: the biome event of this wave
-      const eventDef = this.event && waveEvents[this.event];
-      if (eventDef && eventDef.biome && eventDef.biome === this.arena.biome.id && !this.bossPending) {
-        this.startBiomeEvent(this.event, wave);
       }
       // 2.2.3: run monitor (only the live run's world is observed; self-test and snapshot-check
       // worlds are ignored by identity)
@@ -1002,7 +998,6 @@ const rlStep = 1 / 60,
           this.updateTrails(dt);
           updateBossCards(this, dt);
           this.updatePBullets(dt);
-          this.updateBiomeProps(dt);
           // 3.31.0: Chrono Dash slows the enemies' world, not the player's own Gravity Bell
           this.updateSingularities(dt);
           this.updateEBullets(slowDt);
@@ -1226,7 +1221,6 @@ const rlStep = 1 / 60,
         }
         if (player.tractionT > 0) baseGrip = Math.max(baseGrip, 18);
         if (player.gildT > 0) player.gildT = Math.max(0, player.gildT - dt);
-        if (player.festT > 0) player.festT = Math.max(0, player.festT - dt);
         const mudMul = player.hopT > 0 ? 1 : this.arena.biome.mud || 1;
         const hopMul = (player.hopT > 0 ? 1.15 : 1) * (player.gildT > 0 ? 1.14 : 1) * (player.leylineT > 0 ? 1.25 : 1);
         let grip = dampFactor(baseGrip, dt),
@@ -1272,21 +1266,12 @@ const rlStep = 1 / 60,
       }
       player.firing = firing;
       player.manual = manual;
-      let lanternWarm = false;
-      if (this.arena?.props?.length) {
-        for (const prop of this.arena.props) {
-          if (prop.kind === "lantern" && prop.auraT > 0 && Math.hypot(player.x - prop.x, player.y - prop.y) <= 4.4) {
-            lanternWarm = true;
-            break;
-          }
-        }
-      }
       let rate =
         stats.weapon.rate *
         stats.rateMul *
         (1 + (stats.killStreak ? 0.04 * player.rushN : 0)) *
         (player.gildT > 0 ? 1.2 : 1) *
-        (player.festT > 0 ? 1.25 : lanternWarm ? 1.15 : 1);
+        (player.festT > 0 ? 1.25 : 1);
       player.fireT -= dt;
       if (firing && aim != null) {
         let shots = 0;
@@ -1968,25 +1953,30 @@ const rlStep = 1 / 60,
       return enemy;
     }
     spawnBoss(id) {
+      const { arena, player } = this;
+      const def = bossDefs[id];
+      const preferredY = (arena.H - 5) * (player.y < 0 ? 1 : -1);
+      const reserved = this.enemySpawnReservations();
+      const spot =
+        arena.nearbyPoint(0, preferredY, def.r + 0.4, 7.5, reserved) ||
+        arena.freePoint(this.rng, player.x, player.y, 9, def.r, reserved);
+      if (!spot) return null;
       // 2.8.1: an Endless boss starts from the wave-20 hull (it used to start from its own base hull, so the
       // Bellkeeper at wave 30 had less than the boss at wave 20) and grows like the regular enemies, plus 10%
       // for every Endless boss so far
       const hpCurve = (wave) => 1 + 0.085 * (wave - 1) + 0.0058 * (wave - 1) * (wave - 1);
-      let def = bossDefs[id],
-        hp = this.endless
+      const hp = this.endless
           ? BOSS_SLOT_HP[3] *
             this.tm.boss *
             0.9 *
             (hpCurve(this.wave) / hpCurve(20)) *
             (1 + 0.1 * Math.max(0, Math.floor((this.wave - 20) / 5)))
           : def.hp * this.tm.boss * 0.9 * (1 + (this.wave > 20 ? (this.wave - 20) * 0.08 : 0)),
-        arena = this.arena,
         boss = {
           id: this.nextId++,
           type: id,
           def: def,
-          x: 0,
-          y: -arena.H + 5,
+          ...spot,
           vx: 0,
           vy: 0,
           kx: 0,
@@ -2023,9 +2013,6 @@ const rlStep = 1 / 60,
           noDrop: false,
           pattern: 0,
         };
-      if (this.player.y < 0) {
-        boss.y = arena.H - 5;
-      }
       initBoss(this, boss);
       // 3.3.0: the tier of a boss is the number of bosses before it in this run (wave 5: 0, wave 10: 1 …); a higher
       // tier rests less between its attacks (down to 60 %)
@@ -2066,9 +2053,6 @@ const rlStep = 1 / 60,
       if (enemy.frostT > 0) enemy.frostT = Math.max(0, enemy.frostT - dt);
       if (enemy.slowT > 0) {
         enemy.slowT -= dt;
-      }
-      if (enemy.weakenT > 0) {
-        enemy.weakenT = Math.max(0, enemy.weakenT - dt);
       }
       if (enemy.corrodeT > 0) {
         enemy.corrodeT = Math.max(0, enemy.corrodeT - dt);
@@ -2286,9 +2270,6 @@ const rlStep = 1 / 60,
           const g = Math.max(enemy.glazeMul || 0, stats.glazeMul || 0) || 0.2;
           const gb = Math.max(enemy.glazeMul ? 0.15 : 0, stats.glazeBossMul || 0) || 0.12;
           dmg *= 1 + (enemy.boss ? gb : g);
-        }
-        if (enemy.weakenT > 0) {
-          dmg *= enemy.boss ? 1.12 : 1.25;
         }
         if (enemy.chimeVulnT > 0) {
           dmg *= 1.25;
@@ -2888,8 +2869,8 @@ const rlStep = 1 / 60,
             segLen2 = segDx * segDx + segDy * segDy;
           for (const vent of arena.vents) {
             const cycleId = Math.floor((this.waveT + vent.phase) / vent.period);
-            const warn = arena.ventState(vent, this.waveT) === "warn" || (isCourtyard && vent.bossTollT > 0);
-            if (vent.rungCycle === cycleId || !warn) continue;
+            const bossCharge = isCourtyard && vent.bossTollT > 0;
+            if (!bossCharge && (vent.rungCycle === cycleId || arena.ventState(vent, this.waveT) !== "warn")) continue;
             const along =
               segLen2 > 1e-8 ? clamp(((vent.x - prevX) * segDx + (vent.y - prevY) * segDy) / segLen2, 0, 1) : 0;
             const cx = prevX + segDx * along - vent.x,
@@ -2909,38 +2890,6 @@ const rlStep = 1 / 60,
             sx = bullet.x + bullet.vx * dt * frac,
             sy = bullet.y + bullet.vy * dt * frac;
           this.hash.query(sx, sy, bullet.r + 0.8, (enemy) => this.probeHit(bullet, enemy, sx, sy, starSpear));
-        }
-        if (this.state === "fight" && !bullet.prismBoost && arena.props && arena.props.length) {
-          for (const prop of arena.props) {
-            if (prop.kind === "iceCrystal" && prop.auraT > 0) {
-              const dx = bullet.x - prop.x,
-                dy = bullet.y - prop.y;
-              if (dx * dx + dy * dy <= 20.25) {
-                bullet.prismBoost = true;
-                bullet.dmg *= 1.25;
-                break;
-              }
-            }
-          }
-        }
-        if (this.state === "fight" && !bullet.propHit && arena.props && arena.props.length) {
-          const segDx = bullet.x - prevX,
-            segDy = bullet.y - prevY,
-            segLen2 = segDx * segDx + segDy * segDy;
-          for (const prop of arena.props) {
-            if (prop.cd > 0 || prop.fuse > 0) continue;
-            const along =
-              segLen2 > 1e-8 ? clamp(((prop.x - prevX) * segDx + (prop.y - prevY) * segDy) / segLen2, 0, 1) : 0;
-            const cx = prevX + segDx * along - prop.x,
-              cy = prevY + segDy * along - prop.y,
-              hitR = prop.r + bullet.r + 0.1;
-            if (cx * cx + cy * cy <= hitR * hitR) {
-              bullet.propHit = true;
-              this.triggerBiomeProp(prop);
-              this.emit("spark", { x: prop.x, y: prop.y, w: bullet.w });
-              break;
-            }
-          }
         }
         if (hitWall && bullet.life > 0 && bullet.bounce === bounces && bullet.back === back) {
           if (bullet.boom && !bullet.back) {
@@ -3327,52 +3276,29 @@ const rlStep = 1 / 60,
     courtyardBellPulse(vent, friendly) {
       courtyardBellPulse(this, vent, friendly);
     }
-    triggerBiomeProp(prop) {
-      return triggerBiomeProp(this, prop);
-    }
-    fireBiomeProp(prop) {
-      fireBiomeProp(this, prop);
-    }
-    updateBiomeProps(dt) {
-      updateBiomeProps(this, dt);
-    }
     updateEBullets(dt) {
-      let player = this.player,
-        arena = this.arena,
-        props = arena.props;
+      const player = this.player,
+        arena = this.arena;
       for (let bullet of this.eb)
         if (!(bullet.life <= 0)) {
-          let bDt = dt;
-          if (props && props.length) {
-            for (const prop of props) {
-              if (prop.kind === "iceCrystal" && prop.auraT > 0) {
-                const dx = bullet.x - prop.x,
-                  dy = bullet.y - prop.y;
-                if (dx * dx + dy * dy <= 20.25) {
-                  bDt = dt * 0.42;
-                  break;
-                }
-              }
-            }
-          }
           bullet.life -= dt;
           bullet.age += dt;
           if (bullet.homing && bullet.age > 0.3 && bullet.age < 2.4 && player.alive) {
             let heading = Math.atan2(bullet.vy, bullet.vx),
               speed = Math.hypot(bullet.vx, bullet.vy),
-              angle = turnToward(heading, Math.atan2(player.y - bullet.y, player.x - bullet.x), bullet.homing * bDt);
+              angle = turnToward(heading, Math.atan2(player.y - bullet.y, player.x - bullet.x), bullet.homing * dt);
             bullet.vx = Math.cos(angle) * speed;
             bullet.vy = Math.sin(angle) * speed;
           }
           if (bullet.accel) {
-            bullet.vx *= 1 + bullet.accel * bDt;
-            bullet.vy *= 1 + bullet.accel * bDt;
+            bullet.vx *= 1 + bullet.accel * dt;
+            bullet.vy *= 1 + bullet.accel * dt;
           }
           // Sweep fast Endless shots through walls and the player, rather than testing only the endpoint.
-          const steps = Math.max(1, Math.ceil((Math.hypot(bullet.vx, bullet.vy) * bDt) / 0.2));
+          const steps = Math.max(1, Math.ceil((Math.hypot(bullet.vx, bullet.vy) * dt) / 0.2));
           for (let step = 0; step < steps && bullet.life > 0; step++) {
-            bullet.x += (bullet.vx * bDt) / steps;
-            bullet.y += (bullet.vy * bDt) / steps;
+            bullet.x += (bullet.vx * dt) / steps;
+            bullet.y += (bullet.vy * dt) / steps;
             if (
               arena.outside(bullet.x, bullet.y, -0.5) ||
               (bullet.solid !== false && arena.blocked(bullet.x, bullet.y, bullet.r * 0.4))
@@ -3432,6 +3358,7 @@ const rlStep = 1 / 60,
         solid: opts.solid,
         src: opts.src || this._src,
         frost: this._var === "frost",
+        launchHeight: opts.launchHeight,
       };
       this.eb.push(bullet);
       return bullet;
@@ -3806,6 +3733,37 @@ const rlStep = 1 / 60,
         }
       }
     }
+    placementReservations(exceptTrap) {
+      return [
+        ...trapFootprints(this.traps, exceptTrap),
+        ...this.markers.filter((marker) => !marker.done).map((marker) => ({ ...marker, r: enemySpawnRadius(marker) })),
+        ...this.pickups
+          .filter((pickup) => !pickup.dead && (pickup.cache || pickup.nectar))
+          .map((pickup) => ({ x: pickup.x, y: pickup.y, r: 0.8 })),
+        ...this.burnPools.filter((pool) => pool.hostile && pool.life > 0),
+      ];
+    }
+    enemySpawnReservations() {
+      return [
+        ...this.placementReservations(),
+        ...this.enemies.filter((enemy) => !enemy.dead),
+        { x: this.player.x, y: this.player.y, r: 5.7 },
+      ];
+    }
+    queueEnemySpawn(type, { elite = false, champion = false, dur = 0.95, boss } = {}) {
+      const radius = enemySpawnRadius({ type, elite, champion });
+      const spot = this.arena.freePoint(
+        this.rng,
+        this.player.x,
+        this.player.y,
+        champion ? 9 : 7.5,
+        radius,
+        this.enemySpawnReservations(),
+      );
+      if (!spot) return false;
+      this.markers.push({ ...spot, t: 0, dur, type, elite, champion, boss, done: false });
+      return true;
+    }
     updateMarkers(dt) {
       for (let marker of this.markers) {
         marker.t += dt;
@@ -3837,81 +3795,61 @@ const rlStep = 1 / 60,
         this.stragglerT += dt;
         if (this.stragglerT > 6.5) for (let enemy of this.enemies) enemy.hunt = true;
       } else this.stragglerT = 0;
-      if (this.bossPending && this.waveT > 1.6) {
-        let id = this.bossPending;
-        this.bossPending = null;
-        this.spawnBoss(id);
-      }
+      if (this.bossPending && this.waveT > 1.6 && this.spawnBoss(this.bossPending)) this.bossPending = null;
       // Gold Cart: spawns a marching Treasure Automaton once per gilded wave
       if (this.event === "goldCart" && !this.caravan && !this.bossPending && !this.boss && this.waveT >= 2.0) {
-        const dir = this.rng.chance(0.5) ? 1 : -1,
-          cx = -dir * (this.arena.W - 2.2),
-          cy = this.rng.range(-this.arena.H * 0.4, this.arena.H * 0.4),
-          auto = this.spawnEnemy("supplyKite", cx, cy, { elite: true, hpF: 0.7, noVariant: true });
-        auto.caravan = true;
-        auto.spawnT = 0.4;
-        this.caravan = { enemy: auto, dir, dropT: 0.9, done: false };
-        this.emit("spawn", { x: cx, y: cy, type: "supplyKite", elite: true });
+        const { arena, rng } = this;
+        const reserved = this.enemySpawnReservations();
+        const r = enemySpawnRadius({ type: "supplyKite", elite: true }) + 0.4;
+        const dir = rng.chance(0.5) ? 1 : -1;
+        const cx = -dir * (arena.W - 2.2);
+        for (let attempt = 0; attempt < 12; attempt++) {
+          const cy = rng.range(-arena.H * 0.4, arena.H * 0.4);
+          if (!arena.clearForPlacement(cx, cy, r, reserved)) continue;
+          const auto = this.spawnEnemy("supplyKite", cx, cy, { elite: true, hpF: 0.7, noVariant: true });
+          auto.caravan = true;
+          auto.spawnT = 0.4;
+          this.caravan = { enemy: auto, dir, dropT: 0.9, done: false };
+          this.emit("spawn", { x: cx, y: cy, type: "supplyKite", elite: true });
+          break;
+        }
       }
       if (this.championPending && this.waveT > 5 && !this.hold) {
-        let spot = this.arena.freePoint(this.rng, this.player.x, this.player.y, 9, 1.6);
-        this.markers.push({
-          x: spot.x,
-          y: spot.y,
-          t: 0,
-          dur: 1.6,
-          type: this.championPending,
-          elite: true,
-          champion: true,
-          done: false,
-        });
-        this.championPending = null;
+        if (this.queueEnemySpawn(this.championPending, { elite: true, champion: true, dur: 1.6 })) {
+          this.championPending = null;
+        }
       }
       if (this.planIdx >= this.plan.length || this.hold) return;
       this.groupT -= dt;
       let crowd = this.enemies.length + this.markers.length,
         cap = Math.min(70, 26 + Math.round(this.wave * 2.5));
       if (this.groupT > 0 || crowd >= cap) return;
-      let group = this.plan[this.planIdx++];
-      this.groupT = group.gap;
-      let player = this.player,
-        portal = this.arena.freePoint(this.rng, player.x, player.y, 8.5, 1.2),
-        placed = [];
-      for (let i = 0; i < group.members.length; i++) {
-        let spawnX = portal.x,
-          spawnY = portal.y,
-          angle = this.rng.next() * TAU + i * 2.399963;
-        for (let j = 0; j < 12; j++) {
-          let dist =
-              0.55 +
-              Math.min(1.7, 1 + group.members.length * 0.12) * Math.sqrt((i + 0.6) / Math.max(1, group.members.length)),
-            dir = angle + this.rng.range(-0.35, 0.35),
-            tryX = portal.x + Math.cos(dir) * dist,
-            tryY = portal.y + Math.sin(dir) * dist;
-          if (
-            !this.arena.blocked(tryX, tryY, 0.8) &&
-            !this.arena.outside(tryX, tryY, 1) &&
-            !this.arena.featureBlocked(tryX, tryY, 0.25) &&
-            Math.hypot(tryX - player.x, tryY - player.y) >= 6.5 &&
-            placed.every((other) => Math.hypot(tryX - other.x, tryY - other.y) >= 0.9)
-          ) {
-            spawnX = tryX;
-            spawnY = tryY;
-            break;
-          }
-        }
-        placed.push({ x: spawnX, y: spawnY });
-        this.markers.push({
-          x: spawnX,
-          y: spawnY,
-          t: 0,
-          dur: 0.95,
-          type: group.members[i].type,
-          elite: group.members[i].elite,
-          done: false,
-        });
+      const { arena, player, rng } = this;
+      const group = this.plan[this.planIdx];
+      const reserved = this.enemySpawnReservations();
+      const first = group.placed || 0;
+      const portal = arena.freePoint(rng, player.x, player.y, 8.5, enemySpawnRadius(group.members[first]), reserved);
+      this.groupT = 0.3;
+      if (!portal) return;
+      const turn = rng.next() * TAU;
+      let i = first;
+      for (; i < group.members.length && crowd + i - first < cap; i++) {
+        const member = group.members[i];
+        const r = enemySpawnRadius(member);
+        const spot =
+          arena.nearbyPoint(portal.x, portal.y, r + 0.4, 4.9, reserved, turn) ||
+          arena.freePoint(rng, player.x, player.y, 8.5, r, reserved);
+        if (!spot) break;
+        reserved.push({ ...spot, r });
+        this.markers.push({ ...spot, ...member, t: 0, dur: 0.95, done: false });
       }
-      this.emit("portal", { x: portal.x, y: portal.y, n: group.members.length });
+      if (i > first) this.emit("portal", { ...portal, n: i - first });
+      if (i === group.members.length) {
+        this.planIdx++;
+        this.groupT = group.gap;
+      } else {
+        group.placed = i;
+      }
     }
     sweep() {
       if (this.enemies.some((enemy) => enemy.dead)) {

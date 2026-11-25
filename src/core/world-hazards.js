@@ -355,7 +355,7 @@ function updateFeatures(world, dt) {
       } else {
         player.acidT = 0.35;
       }
-      // Refresh corrodeT to 0.25s while standing in an acid pool — NEVER wipe out longer trap/prop/glaze corrodeT!
+      // A pool refreshes corrosion without shortening ongoing corrosion from traps or crafts.
       for (const enemy of world.enemies) {
         if (!enemy.boss && arena.inAcid(enemy.x, enemy.y)) {
           enemy.corrodeT = Math.max(enemy.corrodeT || 0, 0.25);
@@ -461,7 +461,7 @@ function updateFeatures(world, dt) {
         if (vent.bossTollT > 0) vent.bossTollT = Math.max(0, vent.bossTollT - dt);
         const cycleId = Math.floor((world.waveT + vent.phase) / vent.period);
         const state = arena.ventState(vent, world.waveT);
-        if ((courtyardBell || calderaFumarole) && vent.rungCycle === cycleId) {
+        if ((courtyardBell || calderaFumarole) && vent.rungCycle === cycleId && !(vent.bossTollT > 0)) {
           vent.st = "idle";
           continue;
         }
@@ -611,175 +611,6 @@ function updateFeatures(world, dt) {
   }
 }
 
-function triggerBiomeProp(world, prop) {
-  if (!prop || prop.cd > 0 || prop.fuse > 0) return false;
-  if (prop.kind === "crucible") {
-    prop.fuse = 0.6;
-    world.emit("biomeProp", { kind: "crucible", state: "arm", x: prop.x, y: prop.y, r: 4.2 });
-    return true;
-  }
-  fireBiomeProp(world, prop);
-  return true;
-}
-
-function fireBiomeProp(world, prop) {
-  const x = prop.x,
-    y = prop.y,
-    dmgMul = world.stats.dmgMul || 1;
-  prop.fuse = 0;
-  prop.cd = prop.maxCd || 7;
-  triggerHeatSink(world);
-  world.triggerHitstop?.(0.022);
-  if (prop.kind === "lantern") {
-    prop.auraT = 5.0;
-    const r = 4.4,
-      near = [];
-    world.hash.query(x, y, r, (enemy) => {
-      if (enemy.dead || enemy.ghost) return;
-      const d = Math.hypot(enemy.x - x, enemy.y - y) - enemy.r;
-      if (d <= r) near.push({ enemy, d });
-    });
-    near.sort((a, b) => a.d - b.d || a.enemy.id - b.enemy.id);
-    for (let i = 0; i < Math.min(3, near.length); i++) {
-      const enemy = near[i].enemy;
-      world.hurtEnemy(enemy, 32 * dmgMul, enemy.x - x, enemy.y - y, 1.5, false, "prop");
-      if (!enemy.dead && !enemy.boss && !enemy.shielded) {
-        enemy.slowT = Math.max(enemy.slowT, 1.35);
-        world.emit("stun", { x: enemy.x, y: enemy.y });
-      }
-      world.emit("chain", { pts: [x, y, enemy.x, enemy.y], arc: true });
-    }
-    world.emit("biomeProp", { kind: "lantern", state: "fire", x, y, r });
-  } else if (prop.kind === "rime") {
-    const r = 4.0;
-    world.player.tractionT = Math.max(world.player.tractionT || 0, 3.8);
-    if (world.player.slowT > 0 && world.player.slowKind === "chill") world.player.slowT = 0;
-    world.hash.query(x, y, r, (enemy) => {
-      if (enemy.dead || enemy.ghost || Math.hypot(enemy.x - x, enemy.y - y) > r + enemy.r) return;
-      world.hurtEnemy(enemy, 26 * dmgMul, enemy.x - x, enemy.y - y, 1.8, false, "prop");
-      if (!enemy.dead && !enemy.shielded) {
-        enemy.slowT = Math.max(enemy.slowT, 2.8);
-        world.emit("freeze", { x: enemy.x, y: enemy.y });
-      }
-    });
-    world.emit("biomeProp", { kind: "rime", state: "fire", x, y, r });
-  } else if (prop.kind === "puffball") {
-    const r = 4.2;
-    world.player.hopT = Math.max(world.player.hopT || 0, 2.8);
-    if (world.player.slowT > 0) world.player.slowT = 0;
-    world.hash.query(x, y, r, (enemy) => {
-      if (enemy.dead || enemy.ghost || Math.hypot(enemy.x - x, enemy.y - y) > r + enemy.r) return;
-      world.hurtEnemy(enemy, 20 * dmgMul, enemy.x - x, enemy.y - y, 2.2, false, "prop");
-      if (!enemy.dead && !enemy.shielded) {
-        enemy.slowT = Math.max(enemy.slowT, 3.0);
-        if (!enemy.boss) {
-          enemy.corrodeT = Math.max(enemy.corrodeT || 0, 3.5);
-          enemy.corrode = true;
-        }
-      }
-    });
-    world.emit("biomeProp", { kind: "puffball", state: "fire", x, y, r });
-  } else if (prop.kind === "iceCrystal") {
-    prop.auraT = 3.0;
-    const r = 4.5,
-      near = [];
-    for (const enemy of world.enemies) {
-      if (enemy.dead || enemy.ghost) continue;
-      const d = Math.hypot(enemy.x - x, enemy.y - y) - enemy.r;
-      if (d <= 9.5) near.push({ enemy, d });
-    }
-    near.sort((a, b) => a.d - b.d || a.enemy.id - b.enemy.id);
-    for (let i = 0; i < Math.min(2, near.length); i++) {
-      const enemy = near[i].enemy;
-      world.hurtEnemy(enemy, 38 * dmgMul, enemy.x - x, enemy.y - y, 1.6, false, "prop");
-      world.emit("chain", { pts: [x, y, enemy.x, enemy.y], arc: false });
-    }
-    world.emit("biomeProp", { kind: "iceCrystal", state: "fire", x, y, r });
-  } else if (prop.kind === "crucible") {
-    const r = 4.2;
-    world.hash.query(x, y, r, (enemy) => {
-      if (enemy.dead || enemy.ghost || Math.hypot(enemy.x - x, enemy.y - y) > r + enemy.r) return;
-      world.hurtEnemy(enemy, 44 * dmgMul, enemy.x - x, enemy.y - y, 2.8, false, "prop");
-      if (!enemy.dead && !enemy.shielded) {
-        enemy.weakenT = Math.max(enemy.weakenT || 0, 4.5);
-        enemy.burnT = Math.max(enemy.burnT || 0, 2.4);
-        enemy.burnDps = Math.max(enemy.burnDps || 0, 14 * dmgMul);
-        enemy.burnSrc = "prop";
-      }
-    });
-    world.emit("biomeProp", { kind: "crucible", state: "fire", x, y, r });
-  } else if (prop.kind === "sunglass") {
-    const r = 4.8;
-    let aim = world.player.aim || 0,
-      best = 1e9;
-    world.hash.query(x, y, 12, (enemy) => {
-      if (enemy.dead || enemy.ghost) return;
-      const d = Math.hypot(enemy.x - x, enemy.y - y);
-      if (d < best) {
-        best = d;
-        aim = Math.atan2(enemy.y - y, enemy.x - x);
-      }
-    });
-    if (world.arena.devils) {
-      for (const devil of world.arena.devils) {
-        if (Math.hypot(devil.x - x, devil.y - y) <= r + devil.r + 1.5) {
-          devil.calmT = Math.max(devil.calmT || 0, 5.0);
-        }
-      }
-    }
-    world.hash.query(x, y, r, (enemy) => {
-      if (enemy.dead || enemy.ghost || Math.hypot(enemy.x - x, enemy.y - y) > r + enemy.r) return;
-      world.hurtEnemy(enemy, 28 * dmgMul, enemy.x - x, enemy.y - y, 2.4, false, "prop");
-    });
-    for (let k = -2; k <= 2; k++) {
-      if (world.pb.length >= 420) break;
-      const a = aim + k * 0.17;
-      world.pb.push({
-        id: world.nextId++,
-        x,
-        y,
-        vx: Math.cos(a) * 30,
-        vy: Math.sin(a) * 30,
-        a,
-        r: 0.18,
-        dmg: 22 * dmgMul,
-        life: 0.65,
-        pierce: 2,
-        bounce: 0,
-        hits: [],
-        w: "starSpear",
-        age: 0,
-        homing: 0,
-      });
-    }
-    world.emit("biomeProp", { kind: "sunglass", state: "fire", x, y, r });
-  }
-}
-
-function updateBiomeProps(world, dt) {
-  const props = world.arena?.props;
-  if (!props || !props.length) return;
-  const player = world.player,
-    dashing = player.alive && player.dashT > 0 && world.state === "fight";
-  for (const prop of props) {
-    if (prop.cd > 0) prop.cd = Math.max(0, prop.cd - dt);
-    if (prop.auraT > 0) prop.auraT = Math.max(0, prop.auraT - dt);
-    if (prop.fuse > 0) {
-      prop.fuse -= dt;
-      if (prop.fuse <= 0) fireBiomeProp(world, prop);
-      continue;
-    }
-    if (dashing && prop.cd <= 0) {
-      const dx = player.x - prop.x,
-        dy = player.y - prop.y,
-        hitR = prop.r + player.r + 0.58;
-      if (dx * dx + dy * dy <= hitR * hitR) {
-        triggerBiomeProp(world, prop);
-      }
-    }
-  }
-}
-
 function updateHazards(world, dt) {
   const player = world.player;
   // Include hazard.kind === "frost" alongside "glacier" || hazard.chill so Frost Prism frostnova actually chills!
@@ -906,7 +737,7 @@ function startBiomeEvent(world, id, wave) {
   const arena = world.arena,
     player = world.player,
     rng = makeRng(hashString(world.seed + ":biome-event:" + eventSeedId(id) + ":" + wave)),
-    avoid = [{ x: player.x, y: player.y, r: 3.5 }],
+    avoid = [{ x: player.x, y: player.y, r: 3.5 }, ...world.placementReservations()],
     add = (kind, count, size) => {
       for (let k = 0; k < count * 3 && count > 0; k++) {
         if (rlAddHazard250(arena, kind, rng, arena.obs, arena.W, arena.H, { avoid, cap: 9, size, tries: 60 })) {
@@ -914,7 +745,6 @@ function startBiomeEvent(world, id, wave) {
         }
       }
     };
-  arena.rlEvent = id;
   if (id === "sandstorm") {
     add("devils", 3);
     world.bioEv = { id, t: 0 };
@@ -962,14 +792,7 @@ function tickBiomeEvent(world, event, dt) {
   const arena = world.arena,
     player = world.player;
   event.t += dt;
-  if (event.id === "festival" && arena.props) {
-    for (const prop of arena.props) {
-      if (prop.kind === "lantern" && Math.hypot(player.x - prop.x, player.y - prop.y) < 4.2) {
-        player.festT = Math.max(player.festT || 0, 1.5);
-        break;
-      }
-    }
-  } else if (event.id === "hotWind") {
+  if (event.id === "hotWind") {
     world.addNova(2.0 * dt);
     for (const vent of arena.vents) {
       if (vent.st === "warn" || vent.st === "erupt") {
@@ -1003,10 +826,7 @@ function tickBiomeEvent(world, event, dt) {
     }
     if (event.t >= event.next && event.n < 4) {
       event.next += RL_NECTAR_EVERY;
-      const avoid = [
-          { x: player.x, y: player.y, r: 4 },
-          ...world.markers.map((marker) => ({ x: marker.x, y: marker.y, r: 1.2 })),
-        ],
+      const avoid = [{ x: player.x, y: player.y, r: 4 }, ...world.placementReservations()],
         pool = rlAddHazard250(arena, "acid", event.rng, arena.obs, arena.W, arena.H, {
           avoid,
           cap: 10,
@@ -1018,7 +838,7 @@ function tickBiomeEvent(world, event, dt) {
         pool.grow = { r0: 0.3, to: pool.r, t0: event.t, dur: 2.5, ph: rlTidePhase(pool.x, pool.y) };
         pool.r = 0.3;
         world.emit("hatch", { x: pool.x, y: pool.y, big: true });
-        const nectarSpot = arena.freePoint(event.rng, pool.x, pool.y, 2.6, 0.45);
+        const nectarSpot = arena.freePoint(event.rng, pool.x, pool.y, 2.6, 0.45, avoid);
         if (nectarSpot) {
           const globe = world.mkPickup("heal", nectarSpot.x, nectarSpot.y, 8);
           globe.vx = 0;
@@ -1048,18 +868,13 @@ function tickBiomeEvent(world, event, dt) {
     }
     if (!event.planned && event.t >= event.next - RL_HARMONIC_WARN) {
       event.planned = true;
-      const next = { portals: [] };
+      const avoid = [{ x: player.x, y: player.y, r: 3.5 }, ...world.placementReservations()];
       for (const portal of arena.portals) {
-        const avoid = [
-            { x: player.x, y: player.y, r: 3.5 },
-            { x: portal.ax, y: portal.ay, r: 3 },
-            { x: portal.bx, y: portal.by, r: 3 },
-          ],
-          pair = rlPortalPair250(event.rng, arena.obs, arena.W, arena.H, next, { avoid });
+        const pair = rlPortalPair250(event.rng, arena.obs, arena.W, arena.H, arena, { avoid });
         portal.next = pair;
         if (pair) {
-          next.portals.push(pair);
           world.emit("blinkWarn", { x: pair.ax, y: pair.ay });
+          world.emit("blinkWarn", { x: pair.bx, y: pair.by });
         }
       }
     }
@@ -1103,9 +918,6 @@ export {
   courtyardBellPulse,
   overpressureFumarole,
   updateFeatures,
-  triggerBiomeProp,
-  fireBiomeProp,
-  updateBiomeProps,
   updateHazards,
   startBiomeEvent,
   tickBiomeEvent,

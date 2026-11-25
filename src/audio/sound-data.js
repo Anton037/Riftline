@@ -17,15 +17,6 @@ export const RL_BIOME_SPARK = {
   sunDunes: "sparkFlats",
 };
 
-export const RL_PROP_VOICE = {
-  lantern: "propLantern",
-  rime: "propRime",
-  puffball: "propPuffball",
-  iceCrystal: "propPrism",
-  crucible: "propCrucible",
-  sunglass: "propSunglass",
-};
-
 /* 2.7.0: each of the 25 enemy types dies with a voice of its family. 5.0.0: eleven tactile families so
    clockwork kettle-kin (dClockwork) and arcane constructs (dConstruct) stand apart from armour, flesh,
    electric drones and ghosts. Bosses and champions keep "bigkill". */
@@ -205,12 +196,6 @@ export const SFX_ROOM = {
   aGlass: 0.28,
   aFire: 0.15,
   aShort: 0.2,
-  propLantern: 0.22,
-  propRime: 0.3,
-  propPuffball: 0.2,
-  propPrism: 0.32,
-  propCrucible: 0.28,
-  propSunglass: 0.26,
 };
 
 /* how much room each biome gives the sounds: the Snow Ridge and the Shattered Core are vast, the Moss Bog damp;
@@ -621,21 +606,7 @@ export function rlSoundCatalog() {
   for (const ground of ["flagstone", "frost", "ice", "mud", "glass", "acid", "crust", "sandglass"])
     add("step:" + ground, { id: "step", arg: { ground } });
   add("land:crust", { id: "land", arg: { ground: "crust" } });
-  ids([
-    "sparkCourtyard",
-    "sparkShelf",
-    "sparkMarsh",
-    "sparkCore",
-    "sparkCaldera",
-    "sparkFlats",
-    "propArm",
-    "propLantern",
-    "propRime",
-    "propPuffball",
-    "propPrism",
-    "propCrucible",
-    "propSunglass",
-  ]);
+  ids(["sparkCourtyard", "sparkShelf", "sparkMarsh", "sparkCore", "sparkCaldera", "sparkFlats"]);
   ids(["bcCage", "bcLock", "bcShatter", "bcHatch", "bcBurst", "bcImplode"]);
   for (const id of ["goldCart", "starfall", "festival", "aurora", "nectar", "starPaths", "hotWind", "sandstorm"])
     ids(["event"], id);

@@ -4,6 +4,17 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "5.2.11",
+    title: "Clearer arenas",
+    items: [
+      "Traps and enemy arrivals leave room around cover, hazards, and each other.",
+      "Shootable relics are gone, and shooting a mine clears it without leaving a hazard.",
+      "Lantern Yard has a bell workshop, and a wooden path crosses Moss Bog.",
+      "Quieter floors make warnings easier to see in Ember Hill and Star Hall.",
+      "Guard shots come from their barrels, and Moss Healers show who they’re healing.",
+    ],
+  },
+  {
     version: "5.2.10",
     title: "Safer Forge taps",
     items: ["Continuing to the Roadside Forge keeps your purchases and shards until you tap an item."],
@@ -33,16 +44,6 @@ export const WHATS_NEW = [
     items: [
       "The mobile movement stick follows long drags so you can change direction quickly.",
       "You can save either movement stick style from Button layout.",
-    ],
-  },
-  {
-    version: "5.2.6",
-    title: "Easier reward picks",
-    items: [
-      "Small touch screens show when there are more reward cards to swipe to.",
-      "Swiping keeps the offer open, and pausing or turning your phone keeps your place.",
-      "Rerolls only spend a charge when they turn up a new card.",
-      "Long Endless builds scroll separately so your reward cards stay in view.",
     ],
   },
 ];

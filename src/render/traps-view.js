@@ -34,7 +34,7 @@ const LOOK = {
   sun: { main: hex(0xff9a2e), alt: hex(0xffd27a), dust: hex(0xffe0b0) },
 };
 const ARMING = hex(FINISH.brass);
-const TRIGGER = hex(0xe8d9be);
+const TRIGGER = hex(0xffae71);
 
 const easeOut = (k) => 1 - (1 - k) * (1 - k);
 const facets = (n, fn) => Array.from({ length: n }, (_, i) => fn((i * TAU) / n, i));
@@ -767,7 +767,7 @@ export class TrapView {
     if (P.mover) P.mover.y(x, gy, z, time * (fuse ? 6 : 1.4), sc, sc, sc);
     if (armed || fuse) {
       r.sprites.colC(r.sprites.bb(x, 0.42, z, 1.15 + (fuse ? k * 0.65 : 0), r.B), col, fuse ? 0.25 + k * 0.2 : 0.14);
-      if (armed) r.ringPool.colC(r.ringPool.y(x, 0.04, z, 0, 1.5), TRIGGER, 0.12 + Math.sin(time * 3 + trap.id) * 0.03);
+      if (armed) r.ringPool.colC(r.ringPool.y(x, 0.04, z, 0, 1.5), TRIGGER, 0.55);
     }
     if (fuse) {
       this.warnRing(x, z, trap.r, k);
@@ -810,6 +810,13 @@ export class TrapView {
     if (s) {
       s.fire = 0;
       s.shat = false;
+    }
+    if (ev.shot) {
+      r.ring(x, z, 0.28, rad, WHITE, 0.33);
+      r.burst(x, z, 0.38, 16, rad * 2, look.alt, 0.5, 0.2, { spark: true, drag: 3 });
+      r.debrisBurst(x, z, 0.3, 6, look.dust, 0.11, 5);
+      r.addShake(0.11 * shakeK);
+      return;
     }
     switch (ev.skin) {
       case "plate":

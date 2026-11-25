@@ -90,6 +90,25 @@ export const ENEMY_EFFECTS = {
   healingStone: { motion: "heal" },
   starSpider: { projectile: "starSpider", shot: "eshotWeaver", height: 1.2 },
 };
+
+// Barrel openings in model space, with +X pointing forward and +Z to the side.
+export const ENEMY_MUZZLES = {
+  brassGuard: { forward: 0.96, side: 0.38, height: 0.76 },
+  longshot: { forward: 1.66, side: 0, height: 1.12 },
+  watchTower: { forward: 1.16, side: 0.24, height: 0.88 },
+};
+
+export function enemyMuzzlePoint(enemy, angle, side) {
+  const { forward, side: offset, height } = ENEMY_MUZZLES[enemy.type];
+  const scale = enemy.r / enemy.def.r,
+    c = Math.cos(angle),
+    s = Math.sin(angle);
+  return {
+    x: enemy.x + scale * (c * forward - s * offset * side),
+    y: enemy.y + scale * (s * forward + c * offset * side),
+    height: height * scale,
+  };
+}
 export const BEAM_EFFECTS = {
   magma: { warning: "bwFlame" },
   laser: { warning: "bwLaser" },
