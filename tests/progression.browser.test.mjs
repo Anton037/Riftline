@@ -408,7 +408,7 @@ test("first-run desktop onboarding keeps keyboard and mouse prompts when a touch
 
   await page.keyboard.press("Space");
   await page.waitForFunction(() => window.__riftTest.game.tut?.step === 3);
-  await page.waitForFunction(() => window.__riftTest.store.data.seen.tutorial === true, null, { timeout: 10000 });
+  await page.waitForFunction(() => window.__riftTest.store.data.seen.tutorial === true);
   assert.deepEqual(errors, []);
 });
 

@@ -14,10 +14,14 @@ import { HUD_CONTROL_IDS, HUD_LIMITS } from "../data/hud.js";
 
 export const SAVE_TEXT_LIMIT = 262_144;
 
+function isReservedKey(key) {
+  return key === "__proto__" || key === "constructor" || key === "prototype" || own(Object.prototype, key);
+}
+
 function readSaveJson(text) {
   if (typeof text !== "string" || text.length > SAVE_TEXT_LIMIT) return null;
   // Records are copied into ordinary objects. Reserved keys must never reach those assignments.
-  return JSON.parse(text.trim(), (key, value) => (own(Object.prototype, key) ? undefined : value));
+  return JSON.parse(text.trim(), (key, value) => (isReservedKey(key) ? undefined : value));
 }
 
 /* Save loading must never brick the game (2.2.2 crashed on every start once a
@@ -480,9 +484,18 @@ function cleanSave(input, recordNote = true, notesOut = null) {
   }
   save.run = cleanRun(raw.run);
   save.history = rlSanitizeHistory(raw.history);
+  let seenCount = 0;
   for (const [id, value] of Object.entries(asObject(raw.seen))) {
+    if (seenCount >= 128) break;
     const key = id.startsWith("enemy_") ? "tip_" + id : id;
-    if (value === true && (key === "tutorial" || /^(tip_|news_)[A-Za-z0-9_.-]{1,40}$/.test(key))) save.seen[key] = true;
+    if (
+      value === true &&
+      !isReservedKey(key) &&
+      (key === "tutorial" || /^(tip_|news_)[A-Za-z0-9_.-]{1,40}$/.test(key))
+    ) {
+      save.seen[key] = true;
+      seenCount++;
+    }
   }
   return save;
 }
@@ -511,8 +524,15 @@ function keptOf(raw) {
     kept = { ver: raw.ver },
     extra = (from, isKnown) => {
       const out = {};
-      for (const key of Object.keys(asObject(from))) if (KEPT_KEY.test(key) && !isKnown(key)) out[key] = from[key];
-      return Object.keys(out).length ? out : null;
+      let count = 0;
+      for (const key of Object.keys(asObject(from))) {
+        if (count >= 64) break;
+        if (KEPT_KEY.test(key) && !isReservedKey(key) && !isKnown(key)) {
+          out[key] = from[key];
+          count++;
+        }
+      }
+      return count ? out : null;
     },
     knownIn = {
       weapons: (id) => own(weaponDefs, id) || own(LEGACY_WEAPONS, id),
@@ -527,7 +547,7 @@ function keptOf(raw) {
   try {
     playable = cleanRun(raw.run);
   } catch {}
-  if (raw.run && typeof raw.run === "object" && !playable) kept.run = raw.run;
+  if (raw.run && typeof raw.run === "object" && !Array.isArray(raw.run) && !playable) kept.run = raw.run;
   return kept;
 }
 function withKept(data, kept) {

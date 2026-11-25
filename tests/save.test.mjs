@@ -386,3 +386,32 @@ test("corrupt-save backups remain readable after reload and oversized stat maps 
   assert.ok(Object.keys(parsed.data.run.takenBy).length <= 64);
   assert.ok(parsed.data.run.bossKills.length <= 256);
 });
+
+test("save parser strips reserved prototype keys and bounds seen and future-version kept maps", () => {
+  const store = new SaveStore();
+  const future = newSave();
+  future.ver = "9.0.0";
+  future.seen = {};
+  for (let i = 0; i < 180; i++) future.seen[`tip_custom_${i}`] = true;
+  future.weapons = { lanternGun: true };
+  for (let i = 0; i < 90; i++) future.weapons[`futureWeapon_${i}`] = true;
+  future.run = ["not-an-object"];
+
+  // Inject reserved keys directly into raw JSON text so JSON.parse encounters them verbatim.
+  const raw = JSON.stringify(future).replace(
+    '"weapons":{',
+    '"weapons":{"__proto__":{"polluted":true},"constructor":"bad","prototype":"bad",',
+  );
+  const parsed = store.parse(raw);
+  assert.equal(parsed.ok, true);
+  assert.equal({}.polluted, undefined);
+  assert.ok(Object.keys(parsed.data.seen).length <= 128);
+  assert.equal(Object.prototype.hasOwnProperty.call(parsed.data.weapons, "prototype"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(parsed.data.weapons, "constructor"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(parsed.data.weapons, "__proto__"), false);
+  assert.equal(parsed.kept.run, undefined);
+  assert.ok(parsed.kept.weapons);
+  assert.ok(Object.keys(parsed.kept.weapons).length <= 64);
+  assert.equal(Object.prototype.hasOwnProperty.call(parsed.kept.weapons, "prototype"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(parsed.kept.weapons, "constructor"), false);
+});

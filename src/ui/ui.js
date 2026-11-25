@@ -64,7 +64,7 @@ function rlRenderHistory() {
       const icon = run.outcome === "win" ? "trophy" : run.outcome === "quit" ? "close" : "skull",
         killer = run.outcome === "dead" ? killerName(run.killer) : "";
       const meta = [
-        threatLevels[run.threat].name,
+        threatLevels[run.threat]?.name || "Normal",
         formatTime(run.time),
         formatCount(run.kills) + " kills",
         "+" + formatCount(run.shards) + " shards",
@@ -73,8 +73,12 @@ function rlRenderHistory() {
       ]
         .filter(Boolean)
         .join(" · ");
-      const build = run.build.map((id) => upgradesById[id].name).join(" · ");
-      return `<div class="row panel hist ${run.outcome}"><div class="rico">${iconSvg(icon)}</div><div><b>${run.outcome === "win" ? "Victory" : "Wave " + run.wave}${run.endless ? " · Endless" : ""} · ${escapeHtml(weaponDefs[run.weapon].name)}</b><small>${escapeHtml(meta)}</small>${build ? `<small class="hist-build">${escapeHtml(build)}</small>` : ""}</div><span class="chip">${rlAgo(run.t)}</span></div>`;
+      const build = (run.build || [])
+        .map((id) => upgradesById[id]?.name)
+        .filter(Boolean)
+        .join(" · ");
+      const weaponName = weaponDefs[run.weapon]?.name || String(run.weapon || "Lantern Gun");
+      return `<div class="row panel hist ${run.outcome}"><div class="rico">${iconSvg(icon)}</div><div><b>${run.outcome === "win" ? "Victory" : "Wave " + run.wave}${run.endless ? " · Endless" : ""} · ${escapeHtml(weaponName)}</b><small>${escapeHtml(meta)}</small>${build ? `<small class="hist-build">${escapeHtml(build)}</small>` : ""}</div><span class="chip">${rlAgo(run.t)}</span></div>`;
     })
     .join("");
 }

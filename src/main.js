@@ -553,6 +553,7 @@ const overlay = new Overlay(elementById("ov")),
       this.startRun(world ? { weapon: world.weapon, threat: world.threat } : {});
     },
     abandon() {
+      if (!this.world || this.mode !== "game" || this.overShown) return;
       ui.hidePause();
       this.paused = false;
       this.endRun(false, true);
@@ -594,6 +595,7 @@ const overlay = new Overlay(elementById("ov")),
       this._pausedFromChoose = false;
       this._pausedFromAnvil = false;
       this._settledOverlayFrames = 0;
+      input.reset(true);
       overlay.resetCombat();
       if (renderer) renderer.clearTransient();
       ui.hideOver();
