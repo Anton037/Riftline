@@ -21,6 +21,9 @@ Journey across six miniature areas as a cloaked **Lantern Keeper** with seven we
 Mobile runs play in landscape. Move or resize the touch controls in Settings. The FPS limit defaults to 60, with
 30 and 120 also available. Press `M` to mute on desktop.
 
+On Home, choose **Off** or **Impossible** under **Arena Traps** before starting a run. Impossible brings in
+floor hunters from Wave 1 and adds earlier, faster, and harder-hitting traps through the expedition and Endless.
+
 ## Development
 
 Use Node.js 22.13+ or 24+.

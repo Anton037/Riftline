@@ -41,7 +41,7 @@ const MUTATORS = {
   MUTATOR_MAX_LEVEL = 3;
 
 /* The omens in play at `wave` ({ id: level }) and the one gained or raised at this wave (or null) */
-function rlMutatorsFor(seed, wave) {
+function rlMutatorsFor(seed, wave, traps = true) {
   const mods = {};
   if (wave < MUTATOR_FROM) return { mods, gained: null };
   const order = MUTATOR_IDS.slice(),
@@ -50,6 +50,7 @@ function rlMutatorsFor(seed, wave) {
     const j = Math.floor(rng.next() * (i + 1));
     [order[i], order[j]] = [order[j], order[i]];
   }
+  if (!traps) order.splice(order.indexOf("extraTraps"), 1);
   const steps = Math.floor((wave - MUTATOR_FROM) / MUTATOR_EVERY) + 1;
   let gained = null;
   for (let n = 0; n < steps; n++) {

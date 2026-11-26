@@ -4,6 +4,17 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "5.4.1",
+    title: "Choose your arena traps",
+    items: [
+      "Arena traps are off by default, with Impossible available alongside difficulty on Home.",
+      "Impossible brings floor hunters in from Wave 1, with mines and sweepers joining before the first boss.",
+      "Impossible traps strike harder and reset faster, with staged warnings and steadier sweeper windups.",
+      "A friendly mine chain now has a softer cue to match its teal warning ring.",
+      "Adaptive resolution responds to sustained stalls on slow graphics hardware.",
+    ],
+  },
+  {
     version: "5.4.0",
     title: "Deep mobile polish & full-game fixes",
     items: [
@@ -12,6 +23,17 @@ export const WHATS_NEW = [
       "Fixed major boss, enemy, and craft bugs across all six areas and removed remaining safe-zone cheese.",
       "Improved touch button spacing, modal tap grace, landscape phone layouts, Forge button clarity, and debuff HUD accuracy.",
       "Hardened iOS Safari audio recovery, restored missing biome wave-event soundscapes, and strengthened cross-tab and wave-clear saves.",
+    ],
+  },
+  {
+    version: "5.3.2",
+    title: "Sharper fights and clearer traps",
+    items: [
+      "Resolution now respects the display refresh rate and sharpens again after frame pacing recovers.",
+      "Mines, sweepers and floor traps take turns claiming space in crowded arenas.",
+      "Shooting a mine can set off nearby vessels with a teal fuse that only harms enemies.",
+      "Sweeper warnings stop at cover as soon as they appear.",
+      "Music recovers when you return to the game through the browser history.",
     ],
   },
   {
@@ -34,28 +56,6 @@ export const WHATS_NEW = [
       "Added desktop keyboard shortcuts for the Roadside Forge (1–3 and Enter), refined HUD spacing, and unified craft and Guide labels.",
       "Added Roadside Forge arrival and Endless shift chimes alongside smoother, click-free music and resume transitions.",
       "Hardened save parsing and corrupt-save recovery so backups stay readable after reload and oversized imports stay safely bounded.",
-    ],
-  },
-  {
-    version: "5.2.12",
-    title: "Clearer HUD and settings",
-    items: [
-      "Settings switches respond to taps on Safari, including after restoring defaults.",
-      "The performance readout sits under the pause button, clear of boss health.",
-      "Tutorial tips and combat notices take turns, and reward feedback leaves the cards clear.",
-      "If a saved touch layout covers a readout, the default buttons are used for that screen.",
-      "The wave counter shows the correct number of enemies when a group arrives in stages.",
-    ],
-  },
-  {
-    version: "5.2.11",
-    title: "Clearer arenas",
-    items: [
-      "Traps and enemy arrivals leave room around cover, hazards, and each other.",
-      "Shootable relics are gone, and shooting a mine clears it without leaving a hazard.",
-      "Lantern Yard has a bell workshop, and a wooden path crosses Moss Bog.",
-      "Quieter floors make warnings easier to see in Ember Hill and Star Hall.",
-      "Guard shots come from their barrels, and Moss Healers show who they’re healing.",
     ],
   },
 ];

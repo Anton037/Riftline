@@ -914,6 +914,31 @@ textarea::-webkit-scrollbar-thumb {
   min-width: 0;
   justify-self: center;
 }
+#home .trap-mode {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 6px 3px 10px;
+  font: 700 clamp(11px, 2.3vw, 14px)/1.25 var(--display);
+}
+#home .trap-mode button {
+  min-width: 44px;
+  min-height: 44px;
+  padding-inline: 9px;
+}
+#home .trap-mode button[value="impossible"].on {
+  color: #fff1e6;
+  background: #77352f;
+}
+@media (orientation: landscape) and (max-height: 400px) and (min-width: 540px) {
+  #home .trap-mode {
+    position: absolute;
+    inset-inline-start: 0;
+    inset-block-end: 6px;
+    width: min(245px, calc(50% - 16px));
+  }
+}
 .weapon-card {
   padding: clamp(12px, 2.1vh, 20px);
   display: flex;
@@ -4456,6 +4481,13 @@ body.device-desktop .act {
           <button id="tPrev" class="arrow small" aria-label="Lower difficulty" data-icon="back"></button>
           <div class="threat-mid"><div id="tName" class="threat-name">Normal</div><div id="tDesc" class="threat-desc"></div></div>
           <button id="tNext" class="arrow small flip" aria-label="Higher difficulty" data-icon="back"></button>
+        </div>
+        <div class="trap-mode panel" role="group" aria-labelledby="trapModeLabel">
+          <span id="trapModeLabel">Arena Traps</span>
+          <div class="seg" id="trapMode">
+            <button type="button" value="off" class="on" aria-pressed="true">Off</button>
+            <button type="button" value="impossible" aria-pressed="false" title="Earlier, faster and more damaging traps">Impossible</button>
+          </div>
         </div>
         <button id="continueBtn" class="btn primary alt" hidden></button>
         <p id="continueNote" class="note checkpoint-note" hidden>Continue restarts the saved wave from its beginning.</p>

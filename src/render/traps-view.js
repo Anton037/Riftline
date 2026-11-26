@@ -6,10 +6,11 @@ import { cylinder, octahedron, icosahedron, torus, meshPart, mergeGeometries } f
 import { worldMaterial, emissiveMaterial, hexColor } from "./materials.js";
 import { FINISH } from "./palette.js";
 import { clamp, TAU, angleDiff } from "../core/util.js";
-import { TRAP_SKINS } from "../core/traps.js";
+import { MINE_SHOT_SCALE, TRAP_SKINS } from "../core/traps.js";
 
 const WHITE = hexColor(FINISH.ivory);
 const WARN = hexColor(FINISH.vermilion);
+const FRIENDLY_FUSE = hexColor(0x80eadc);
 const tint = new Color();
 const hex = hexColor;
 const BEAM_SIDES = [-1, 1];
@@ -387,12 +388,12 @@ export class TrapView {
       this[trap.fam](trap, s, look, dt, quality, world);
     }
   }
-  warnRing(x, z, radius, k) {
+  warnRing(x, z, radius, k, color = WARN) {
     const r = this.r;
     r.shadows.y(x, 0.03, z, 0, radius * 2.6);
-    r.ringPool.colC(r.ringPool.y(x, 0.2, z, 0, radius), WARN, 0.72 + k * 0.35);
-    r.discs.colC(r.discs.y(x, 0.19, z, 0, radius * k), WARN, 0.2 + k * 0.16);
-    r.ringPool.colC(r.ringPool.y(x, 0.195, z, 0, radius * k), WARN, 0.42);
+    r.ringPool.colC(r.ringPool.y(x, 0.2, z, 0, radius), color, 0.72 + k * 0.35);
+    r.discs.colC(r.discs.y(x, 0.19, z, 0, radius * k), color, 0.2 + k * 0.16);
+    r.ringPool.colC(r.ringPool.y(x, 0.195, z, 0, radius * k), color, 0.42);
   }
   floor(trap, s, look, dt, quality) {
     const r = this.r;
@@ -733,8 +734,8 @@ export class TrapView {
     const fuse = trap.st === "fuse";
     const armed = trap.st === "armed";
     const rise = trap.st === "unarmed" ? easeOut(clamp(s.pop / 0.6, 0, 1)) : 1;
-    const fuseDur = trap.skin === "riftmine" ? 0.56 : 0.45;
-    const k = fuse ? clamp(trap.t / fuseDur, 0, 1) : 0;
+    const skin = TRAP_SKINS[trap.skin];
+    const k = fuse ? clamp(trap.t / skin.fuse, 0, 1) : 0;
     const y0 = -0.4 * (1 - rise);
     const sc = (0.7 + 0.3 * rise) * 1.28;
     const flicker = 0.88 + Math.sin(time * 13 + trap.id * 2.1) * 0.12;
@@ -744,7 +745,7 @@ export class TrapView {
       col = look.wick || look.main;
       lum = 0.72 * flicker;
     } else if (fuse) {
-      col = WARN;
+      col = trap.friendlyFuse ? FRIENDLY_FUSE : WARN;
       lum = 0.95 + k * 0.45;
     }
     let breathe = 1;
@@ -769,10 +770,10 @@ export class TrapView {
     if (P.mover) P.mover.y(x, gy, z, time * (fuse ? 6 : 1.4), sc, sc, sc);
     if (armed || fuse) {
       r.sprites.colC(r.sprites.bb(x, 0.42, z, 1.15 + (fuse ? k * 0.65 : 0), r.B), col, fuse ? 0.25 + k * 0.2 : 0.14);
-      if (armed) r.ringPool.colC(r.ringPool.y(x, 0.04, z, 0, TRAP_SKINS[trap.skin]?.trig || 2.0), TRIGGER, 0.55);
+      if (armed) r.ringPool.colC(r.ringPool.y(x, 0.04, z, 0, skin.trig), TRIGGER, 0.55);
     }
     if (fuse) {
-      this.warnRing(x, z, trap.r, k);
+      this.warnRing(x, z, trap.r * (trap.friendlyFuse ? MINE_SHOT_SCALE : 1), k, col);
       if (trap.skin === "riftmine" && Math.random() < dt * 28 * quality) {
         const a = Math.random() * TAU,
           d = trap.r * 1.15;

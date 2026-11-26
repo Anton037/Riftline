@@ -7,6 +7,35 @@ globalThis.__RL_VERSION__ ??= "test";
 globalThis.__RL_BUILD__ ??= "test";
 const { upgradeList } = await import("../src/data/upgrades.js");
 const timeout = process.env.TEST_DRAW === "1" ? 180000 : 30000;
+// The final coach card stays up for five in-game seconds. Software WebGL can take longer in wall time.
+const tutorialTimeout = { timeout: process.env.TEST_DRAW === "1" ? 45000 : 12000 };
+
+test("a short phone can opt into Impossible traps and continue the challenge offline", { timeout }, async (t) => {
+  const { page, press, errors } = await openGame(t, "phone", { viewport: { width: 667, height: 375 } });
+  const off = page.getByRole("button", { name: "Off", exact: true });
+  const impossible = page.getByRole("button", { name: "Impossible", exact: true });
+  assert.equal(await off.getAttribute("aria-pressed"), "true");
+  const target = await impossible.boundingBox();
+  assert.ok(target.width >= 44 && target.height >= 44);
+  await impossible.tap();
+  assert.equal(await impossible.getAttribute("aria-pressed"), "true");
+  await press("#playBtn");
+  await page.waitForFunction(() => {
+    const run = JSON.parse(localStorage.getItem("riftline.save.v1")).run;
+    const { world } = window.__riftTest.game;
+    return run?.trapMode === "impossible" && world.trapMode === "impossible" && world.traps.length > 0;
+  });
+  await page.waitForFunction(() => navigator.serviceWorker.controller);
+  await page.context().setOffline(true);
+  assert.equal((await page.reload()).fromServiceWorker(), true);
+  assert.equal(await impossible.getAttribute("aria-pressed"), "true");
+  await off.tap();
+  await press("#continueBtn");
+  await page.waitForFunction(() => window.__riftTest.game.world?.trapMode === "impossible");
+  await press("#pauseBtn");
+  assert.match(await page.locator("#pauseStats").textContent(), /Impossible Traps/);
+  assert.deepEqual(errors, []);
+});
 
 test("a lost graphics context pauses the run and waits for an explicit resume", { timeout }, async (t) => {
   const { page, press, errors } = await openGame(t, "desktop", { viewport: { width: 800, height: 450 } });
@@ -338,7 +367,7 @@ test(
     await page.waitForFunction(() => window.__riftTest.game.tut?.step === 2);
     await press("#dashBtn");
     await page.waitForFunction(() => window.__riftTest.game.tut?.step === 3);
-    await page.waitForFunction(() => window.__riftTest.store.data.seen.tutorial === true);
+    await page.waitForFunction(() => window.__riftTest.store.data.seen.tutorial === true, null, tutorialTimeout);
     await page.waitForFunction(
       () => window.__riftTest.game.sound.ctx?.state === "running" && window.__riftTest.game.sound.musicScheduled > 0,
     );
@@ -365,6 +394,20 @@ test(
         game.sound.musicScheduled > notes
       );
     }, notes);
+
+    const beforeRestore = await page.evaluate(() => {
+      window.dispatchEvent(new PageTransitionEvent("pagehide", { persisted: true }));
+      return window.__riftTest.game.sound.musicScheduled;
+    });
+    await page.waitForFunction(() => {
+      const { sound } = window.__riftTest.game;
+      return sound.ctx.state === "suspended" && sound.timer === null;
+    });
+    await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true })));
+    await page.waitForFunction((before) => {
+      const { sound } = window.__riftTest.game;
+      return sound.ctx.state === "running" && sound.musicScheduled > before;
+    }, beforeRestore);
     assert.deepEqual(errors, []);
   },
 );
@@ -408,7 +451,7 @@ test("first-run desktop onboarding keeps keyboard and mouse prompts when a touch
 
   await page.keyboard.press("Space");
   await page.waitForFunction(() => window.__riftTest.game.tut?.step === 3);
-  await page.waitForFunction(() => window.__riftTest.store.data.seen.tutorial === true);
+  await page.waitForFunction(() => window.__riftTest.store.data.seen.tutorial === true, null, tutorialTimeout);
   assert.deepEqual(errors, []);
 });
 

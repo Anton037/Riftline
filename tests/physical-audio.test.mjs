@@ -14,6 +14,22 @@ const ctx = {
     return { sampleRate: sr, length: n, duration: n / sr, getChannelData: () => data };
   },
 };
+
+test("friendly mine fuses use a different spatial cue from hostile fuses", async () => {
+  const { SoundEngine } = await import("../src/audio/sound.js");
+  const played = [];
+  const engine = {
+    live: () => true,
+    play(id) {
+      played.push({ id, pan: this.curPan });
+    },
+  };
+  const fuse = { k: "trapWarn", fam: "mine", skin: "riftmine", delay: 0.56, x: 8, y: 0 };
+  SoundEngine.prototype.consume.call(engine, [fuse, { ...fuse, friendly: true }], { x: 0, y: 0 });
+  assert.notEqual(played[0].id, played[1].id);
+  assert.deepEqual(played[1], { id: "tArm", pan: 0.5 });
+});
+
 test("recorded source regions fit the shipped PCM bank and contain real signal", () => {
   const file = fs.readFileSync(new URL("../public/audio/physical-bank.wav", import.meta.url));
   assert.equal(file.toString("ascii", 0, 4), "RIFF");

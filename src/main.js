@@ -332,6 +332,7 @@ const overlay = new Overlay(elementById("ov")),
           seed: (Math.random() * 4294967296) >>> 0,
           weapon: options.weapon || save.weapon,
           threat: options.threat ?? save.threat,
+          trapMode: options.trapMode ?? save.trapMode,
           ws: save.workshop,
           starVaultUnlocked: (save.stats.bosses?.starHeart || 0) > 0,
           snap,
@@ -548,10 +549,10 @@ const overlay = new Overlay(elementById("ov")),
       this.endRun(false, true, true);
       this.retry();
     },
-    // a new run with the weapon and threat of the current (ended) run
+    // Start a new run with the same expedition rules as the previous attempt.
     retry() {
       const world = this.world;
-      this.startRun(world ? { weapon: world.weapon, threat: world.threat } : {});
+      this.startRun(world ? { weapon: world.weapon, threat: world.threat, trapMode: world.trapMode } : {});
     },
     abandon() {
       if (!this.world || this.mode !== "game" || this.overShown) return;
@@ -732,6 +733,7 @@ const overlay = new Overlay(elementById("ov")),
           bosses: world.bossKills.length,
           weapon: world.weapon,
           threat: world.threat,
+          trapMode: world.trapMode,
           rows: rows,
           total: total,
           best: best,
@@ -985,7 +987,6 @@ function applySettings() {
     // is a fixed, gentler amount (endless mode used to stack it into something unpleasant).
     renderer.numbers = settings.numbers !== false;
     renderer.motion = reducedMotion() ? 0 : 1;
-    renderer.renderer?.setTargetFps?.(settings.frameRate || 60);
   }
 }
 let loopFrameId = 0,
@@ -1008,6 +1009,7 @@ function startLoop() {
   }
 }
 const framePacer = makePacer();
+const playFrameOptions = { pacer: framePacer };
 function loopTick(now) {
   loopFrameId = requestAnimationFrame(loopTick);
   let dt = (now - (game.last || now)) / 1e3;
@@ -1127,7 +1129,7 @@ function runFrame(dt) {
       const staticOverlay = game.chooseShown || game.anvilShown || game.overShown;
       if (!staticOverlay) game._settledOverlayFrames = 0;
       if (renderer && (!staticOverlay || (game._settledOverlayFrames = (game._settledOverlayFrames || 0) + 1) <= 2)) {
-        renderer.frame(dt, world);
+        renderer.frame(dt, world, playFrameOptions);
       }
       if (renderer && !staticOverlay) {
         // Touch hints are shown only during the opening tutorial for touch input.
@@ -1163,7 +1165,12 @@ function runFrame(dt) {
     }
   } else {
     if (renderer && ui.screen === "home") {
-      renderer.frame(dt, null, { menu: true, weapon: game.previewW, biome: biomeList[menuBiomeIndex()] });
+      renderer.frame(dt, null, {
+        menu: true,
+        weapon: game.previewW,
+        biome: biomeList[menuBiomeIndex()],
+        pacer: framePacer,
+      });
     }
     overlay.clear();
   }
@@ -1603,9 +1610,10 @@ window.addEventListener("pagehide", () => {
   store.save("pagehide");
   sound.suspend();
 });
-window.addEventListener("pageshow", () => {
+window.addEventListener("pageshow", (ev) => {
   input.reset(true);
   _scheduleResize("pageshow");
+  if (ev.persisted && !document.hidden) sound.resume();
 });
 const unlockAudio = () => {
   sound.unlock();

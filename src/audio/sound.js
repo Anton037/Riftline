@@ -152,9 +152,7 @@ const SoundEngine = class {
         if (!this.ctx) {
           this.init();
         }
-        if (this.ctx.state !== "running") {
-          this.ctx.resume().catch(() => {});
-        }
+        this.resume();
       } catch (err) {
         this.fail(err);
       }
@@ -1286,8 +1284,11 @@ const SoundEngine = class {
           if (ev.resist) this.play("resist");
           break;
         case "trapWarn": {
-          let voice = RL_TRAP_SOUND[ev.skin];
-          if (voice) this.play(voice.warn, ev.fam === "beam" ? { delay: ev.delay, dur: ev.dur } : ev.delay);
+          if (ev.friendly) this.play("tArm", ev.skin);
+          else {
+            const voice = RL_TRAP_SOUND[ev.skin];
+            if (voice) this.play(voice.warn, ev.fam === "beam" ? { delay: ev.delay, dur: ev.dur } : ev.delay);
+          }
           break;
         }
         case "trapFire": {

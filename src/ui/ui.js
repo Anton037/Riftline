@@ -14,6 +14,7 @@ import { computeStats, weaponRange, buildStatRows } from "../core/stats.js";
 import { acceptsPointer, touchInput } from "./input.js";
 import { WHATS_NEW } from "../data/whatsnew.js";
 import { MUTATORS } from "../core/mutators.js";
+import { TRAP_MODE_NAMES } from "../core/traps.js";
 import { markHomeViewDirty } from "../render/renderer.js";
 
 const RL_TOUCH_CLICK_GUARD = { until: 0, x: 0, y: 0, key: "" };
@@ -65,6 +66,7 @@ function rlRenderHistory() {
         killer = run.outcome === "dead" ? killerName(run.killer) : "";
       const meta = [
         threatLevels[run.threat]?.name || "Normal",
+        TRAP_MODE_NAMES[run.trapMode],
         formatTime(run.time),
         formatCount(run.kills) + " kills",
         "+" + formatCount(run.shards) + " shards",
@@ -395,6 +397,14 @@ const getById = (id) => document.getElementById(id),
       this.click(getById("wNext"), () => this.stepWeapon(1));
       this.click(getById("tPrev"), () => this.stepThreat(-1));
       this.click(getById("tNext"), () => this.stepThreat(1));
+      for (const button of getById("trapMode").querySelectorAll("button")) {
+        this.click(button, () => {
+          if (this.save.trapMode === button.value) return;
+          this.save.trapMode = button.value;
+          this.g.store.save("trap-mode");
+          this.renderTrapMode();
+        });
+      }
       this.click(getById("wBuy"), () => this.buyWeapon());
       this.click(getById("playBtn"), () => this.play());
       this.click(getById("continueBtn"), () => this.g.startRun({ resume: true }));
@@ -673,6 +683,7 @@ const getById = (id) => document.getElementById(id),
       }
       this.renderWeapon();
       this.renderThreat();
+      this.renderTrapMode();
       let run = save.run,
         btn = getById("continueBtn");
       if (run) {
@@ -704,6 +715,13 @@ const getById = (id) => document.getElementById(id),
           (stats.clears ? ` \xB7 ${stats.clears} clear${stats.clears > 1 ? "s" : ""}` : "");
       }
       markHomeViewDirty();
+    }
+    renderTrapMode() {
+      for (const button of getById("trapMode").querySelectorAll("button")) {
+        const active = button.value === this.save.trapMode;
+        button.classList.toggle("on", active);
+        button.setAttribute("aria-pressed", String(active));
+      }
     }
     renderWeapon() {
       let save = this.save,
@@ -1860,7 +1878,7 @@ const getById = (id) => document.getElementById(id),
       getById("pauseTitle").textContent = `Wave ${world.wave}${world.endless ? " \xB7 Endless" : ""}`;
       getById("abandonBtn").textContent = "Abandon run";
       getById("pauseStats").innerHTML =
-        `<span>${formatTime(world.time)}</span><span>${formatCount(world.kills)} KILLS</span><span>${formatCount(world.shards)} SHARDS</span>`;
+        `<span>${formatTime(world.time)}</span><span>${formatCount(world.kills)} KILLS</span><span>${formatCount(world.shards)} SHARDS</span><span>${TRAP_MODE_NAMES[world.trapMode]}</span>`;
       this.renderStatRows(world);
       this.coverHud(true);
       getById("pause").hidden = false;
@@ -1912,9 +1930,10 @@ const getById = (id) => document.getElementById(id),
       const overEl = getById("over");
       overEl.classList.toggle("is-win", !!result.win);
       overEl.classList.toggle("is-lose", !result.win);
+      const rules = `${threatLevels[result.threat].name} · ${TRAP_MODE_NAMES[result.trapMode]}`;
       getById("overEyebrow").textContent = result.win
-        ? `${threatLevels[result.threat].name} \xB7 All ${20} Waves`
-        : `${result.endless ? "Endless \xB7 " : ""}${weaponDefs[result.weapon].name} \xB7 ${threatLevels[result.threat].name}`;
+        ? `${rules} · All ${20} Waves`
+        : `${result.endless ? "Endless · " : ""}${weaponDefs[result.weapon].name} · ${rules}`;
       let title = getById("overTitle");
       title.textContent = result.win ? "Victory" : result.abandoned ? "Expedition Ended" : "Fallen";
       title.className = "over-title " + (result.win ? "win" : "lose");

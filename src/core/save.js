@@ -11,6 +11,7 @@ import { LEGACY_WEAPONS, LEGACY_MODULES, legacyWeapon, legacyUpgrade } from "./s
 import { upgradeList, upgradesById } from "../data/upgrades.js";
 import { BOSS_CARD_CHANCE } from "./boss-cards.js";
 import { HUD_CONTROL_IDS, HUD_LIMITS } from "../data/hud.js";
+import { cleanTrapMode } from "./traps.js";
 
 export const SAVE_TEXT_LIMIT = 262_144;
 
@@ -101,6 +102,7 @@ function rlSanitizeHistory(history) {
       t: ni2(entry.t, 0, 9e15),
       weapon: legacyWeapon(entry.weapon)?.to || entry.weapon,
       threat: Math.floor(ni2(entry.threat, 0, 5)),
+      trapMode: cleanTrapMode(entry.trapMode),
       wave: Math.floor(ni2(entry.wave, 1, 999, 1)),
       outcome: ["win", "dead", "quit"].includes(entry.outcome) ? entry.outcome : "dead",
       endless: !!entry.endless,
@@ -122,6 +124,7 @@ function rlRecordRun(store, world, pre, win, abandoned) {
     t: Date.now(),
     weapon: world.weapon,
     threat: world.threat,
+    trapMode: world.trapMode,
     wave: win && !world.endless ? 20 : world.wave,
     outcome: win ? "win" : abandoned ? "quit" : "dead",
     endless: !!world.endless,
@@ -232,6 +235,7 @@ function newSave() {
     weapons: { lanternGun: true },
     threat: 0,
     threatMax: 0,
+    trapMode: "off",
     workshop: {},
     milestones: {},
     stats: {
@@ -285,6 +289,7 @@ function cleanRun(raw) {
     seed: Number.isFinite(raw.seed) ? raw.seed >>> 0 : 0,
     weapon: raw.weapon,
     threat: Math.floor(cleanNumber(raw.threat, 0, 0, 5)),
+    trapMode: cleanTrapMode(raw.trapMode),
     wave: Math.floor(cleanNumber(raw.wave, 1, 1, 999)),
     endless: !!raw.endless,
     up: {},
@@ -399,6 +404,7 @@ function cleanSave(input, recordNote = true, notesOut = null) {
   save.weapon = own(weaponDefs, raw.weapon) && save.weapons[raw.weapon] ? raw.weapon : "lanternGun";
   save.threatMax = Math.floor(cleanNumber(raw.threatMax, 0, 0, 5));
   save.threat = Math.floor(cleanNumber(raw.threat, 0, 0, save.threatMax));
+  save.trapMode = raw.trapMode === "impossible" ? "impossible" : "off";
   for (let mod of workshopModules) {
     let level = Math.floor(cleanNumber(asObject(raw.workshop)[mod.id], 0, 0, mod.costs.length));
     if (level) {

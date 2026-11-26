@@ -1962,6 +1962,10 @@ export class Renderer {
     }
     this.flashT = Math.max(0, this.flashT - dt);
     this.engine.flash = this.flashT;
+    if (opts.pacer) {
+      const { last, limit, refreshMs } = opts.pacer;
+      this.engine.updateAdaptiveScale(last, Math.max(1000 / limit, refreshMs));
+    }
     this.renderer.render(this.scene, this.camera);
   }
 

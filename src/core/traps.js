@@ -117,22 +117,31 @@ const TRAP_SKINS = {
 
 // First wave of each family, unlocked in World 1 so Lantern Yard mechanisms appear in standard waves
 const TRAP_FROM = { floor: 2, mine: 4, beam: 7 };
+const IMPOSSIBLE_FROM = { floor: 1, mine: 2, beam: 3 };
+const MINE_SHOT_SCALE = 1.15;
+const TRAP_MODE_NAMES = { off: "Traps Off", impossible: "Impossible Traps", standard: "Standard Traps" };
+const cleanTrapMode = (mode) => (mode === "off" || mode === "impossible" ? mode : "standard");
 
-function trapCount(fam, wave) {
-  if (wave < TRAP_FROM[fam]) return 0;
-  const late = wave - TRAP_FROM[fam];
+function trapsEnabled(mode, wave, boss) {
+  if (mode === "off") return false;
+  return mode === "impossible" ? wave >= IMPOSSIBLE_FROM.floor : wave >= TRAP_FROM.floor && (!boss || wave >= 10);
+}
+
+function trapCount(fam, wave, impossible) {
+  const from = (impossible ? IMPOSSIBLE_FROM : TRAP_FROM)[fam];
+  if (wave < from) return 0;
+  const late = wave - from;
   let count =
     fam === "floor" ? 2 + Math.floor(late / 5) : fam === "beam" ? 1 + Math.floor(late / 5) : 2 + Math.floor(late / 4);
+  if (impossible && wave > 1) count += fam === "floor" ? 2 : 1;
   if (wave > 20) count = Math.ceil(count * 1.4) + Math.floor(Math.max(0, wave - 40) / 20);
   return Math.min(count, fam === "floor" ? 9 : fam === "beam" ? 4 : 12);
 }
 
-const pace = (wave, storm = 0) => (wave > 20 ? { cd: 0.8 * (1 - 0.12 * storm), warn: 0.86 } : { cd: 1, warn: 1 });
-
 function trapRadius(skin) {
   if (skin.fam === "beam") return 1.25;
   // Mines have a wider blast when shot. Spore mines also leave a slightly wider pool.
-  return skin.fam === "mine" ? skin.r * 1.15 * Math.max(1, skin.poolScale || 1) : skin.r;
+  return skin.fam === "mine" ? skin.r * MINE_SHOT_SCALE * Math.max(1, skin.poolScale || 1) : skin.r;
 }
 
 function trapFootprints(traps, except) {
@@ -163,7 +172,8 @@ function findTrapSite(arena, skin, rng, reserved, keepSpawnClear = true) {
 
 function rlPlanTraps(world, wave, boss) {
   const traps = [];
-  if ((boss && wave < 10) || wave < TRAP_FROM.floor) return traps;
+  if (!trapsEnabled(world.trapMode, wave, boss)) return traps;
+  const impossible = world.trapMode === "impossible";
   const biome = world.arena.biome.id,
     skins = BIOME_TRAPS[biome];
   if (!skins) return traps;
@@ -171,30 +181,43 @@ function rlPlanTraps(world, wave, boss) {
     arena = world.arena,
     taken = [];
   const storm = (world.mods && world.mods.extraTraps) || 0;
-  for (const fam of boss ? ["floor"] : ["floor", "beam", "mine"]) {
+  const rotateFamilies = impossible || wave > 20;
+  const families =
+    boss && !impossible ? ["floor"] : rotateFamilies ? ["mine", "beam", "floor"] : ["floor", "beam", "mine"];
+  const groups = families
+    .map((fam) => {
+      const base = trapCount(fam, wave, impossible);
+      let count = base && skins[fam] ? base + storm : 0;
+      if (boss) count = Math.min(3, Math.ceil(count / 2));
+      if (impossible && fam === "beam" && wave > 20) count = Math.min(4, count);
+      return { fam, count, placed: 0 };
+    })
+    .filter((group) => group.count > 0);
+  while (groups.length) {
+    const group = groups.shift();
+    const { fam } = group;
     const skinName = skins[fam];
-    if (!skinName) continue;
-    const skin = TRAP_SKINS[skinName],
-      base = trapCount(fam, wave) + (base0(fam, wave) ? storm : 0),
-      count = boss ? Math.max(1, Math.min(3, Math.ceil(base / 2))) : base;
-    for (let i = 0; i < count; i++) {
-      const spot = findTrapSite(arena, skin, rng, taken, true);
-      if (!spot) break;
-      taken.push({ x: spot.x, y: spot.y, r: trapRadius(skin) + 0.25 });
-      const trap = {
-        id: traps.length + 1,
-        fam,
-        skin: skinName,
-        ...spot,
-        r: skin.r || skin.w,
-        st: fam === "mine" ? "unarmed" : "idle",
-        t: 0,
-        wait: 1.8 + rng.next() * 2.2 + i * 0.75,
-        // Hunting floor traps activate from Wave 2+ (and on Wave 10+ bosses) so center-camping is never free.
-        hunt: fam === "floor" && (boss || i === 0 || i % 2 === 1),
-        dir: rng.chance(0.5) ? 1 : -1,
-      };
-      traps.push(trap);
+    const skin = TRAP_SKINS[skinName];
+    const spot = findTrapSite(arena, skin, rng, taken, true);
+    if (!spot) continue;
+    taken.push({ x: spot.x, y: spot.y, r: trapRadius(skin) + 0.25 });
+    const i = group.placed++;
+    traps.push({
+      id: traps.length + 1,
+      fam,
+      skin: skinName,
+      ...spot,
+      r: skin.r || skin.w,
+      st: fam === "mine" ? "unarmed" : "idle",
+      t: 0,
+      wait: 1.8 + rng.next() * 2.2 + (impossible ? traps.length * 0.52 : i * 0.75),
+      hunt: fam === "floor" && (boss || impossible || i === 0 || i % 2 === 1),
+      dir: rng.chance(0.5) ? 1 : -1,
+    });
+    if (group.placed < group.count) {
+      // Rotate families on crowded Endless layouts. Expedition placements retain their existing seed order.
+      if (rotateFamilies) groups.push(group);
+      else groups.unshift(group);
     }
   }
   return traps;
@@ -210,11 +233,10 @@ function layTrapResidue(patches, trap, residue) {
   }
 }
 
-const base0 = (fam, wave) => wave >= TRAP_FROM[fam];
-
 const trapDamage = (world, skin) =>
   skin.dmg *
   world.dmgMul *
+  (world.trapMode === "impossible" ? 1.75 : 1) *
   (1 + 0.01 * Math.max(0, (world.wave || 1) - 20)) *
   Math.max(0, 1 - (world.stats.hazardResist || 0));
 
@@ -366,27 +388,43 @@ function trapStrike(world, trap, skin, radius, enemyMul = 1, shotDetonated = fal
     r: radius,
     shot: shotDetonated,
   });
-  // Chain reaction: a detonating mine ignites nearby armed mines on a crisp short fuse.
+  // Blasts can light nearby vessels across the clear gap between their reserved footprints.
   if (trap.fam === "mine" && world.traps) {
-    const chainR = radius + 1.1;
+    const sourceReach = trapRadius(skin) + 1.8;
     for (const other of world.traps) {
       if (other === trap || other.fam !== "mine" || other.st !== "armed") continue;
-      if (Math.hypot(other.x - trap.x, other.y - trap.y) <= chainR) {
-        const otherSkin = TRAP_SKINS[other.skin];
-        other.st = "fuse";
-        other.t = Math.max(0, (otherSkin?.fuse || 0.45) - 0.22);
-        world.emit("trapWarn", {
-          id: other.id,
-          fam: "mine",
-          skin: other.skin,
-          x: other.x,
-          y: other.y,
-          r: otherSkin?.r || other.r,
-          delay: 0.22,
-        });
-      }
+      const otherSkin = TRAP_SKINS[other.skin];
+      if (
+        Math.hypot(other.x - trap.x, other.y - trap.y) <= sourceReach + trapRadius(otherSkin) &&
+        world.arena.los(trap.x, trap.y, other.x, other.y)
+      )
+        fuseMine(world, other, otherSkin, shotDetonated);
     }
   }
+}
+
+function fuseMine(world, trap, skin, friendly = false) {
+  trap.st = "fuse";
+  trap.t = 0;
+  trap.friendlyFuse = friendly;
+  world.emit("trapWarn", {
+    id: trap.id,
+    fam: "mine",
+    skin: trap.skin,
+    x: trap.x,
+    y: trap.y,
+    r: skin.r * (friendly ? MINE_SHOT_SCALE : 1),
+    delay: skin.fuse,
+    friendly,
+  });
+}
+
+function detonateMine(world, trap, skin, friendly) {
+  if (friendly && skin.pull) trapPull(world, trap, skin.pull * 1.6, skin.r * 1.4, false, 0.16);
+  trapStrike(world, trap, skin, skin.r * (friendly ? MINE_SHOT_SCALE : 1), friendly ? 1.5 : 1, friendly);
+  trap.st = "gone";
+  trap.t = 0;
+  trap.respawn = ((world.wave > 20 ? 7 : 10) + (trap.id % 4) * 0.6) * (world.trapMode === "impossible" ? 0.65 : 1);
 }
 
 // Tactical vessel-sniping: player shots detonate armed proximity vessels (and enemy ember-pots / crucible bombs)
@@ -402,12 +440,7 @@ function rlShootTrap(world, bullet, prevX, prevY) {
       cy = prevY + segDy * along - trap.y,
       hitR = 0.62 + bullet.r;
     if (cx * cx + cy * cy <= hitR * hitR) {
-      const skin = TRAP_SKINS[trap.skin];
-      if (skin.pull) trapPull(world, trap, skin.pull * 1.6, skin.r * 1.4, false, 0.16);
-      trapStrike(world, trap, skin, skin.r * 1.15, 1.5, true);
-      trap.st = "gone";
-      trap.t = 0;
-      trap.respawn = (world.wave > 20 ? 7 : 10) + (trap.id % 4) * 0.6;
+      detonateMine(world, trap, TRAP_SKINS[trap.skin], true);
       return true;
     }
   }
@@ -430,31 +463,32 @@ function rlShootTrap(world, bullet, prevX, prevY) {
 }
 
 function aimBeamAtPlayer(arena, trap, skin, player, warn) {
-  if (!player || !player.alive) return trap.a;
+  const mountAngle = (trap.mountAngle ??= trap.a);
+  if (!player || !player.alive) return mountAngle;
   const dist = Math.hypot(player.x - trap.x, player.y - trap.y);
-  // Keep explicit angle if a test or scripted setup places the emitter directly on the player.
-  if (dist < 0.5) return trap.a;
+  if (dist < 0.5) return mountAngle;
   const toPlayer = Math.atan2(player.y - trap.y, player.x - trap.x);
-  const sweepSign = (skin.rot || 1) * trap.dir >= 0 ? 1 : -1;
+  if (arena.rayLen(trap.x, trap.y, toPlayer, skin.len) < dist) return mountAngle;
+  const sweepSign = Math.sign(skin.rot * trap.dir);
   // Lead slightly behind the player so the beam sweeps right across their position once live.
-  const lead = skin.swing ? 0.34 : Math.min(1.15, Math.abs(skin.rot || 0.6) * (warn + skin.dur * 0.38));
-  const candidates = [
-    toPlayer - sweepSign * lead,
-    toPlayer - sweepSign * (lead * 0.45),
-    toPlayer,
-    Math.atan2(2 - trap.y, -trap.x),
-    trap.a,
-  ];
-  for (const ang of candidates) {
-    if (arena.rayLen(trap.x, trap.y, ang, skin.len) >= 6) return ang;
-  }
+  const lead = skin.swing ? 0.34 : Math.abs(skin.rot) * (warn + skin.dur * 0.3);
+  const start = toPlayer - sweepSign * lead;
+  if (arena.rayLen(trap.x, trap.y, start, skin.len) >= Math.min(dist, 6)) return start;
+  // A linear sweeper moves during its warning. Reach the target at the start of the live sweep
+  // when cover blocks the wider windup angle.
+  if (!skin.swing) return toPlayer - skin.rot * trap.dir * warn;
   return toPlayer;
 }
 
 function rlUpdateTraps(world, dt) {
-  if (!world.traps.length || world.state !== "fight") return;
-  const p = pace(world.wave, (world.mods && world.mods.extraTraps) || 0),
+  if (!world.traps.length || world.state !== "fight" || world.hold) return;
+  const impossible = world.trapMode === "impossible",
+    endless = world.wave > 20,
+    cooldown = (endless ? 0.8 * (1 - 0.12 * (world.mods?.extraTraps || 0)) : 1) * (impossible ? 0.7 : 1),
+    warnScale = endless ? 0.86 : 1,
     player = world.player;
+  // Space out automatic warnings so a burst of ready traps doesn't hide the next cue.
+  let warningGap = impossible ? Math.max(0, world.trapWarningT - dt) : 0;
   for (const trap of world.traps) {
     const skin = TRAP_SKINS[trap.skin];
     trap.t += dt;
@@ -469,7 +503,7 @@ function rlUpdateTraps(world, dt) {
       ) {
         trap.wait = trap.t + 0.35;
       }
-      if (trap.st === "idle" && trap.t >= trap.wait) {
+      if (trap.st === "idle" && trap.t >= trap.wait && !warningGap) {
         if (trap.hunt && player.alive) {
           const spot = findHuntingTrapSite(world, trap, skin);
           if (!spot) {
@@ -479,9 +513,10 @@ function rlUpdateTraps(world, dt) {
           }
           Object.assign(trap, spot);
         }
+        if (impossible) warningGap = 0.45;
         trap.st = "warn";
         trap.t = 0;
-        trap.delay = Math.max(0.7, skin.warn * p.warn);
+        trap.delay = Math.max(0.7, skin.warn * warnScale);
         world.emit("trapWarn", {
           id: trap.id,
           fam: "floor",
@@ -497,15 +532,16 @@ function rlUpdateTraps(world, dt) {
           trapStrike(world, trap, skin, skin.r);
           trap.st = "idle";
           trap.t = 0;
-          trap.wait = skin.cd * p.cd * (0.85 + 0.3 * ((trap.id * 0.618) % 1));
+          trap.wait = skin.cd * cooldown * (0.85 + 0.3 * ((trap.id * 0.618) % 1));
         }
       }
     } else if (trap.fam === "beam") {
-      if (trap.st === "idle" && trap.t >= trap.wait) {
+      if (trap.st === "idle" && trap.t >= trap.wait && !warningGap) {
+        if (impossible) warningGap = 0.45;
         trap.st = "live";
         trap.t = 0;
-        const warn = Math.max(0.7, skin.warn * p.warn);
-        trap.a = aimBeamAtPlayer(world.arena, trap, skin, player, warn);
+        const warn = Math.max(0.7, skin.warn * warnScale);
+        trap.a = aimBeamAtPlayer(world.arena, trap, skin, player, impossible ? 0 : warn);
         world._src = "trap";
         world.beam({
           skin: trap.skin,
@@ -518,11 +554,12 @@ function rlUpdateTraps(world, dt) {
           dur: skin.dur,
           rot: skin.rot * trap.dir,
           swing: skin.swing || 0,
+          windupLocked: impossible,
           dmg: trapDamage(world, skin),
           fromTrap: true,
           special: skin.special || null,
         });
-        if (world.wave > 20)
+        if (endless)
           world.beam({
             skin: trap.skin,
             x: trap.x,
@@ -534,6 +571,7 @@ function rlUpdateTraps(world, dt) {
             dur: skin.dur,
             rot: skin.rot * trap.dir,
             swing: skin.swing || 0,
+            windupLocked: impossible,
             dmg: trapDamage(world, skin),
             fromTrap: true,
             special: skin.special || null,
@@ -554,10 +592,10 @@ function rlUpdateTraps(world, dt) {
         trap.st = "idle";
         trap.t = 0;
         trap.dir = -trap.dir;
-        trap.wait = skin.cd * p.cd;
+        trap.wait = skin.cd * cooldown;
       }
     } else if (trap.fam === "mine") {
-      if (trap.st === "unarmed" && trap.t >= skin.arm) {
+      if (trap.st === "unarmed" && trap.t >= skin.arm * (impossible ? 0.65 : 1)) {
         trap.st = "armed";
         trap.t = 0;
         world.emit("trapArm", { id: trap.id, fam: "mine", skin: trap.skin, x: trap.x, y: trap.y, r: skin.r });
@@ -568,33 +606,17 @@ function rlUpdateTraps(world, dt) {
             if (!set && !enemy.dead && !enemy.boss && Math.hypot(enemy.x - trap.x, enemy.y - trap.y) < skin.trig * 0.8)
               set = true;
           });
-        if (set) {
-          trap.st = "fuse";
-          trap.t = 0;
-          world.emit("trapWarn", {
-            id: trap.id,
-            fam: "mine",
-            skin: trap.skin,
-            x: trap.x,
-            y: trap.y,
-            r: skin.r,
-            delay: skin.fuse,
-          });
-        }
+        if (set) fuseMine(world, trap, skin);
       } else if (trap.st === "fuse") {
         if (skin.pull) trapPull(world, trap, skin.pull, skin.r * 1.45, false, dt);
-        if (trap.t >= skin.fuse) {
-          trapStrike(world, trap, skin, skin.r);
-          trap.st = "gone";
-          trap.t = 0;
-          trap.respawn = (world.wave > 20 ? 7 : 10) + (trap.id % 4) * 0.6;
-        }
+        if (trap.t >= skin.fuse) detonateMine(world, trap, skin, !!trap.friendlyFuse);
       } else if (trap.st === "gone" && trap.t >= trap.respawn) {
         const rng = makeRng(
           hashString(world.seed + ":mine:" + world.wave + ":" + trap.id + ":" + Math.floor(world.time)),
         );
         const reserved = world.placementReservations(trap);
-        reserved.push({ x: player.x, y: player.y, r: 3.2 }, ...world.enemies.filter((enemy) => !enemy.dead));
+        reserved.push({ x: player.x, y: player.y, r: 3.2 });
+        for (const enemy of world.enemies) if (!enemy.dead) reserved.push(enemy);
         // Mid-fight mine respawns can reclaim the center of the arena (keeping safe clearance from player's live spot).
         const spot = findTrapSite(world.arena, skin, rng, reserved, false);
         trap.t = 0;
@@ -607,6 +629,7 @@ function rlUpdateTraps(world, dt) {
       }
     }
   }
+  if (impossible) world.trapWarningT = warningGap;
 }
 
 function findHuntingTrapSite(world, trap, skin) {
@@ -618,4 +641,15 @@ function findHuntingTrapSite(world, trap, skin) {
   return arena.nearbyPoint(tx, ty, radius, 5.5, reserved, trap.id * 2.4);
 }
 
-export { TRAP_SKINS, TRAP_FROM, rlPlanTraps, rlUpdateTraps, rlShootTrap, trapFootprints };
+export {
+  TRAP_SKINS,
+  TRAP_FROM,
+  TRAP_MODE_NAMES,
+  MINE_SHOT_SCALE,
+  cleanTrapMode,
+  trapsEnabled,
+  rlPlanTraps,
+  rlUpdateTraps,
+  rlShootTrap,
+  trapFootprints,
+};

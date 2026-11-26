@@ -22,7 +22,7 @@ import { upgradesById, upgradeList } from "../data/upgrades.js";
 import { Arena, buildLayout, SpatialHash, rlAddHazard250 } from "./arena.js";
 import { computeStats } from "./stats.js";
 import { BURST_WINDOW, burstFraction, endlessHpBoost } from "./difficulty.js";
-import { rlPlanTraps, rlUpdateTraps, rlShootTrap, trapFootprints, TRAP_FROM } from "./traps.js";
+import { cleanTrapMode, rlPlanTraps, rlUpdateTraps, rlShootTrap, trapFootprints, trapsEnabled } from "./traps.js";
 import { walkStep } from "./walk.js";
 import {
   bossCardOffer,
@@ -155,6 +155,7 @@ const rlStep = 1 / 60,
           : opts.weapon
         : "lanternGun";
       this.threat = clamp((snap ? snap.threat : opts.threat) | 0, 0, 5);
+      this.trapMode = cleanTrapMode(snap ? snap.trapMode : opts.trapMode);
       this.tm = threatMods(this.threat);
       this.ws = { ...(opts.ws || {}) };
       this.up = snap ? { ...snap.up } : {};
@@ -368,6 +369,7 @@ const rlStep = 1 / 60,
         this.markers = [];
         this.trails = [];
         this.traps = [];
+        this.trapWarningT = 0;
         resetBossCards(this);
         this.boss = null;
         this.combo = 0;
@@ -410,7 +412,7 @@ const rlStep = 1 / 60,
         this.waveT = 0;
         this.waveDmg = 0;
         // 3.3.0: the Endless mutators of this wave (see mutators.js)
-        const mutators = rlMutatorsFor(this.seed, wave);
+        const mutators = rlMutatorsFor(this.seed, wave, this.trapMode !== "off");
         this.mods = mutators.mods;
         this.hpMul = (1 + 0.085 * (wave - 1) + 0.0058 * (wave - 1) * (wave - 1)) * this.tm.hp * endlessHpBoost(wave);
         this.dmgMul = (1 + 0.035 * (wave - 1)) * this.tm.dmg;
@@ -591,7 +593,7 @@ const rlStep = 1 / 60,
     previewWave(n) {
       const biome = this.biomeFor(n),
         boss = this.bossFor(n),
-        mutators = rlMutatorsFor(this.seed, n);
+        mutators = rlMutatorsFor(this.seed, n, this.trapMode !== "off");
       return {
         wave: n,
         biome: biome.id,
@@ -599,7 +601,7 @@ const rlStep = 1 / 60,
         boss: boss || null,
         event: boss ? null : this.eventFor(n),
         mutator: mutators.gained || null,
-        traps: n >= TRAP_FROM.floor && (!boss || n >= 10),
+        traps: trapsEnabled(this.trapMode, n, !!boss),
       };
     }
     biomeFor(wave) {
@@ -633,6 +635,7 @@ const rlStep = 1 / 60,
         seed: this.seed,
         weapon: this.weapon,
         threat: this.threat,
+        trapMode: this.trapMode,
         wave: this.wave,
         endless: this.endless,
         up: { ...this.up },
@@ -3497,7 +3500,8 @@ const rlStep = 1 / 60,
             beam.a = beam.a0 + Math.sin(liveT * beam.swing) * (beam.rot >= 0 ? 1 : -1) * 0.92;
           }
         } else if (beam.rot) {
-          beam.a += beam.rot * dt;
+          if (beam.windupLocked) beam.a = beam.a0 + beam.rot * Math.max(0, beam.t - beam.warn);
+          else beam.a += beam.rot * dt;
         }
         if (beam.follow) {
           beam.x = beam.follow.x;
@@ -3621,19 +3625,21 @@ const rlStep = 1 / 60,
       this.beams.length = w;
     }
     beam(opts) {
+      const len = opts.len || 30;
       let beam = {
         x: opts.x,
         y: opts.y,
         a: opts.a,
         a0: opts.a,
-        len: opts.len || 30,
-        cur: opts.len || 30,
+        len,
+        cur: this.arena.rayLen(opts.x, opts.y, opts.a, len),
         w: opts.w || 0.8,
         warn: opts.warn ?? 0.8,
         dur: opts.dur ?? 0.5,
         t: 0,
         rot: opts.rot || 0,
         swing: opts.swing || 0,
+        windupLocked: !!opts.windupLocked,
         dmg: opts.dmg || 20,
         follow: opts.follow || null,
         live: false,

@@ -213,13 +213,14 @@ export class WebGL2Engine {
     this.rtWidth = 1;
     this.rtHeight = 1;
     this.adaptiveScale = opts.adaptiveScale !== false;
-    this.targetFrameMs = opts.targetFrameMs || 16.67;
-    this._emaMs = 12;
-    this._emaWorkMs = 2;
-    this._lastFrameTs = 0;
+    this._targetFrameMs = 0;
+    this._emaMs = 0;
+    this._lastFrameTs = null;
     this._overBudgetStreak = 0;
     this._underBudgetStreak = 0;
     this._lastScaleChangeTs = 0;
+    this._scaleRetryAt = 0;
+    this._lastUpscaleTs = -Infinity;
 
     this.clearColor = new Color(0x0b111c);
     this.clearAlpha = 1;
@@ -655,56 +656,38 @@ export class WebGL2Engine {
     }
   }
 
-  setTargetFps(fps) {
-    this.targetFrameMs = fps && fps > 0 ? 1000 / fps : 16.67;
-    this._overBudgetStreak = 0;
-  }
-
-  _updateAdaptiveScale(lastWorkMs = 0) {
-    if (!this.adaptiveScale) return;
-    const now = typeof performance !== "undefined" ? performance.now() : 0;
-    if (!now) return;
-    if (lastWorkMs > 0 && lastWorkMs < 100) {
-      this._emaWorkMs += (lastWorkMs - this._emaWorkMs) * 0.15;
-    }
-    if (this._lastFrameTs > 0) {
-      const dtMs = now - this._lastFrameTs;
-      if (dtMs > 2 && dtMs < 120) {
-        this._emaMs += (dtMs - this._emaMs) * 0.14;
-        const targetMs = this.targetFrameMs || 16.67;
-        // Never mistake a GPU-bound 30 FPS drop on a 60/120 FPS mobile phone for an intentional 30 FPS cap.
-        const overThresh = targetMs * 1.24;
-        const underThresh = targetMs * 0.72;
-        if (this._emaMs > overThresh && dtMs > targetMs * 1.18) {
-          this._overBudgetStreak++;
-          this._underBudgetStreak = 0;
-        } else if (this._emaMs < underThresh && dtMs < targetMs * 0.85) {
-          this._underBudgetStreak++;
-          this._overBudgetStreak = 0;
-        } else {
-          this._overBudgetStreak = 0;
-          this._underBudgetStreak = 0;
-        }
-        const cooldown = this.isMobile ? 2500 : 1800;
-        const minScale = this.isMobile ? 0.65 : 0.75;
-        if (now - this._lastScaleChangeTs > cooldown) {
-          if (this._overBudgetStreak > 18 && this.renderScale > minScale + 0.01) {
-            const next = this.renderScale > 0.92 ? 0.85 : this.renderScale > 0.78 ? 0.74 : minScale;
-            this.renderScale = Math.max(minScale, next);
-            this._lastScaleChangeTs = now;
-            this._overBudgetStreak = 0;
-            this._initPostTargets();
-          } else if (this._underBudgetStreak > 90 && this.renderScale < 0.99) {
-            const next = this.renderScale < 0.7 ? 0.74 : this.renderScale < 0.8 ? 0.85 : 1;
-            this.renderScale = Math.min(1, next);
-            this._lastScaleChangeTs = now;
-            this._underBudgetStreak = 0;
-            this._initPostTargets();
-          }
-        }
-      }
-    }
+  updateAdaptiveScale(now, targetMs) {
+    if (!this.adaptiveScale || !Number.isFinite(targetMs) || this.gl.isContextLost()) return;
+    const dtMs = now - (this._lastFrameTs ?? now);
     this._lastFrameTs = now;
+    if (dtMs <= 0 || dtMs >= 1500 || Math.abs(targetMs - this._targetFrameMs) > targetMs * 0.05) {
+      this._targetFrameMs = targetMs;
+      this._emaMs = targetMs;
+      this._overBudgetStreak = this._underBudgetStreak = 0;
+      return;
+    }
+
+    // Several long frames in a row still indicate load. Limit the effect of a single stall on the average.
+    this._emaMs += (Math.min(dtMs, targetMs * 6) - this._emaMs) * 0.14;
+    this._overBudgetStreak = this._emaMs > targetMs * 1.24 ? this._overBudgetStreak + 1 : 0;
+    this._underBudgetStreak = this._emaMs < targetMs * 1.1 ? this._underBudgetStreak + 1 : 0;
+    const cooldown = this.isMobile ? 2500 : 1800;
+    if (now - this._lastScaleChangeTs < cooldown) return;
+    const minScale = this.isMobile ? 0.65 : 0.75;
+    const severeLoad = this._emaMs > targetMs * 2.2 && dtMs > targetMs * 2;
+    if (this._overBudgetStreak > (severeLoad ? 7 : 18) && this.renderScale > minScale) {
+      const next = this.renderScale > 0.92 ? 0.85 : this.renderScale > 0.78 ? 0.74 : minScale;
+      this.renderScale = Math.max(minScale, next);
+      // If the extra pixels quickly cost frames again, wait longer before retrying.
+      this._scaleRetryAt = now + (now - this._lastUpscaleTs < 5000 ? 30000 : 5000);
+    } else if (this._underBudgetStreak > 90 && this.renderScale < 1 && now >= this._scaleRetryAt) {
+      this.renderScale = this.renderScale < 0.7 ? 0.74 : this.renderScale < 0.8 ? 0.85 : 1;
+      this._lastUpscaleTs = now;
+    } else return;
+
+    this._lastScaleChangeTs = now;
+    this._overBudgetStreak = this._underBudgetStreak = 0;
+    this._initPostTargets();
   }
 
   _getProgram(key) {
@@ -1612,9 +1595,6 @@ export class WebGL2Engine {
   render(scene, camera) {
     const gl = this.gl;
     if (gl.isContextLost()) return;
-    const renderStart = typeof performance !== "undefined" ? performance.now() : 0;
-    this._updateAdaptiveScale(this._lastWorkMs || 0);
-
     const stats = this.info.render;
     stats.frame++;
     stats.calls = 0;
@@ -1862,8 +1842,5 @@ export class WebGL2Engine {
     }
 
     this._bindVao(null);
-    if (renderStart > 0) {
-      this._lastWorkMs = performance.now() - renderStart;
-    }
   }
 }

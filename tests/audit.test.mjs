@@ -153,6 +153,7 @@ test("nearby cover blocks beams and gadget landings", () => {
   w.player.y = 0;
   w.player.iT = 0;
   const beam = w.beam({ x: 0, y: 0, a: 0, warn: 0, len: 10 });
+  assert.ok(Math.abs(beam.cur - 1) < 1e-8, "the warning should stop at cover on its first frame");
   w.updateBeams(1 / 60);
   assert.equal(w.player.hp, 100);
   assert.ok(Math.abs(beam.cur - 1) < 1e-8);
