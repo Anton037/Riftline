@@ -599,7 +599,7 @@ const rlStep = 1 / 60,
         boss: boss || null,
         event: boss ? null : this.eventFor(n),
         mutator: mutators.gained || null,
-        traps: n >= TRAP_FROM.floor && (!boss || n >= 15),
+        traps: n >= TRAP_FROM.floor && (!boss || n >= 10),
       };
     }
     biomeFor(wave) {
@@ -3481,9 +3481,11 @@ const rlStep = 1 / 60,
       let player = this.player;
       for (let beam of this.beams) {
         beam.t += dt;
-        if (beam.swing && beam.t >= beam.warn) {
-          const liveT = beam.t - beam.warn;
-          beam.a = beam.a0 + Math.sin(liveT * beam.swing) * (beam.rot >= 0 ? 1 : -1) * 0.92;
+        if (beam.swing) {
+          if (beam.t >= beam.warn) {
+            const liveT = beam.t - beam.warn;
+            beam.a = beam.a0 + Math.sin(liveT * beam.swing) * (beam.rot >= 0 ? 1 : -1) * 0.92;
+          }
         } else if (beam.rot) {
           beam.a += beam.rot * dt;
         }

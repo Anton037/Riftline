@@ -457,14 +457,19 @@ void main() {
   if (!gl_FrontFacing) N = -N;
   vec3 V = normalize(uCamPos - vWorldPos);
 
-  // Triplanar painterly brushwork detail (surface atlas stores linear data: R=brush, G=roughness, B=glint)
+  // Triplanar painterly brushwork detail (skip negligible axes to cut mobile texture bandwidth ~50%)
   vec3 ln = normalize(vLocalNorm);
   vec3 w = pow(abs(ln), vec3(4.0));
   w /= max(w.x + w.y + w.z, 0.001);
   vec3 tp = vLocalPos * 0.55;
   vec3 surf = vec3(0.55, 0.5, 0.25);
   if (uSurfaceReady > 0.5) {
-    surf = sampleSurface(tp.zy) * w.x + sampleSurface(tp.xz) * w.y + sampleSurface(tp.xy) * w.z;
+    vec3 acc = vec3(0.0);
+    float wSum = 0.0;
+    if (w.x > 0.04) { acc += sampleSurface(tp.zy) * w.x; wSum += w.x; }
+    if (w.y > 0.04) { acc += sampleSurface(tp.xz) * w.y; wSum += w.y; }
+    if (w.z > 0.04) { acc += sampleSurface(tp.xy) * w.z; wSum += w.z; }
+    surf = acc / max(wSum, 0.001);
   }
   float brush = surf.r;
   float rough = surf.g;
@@ -626,7 +631,7 @@ void main() {
     float drift = smoothstep(0.34, 0.76, fbm(p * 0.19 + vec2(0.4, -0.2)));
     albedo = mix(albedo * 0.94, vec3(0.22, 0.34, 0.46), drift * 0.24 * detailAmt);
     albedo = mix(albedo, vec3(0.07, 0.20, 0.33), icePatch * 0.52 * inside);
-    float iceEdge = sharedCrack;
+    float iceEdge = (icePatch > 0.01 && inside > 0.01) ? crackNet(p * mix(0.28, 0.34, inside), vec2(n1, n2) * mix(0.48, 0.42, inside)) : 1.0;
     float crack = (1.0 - smoothstep(0.016, 0.056, iceEdge)) * icePatch;
     albedo += vec3(0.08, 0.18, 0.26) * crack * 0.42 * inside;
     albedo = mix(albedo, vec3(0.14, 0.25, 0.38), gridLine * 0.12 * inside);
@@ -641,7 +646,8 @@ void main() {
 
     if (outMask > 0.001) {
       float fjord = smoothstep(1.35, 2.1, outDist) * (1.0 - smoothstep(6.4, 7.6, outDist + (n1 - 0.5) * 1.8));
-      float fjordCrack = 1.0 - smoothstep(0.014, 0.065, sharedCrack);
+      float fjordEdge = (fjord > 0.01 && outDist < 9.5) ? crackNet(p * mix(0.28, 0.34, inside), vec2(n1, n2) * mix(0.48, 0.42, inside)) : 1.0;
+      float fjordCrack = 1.0 - smoothstep(0.014, 0.065, fjordEdge);
       vec3 fjordCol = mix(vec3(0.042, 0.155, 0.29), vec3(0.10, 0.30, 0.48), n2 * 0.65 + fjordCrack * 0.45);
       vec3 snowBench = mix(vec3(0.18, 0.30, 0.44), vec3(0.30, 0.45, 0.60), smoothstep(0.28, 0.76, drift));
       float snowBank = exp(-pow((outDist - 1.55) * 2.2, 2.0)) + exp(-pow((outDist - 7.3) * 1.8, 2.0));
@@ -657,7 +663,7 @@ void main() {
     // MOSS BOG: mossy peat turf, dark reflective bog shallows, pulsing mycelium veins & glowing water ripples
     float bogWater = smoothstep(0.56, 0.70, n1) * mix(1.0, 0.54, centerCalm);
     float mossTuft = smoothstep(0.38, 0.72, n2);
-    float mycoEdge = sharedCrack;
+    float mycoEdge = (n2 > 0.41 && outDist < 9.5) ? crackNet(p * 0.30, vec2(n1, n2) * 0.72) : 1.0;
     float vein = (1.0 - smoothstep(0.012, 0.052, mycoEdge)) * smoothstep(0.42, 0.70, n2);
     float tide = 0.70 + 0.30 * sin(uTime * 1.4 + n1 * 3.8);
     albedo = mix(albedo * 0.90, albedo * 1.10, mossTuft * detailAmt);
@@ -715,7 +721,7 @@ void main() {
     float brassChart = (exp(-pow((rChart - 5.5) * 8.0, 2.0)) + exp(-pow((rChart - 10.5) * 7.0, 2.0))) * inside;
     albedo = mix(albedo, vec3(0.32, 0.22, 0.12), brassChart * 0.16);
     float riftMask = smoothstep(0.38, 0.72, n1);
-    float riftEdge = sharedCrack;
+    float riftEdge = (inside > 0.01) ? crackNet(p * 0.25, vec2(n1, n2) * 0.38) : 1.0;
     float rift = (1.0 - smoothstep(0.011, 0.052, riftEdge)) * (0.16 + 0.84 * riftMask);
     float starDust = smoothstep(0.93, 0.99, vnoise(p * 1.85 + vec2(1.7, -2.3))) * (0.5 + 0.5 * sin(uTime * 2.5 + n2 * 8.0));
     emissive += mix(uFloorTrim, uFloorAccent, n2) * (rift * 0.23 * beat + max(0.0, ripWave) * 0.20) * inside;
@@ -752,7 +758,7 @@ void main() {
     albedo *= 0.90 + slab * 0.14 * detailAmt;
     albedo = mix(albedo, albedo * 0.68, gridLine * 0.26 * inside);
     float pocket = smoothstep(0.34, 0.74, n1);
-    float basaltEdge = sharedCrack;
+    float basaltEdge = (outDist < 9.5) ? crackNet(p * 0.26, vec2(n1, n2) * 0.42) : 1.0;
     float crackLine = 1.0 - smoothstep(0.012, 0.062, basaltEdge);
     float magma = crackLine * (0.16 + 0.84 * pocket);
     float emberGlow = 0.78 + 0.22 * sin(uTime * 2.2 + p.x * 0.35 - p.y * 0.28);
@@ -782,7 +788,8 @@ void main() {
     float ripple = sin(p.y * 1.4 + p.x * 0.35 + n2 * 3.5) * 0.5 + 0.5;
     albedo = mix(albedo * (0.92 + ripple * 0.10 * detailAmt), vec3(0.048, 0.20, 0.22), glass * 0.56 * inside);
     albedo = mix(albedo, albedo * 0.86, gridLine * 0.15 * inside);
-    float glassCrack = (1.0 - smoothstep(0.015, 0.052, sharedCrack)) * glass;
+    float glassEdge = (glass > 0.01 && inside > 0.01) ? crackNet(p * 0.36, vec2(n1, n2) * 0.35) : 1.0;
+    float glassCrack = (1.0 - smoothstep(0.015, 0.052, glassEdge)) * glass;
     albedo += vec3(0.045, 0.14, 0.15) * glassCrack * 0.48 * inside;
     float sandPrint = wakeTrack * (1.0 - glass * 0.8) * inside;
     float sandRim = exp(-pow((wakeTrack - 0.24) * 9.0, 2.0)) * step(0.05, wakeTrack) * (1.0 - glass * 0.8) * inside;
@@ -795,8 +802,9 @@ void main() {
     if (outMask > 0.001) {
       float duneWave = sin(p.y * 0.52 + p.x * 0.22 + fbm(p * 0.11) * 3.4) * 0.5 + 0.5;
       float duneCrest = pow(duneWave, 1.8);
-      float oasis = smoothstep(0.57, 0.69, fbm(p * 0.12 + vec2(-2.1, 1.4))) * smoothstep(2.0, 3.6, outDist);
-      float shore = exp(-pow((fbm(p * 0.12 + vec2(-2.1, 1.4)) - 0.57) * 26.0, 2.0)) * smoothstep(2.0, 3.6, outDist);
+      float oasisFbm = fbm(p * 0.12 + vec2(-2.1, 1.4));
+      float oasis = smoothstep(0.57, 0.69, oasisFbm) * smoothstep(2.0, 3.6, outDist);
+      float shore = exp(-pow((oasisFbm - 0.57) * 26.0, 2.0)) * smoothstep(2.0, 3.6, outDist);
       vec3 sandCol = mix(vec3(0.18, 0.11, 0.058), vec3(0.36, 0.24, 0.125), duneCrest);
       vec3 poolCol = mix(vec3(0.032, 0.20, 0.21), vec3(0.075, 0.34, 0.33), 0.5 + 0.5 * sin(p.x * 0.9 + uTime * 1.2 + n2 * 3.0));
       vec3 extCol = mix(sandCol, poolCol, oasis);
@@ -920,13 +928,6 @@ void main() {
   float gridLine = 1.0 - smoothstep(0.009, 0.022, min(cell.x, cell.y));
   float n1 = fbm(p * 0.16);
   float n2 = fbm(p * 0.42 + vec2(3.2, -1.9));
-  ${
-    needCrack
-      ? `float cScale = (style == 2) ? mix(0.28, 0.34, inside) : (style == 3) ? 0.30 : (style == 4) ? 0.25 : (style == 6) ? 0.26 : 0.36;
-  float cWarp = (style == 3) ? 0.72 : (style == 4) ? 0.38 : (style == 2) ? mix(0.48, 0.42, inside) : (style == 6) ? 0.42 : 0.35;
-  float sharedCrack = (outDist < 9.5) ? crackNet(p * cScale, vec2(n1, n2) * cWarp) : 1.0;`
-      : ""
-  }
 
   ${styleBody}
 

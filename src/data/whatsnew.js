@@ -4,6 +4,17 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "5.3.1",
+    title: "Smoother mobile play & tougher traps",
+    items: [
+      "Smoother iPhone and Android frame pacing with jitter-tolerant vsync, adaptive scaling fixes, and leaner mobile bloom, wake, and shader work.",
+      "Eliminated mobile text-atlas stutters on damage numbers and trimmed high-DPR tablet and phone GPU fillrate.",
+      "Hunting floor traps now surface beneath center-campers from Wave 2 onward, and dormant floor plates wake up faster when stepped on.",
+      "Sweeping beams now track across your position instead of firing into outer walls, and alternate sweep direction between cycles.",
+      "Respawning mines can reclaim the middle of the arena, and detonating a mine chains nearby armed mines.",
+    ],
+  },
+  {
     version: "5.3.0",
     title: "Craft polish and fixes",
     items: [
@@ -40,16 +51,5 @@ export const WHATS_NEW = [
     version: "5.2.10",
     title: "Safer Forge taps",
     items: ["Continuing to the Roadside Forge keeps your purchases and shards until you tap an item."],
-  },
-  {
-    version: "5.2.9",
-    title: "Safer pauses and checkpoints",
-    items: [
-      "If the browser loses graphics, the run pauses until you can see again.",
-      "Endless saves as soon as you enter it.",
-      "Continue tells you when you're returning to a reward choice or the Roadside Forge.",
-      "On tablets, you can swipe through a long list of your crafts while choosing a reward.",
-      "When no crafts are available, the reward shows how much HP you actually recovered.",
-    ],
   },
 ];

@@ -130,6 +130,8 @@ const healthBarTypes = {
       this.dprCap = 1.5;
       this._isClean = false;
       this._lastFont = "";
+      this._pips = [];
+      this._heroScreen = { x: 0, y: 0 };
       this.hurts = [];
       this.callouts = [];
       this.hpTrails = new WeakMap();
@@ -171,7 +173,8 @@ const healthBarTypes = {
     resize() {
       let w = this.c.clientWidth || window.innerWidth,
         h = this.c.clientHeight || window.innerHeight,
-        dpr = Math.min(window.devicePixelRatio || 1, this.dprCap || 1.5);
+        cap = touchInput && w * h > 550_000 ? 1.25 : this.dprCap || 1.5,
+        dpr = Math.min(window.devicePixelRatio || 1, cap);
       if (!(w === this.w && h === this.h && dpr === this.dpr)) {
         this.w = w;
         this.h = h;
@@ -375,7 +378,8 @@ const healthBarTypes = {
           fillPill(ctx, x0, pos.y - 5.5, Math.max(3, width * (enemy.shield / enemy.shieldMax)), 3);
         }
         // Compact status pips below HP bar (burn, chill, corrode/glaze, stun)
-        const pips = [];
+        const pips = this._pips;
+        pips.length = 0;
         if (enemy.burnT > 0) pips.push("#ff8a3d");
         if (enemy.slowT > 0) pips.push("#8ee8ff");
         if (enemy.inAcid || enemy.glazeT > 0 || enemy.chimeVulnT > 0) pips.push("#8ef2a8");
@@ -424,10 +428,13 @@ const healthBarTypes = {
       ctx.textBaseline = "middle";
       let heroScreen = null;
       if (player.alive && renderer.project(player.x, 0.9, player.y, this.tmp2).vis) {
-        heroScreen = { x: this.tmp2.x, y: this.tmp2.y };
+        this._heroScreen.x = this.tmp2.x;
+        this._heroScreen.y = this.tmp2.y;
+        heroScreen = this._heroScreen;
       }
       const placedNums = this._placedNums || (this._placedNums = []);
       placedNums.length = 0;
+      ctx.lineJoin = "round";
       for (let num of renderer.nums) {
         if (num.life <= 0 || !project(num.x, num.y, num.z)) continue;
         let nx = pos.x,
@@ -459,23 +466,22 @@ const healthBarTypes = {
         placedNums.push(nx, ny);
         let alpha = clamp(num.life / 0.35, 0, 1),
           pop = 1 + Math.max(0, 1 - (renderer.time - num.t0) / 0.16) * (num.superCrit ? 0.68 : num.crit ? 0.52 : 0.36),
-          fontSize = Math.round(
-            Math.min(
-              num.superCrit ? 32 : 28,
-              (num.superCrit ? 19 : num.crit ? 16.5 : num.burn ? 10 : 12) + 3.5 * Math.log10(1 + Math.max(0, num.v)),
-            ) * pop,
-          );
-        this.setFont(`700 ${fontSize}px "Instrument Sans", system-ui, sans-serif`);
+          basePx = num.superCrit ? 24 : num.crit ? 20 : num.burn ? 14 : 16,
+          targetPx = Math.min(
+            num.superCrit ? 32 : 28,
+            (num.superCrit ? 19 : num.crit ? 16.5 : num.burn ? 10 : 12) + 3.5 * Math.log10(1 + Math.max(0, num.v)),
+          ),
+          scale = (targetPx / basePx) * pop;
+        // Fixed 4-tier base font sizes prevent per-frame glyph-atlas re-rasterization on mobile Safari/Android
+        this.setFont(`700 ${basePx}px "Instrument Sans", system-ui, sans-serif`);
         let text = String(Math.max(1, Math.round(num.v))) + (num.superCrit ? "\u2605" : num.crit ? "!" : "");
         ctx.globalAlpha = alpha;
-        ctx.lineJoin = "round";
         ctx.lineWidth = num.superCrit ? 5 : num.crit ? 4.4 : 3.8;
         ctx.strokeStyle = num.superCrit
           ? "rgba(120,44,6,0.95)"
           : num.crit
             ? "rgba(46,20,8,0.92)"
             : "rgba(14,12,24,0.92)";
-        ctx.strokeText(text, nx, ny);
         ctx.fillStyle = num.superCrit
           ? "#fff4b8"
           : num.crit
@@ -485,7 +491,17 @@ const healthBarTypes = {
               : num.shield
                 ? "#94f4ff"
                 : "#fff7e4";
-        ctx.fillText(text, nx, ny);
+        if (Math.abs(scale - 1) > 0.03) {
+          ctx.save();
+          ctx.translate(nx, ny);
+          ctx.scale(scale, scale);
+          ctx.strokeText(text, 0, 0);
+          ctx.fillText(text, 0, 0);
+          ctx.restore();
+        } else {
+          ctx.strokeText(text, nx, ny);
+          ctx.fillText(text, nx, ny);
+        }
       }
       ctx.globalAlpha = 1;
       let fewEnemies = world.enemies.length <= 6,

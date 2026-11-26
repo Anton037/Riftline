@@ -7,50 +7,59 @@ import { BIOME_TRAP_EFFECTS as BIOME_TRAPS } from "../data/combat-effects.js";
 // skins: family, base damage (times wave enemy damage multiplier), radius, warning, pause, biome-native twist
 const TRAP_SKINS = {
   // Sweeping beacons, curtains, spouts & bellows (all 6 realms)
-  laser: { fam: "beam", dmg: 16, w: 0.9, len: 26, warn: 1.1, dur: 2.1, rot: 0.52, cd: 3.6, special: "shock" },
+  laser: { fam: "beam", dmg: 20, w: 0.95, len: 26, warn: 1.05, dur: 2.2, rot: 0.62, cd: 2.7, special: "shock" },
   iceShot: {
     fam: "beam",
-    dmg: 16,
+    dmg: 19,
     w: 1.15,
-    len: 21,
-    warn: 1.05,
-    dur: 2.3,
-    rot: 0.48,
-    swing: 1.1,
-    cd: 3.4,
+    len: 22,
+    warn: 1.0,
+    dur: 2.35,
+    rot: 0.56,
+    swing: 1.22,
+    cd: 2.6,
     special: "chill",
   },
-  acid: { fam: "beam", dmg: 16, w: 1.05, len: 18, warn: 1.0, dur: 2.2, rot: 0.68, cd: 3.3, special: "acid" },
-  rift: { fam: "beam", dmg: 18, w: 1.0, len: 22, warn: 1.15, dur: 2.6, rot: -0.58, swing: 1.35, cd: 3.7 },
-  magma: { fam: "beam", dmg: 18, w: 1.35, len: 15.5, warn: 0.95, dur: 1.85, rot: 0.78, cd: 2.9, special: "burn" },
+  acid: { fam: "beam", dmg: 19, w: 1.05, len: 21, warn: 0.95, dur: 2.2, rot: 0.78, cd: 2.5, special: "acid" },
+  rift: { fam: "beam", dmg: 22, w: 1.0, len: 23, warn: 1.0, dur: 2.6, rot: -0.66, swing: 1.42, cd: 2.8 },
+  magma: { fam: "beam", dmg: 22, w: 1.35, len: 19, warn: 0.95, dur: 1.95, rot: 0.86, cd: 2.35, special: "burn" },
   sun: {
     fam: "beam",
-    dmg: 18,
-    w: 0.85,
+    dmg: 22,
+    w: 0.9,
     len: 25,
-    warn: 1.05,
-    dur: 2.2,
-    rot: 0.62,
-    swing: 1.25,
-    cd: 3.5,
+    warn: 1.0,
+    dur: 2.25,
+    rot: 0.72,
+    swing: 1.32,
+    cd: 2.65,
     special: "glass",
   },
 
   // Floor hazards
-  plate: { fam: "floor", dmg: 22, r: 2.25, warn: 1.0, cd: 4.2, special: "shock", knock: 4.8, frac: 0.11 },
-  icespike: { fam: "floor", dmg: 24, r: 2.2, warn: 1.0, cd: 4.2, special: "chill", chillHalo: 1.35, frac: 0.1 },
-  geyser: { fam: "floor", dmg: 20, r: 2.0, warn: 1.0, cd: 4.0, special: "acid", frac: 0.1 },
-  riftburst: { fam: "floor", dmg: 24, r: 2.4, warn: 1.05, cd: 4.2, special: "shock", pull: 5.2, frac: 0.11 },
-  pyro: { fam: "floor", dmg: 21, r: 2.1, warn: 1.0, cd: 4.0, special: "burn", frac: 0.12 },
-  sunspike: { fam: "floor", dmg: 22, r: 2.25, warn: 1.0, cd: 4.1, special: "glass", knock: 6.5, frac: 0.12 },
+  plate: { fam: "floor", dmg: 25, r: 2.35, warn: 0.98, cd: 3.1, special: "shock", knock: 4.8, frac: 0.12 },
+  icespike: {
+    fam: "floor",
+    dmg: 27,
+    r: 2.3,
+    warn: 0.98,
+    cd: 3.1,
+    special: "chill",
+    chillHalo: 1.35,
+    frac: 0.11,
+  },
+  geyser: { fam: "floor", dmg: 24, r: 2.15, warn: 0.96, cd: 3.0, special: "acid", frac: 0.11 },
+  riftburst: { fam: "floor", dmg: 28, r: 2.5, warn: 1.02, cd: 3.15, special: "shock", pull: 5.6, frac: 0.12 },
+  pyro: { fam: "floor", dmg: 25, r: 2.2, warn: 0.96, cd: 2.95, special: "burn", frac: 0.13 },
+  sunspike: { fam: "floor", dmg: 26, r: 2.35, warn: 0.98, cd: 3.05, special: "glass", knock: 6.5, frac: 0.13 },
 
   // Shootable proximity vessels
   mine: {
     fam: "mine",
-    dmg: 28,
-    r: 2.7,
-    trig: 1.5,
-    arm: 1.5,
+    dmg: 30,
+    r: 2.8,
+    trig: 2.0,
+    arm: 1.35,
     fuse: 0.45,
     special: "shock",
     knock: 5.4,
@@ -59,10 +68,10 @@ const TRAP_SKINS = {
   },
   frost: {
     fam: "mine",
-    dmg: 22,
-    r: 3.2,
-    trig: 1.5,
-    arm: 1.5,
+    dmg: 24,
+    r: 3.25,
+    trig: 2.0,
+    arm: 1.35,
     fuse: 0.45,
     special: "chill",
     chillHalo: 1.45,
@@ -71,22 +80,22 @@ const TRAP_SKINS = {
   },
   spore: {
     fam: "mine",
-    dmg: 18,
-    r: 3.0,
-    trig: 1.5,
-    arm: 1.5,
+    dmg: 20,
+    r: 3.05,
+    trig: 2.0,
+    arm: 1.35,
     fuse: 0.45,
     special: "acid",
     poolScale: 1.05,
     frac: 0.11,
   },
-  riftmine: { fam: "mine", dmg: 26, r: 2.9, trig: 1.5, arm: 1.5, fuse: 0.56, pull: 8.5, frac: 0.16 },
+  riftmine: { fam: "mine", dmg: 28, r: 2.95, trig: 2.0, arm: 1.35, fuse: 0.56, pull: 8.8, frac: 0.16 },
   embermine: {
     fam: "mine",
-    dmg: 28,
-    r: 2.7,
-    trig: 1.5,
-    arm: 1.5,
+    dmg: 30,
+    r: 2.8,
+    trig: 2.0,
+    arm: 1.35,
     fuse: 0.45,
     special: "burn",
     poolLife: 3.5,
@@ -94,10 +103,10 @@ const TRAP_SKINS = {
   },
   glassmine: {
     fam: "mine",
-    dmg: 26,
-    r: 2.8,
-    trig: 1.5,
-    arm: 1.5,
+    dmg: 28,
+    r: 2.85,
+    trig: 2.0,
+    arm: 1.35,
     fuse: 0.45,
     special: "glass",
     knock: 7.5,
@@ -113,12 +122,12 @@ function trapCount(fam, wave) {
   if (wave < TRAP_FROM[fam]) return 0;
   const late = wave - TRAP_FROM[fam];
   let count =
-    fam === "floor" ? 1 + Math.floor(late / 6) : fam === "beam" ? 1 + Math.floor(late / 12) : 2 + Math.floor(late / 5);
-  if (wave > 20) count = Math.ceil(count * 1.5) + Math.floor(Math.max(0, wave - 40) / 20);
+    fam === "floor" ? 2 + Math.floor(late / 5) : fam === "beam" ? 1 + Math.floor(late / 5) : 2 + Math.floor(late / 4);
+  if (wave > 20) count = Math.ceil(count * 1.4) + Math.floor(Math.max(0, wave - 40) / 20);
   return Math.min(count, fam === "floor" ? 9 : fam === "beam" ? 4 : 12);
 }
 
-const pace = (wave, storm = 0) => (wave > 20 ? { cd: 0.8 * (1 - 0.12 * storm), warn: 0.85 } : { cd: 1, warn: 1 });
+const pace = (wave, storm = 0) => (wave > 20 ? { cd: 0.8 * (1 - 0.12 * storm), warn: 0.86 } : { cd: 1, warn: 1 });
 
 function trapRadius(skin) {
   if (skin.fam === "beam") return 1.25;
@@ -132,18 +141,18 @@ function trapFootprints(traps, except) {
     .map((trap) => ({ x: trap.x, y: trap.y, r: trapRadius(TRAP_SKINS[trap.skin]) + 0.25 }));
 }
 
-function findTrapSite(arena, skin, rng, reserved) {
+function findTrapSite(arena, skin, rng, reserved, keepSpawnClear = true) {
   const radius = trapRadius(skin) + 0.45;
   const inset = Math.max(2.8, radius);
   for (let attempt = 0; attempt < 96; attempt++) {
     const x = rng.range(-arena.W + inset, arena.W - inset),
       y = rng.range(-arena.H + inset, arena.H - inset);
-    if (Math.hypot(x, y - 2) < Math.max(6.5, 4.6 + radius)) continue;
+    if (keepSpawnClear && Math.hypot(x, y - 2) < Math.max(6.5, 4.6 + radius)) continue;
     if (!arena.clearForPlacement(x, y, radius, reserved)) continue;
     if (skin.fam === "beam") {
-      // Mount sweepers on the outside and point them across open floor.
+      // Mount sweepers on the outside and point them across open floor toward the center.
       if (Math.min(arena.W - Math.abs(x), arena.H - Math.abs(y)) > Math.min(arena.W, arena.H) * 0.4) continue;
-      const a = Math.atan2(2 - y, -x) + rng.range(-0.5, 0.5);
+      const a = Math.atan2(2 - y, -x) + rng.range(-0.35, 0.35);
       if (arena.rayLen(x, y, a, skin.len) < 7) continue;
       return { x, y, a };
     }
@@ -154,7 +163,7 @@ function findTrapSite(arena, skin, rng, reserved) {
 
 function rlPlanTraps(world, wave, boss) {
   const traps = [];
-  if ((boss && wave < 15) || wave < TRAP_FROM.floor) return traps;
+  if ((boss && wave < 10) || wave < TRAP_FROM.floor) return traps;
   const biome = world.arena.biome.id,
     skins = BIOME_TRAPS[biome];
   if (!skins) return traps;
@@ -167,9 +176,9 @@ function rlPlanTraps(world, wave, boss) {
     if (!skinName) continue;
     const skin = TRAP_SKINS[skinName],
       base = trapCount(fam, wave) + (base0(fam, wave) ? storm : 0),
-      count = boss ? Math.ceil(base / 2) : base;
+      count = boss ? Math.max(1, Math.min(3, Math.ceil(base / 2))) : base;
     for (let i = 0; i < count; i++) {
-      const spot = findTrapSite(arena, skin, rng, taken);
+      const spot = findTrapSite(arena, skin, rng, taken, true);
       if (!spot) break;
       taken.push({ x: spot.x, y: spot.y, r: trapRadius(skin) + 0.25 });
       const trap = {
@@ -180,8 +189,9 @@ function rlPlanTraps(world, wave, boss) {
         r: skin.r || skin.w,
         st: fam === "mine" ? "unarmed" : "idle",
         t: 0,
-        wait: 3 + rng.next() * 3 + i * 0.9,
-        hunt: fam === "floor" && wave >= 40 && i % 2 === 1,
+        wait: 1.8 + rng.next() * 2.2 + i * 0.75,
+        // Hunting floor traps activate from Wave 2+ (and on Wave 10+ bosses) so center-camping is never free.
+        hunt: fam === "floor" && (boss || i === 0 || i % 2 === 1),
         dir: rng.chance(0.5) ? 1 : -1,
       };
       traps.push(trap);
@@ -356,6 +366,27 @@ function trapStrike(world, trap, skin, radius, enemyMul = 1, shotDetonated = fal
     r: radius,
     shot: shotDetonated,
   });
+  // Chain reaction: a detonating mine ignites nearby armed mines on a crisp short fuse.
+  if (trap.fam === "mine" && world.traps) {
+    const chainR = radius + 1.1;
+    for (const other of world.traps) {
+      if (other === trap || other.fam !== "mine" || other.st !== "armed") continue;
+      if (Math.hypot(other.x - trap.x, other.y - trap.y) <= chainR) {
+        const otherSkin = TRAP_SKINS[other.skin];
+        other.st = "fuse";
+        other.t = Math.max(0, (otherSkin?.fuse || 0.45) - 0.22);
+        world.emit("trapWarn", {
+          id: other.id,
+          fam: "mine",
+          skin: other.skin,
+          x: other.x,
+          y: other.y,
+          r: otherSkin?.r || other.r,
+          delay: 0.22,
+        });
+      }
+    }
+  }
 }
 
 // Tactical vessel-sniping: player shots detonate armed proximity vessels (and enemy ember-pots / crucible bombs)
@@ -376,7 +407,7 @@ function rlShootTrap(world, bullet, prevX, prevY) {
       trapStrike(world, trap, skin, skin.r * 1.15, 1.5, true);
       trap.st = "gone";
       trap.t = 0;
-      trap.respawn = (world.wave > 20 ? 9 : 14) + trap.id * 0.7;
+      trap.respawn = (world.wave > 20 ? 7 : 10) + (trap.id % 4) * 0.6;
       return true;
     }
   }
@@ -398,6 +429,28 @@ function rlShootTrap(world, bullet, prevX, prevY) {
   return false;
 }
 
+function aimBeamAtPlayer(arena, trap, skin, player, warn) {
+  if (!player || !player.alive) return trap.a;
+  const dist = Math.hypot(player.x - trap.x, player.y - trap.y);
+  // Keep explicit angle if a test or scripted setup places the emitter directly on the player.
+  if (dist < 0.5) return trap.a;
+  const toPlayer = Math.atan2(player.y - trap.y, player.x - trap.x);
+  const sweepSign = (skin.rot || 1) * trap.dir >= 0 ? 1 : -1;
+  // Lead slightly behind the player so the beam sweeps right across their position once live.
+  const lead = skin.swing ? 0.34 : Math.min(1.15, Math.abs(skin.rot || 0.6) * (warn + skin.dur * 0.38));
+  const candidates = [
+    toPlayer - sweepSign * lead,
+    toPlayer - sweepSign * (lead * 0.45),
+    toPlayer,
+    Math.atan2(2 - trap.y, -trap.x),
+    trap.a,
+  ];
+  for (const ang of candidates) {
+    if (arena.rayLen(trap.x, trap.y, ang, skin.len) >= 6) return ang;
+  }
+  return toPlayer;
+}
+
 function rlUpdateTraps(world, dt) {
   if (!world.traps.length || world.state !== "fight") return;
   const p = pace(world.wave, (world.mods && world.mods.extraTraps) || 0),
@@ -406,6 +459,16 @@ function rlUpdateTraps(world, dt) {
     const skin = TRAP_SKINS[trap.skin];
     trap.t += dt;
     if (trap.fam === "floor") {
+      // Non-hunting floor plates wake up quickly if the player steps across them while dormant.
+      if (
+        trap.st === "idle" &&
+        !trap.hunt &&
+        player.alive &&
+        trap.wait - trap.t > 0.35 &&
+        Math.hypot(player.x - trap.x, player.y - trap.y) < skin.r + 1.15
+      ) {
+        trap.wait = trap.t + 0.35;
+      }
       if (trap.st === "idle" && trap.t >= trap.wait) {
         if (trap.hunt && player.alive) {
           const spot = findHuntingTrapSite(world, trap, skin);
@@ -442,6 +505,7 @@ function rlUpdateTraps(world, dt) {
         trap.st = "live";
         trap.t = 0;
         const warn = Math.max(0.7, skin.warn * p.warn);
+        trap.a = aimBeamAtPlayer(world.arena, trap, skin, player, warn);
         world._src = "trap";
         world.beam({
           skin: trap.skin,
@@ -489,7 +553,7 @@ function rlUpdateTraps(world, dt) {
       } else if (trap.st === "live" && trap.t >= trap.span) {
         trap.st = "idle";
         trap.t = 0;
-        trap.a += 0.9 * trap.dir;
+        trap.dir = -trap.dir;
         trap.wait = skin.cd * p.cd;
       }
     } else if (trap.fam === "mine") {
@@ -523,15 +587,16 @@ function rlUpdateTraps(world, dt) {
           trapStrike(world, trap, skin, skin.r);
           trap.st = "gone";
           trap.t = 0;
-          trap.respawn = (world.wave > 20 ? 9 : 14) + trap.id * 0.7;
+          trap.respawn = (world.wave > 20 ? 7 : 10) + (trap.id % 4) * 0.6;
         }
       } else if (trap.st === "gone" && trap.t >= trap.respawn) {
         const rng = makeRng(
           hashString(world.seed + ":mine:" + world.wave + ":" + trap.id + ":" + Math.floor(world.time)),
         );
         const reserved = world.placementReservations(trap);
-        reserved.push({ x: player.x, y: player.y, r: 3 }, ...world.enemies.filter((enemy) => !enemy.dead));
-        const spot = findTrapSite(world.arena, skin, rng, reserved);
+        reserved.push({ x: player.x, y: player.y, r: 3.2 }, ...world.enemies.filter((enemy) => !enemy.dead));
+        // Mid-fight mine respawns can reclaim the center of the arena (keeping safe clearance from player's live spot).
+        const spot = findTrapSite(world.arena, skin, rng, reserved, false);
         trap.t = 0;
         if (!spot) {
           trap.respawn = 1.5;
@@ -548,9 +613,9 @@ function findHuntingTrapSite(world, trap, skin) {
   const { arena, player } = world;
   const reserved = world.placementReservations(trap);
   const radius = trapRadius(skin) + 0.45;
-  const tx = clamp(player.x + player.vx * 0.5, -arena.W + radius, arena.W - radius);
-  const ty = clamp(player.y + player.vy * 0.5, -arena.H + radius, arena.H - radius);
-  return arena.nearbyPoint(tx, ty, radius, 5.3, reserved, trap.id * 2.4);
+  const tx = clamp(player.x + player.vx * 0.42, -arena.W + radius, arena.W - radius);
+  const ty = clamp(player.y + player.vy * 0.42, -arena.H + radius, arena.H - radius);
+  return arena.nearbyPoint(tx, ty, radius, 5.5, reserved, trap.id * 2.4);
 }
 
 export { TRAP_SKINS, TRAP_FROM, rlPlanTraps, rlUpdateTraps, rlShootTrap, trapFootprints };

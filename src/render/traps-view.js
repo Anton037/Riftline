@@ -6,6 +6,7 @@ import { cylinder, octahedron, icosahedron, torus, meshPart, mergeGeometries } f
 import { worldMaterial, emissiveMaterial, hexColor } from "./materials.js";
 import { FINISH } from "./palette.js";
 import { clamp, TAU, angleDiff } from "../core/util.js";
+import { TRAP_SKINS } from "../core/traps.js";
 
 const WHITE = hexColor(FINISH.ivory);
 const WARN = hexColor(FINISH.vermilion);
@@ -374,10 +375,11 @@ export class TrapView {
         }
         s.last = trap.st;
       }
-      if (trap.hunt) {
-        const k = Math.min(1, dt * 12);
-        s.x += (trap.x - s.x) * k;
-        s.z += (trap.y - s.z) * k;
+      if (trap.hunt && Math.hypot(trap.x - s.x, trap.y - s.z) > 1.2) {
+        s.x = trap.x;
+        s.z = trap.y;
+        r.ring(trap.x, trap.y, 0.3, trap.r * 0.85, look.main, 0.34);
+        r.burst(trap.x, trap.y, 0.14, 7, 2.8, look.dust, 0.45, 0.22, { up: 2.2, drag: 2.2 });
       } else {
         s.x = trap.x;
         s.z = trap.y;
@@ -767,7 +769,7 @@ export class TrapView {
     if (P.mover) P.mover.y(x, gy, z, time * (fuse ? 6 : 1.4), sc, sc, sc);
     if (armed || fuse) {
       r.sprites.colC(r.sprites.bb(x, 0.42, z, 1.15 + (fuse ? k * 0.65 : 0), r.B), col, fuse ? 0.25 + k * 0.2 : 0.14);
-      if (armed) r.ringPool.colC(r.ringPool.y(x, 0.04, z, 0, 1.5), TRIGGER, 0.55);
+      if (armed) r.ringPool.colC(r.ringPool.y(x, 0.04, z, 0, TRAP_SKINS[trap.skin]?.trig || 2.0), TRIGGER, 0.55);
     }
     if (fuse) {
       this.warnRing(x, z, trap.r, k);

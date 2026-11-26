@@ -9,7 +9,10 @@ function paceFrame(pacer, now, requested = 60) {
   if (pacer.last == null || pacer.limit !== limit || now - pacer.last > 250 || now < pacer.last) pacer.next = now;
   pacer.last = now;
   pacer.limit = limit;
-  if (now + 0.25 < pacer.next) return false;
+  // Mobile 60/120 Hz rAF timestamps jitter ±0.5–1.5 ms around vsync; a tight 0.25 ms window
+  // causes false frame drops (60→30 or 60→40 FPS micro-stutter). Allow up to 11% of a period (max 1.6 ms).
+  const slack = Math.min(1.6, period * 0.11);
+  if (now + slack < pacer.next) return false;
   const missed = Math.floor(Math.max(0, now - pacer.next) / period);
   pacer.next += (missed + 1) * period;
   return true;

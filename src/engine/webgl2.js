@@ -185,19 +185,25 @@ function createProgram(gl, vsSrc, fsSrc, label, cache = null) {
   return { program: prog, uniforms, label, id: 0, cache: Object.create(null), modelIdent: false };
 }
 
-function _defaultShadowSize(requested) {
-  if (requested) return requested;
-  const isCoarse =
+function _isMobileDevice() {
+  return (
     typeof window !== "undefined" &&
     (window.matchMedia?.("(pointer: coarse)")?.matches ||
       (window.matchMedia?.("(any-pointer: coarse)")?.matches && !window.matchMedia?.("(pointer: fine)")?.matches) ||
-      window.innerWidth < 820);
-  return isCoarse ? 1024 : 2048;
+      window.innerWidth < 820)
+  );
+}
+
+function _defaultShadowSize(requested, isMobile) {
+  if (requested) return requested;
+  return isMobile ? 1024 : 2048;
 }
 
 export class WebGL2Engine {
   constructor(canvas, opts = {}) {
     this.canvas = canvas;
+    this.isMobile = opts.isMobile ?? _isMobileDevice();
+    this.wakeSize = this.isMobile ? 128 : 256;
     this.dpr = 1;
     this.width = 1;
     this.height = 1;
@@ -217,7 +223,7 @@ export class WebGL2Engine {
 
     this.clearColor = new Color(0x0b111c);
     this.clearAlpha = 1;
-    this.shadowMap = { enabled: true, size: _defaultShadowSize(opts.shadowSize) };
+    this.shadowMap = { enabled: true, size: _defaultShadowSize(opts.shadowSize, this.isMobile) };
     this.info = {
       render: {
         frame: 0,
@@ -329,8 +335,9 @@ export class WebGL2Engine {
     const gl = this.gl;
     this._deleteTarget(this.wakeA);
     this._deleteTarget(this.wakeB);
-    this.wakeA = this._createColorTarget(256, 256, false, false);
-    this.wakeB = this._createColorTarget(256, 256, false, false);
+    const ws = this.wakeSize || 256;
+    this.wakeA = this._createColorTarget(ws, ws, false, false);
+    this.wakeB = this._createColorTarget(ws, ws, false, false);
     this.wakeFlip = 0;
     this.wakeReset = true;
 
@@ -618,13 +625,23 @@ export class WebGL2Engine {
     }
     this.msaaTarget = msaa;
     this.hdrTarget = hdr;
-    const bw = Math.max(2, rw >> 1);
-    const bh = Math.max(2, rh >> 1);
-    const qw = Math.max(2, bw >> 1);
-    const qh = Math.max(2, bh >> 1);
-    this.bloomA = this._createColorTarget(bw, bh, false);
-    this.bloomB = this._createColorTarget(qw, qh, false);
-    this.bloomC = this._createColorTarget(Math.max(2, qw >> 1), Math.max(2, qh >> 1), false);
+    if (this.isMobile) {
+      // Mobile TBDR GPUs pay heavily for every FBO switch and half-res float pass.
+      // Prefiltering directly to quarter-res + 1 Kawase octave cuts bloom passes from 5 -> 3 and fillrate by 75%.
+      const qw = Math.max(2, rw >> 2);
+      const qh = Math.max(2, rh >> 2);
+      this.bloomA = this._createColorTarget(qw, qh, false);
+      this.bloomB = this._createColorTarget(Math.max(2, qw >> 1), Math.max(2, qh >> 1), false);
+      this.bloomC = null;
+    } else {
+      const bw = Math.max(2, rw >> 1);
+      const bh = Math.max(2, rh >> 1);
+      const qw = Math.max(2, bw >> 1);
+      const qh = Math.max(2, bh >> 1);
+      this.bloomA = this._createColorTarget(bw, bh, false);
+      this.bloomB = this._createColorTarget(qw, qh, false);
+      this.bloomC = this._createColorTarget(Math.max(2, qw >> 1), Math.max(2, qh >> 1), false);
+    }
   }
 
   setTargetFps(fps) {
@@ -642,31 +659,33 @@ export class WebGL2Engine {
     if (this._lastFrameTs > 0) {
       const dtMs = now - this._lastFrameTs;
       if (dtMs > 2 && dtMs < 120) {
-        this._emaMs += (dtMs - this._emaMs) * 0.12;
+        this._emaMs += (dtMs - this._emaMs) * 0.14;
         const targetMs = this.targetFrameMs || 16.67;
-        // Detect external 30 FPS cap (~33.3ms interval) when actual CPU/GPU submission work is well under budget
-        const isCapped30 = dtMs >= 29 && dtMs <= 37.5 && this._emaWorkMs < 11.5;
-        const effTargetMs = isCapped30 ? Math.max(targetMs, 33.34) : targetMs;
-        const overThresh = effTargetMs * 1.28;
-        const underThresh = effTargetMs * 0.68;
-        if (this._emaMs > overThresh && dtMs > effTargetMs * 1.2 && !isCapped30) {
+        // Never mistake a GPU-bound 30 FPS drop on a 60/120 FPS mobile phone for an intentional 30 FPS cap.
+        const overThresh = targetMs * 1.24;
+        const underThresh = targetMs * 0.72;
+        if (this._emaMs > overThresh && dtMs > targetMs * 1.18) {
           this._overBudgetStreak++;
           this._underBudgetStreak = 0;
-        } else if ((this._emaMs < underThresh && dtMs < effTargetMs * 0.75) || (isCapped30 && this._emaWorkMs < 7.5)) {
+        } else if (this._emaMs < underThresh && dtMs < targetMs * 0.85) {
           this._underBudgetStreak++;
           this._overBudgetStreak = 0;
         } else {
           this._overBudgetStreak = 0;
           this._underBudgetStreak = 0;
         }
-        if (now - this._lastScaleChangeTs > 1500) {
-          if (this._overBudgetStreak > 28 && this.renderScale > 0.76) {
-            this.renderScale = this.renderScale > 0.9 ? 0.875 : 0.75;
+        const cooldown = this.isMobile ? 2500 : 1800;
+        const minScale = this.isMobile ? 0.65 : 0.75;
+        if (now - this._lastScaleChangeTs > cooldown) {
+          if (this._overBudgetStreak > 18 && this.renderScale > minScale + 0.01) {
+            const next = this.renderScale > 0.92 ? 0.85 : this.renderScale > 0.78 ? 0.74 : minScale;
+            this.renderScale = Math.max(minScale, next);
             this._lastScaleChangeTs = now;
             this._overBudgetStreak = 0;
             this._initPostTargets();
-          } else if (this._underBudgetStreak > 75 && this.renderScale < 0.99) {
-            this.renderScale = this.renderScale < 0.8 ? 0.875 : 1;
+          } else if (this._underBudgetStreak > 90 && this.renderScale < 0.99) {
+            const next = this.renderScale < 0.7 ? 0.74 : this.renderScale < 0.8 ? 0.85 : 1;
+            this.renderScale = Math.min(1, next);
             this._lastScaleChangeTs = now;
             this._underBudgetStreak = 0;
             this._initPostTargets();
@@ -1279,9 +1298,17 @@ export class WebGL2Engine {
       u[po + 2] = l.z;
       u[po + 3] = l.radius;
       if (l.intensity > 0.001) {
-        u[co] = l.r > 0 ? Math.pow(l.r, 2.2) : 0;
-        u[co + 1] = l.g > 0 ? Math.pow(l.g, 2.2) : 0;
-        u[co + 2] = l.b > 0 ? Math.pow(l.b, 2.2) : 0;
+        if (l._cr !== l.r || l._cg !== l.g || l._cb !== l.b) {
+          l._cr = l.r;
+          l._cg = l.g;
+          l._cb = l.b;
+          l._lr = l.r > 0 ? Math.pow(l.r, 2.2) : 0;
+          l._lg = l.g > 0 ? Math.pow(l.g, 2.2) : 0;
+          l._lb = l.b > 0 ? Math.pow(l.b, 2.2) : 0;
+        }
+        u[co] = l._lr;
+        u[co + 1] = l._lg;
+        u[co + 2] = l._lb;
         u[co + 3] = l.intensity;
         maxActive = i + 1;
       } else {
@@ -1305,11 +1332,12 @@ export class WebGL2Engine {
       return this.zeroTex;
     }
     const gl = this.gl;
+    const ws = this.wakeSize || 256;
     if (this.wakeReset) {
       gl.disable(gl.BLEND);
       gl.clearColor(0, 0, 0, 0);
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.wakeA.fbo);
-      gl.viewport(0, 0, 256, 256);
+      gl.viewport(0, 0, ws, ws);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.wakeB.fbo);
       gl.clear(gl.COLOR_BUFFER_BIT);
@@ -1323,7 +1351,7 @@ export class WebGL2Engine {
     this._lastWakeTime = scene.time;
 
     if (this._wakeCount > 0) {
-      this._wakeHoldT = 12;
+      this._wakeHoldT = this.isMobile ? 6 : 12;
     } else if (this._wakeHoldT <= 0) {
       return this.zeroTex;
     } else {
@@ -1335,7 +1363,7 @@ export class WebGL2Engine {
     this.wakeFlip ^= 1;
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, dst.fbo);
-    gl.viewport(0, 0, 256, 256);
+    gl.viewport(0, 0, ws, ws);
     gl.disable(gl.DEPTH_TEST);
     gl.depthMask(false);
     gl.disable(gl.CULL_FACE);
@@ -1512,8 +1540,9 @@ export class WebGL2Engine {
       if (shadVis) {
         if (!inst) this._shadowsStatic.push(node);
         else if (node.isCompactInstanced) this._shadowsCompact.push(node);
-        else if (node.isGpuDebrisMesh) this._shadowsDebris.push(node);
-        else this._shadowsInst.push(node);
+        else if (node.isGpuDebrisMesh) {
+          if (!this.isMobile) this._shadowsDebris.push(node);
+        } else this._shadowsInst.push(node);
       }
 
       if (camVis) {

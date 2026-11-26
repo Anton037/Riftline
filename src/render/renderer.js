@@ -91,6 +91,9 @@ const BIOME_WAKE_VFX = {
 
 // Ranged barrel-recoiling enemy types whose Mode 4 recoil responds strictly to enemy.recoilT
 const RECOIL_BARREL_TYPES = new Set(["brassGuard", "longshot", "bellCannon", "watchTower"]);
+const WINDUP_GLOW_TYPES = new Set(["brassGuard", "longshot", "wildBoar", "burrowMole", "starSpider", "crystalTower"]);
+const CHIME_VULN_COLOR = hexColor(0x88f4d4);
+const GLAZE_COLOR = hexColor(0xff9a38);
 
 const BOSS_PORTAL = {
   bellKeeper: [hexColor(FINISH.brass), hexColor(FINISH.ivory)],
@@ -548,7 +551,16 @@ export class Renderer {
     this._needsResize = false;
     const w = this.canvas.clientWidth || window.innerWidth || 800;
     const h = this.canvas.clientHeight || window.innerHeight || 600;
-    const dpr = Math.min(window.devicePixelRatio || 1, this.dprCap || 2);
+    const maxDpr = this.engine.isMobile ? Math.min(this.dprCap || 2, 1.5) : this.dprCap || 2;
+    let dpr = Math.min(window.devicePixelRatio || 1, maxDpr);
+    if (this.engine.isMobile) {
+      const maxPixels = 1_250_000;
+      const area = Math.max(1, w * h);
+      if (area * dpr * dpr > maxPixels) {
+        dpr = Math.max(1, Math.sqrt(maxPixels / area));
+      }
+      dpr = Math.round(dpr * 20) / 20;
+    }
     if (w === this.w && h === this.h && dpr === this.dpr) return;
     this.w = w;
     this.h = h;
@@ -2393,11 +2405,7 @@ export class Renderer {
       );
 
       let glowK = 1.05 + mendPulse * 0.72;
-      if (
-        (["brassGuard", "longshot", "wildBoar", "burrowMole", "starSpider", "crystalTower"].includes(enemy.type) &&
-          enemy.st === 1) ||
-        enemy.sunT > 0
-      ) {
+      if ((WINDUP_GLOW_TYPES.has(enemy.type) && enemy.st === 1) || enemy.sunT > 0) {
         glowK = 1.4 + Math.sin(time * 6) * 0.2;
       }
       if (enemy.type === "firePot" && enemy.st === 1) glowK = 2.1;
@@ -2564,16 +2572,12 @@ export class Renderer {
       if (enemy.chimeVulnT > 0) {
         this.ringPool.colC(
           this.ringPool.y(enemy.x, 0.14, enemy.y, -time * 4.0, enemy.r * 1.48),
-          hexColor(0x88f4d4),
+          CHIME_VULN_COLOR,
           0.62,
         );
       }
       if (enemy.glazeT > 0) {
-        this.ringPool.colC(
-          this.ringPool.y(enemy.x, 0.1, enemy.y, time * 3.2, enemy.r * 1.38),
-          hexColor(0xff9a38),
-          0.54,
-        );
+        this.ringPool.colC(this.ringPool.y(enemy.x, 0.1, enemy.y, time * 3.2, enemy.r * 1.38), GLAZE_COLOR, 0.54);
       }
       if (enemy.rallyT > 0 && !enemy.champion && Math.random() < dt * 6)
         this.emit(enemy.x, 0.3, enemy.y, 0, 1.5, 0, 0.35, 0.3, goldColor, { drag: 1 });

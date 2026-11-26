@@ -20,3 +20,13 @@ test("changing limits and resuming discard missed deadlines", () => {
   assert.equal(paceFrame(p, 10000, 60), true);
   assert.equal(paceFrame(p, 10001, 60), false);
 });
+test("mobile 60 Hz rAF jitter does not cause false half-rate frame drops", () => {
+  const p = makePacer();
+  const jitter = [0, -1.2, 0.9, -0.8, 1.1, -1.4, 0.6, -0.5];
+  let drawn = 0;
+  for (let i = 0; i < 600; i++) {
+    const t = 100 + (i * 1000) / 60 + jitter[i % jitter.length];
+    if (paceFrame(p, t, 60)) drawn++;
+  }
+  assert.equal(drawn, 600);
+});

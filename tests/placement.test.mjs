@@ -147,3 +147,62 @@ test("a shot clears even a fusing biome mine without leaving harmful ground", ()
     assert.deepEqual([w.arena.acid.length, w.arena.ice.length, w.burnPools.length], [0, 0, 0], skin);
   }
 });
+
+test("reworked traps pressure center-campers with Wave 2 hunting floors, player-tracking beams, and mine chains", () => {
+  // 1. Wave 2 includes hunting floor traps that surface onto a center-camping player.
+  const w = world(731);
+  w.startWave(2);
+  const hunters = w.traps.filter((t) => t.fam === "floor" && t.hunt);
+  assert.ok(hunters.length >= 1, "Wave 2 must include at least one hunting floor trap");
+  w.arena.obs = [];
+  w.player.x = 0;
+  w.player.y = 2;
+  w.player.vx = 0;
+  w.player.vy = 0;
+  hunters[0].t = hunters[0].wait;
+  rlUpdateTraps(w, 0.05);
+  assert.equal(hunters[0].st, "warn");
+  assert.ok(Math.hypot(hunters[0].x - 0, hunters[0].y - 2) < 1.0, "hunting floor trap must surface on center camper");
+
+  // 2. Sweeping beams aim across the player's position instead of blindly into outer walls and alternate sweep dir.
+  const wb = world(731);
+  wb.arena.obs = [];
+  wb.player.x = 0;
+  wb.player.y = 2;
+  const beamTrap = { id: 1, fam: "beam", skin: "laser", x: -16, y: 2, a: Math.PI, dir: 1, st: "idle", t: 5, wait: 1 };
+  wb.traps = [beamTrap];
+  rlUpdateTraps(wb, 0.05);
+  assert.equal(wb.beams.length, 1);
+  assert.ok(wb.arena.rayLen(beamTrap.x, beamTrap.y, beamTrap.a, TRAP_SKINS.laser.len) >= 6);
+  // Advance past beam lifetime and confirm sweep direction alternates.
+  rlUpdateTraps(wb, beamTrap.span + 0.05);
+  assert.equal(beamTrap.st, "idle");
+  assert.equal(beamTrap.dir, -1);
+
+  // 3. Static floor traps wake early on proximity, and detonating a mine chains nearby armed mines.
+  const wm = world(731);
+  wm.arena.obs = [];
+  wm.player.x = 0;
+  wm.player.y = 0;
+  const plate = {
+    id: 1,
+    fam: "floor",
+    skin: "plate",
+    x: 1,
+    y: 0,
+    st: "idle",
+    t: 0,
+    wait: 4,
+    hunt: false,
+    a: 0,
+    dir: 1,
+  };
+  const m1 = { id: 2, fam: "mine", skin: "mine", x: 8, y: 0, r: 2.8, st: "armed", t: 0, a: 0, dir: 1 };
+  const m2 = { id: 3, fam: "mine", skin: "mine", x: 10.5, y: 0, r: 2.8, st: "armed", t: 0, a: 0, dir: 1 };
+  wm.traps = [plate, m1, m2];
+  rlUpdateTraps(wm, 0.05);
+  assert.ok(plate.wait < 0.6, "static floor trap must wake quickly when player steps near it");
+  assert.ok(rlShootTrap(wm, { x: 8.2, y: 0, r: 0.2 }, 7.0, 0));
+  assert.equal(m1.st, "gone");
+  assert.equal(m2.st, "fuse", "nearby armed mine must chain-ignite into fuse");
+});
