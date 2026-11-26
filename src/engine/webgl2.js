@@ -315,6 +315,7 @@ export class WebGL2Engine {
     this._curCull = null;
     this._shadowDepthAttach = [gl.DEPTH_ATTACHMENT];
     this._msaaInvalidate = [gl.DEPTH_ATTACHMENT, gl.COLOR_ATTACHMENT0];
+    this._colorAttach = [gl.COLOR_ATTACHMENT0];
 
     this._initUbo();
     this._initWakeTargets();
@@ -400,7 +401,12 @@ export class WebGL2Engine {
     this.canvas.addEventListener("webglcontextlost", (e) => {
       e.preventDefault();
       this._ctxGen++;
+      this._curProg = null;
       this._curVao = null;
+      this._curBlend = "";
+      this._curDepthWrite = null;
+      this._curDepthTest = null;
+      this._curCull = null;
       this.programs.clear();
       this.shadowTarget = null;
       this.msaaTarget = null;
@@ -410,6 +416,11 @@ export class WebGL2Engine {
       this.bloomC = null;
       this.wakeA = null;
       this.wakeB = null;
+      this._wakeVao = null;
+      this._wakePosBuf = null;
+      this._wakeIdxBuf = null;
+      this._wakeStampBuf = null;
+      this.dummyVao = null;
       this.frameUbo = null;
       this.whiteTex = null;
       this.zeroTex = null;
@@ -532,7 +543,7 @@ export class WebGL2Engine {
   _createMsaaTarget(w, h, useHalf) {
     const gl = this.gl;
     const maxSamples = gl.getParameter(gl.MAX_SAMPLES) || 0;
-    const wantSamples = this.dpr >= 1.5 ? 2 : 4;
+    const wantSamples = this.isMobile ? 2 : this.dpr >= 1.5 ? 2 : 4;
     const samples = Math.min(wantSamples, maxSamples);
     if (samples < 2) return null;
     const internalFmt = useHalf ? gl.RGBA16F : gl.RGBA8;
@@ -627,11 +638,11 @@ export class WebGL2Engine {
     this.hdrTarget = hdr;
     if (this.isMobile) {
       // Mobile TBDR GPUs pay heavily for every FBO switch and half-res float pass.
-      // Prefiltering directly to quarter-res + 1 Kawase octave cuts bloom passes from 5 -> 3 and fillrate by 75%.
+      // Prefiltering directly to quarter-res RGBA8 + 1 Kawase octave cuts bloom bandwidth by ~87%.
       const qw = Math.max(2, rw >> 2);
       const qh = Math.max(2, rh >> 2);
-      this.bloomA = this._createColorTarget(qw, qh, false);
-      this.bloomB = this._createColorTarget(Math.max(2, qw >> 1), Math.max(2, qh >> 1), false);
+      this.bloomA = this._createColorTarget(qw, qh, false, false);
+      this.bloomB = this._createColorTarget(Math.max(2, qw >> 1), Math.max(2, qh >> 1), false, false);
       this.bloomC = null;
     } else {
       const bw = Math.max(2, rw >> 1);
@@ -1194,13 +1205,16 @@ export class WebGL2Engine {
     _cacheLinearColor(col);
     if (prog && key) {
       const c = prog.cache;
-      const kr = key + "_r",
-        kg = key + "_g",
-        kb = key + "_b";
-      if (c[kr] === col._lr && c[kg] === col._lg && c[kb] === col._lb) return;
-      c[kr] = col._lr;
-      c[kg] = col._lg;
-      c[kb] = col._lb;
+      let slot = c[key];
+      if (!slot) {
+        slot = c[key] = [col._lr, col._lg, col._lb];
+        this.gl.uniform3f(loc, col._lr, col._lg, col._lb);
+        return;
+      }
+      if (slot[0] === col._lr && slot[1] === col._lg && slot[2] === col._lb) return;
+      slot[0] = col._lr;
+      slot[1] = col._lg;
+      slot[2] = col._lb;
     }
     this.gl.uniform3f(loc, col._lr, col._lg, col._lb);
   }
@@ -1363,6 +1377,7 @@ export class WebGL2Engine {
     this.wakeFlip ^= 1;
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, dst.fbo);
+    if (gl.invalidateFramebuffer) gl.invalidateFramebuffer(gl.FRAMEBUFFER, this._colorAttach);
     gl.viewport(0, 0, ws, ws);
     gl.disable(gl.DEPTH_TEST);
     gl.depthMask(false);
@@ -1546,12 +1561,25 @@ export class WebGL2Engine {
       }
 
       if (camVis) {
-        let key;
-        if (node.isGpuRingMesh) key = mat.shader;
-        else if (node.isCompactInstanced) key = `${mat.shader}_compact`;
-        else if (inst) key = `${mat.shader}_inst`;
-        else key = mat.shader === "floor" ? `floor_${Math.round(mat.uniforms?.uStyle?.value ?? 5)}` : mat.shader;
-        node._cachedProg = this._getProgram(key);
+        if (mat.shader === "floor") {
+          const st = Math.round(mat.uniforms?.uStyle?.value ?? 5);
+          if (node._progCtxGen !== this._ctxGen || node._progFloorStyle !== st) {
+            node._progFloorStyle = st;
+            node._progCtxGen = this._ctxGen;
+            node._cachedProg = this._getProgram(`floor_${st}`);
+          }
+        } else if (node._progCtxGen !== this._ctxGen || node._progShader !== mat.shader) {
+          const key = node.isGpuRingMesh
+            ? mat.shader
+            : node.isCompactInstanced
+              ? `${mat.shader}_compact`
+              : inst
+                ? `${mat.shader}_inst`
+                : mat.shader;
+          node._progShader = mat.shader;
+          node._progCtxGen = this._ctxGen;
+          node._cachedProg = this._getProgram(key);
+        }
         if (mat.transparent || mat.additive) this._trans.push(node);
         else this._opaque.push(node);
       }
@@ -1743,6 +1771,7 @@ export class WebGL2Engine {
       if (this.msaaTarget) {
         gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.msaaTarget.fbo);
         gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.hdrTarget.fbo);
+        if (gl.invalidateFramebuffer) gl.invalidateFramebuffer(gl.DRAW_FRAMEBUFFER, this._colorAttach);
         gl.blitFramebuffer(
           0,
           0,
@@ -1766,10 +1795,11 @@ export class WebGL2Engine {
       gl.disable(gl.CULL_FACE);
       this._bindVao(this.dummyVao);
 
-      // Prefilter bright emissives -> bloomA (half-res)
+      // Prefilter bright emissives -> bloomA (half-res on desktop, quarter-res on mobile)
       const pre = this._getProgram("bloomPrefilter");
       this._useProgram(pre);
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.bloomA.fbo);
+      if (gl.invalidateFramebuffer) gl.invalidateFramebuffer(gl.FRAMEBUFFER, this._colorAttach);
       gl.viewport(0, 0, this.bloomA.width, this.bloomA.height);
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, this.hdrTarget.tex);
@@ -1777,19 +1807,21 @@ export class WebGL2Engine {
       gl.uniform1f(pre.uniforms.uThreshold, bloomThresh);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
 
-      // Kawase downsample 1 -> bloomB (quarter-res)
+      // Kawase downsample 1 -> bloomB
       const kaw = this._getProgram("bloomKawase");
       this._useProgram(kaw);
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.bloomB.fbo);
+      if (gl.invalidateFramebuffer) gl.invalidateFramebuffer(gl.FRAMEBUFFER, this._colorAttach);
       gl.viewport(0, 0, this.bloomB.width, this.bloomB.height);
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, this.bloomA.tex);
       gl.uniform1f(kaw.uniforms.uOffset, 1.15);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
 
-      // Kawase downsample 2 -> bloomC (eighth-res) -> upsample -> bloomB
+      // Kawase downsample 2 -> bloomC (desktop eighth-res) -> upsample -> bloomB
       if (this.bloomC) {
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.bloomC.fbo);
+        if (gl.invalidateFramebuffer) gl.invalidateFramebuffer(gl.FRAMEBUFFER, this._colorAttach);
         gl.viewport(0, 0, this.bloomC.width, this.bloomC.height);
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, this.bloomB.tex);
@@ -1797,6 +1829,7 @@ export class WebGL2Engine {
         gl.drawArrays(gl.TRIANGLES, 0, 3);
 
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.bloomB.fbo);
+        if (gl.invalidateFramebuffer) gl.invalidateFramebuffer(gl.FRAMEBUFFER, this._colorAttach);
         gl.viewport(0, 0, this.bloomB.width, this.bloomB.height);
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, this.bloomC.tex);
@@ -1804,8 +1837,9 @@ export class WebGL2Engine {
         gl.drawArrays(gl.TRIANGLES, 0, 3);
       }
 
-      // Kawase final upsample -> bloomA (half-res)
+      // Kawase final upsample -> bloomA
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.bloomA.fbo);
+      if (gl.invalidateFramebuffer) gl.invalidateFramebuffer(gl.FRAMEBUFFER, this._colorAttach);
       gl.viewport(0, 0, this.bloomA.width, this.bloomA.height);
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, this.bloomB.tex);

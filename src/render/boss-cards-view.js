@@ -95,13 +95,14 @@ export class BossCardView {
   cages(dt, world, quality) {
     const r = this.r;
     const P = this.get("pylon", 6 * PYLONS);
+    const pts = this._cagePts || (this._cagePts = []);
     for (const cage of world.cages) {
       const drop = clamp(cage.t / LOCK_WARN, 0, 1);
       const fall = 1 - drop * drop;
       const live = cage.t >= LOCK_WARN;
       const end = clamp((cage.t - LOCK_WARN - LOCK_TIME + 0.3) / 0.3, 0, 1);
       const spin = cage.id * 0.7;
-      const pts = [];
+      pts.length = 0;
       for (let i = 0; i < PYLONS; i++) {
         const a = spin + (i / PYLONS) * TAU;
         const x = cage.x + Math.cos(a) * cage.r;

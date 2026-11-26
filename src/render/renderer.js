@@ -63,6 +63,7 @@ import { actorMaterial } from "../data/materials.js";
 import { AMBIENT_POOL_SHARE } from "../data/atmosphere.js";
 import { enemyDefs, eliteAffixes, bossDefs, biomeVariants } from "../data/enemies.js";
 import { biomeList } from "../data/biomes.js";
+import { layoutBiomeSeedId } from "../data/content-ids.js";
 import { weaponDefs } from "../data/weapons.js";
 import { STEP_LEN, DASH_TIME } from "../core/walk.js";
 import { logError } from "../core/diagnostics.js";
@@ -92,8 +93,12 @@ const BIOME_WAKE_VFX = {
 // Ranged barrel-recoiling enemy types whose Mode 4 recoil responds strictly to enemy.recoilT
 const RECOIL_BARREL_TYPES = new Set(["brassGuard", "longshot", "bellCannon", "watchTower"]);
 const WINDUP_GLOW_TYPES = new Set(["brassGuard", "longshot", "wildBoar", "burrowMole", "starSpider", "crystalTower"]);
+const SMOKE_WEAPON_IDS = new Set(["lanternGun", "brassShotgun", "emberLauncher", "fireBellows"]);
 const CHIME_VULN_COLOR = hexColor(0x88f4d4);
 const GLAZE_COLOR = hexColor(0xff9a38);
+const CORRODE_COLOR = hexColor(0x78f4a6);
+const SINGE_COLOR = hexColor(0xff7e36);
+const GLARE_COLOR = hexColor(0xffe68a);
 
 const BOSS_PORTAL = {
   bellKeeper: [hexColor(FINISH.brass), hexColor(FINISH.ivory)],
@@ -545,10 +550,12 @@ export class Renderer {
 
   markResize() {
     this._needsResize = true;
+    this._canvasRect = null;
   }
 
   resize() {
     this._needsResize = false;
+    this._canvasRect = null;
     const w = this.canvas.clientWidth || window.innerWidth || 800;
     const h = this.canvas.clientHeight || window.innerHeight || 600;
     const maxDpr = this.engine.isMobile ? Math.min(this.dprCap || 2, 1.5) : this.dprCap || 2;
@@ -580,7 +587,7 @@ export class Renderer {
 
   setBiome(biome, layout) {
     const prevBiomeId = this.biome?.id || null;
-    const targetKey = layout ? layout.key : `${biome.id}:menu`;
+    const targetKey = layout ? layout.key : `${layoutBiomeSeedId(biome.id)}:menu`;
     const changed = !this.biome || this.biome.id !== biome.id || this.arena.layKey !== targetKey;
     this.biome = biome;
     if (changed) {
@@ -729,20 +736,22 @@ export class Renderer {
     this.shake = Math.min(0.75, this.shake + amount * this.motion);
   }
 
-  flash(x, z, radius, intensity, color, decay = 6) {
+  flash(x, z, radius, intensity, color, decay = 6, y = 1.1, muzzle = false) {
     const flashes = this.flashes;
     if (flashes.length < 24) {
-      flashes.push({ x, z, r: radius, i: intensity, col: color, decay });
+      flashes.push({ x, y, z, r: radius, i: intensity, col: color, decay, muzzle });
       return;
     }
     const idx = this._flashCursor++ % 24;
     const slot = flashes[idx];
     slot.x = x;
+    slot.y = y;
     slot.z = z;
     slot.r = radius;
     slot.i = intensity;
     slot.col = color;
     slot.decay = decay;
+    slot.muzzle = muzzle;
   }
 
   addScorch(x, z, radius) {
@@ -1063,7 +1072,7 @@ export class Renderer {
             this.emit(muzzle.x, muzzle.y, muzzle.z, dirX * 4.5, 0, dirZ * 4.5, 0.08, 0.42, color, { drag: 0 });
             this.emit(muzzle.x, muzzle.y, muzzle.z, dirX * 2.2, 0, dirZ * 2.2, 0.045, 0.24, whiteColor, { drag: 0 });
           }
-          if (["lanternGun", "brassShotgun", "emberLauncher", "fireBellows"].includes(def.id)) {
+          if (SMOKE_WEAPON_IDS.has(def.id)) {
             this.smokeView.emit(muzzle.x, muzzle.y, muzzle.z, def.id === "brassShotgun" ? 0.5 : 0.3, 0x9da7a8, 0.35);
           }
           if (!ev.echoOf) {
@@ -1072,16 +1081,16 @@ export class Renderer {
           }
           if (!this.lastMuzzleT || this.time - this.lastMuzzleT > 0.05) {
             this.lastMuzzleT = this.time;
-            this.flashes.push({
-              x: muzzle.x,
-              y: muzzle.y,
-              z: muzzle.z,
-              r: def.id === "starSpear" ? 3.4 : 2.3,
-              i: def.id === "fireBellows" ? 0.4 : 0.6,
-              col: color,
-              decay: 16,
-              muzzle: true,
-            });
+            this.flash(
+              muzzle.x,
+              muzzle.z,
+              def.id === "starSpear" ? 3.4 : 2.3,
+              def.id === "fireBellows" ? 0.4 : 0.6,
+              color,
+              16,
+              muzzle.y,
+              true,
+            );
           }
           if (!ev.echoOf && def.shake > 0.04 && shakeK) {
             this.kick = Math.min(0.6, this.kick + def.shake * 2.2 * this.motion);
@@ -1529,13 +1538,14 @@ export class Renderer {
         case "land": {
           const biomeWake = BIOME_WAKE_VFX[world.arena?.biome?.id];
           const look = STEP_LOOK[ev.ground] || biomeWake || STEP_LOOK.flagstone;
-          const face = world.player.face;
+          const isPlayerStep = ev.foot != null;
+          const face = isPlayerStep ? world.player.face : 0;
           const land = ev.k === "land";
-          const side = land ? 0 : ev.foot ? 0.2 : -0.2;
+          const side = land || !isPlayerStep ? 0 : ev.foot ? 0.2 : -0.2;
           const fx = ev.x - Math.sin(face) * side;
           const fz = ev.y + Math.cos(face) * side;
           const n = land ? 10 : this.maxParticles >= 600 ? 3 : 1;
-          if (!land && Math.hypot(world.player.vx, world.player.vy) < 1) break;
+          if (!land && isPlayerStep && Math.hypot(world.player.vx, world.player.vy) < 1) break;
           this.engine.stampWake(
             fx,
             fz,
@@ -1668,6 +1678,16 @@ export class Renderer {
           this.flash(ev.x, ev.y, 2.4, 0.9, arc, 6);
           break;
         }
+        case "corrode":
+          this.burst(ev.x, ev.y, 0.5, 10, 3, CORRODE_COLOR, 0.45, 0.26, { up: 1.8, drag: 2 });
+          break;
+        case "singe":
+          this.burst(ev.x, ev.y, 0.55, 10, 3.4, SINGE_COLOR, 0.4, 0.24, { spark: true, up: 2.4, drag: 2 });
+          break;
+        case "glare":
+          this.burst(ev.x, ev.y, 0.7, 10, 4.2, GLARE_COLOR, 0.32, 0.24, { spark: true, drag: 2.5 });
+          this.flash(ev.x, ev.y, 2.2, 0.75, GLARE_COLOR, 8);
+          break;
         case "champion":
           this.ring(ev.x, ev.y, 0.5, 5, goldColor, 0.6);
           this.burst(ev.x, ev.y, 0.5, 30, 7, goldColor, 0.6, 0.45, { up: 4 });
@@ -3392,7 +3412,9 @@ export class Renderer {
 
   groundAt(sx, sy, height) {
     if (!Number.isFinite(sx) || !Number.isFinite(sy)) return null;
-    const rect = this.canvas?.getBoundingClientRect ? this.canvas.getBoundingClientRect() : null;
+    const rect =
+      this._canvasRect ||
+      (this._canvasRect = this.canvas?.getBoundingClientRect ? this.canvas.getBoundingClientRect() : null);
     const w = rect && rect.width > 0 ? rect.width : this.w;
     const h = rect && rect.height > 0 ? rect.height : this.h;
     const left = rect ? rect.left : 0;

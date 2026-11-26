@@ -264,28 +264,38 @@ function featureRadius(feature) {
 
 function segmentHitsBox(x0, y0, x1, y1, minX, minY, maxX, maxY) {
   let tMin = 0,
-    tMax = 1,
-    dx = x1 - x0,
-    dy = y1 - y0,
-    dirs = [-dx, dx, -dy, dy],
-    dists = [x0 - minX, maxX - x0, y0 - minY, maxY - y0];
-  for (let k = 0; k < 4; k++) {
-    if (dirs[k] === 0) {
-      if (dists[k] < 0) return false;
-      continue;
+    tMax = 1;
+  const dx = x1 - x0,
+    dy = y1 - y0;
+  if (dx === 0) {
+    if (x0 < minX || x0 > maxX) return false;
+  } else {
+    const inv = 1 / dx;
+    let t1 = (minX - x0) * inv,
+      t2 = (maxX - x0) * inv;
+    if (t1 > t2) {
+      const tmp = t1;
+      t1 = t2;
+      t2 = tmp;
     }
-    let ratio = dists[k] / dirs[k];
-    if (dirs[k] < 0) {
-      if (ratio > tMax) return false;
-      if (ratio > tMin) {
-        tMin = ratio;
-      }
-    } else {
-      if (ratio < tMin) return false;
-      if (ratio < tMax) {
-        tMax = ratio;
-      }
+    if (t1 > tMin) tMin = t1;
+    if (t2 < tMax) tMax = t2;
+    if (tMin > tMax) return false;
+  }
+  if (dy === 0) {
+    if (y0 < minY || y0 > maxY) return false;
+  } else {
+    const inv = 1 / dy;
+    let t1 = (minY - y0) * inv,
+      t2 = (maxY - y0) * inv;
+    if (t1 > t2) {
+      const tmp = t1;
+      t1 = t2;
+      t2 = tmp;
     }
+    if (t1 > tMin) tMin = t1;
+    if (t2 < tMax) tMax = t2;
+    if (tMin > tMax) return false;
   }
   return true;
 }
@@ -926,6 +936,9 @@ function hitsObstacle(obs, x, y, pad) {
     } else if (Math.abs(x - ob.x) < ob.w + pad && Math.abs(y - ob.y) < ob.h + pad) return true;
   return false;
 }
+let _connOpen = null,
+  _connSeen = null,
+  _connStack = null;
 function isConnected(obs, W, H) {
   let area = 0;
   for (let ob of obs) area += ob.t === "c" ? Math.PI * ob.r * ob.r : 4 * ob.w * ob.h;
@@ -933,42 +946,67 @@ function isConnected(obs, W, H) {
   let cell = 0.5,
     cols = Math.ceil((2 * W) / cell),
     rows = Math.ceil((2 * H) / cell),
-    pad = 1.1,
-    open = new Uint8Array(cols * rows),
-    openCount = 0;
-  for (let row = 0; row < rows; row++)
+    total = cols * rows,
+    pad = 1.1;
+  if (!_connOpen || _connOpen.length < total) {
+    _connOpen = new Uint8Array(total);
+    _connSeen = new Uint8Array(total);
+    _connStack = new Int32Array(total);
+  }
+  const open = _connOpen,
+    seen = _connSeen,
+    stack = _connStack;
+  open.fill(0, 0, total);
+  seen.fill(0, 0, total);
+  let openCount = 0;
+  for (let row = 0; row < rows; row++) {
+    let py = -H + (row + 0.5) * cell;
+    if (Math.abs(py) > H - pad) continue;
+    let rowOff = row * cols;
     for (let col = 0; col < cols; col++) {
-      let px = -W + (col + 0.5) * cell,
-        py = -H + (row + 0.5) * cell;
-      if (!(Math.abs(px) > W - pad || Math.abs(py) > H - pad || hitsObstacle(obs, px, py, pad))) {
-        open[row * cols + col] = 1;
-        openCount++;
-      }
+      let px = -W + (col + 0.5) * cell;
+      if (Math.abs(px) > W - pad || hitsObstacle(obs, px, py, pad)) continue;
+      open[rowOff + col] = 1;
+      openCount++;
     }
+  }
   let start = Math.floor((spawnZone.y + H) / cell) * cols + Math.floor((spawnZone.x + W) / cell);
   if (!open[start]) return false;
-  let seen = new Uint8Array(cols * rows),
-    stack = [start];
+  let sp = 0;
+  stack[sp++] = start;
   seen[start] = 1;
   let reached = 0;
-  for (; stack.length;) {
-    let idx = stack.pop();
+  while (sp > 0) {
+    let idx = stack[--sp];
     reached++;
     let col = idx % cols,
       row = (idx / cols) | 0;
-    for (let [dc, dr] of [
-      [1, 0],
-      [-1, 0],
-      [0, 1],
-      [0, -1],
-    ]) {
-      let nc = col + dc,
-        nr = row + dr;
-      if (nc < 0 || nr < 0 || nc >= cols || nr >= rows) continue;
-      let next = nr * cols + nc;
+    if (col + 1 < cols) {
+      let next = idx + 1;
       if (open[next] && !seen[next]) {
         seen[next] = 1;
-        stack.push(next);
+        stack[sp++] = next;
+      }
+    }
+    if (col > 0) {
+      let next = idx - 1;
+      if (open[next] && !seen[next]) {
+        seen[next] = 1;
+        stack[sp++] = next;
+      }
+    }
+    if (row + 1 < rows) {
+      let next = idx + cols;
+      if (open[next] && !seen[next]) {
+        seen[next] = 1;
+        stack[sp++] = next;
+      }
+    }
+    if (row > 0) {
+      let next = idx - cols;
+      if (open[next] && !seen[next]) {
+        seen[next] = 1;
+        stack[sp++] = next;
       }
     }
   }

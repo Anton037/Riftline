@@ -1619,19 +1619,26 @@ const getById = (id) => document.getElementById(id),
       for (const id of timedBuffChips) {
         if (!want.some((chip) => chip[0] === id)) {
           const el = live(id);
-          if (el) el.remove();
-          else row.querySelector(`[data-b="${id}"]`)?.remove();
+          if (el) {
+            el.remove();
+            timed.delete(id);
+          }
         }
       }
       for (const [id, text, color, left] of want) {
-        let el = live(id) || row.querySelector(`[data-b="${id}"]`),
+        let el = live(id),
           fresh = false;
         if (!el) {
           el = document.createElement("span");
           el.className = "buff";
           el.dataset.b = id;
           el.style.setProperty("--bc", color);
-          el.innerHTML = escapeHtml(text) + (left >= 0 ? "<i></i>" : "");
+          el.textContent = text;
+          if (left >= 0) {
+            const bar = document.createElement("i");
+            el.appendChild(bar);
+            el._bar = bar;
+          }
           row.appendChild(el);
           fresh = true;
         }
@@ -1639,9 +1646,8 @@ const getById = (id) => document.getElementById(id),
         const step = Math.round(clamp(left, 0, 1) * 20);
         if (fresh || this.hudCache["buff" + id] !== step) {
           this.hudCache["buff" + id] = step;
-          const bar = el.querySelector("i");
-          if (bar) {
-            bar.style.transform = `scaleX(${step / 20})`;
+          if (el._bar) {
+            el._bar.style.transform = `scaleX(${step / 20})`;
           }
         }
       }

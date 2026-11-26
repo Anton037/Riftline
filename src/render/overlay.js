@@ -471,7 +471,7 @@ const healthBarTypes = {
             num.superCrit ? 32 : 28,
             (num.superCrit ? 19 : num.crit ? 16.5 : num.burn ? 10 : 12) + 3.5 * Math.log10(1 + Math.max(0, num.v)),
           ),
-          scale = (targetPx / basePx) * pop;
+          scale = Math.round((targetPx / basePx) * pop * 8) / 8;
         // Fixed 4-tier base font sizes prevent per-frame glyph-atlas re-rasterization on mobile Safari/Android
         this.setFont(`700 ${basePx}px "Instrument Sans", system-ui, sans-serif`);
         let text = String(Math.max(1, Math.round(num.v))) + (num.superCrit ? "\u2605" : num.crit ? "!" : "");

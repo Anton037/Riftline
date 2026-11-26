@@ -1177,7 +1177,16 @@ function updateEnemy(game, enemy, dt) {
       return;
     }
     const handler = ENEMY_HANDLERS[enemy.type] || updateWalker;
-    const handledFace = handler(game, enemy, dt, { player, dx, dy, dist, ang, cdx, cdy, speed, alive });
+    _aiCtx.player = player;
+    _aiCtx.dx = dx;
+    _aiCtx.dy = dy;
+    _aiCtx.dist = dist;
+    _aiCtx.ang = ang;
+    _aiCtx.cdx = cdx;
+    _aiCtx.cdy = cdy;
+    _aiCtx.speed = speed;
+    _aiCtx.alive = alive;
+    const handledFace = handler(game, enemy, dt, _aiCtx);
     if (!handledFace && Math.hypot(enemy.vx, enemy.vy) > 0.2) {
       enemy.face = turnToward(enemy.face, Math.atan2(enemy.vy, enemy.vx), 8 * dt);
     }
@@ -1185,5 +1194,7 @@ function updateEnemy(game, enemy, dt) {
     enemy.speed = baseSpeed;
   }
 }
+
+const _aiCtx = { player: null, dx: 0, dy: 0, dist: 0, ang: 0, cdx: 0, cdy: 0, speed: 0, alive: false };
 
 export { updateEnemy, ENEMY_HANDLERS };

@@ -241,6 +241,7 @@ function _scheduleResize(why) {
     _resizeRaf = requestAnimationFrame(() => {
       _resizeRaf = 0;
       try {
+        invalidateSafeAreaInsets();
         game._settledOverlayFrames = 0;
         if (renderer) {
           renderer.markResize();
@@ -924,10 +925,14 @@ input.onPause = () => {
 /* 3.58.0: the motion preference of the device. index.html already stops the CSS animations; the camera shake
    and the weapon recoil are three.js, so they read the flag here. 3.57.0's note promised this and the code
    never asked, so a reduced-motion player still got a shaking camera. */
-const reducedMotion = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
-if (typeof matchMedia === "function") {
-  const motionQuery = matchMedia("(prefers-reduced-motion: reduce)");
-  if (motionQuery.addEventListener) motionQuery.addEventListener("change", () => applySettings());
+const _motionQuery = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : null;
+let _reducedMotion = !!_motionQuery?.matches;
+const reducedMotion = () => _reducedMotion;
+if (_motionQuery?.addEventListener) {
+  _motionQuery.addEventListener("change", (ev) => {
+    _reducedMotion = !!ev.matches;
+    applySettings();
+  });
 }
 const performanceOverlay = getById("performanceOverlay");
 let perfWindowAt = 0,
@@ -1564,17 +1569,18 @@ function showTipOnce(key, text) {
 // 2.8.1: cached; it is read every frame and getComputedStyle forces a style recalculation on phones.
 // The insets only change with the window size, so the cache is keyed on it (and refreshed every 2 s).
 let rlInsets = null,
-  rlInsetsKey = "",
-  rlInsetsAt = 0;
+  rlInsetsKey = "";
+function invalidateSafeAreaInsets() {
+  rlInsets = null;
+}
 function safeAreaInsets() {
-  const key = window.innerWidth + "x" + window.innerHeight,
-    now = performance.now();
-  if (rlInsets && key === rlInsetsKey && now - rlInsetsAt < 2000) return rlInsets;
+  const angle = typeof screen < "u" && screen.orientation ? screen.orientation.angle : 0;
+  const key = window.innerWidth + "x" + window.innerHeight + ":" + angle;
+  if (rlInsets && key === rlInsetsKey) return rlInsets;
   let style = getComputedStyle(document.documentElement),
     read = (name) => parseFloat(style.getPropertyValue(name)) || 0;
   rlInsets = { t: read("--st"), b: read("--sb"), l: read("--sl"), r: read("--sr") };
   rlInsetsKey = key;
-  rlInsetsAt = now;
   return rlInsets;
 }
 document.addEventListener("visibilitychange", () => {

@@ -374,10 +374,12 @@ button {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: radial-gradient(ellipse at center, transparent 58%, rgba(8, 6, 4, 0.44) 100%);
+  opacity: 0;
+  background: radial-gradient(ellipse at center, transparent 56%, rgba(180, 56, 48, 0.44));
+  transition: opacity 0.25s ease;
 }
 #vignette.low {
-  background: radial-gradient(ellipse at center, transparent 56%, rgba(180, 56, 48, 0.44));
+  opacity: 1;
 }
 
 h1, h2, h3 {
@@ -767,8 +769,9 @@ textarea::-webkit-scrollbar-thumb {
   animation: healFlash 0.5s ease-out;
 }
 @keyframes healFlash {
-  0% { filter: brightness(1.8) hue-rotate(-60deg); }
-  100% { filter: none; }
+  0% { opacity: 0.55; }
+  45% { opacity: 1; }
+  100% { opacity: 1; }
 }
 .bar.small { height: 7px; }
 .bar.boss { height: 10px; }
@@ -1381,8 +1384,9 @@ textarea::-webkit-scrollbar-thumb {
   70% { transform: translateX(-2px); }
 }
 @keyframes readyPop {
-  0% { box-shadow: 0 0 0 0 rgba(223, 186, 106, 0.85); transform: scale(1.08); }
-  100% { box-shadow: 0 0 0 16px rgba(223, 186, 106, 0); transform: none; }
+  0% { transform: scale(1.1); }
+  55% { transform: scale(0.97); }
+  100% { transform: none; }
 }
 .act-btn.fireBurst {
   width: 60px;
@@ -1469,8 +1473,9 @@ textarea::-webkit-scrollbar-thumb {
 }
 .act-btn.gravityBell.pop { animation: gadgetPop 0.38s ease-out; }
 @keyframes gadgetPop {
-  0% { box-shadow: 0 0 0 0 rgba(200, 158, 230, 0.9); transform: scale(1.1); }
-  100% { box-shadow: 0 0 0 16px rgba(200, 158, 230, 0); transform: none; }
+  0% { transform: scale(1.12); }
+  55% { transform: scale(0.97); }
+  100% { transform: none; }
 }
 .act-btn .key {
   display: none;

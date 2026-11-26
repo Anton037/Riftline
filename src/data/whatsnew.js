@@ -4,6 +4,17 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "5.4.0",
+    title: "Deep mobile polish & full-game fixes",
+    items: [
+      "Major mobile smoothness pass: drift-free vsync lock, fixed 4× MSAA over-allocation, TBDR tile invalidation, and zero-alloc combat loops.",
+      "Fixed Home screen rebuilding the arena every frame, trimmed distant exterior shadows, and eliminated per-frame DOM and CSS repaints.",
+      "Fixed major boss, enemy, and craft bugs across all six areas and removed remaining safe-zone cheese.",
+      "Improved touch button spacing, modal tap grace, landscape phone layouts, Forge button clarity, and debuff HUD accuracy.",
+      "Hardened iOS Safari audio recovery, restored missing biome wave-event soundscapes, and strengthened cross-tab and wave-clear saves.",
+    ],
+  },
+  {
     version: "5.3.1",
     title: "Smoother mobile play & tougher traps",
     items: [
@@ -46,10 +57,5 @@ export const WHATS_NEW = [
       "Quieter floors make warnings easier to see in Ember Hill and Star Hall.",
       "Guard shots come from their barrels, and Moss Healers show who they’re healing.",
     ],
-  },
-  {
-    version: "5.2.10",
-    title: "Safer Forge taps",
-    items: ["Continuing to the Roadside Forge keeps your purchases and shards until you tap an item."],
   },
 ];

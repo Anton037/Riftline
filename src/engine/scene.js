@@ -204,13 +204,17 @@ export class Node {
   }
   getWorldPosition(out = new Vec3()) {
     // Walk up chain so calling getWorldPosition right after mutating local transform is exact.
-    const chain = [];
+    const chain = _worldPosChain;
+    chain.length = 0;
     for (let cur = this; cur; cur = cur.parent) chain.push(cur);
     for (let i = chain.length - 1; i >= 0; i--) chain[i].updateWorldMatrix(false, i < chain.length - 1);
+    chain.length = 0;
     const e = this.worldMatrix.elements;
     return out.set(e[12], e[13], e[14]);
   }
 }
+
+const _worldPosChain = [];
 
 export class MeshNode extends Node {
   constructor(geometry, material) {

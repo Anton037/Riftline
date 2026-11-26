@@ -9,6 +9,23 @@ import { clamp, TAU } from "../core/util.js";
 import { FINISH } from "./palette.js";
 
 const WHITE = new Color(0xffffff);
+const IMPACT_KINDS = new Set([
+  "stomp",
+  "drill",
+  "rain",
+  "bellCannon",
+  "frost",
+  "glacier",
+  "mine",
+  "bombMaker",
+  "fire",
+  "volatile",
+  "firePot",
+  "shorted",
+  "brimlit",
+  "starfall",
+  "crucible",
+]);
 const LAVA = new Color(0xff6a1f);
 const LAVA_HOT = new Color(0xffd67a);
 const ICE = new Color(0xbff0ff);
@@ -644,25 +661,7 @@ export class AttackView {
     const dustCol = this._dustCol || (this._dustCol = new Color());
     const kind = ev.kind;
     const look = kind === "firePot" ? Z.target : lookOf(kind === "brimlit" ? "shorted" : kind, ev.src, biome, ev.chill);
-    if (
-      ![
-        "stomp",
-        "drill",
-        "rain",
-        "bellCannon",
-        "frost",
-        "glacier",
-        "mine",
-        "bombMaker",
-        "fire",
-        "volatile",
-        "firePot",
-        "shorted",
-        "brimlit",
-        "starfall",
-        "crucible",
-      ].includes(kind)
-    ) {
+    if (!IMPACT_KINDS.has(kind)) {
       return false;
     }
     const shake = (amount) => r.addShake(amount * shakeK);
@@ -814,6 +813,7 @@ export class AttackView {
     const r = this.r;
     const time = r.time;
     const basis = r.B;
+    const chance = (rate) => Math.random() < dt * rate;
     for (const shot of world.eb) {
       if (shot.life <= 0) continue;
       const launch = shot.launchHeight ?? BOSS_EFFECTS[shot.src]?.height ?? ENEMY_EFFECTS[shot.src]?.height ?? 0.85;
@@ -823,7 +823,6 @@ export class AttackView {
       const angle = Math.atan2(shot.vy, shot.vx);
       const ca = Math.cos(angle),
         sa = Math.sin(angle);
-      const chance = (rate) => Math.random() < dt * rate;
       r.shadows.y(shot.x, 0.035, shot.y, 0, Math.max(0.45, shot.r * 3.0));
       let halo = 2.75,
         light = 0.32;

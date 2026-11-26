@@ -30,3 +30,11 @@ test("mobile 60 Hz rAF jitter does not cause false half-rate frame drops", () =>
   }
   assert.equal(drawn, 600);
 });
+test("60.2 Hz display does not periodically skip frames under a 60 FPS limit", () => {
+  const p = makePacer();
+  let drawn = 0;
+  for (let i = 0; i < 602; i++) {
+    if (paceFrame(p, 100 + (i * 1000) / 60.2, 60)) drawn++;
+  }
+  assert.equal(drawn, 602);
+});

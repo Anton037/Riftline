@@ -51,12 +51,18 @@ const torus = (r = 0.5, tube = 0.12, radSegs = 6, tubSegs = 16, arc = TAU) =>
   cachedGeo(`tor:${qk(r)}:${qk(tube)}:${radSegs}:${tubSegs}:${qk(arc)}`, () =>
     rawTorus(r, tube, radSegs, tubSegs, arc),
   );
-const sculptedRock = (rx = 1, ry = 1, rz = 1, detail = 1, seed = 1) =>
-  cachedGeo(`rk:${qk(rx)}:${qk(ry)}:${qk(rz)}:${detail}:${seed}`, () => rawSculptedRock(rx, ry, rz, detail, seed));
-const sculptedCrystal = (w = 1, h = 1, d = 1, seed = 1) =>
-  cachedGeo(`cr:${qk(w)}:${qk(h)}:${qk(d)}:${seed}`, () => rawSculptedCrystal(w, h, d, seed));
-const sculptedCap = (r = 1, h = 0.5, seed = 1) =>
-  cachedGeo(`cap:${qk(r)}:${qk(h)}:${seed}`, () => rawSculptedCap(r, h, seed));
+const sculptedRock = (rx = 1, ry = 1, rz = 1, detail = 1, seed = 1) => {
+  const s = (Math.abs(Math.round(seed)) & 15) + 1;
+  return cachedGeo(`rk:${qk(rx)}:${qk(ry)}:${qk(rz)}:${detail}:${s}`, () => rawSculptedRock(rx, ry, rz, detail, s));
+};
+const sculptedCrystal = (w = 1, h = 1, d = 1, seed = 1) => {
+  const s = (Math.abs(Math.round(seed)) & 15) + 1;
+  return cachedGeo(`cr:${qk(w)}:${qk(h)}:${qk(d)}:${s}`, () => rawSculptedCrystal(w, h, d, s));
+};
+const sculptedCap = (r = 1, h = 0.5, seed = 1) => {
+  const s = (Math.abs(Math.round(seed)) & 15) + 1;
+  return cachedGeo(`cap:${qk(r)}:${qk(h)}:${s}`, () => rawSculptedCap(r, h, s));
+};
 const snowCoat = (sourceGeo, lift = 0.025, minNy = 0.45) =>
   sourceGeo?._cacheKey
     ? cachedGeo(`sc:${sourceGeo._cacheKey}:${qk(lift)}:${qk(minNy)}`, () => rawSnowCoat(sourceGeo, lift, minNy))
@@ -2681,6 +2687,9 @@ function getExteriorTemplate(biome, W, H) {
       const whx = Math.abs(e[0]) * hx + Math.abs(e[4]) * hy + Math.abs(e[8]) * hz;
       const why = Math.abs(e[1]) * hx + Math.abs(e[5]) * hy + Math.abs(e[9]) * hz;
       const whz = Math.abs(e[2]) * hx + Math.abs(e[6]) * hy + Math.abs(e[10]) * hz;
+      if (Math.abs(wcx) > W + 3.0 || Math.abs(wcz) > H + 3.0 || wcy + why <= 0.4) {
+        child.castShadow = false;
+      }
       let sec = -1;
       if (wcy + why <= 0.78) sec = 4;
       else if (wcz + whz <= -H + 0.001) sec = 0;

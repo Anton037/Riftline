@@ -8,6 +8,7 @@
 const HEADER = `#version 300 es
 precision highp float;
 precision highp int;
+float sq(float x) { return x * x; }
 `;
 
 // Shared std140 Uniform Buffer Object (148 floats = 592 bytes, 16-byte vec4/mat4 aligned, uploaded once/frame)
@@ -446,10 +447,10 @@ in vec3 vColor;
 in float vFlash;
 out vec4 fragColor;
 
-vec3 sampleSurface(vec2 uv) {
+vec3 sampleSurface(vec2 uv, vec2 duvX, vec2 duvY) {
   vec2 scale = vec2(0.988) / vec2(3.0, 2.0);
   vec2 tileUv = (uSurfaceTile + mix(vec2(0.006), vec2(0.994), fract(uv))) / vec2(3.0, 2.0);
-  return textureGrad(uSurfaceAtlas, tileUv, dFdx(uv) * scale, dFdy(uv) * scale).rgb;
+  return textureGrad(uSurfaceAtlas, tileUv, duvX * scale, duvY * scale).rgb;
 }
 
 void main() {
@@ -457,18 +458,21 @@ void main() {
   if (!gl_FrontFacing) N = -N;
   vec3 V = normalize(uCamPos - vWorldPos);
 
-  // Triplanar painterly brushwork detail (skip negligible axes to cut mobile texture bandwidth ~50%)
+  // Triplanar painterly brushwork detail (derivatives hoisted above branches for valid 2x2 quad mip selection)
   vec3 ln = normalize(vLocalNorm);
-  vec3 w = pow(abs(ln), vec3(4.0));
+  vec3 w = ln * ln;
+  w *= w;
   w /= max(w.x + w.y + w.z, 0.001);
   vec3 tp = vLocalPos * 0.55;
+  vec3 dpx = dFdx(tp);
+  vec3 dpy = dFdy(tp);
   vec3 surf = vec3(0.55, 0.5, 0.25);
   if (uSurfaceReady > 0.5) {
     vec3 acc = vec3(0.0);
     float wSum = 0.0;
-    if (w.x > 0.04) { acc += sampleSurface(tp.zy) * w.x; wSum += w.x; }
-    if (w.y > 0.04) { acc += sampleSurface(tp.xz) * w.y; wSum += w.y; }
-    if (w.z > 0.04) { acc += sampleSurface(tp.xy) * w.z; wSum += w.z; }
+    if (w.x > 0.04) { acc += sampleSurface(tp.zy, dpx.zy, dpy.zy) * w.x; wSum += w.x; }
+    if (w.y > 0.04) { acc += sampleSurface(tp.xz, dpx.xz, dpy.xz) * w.y; wSum += w.y; }
+    if (w.z > 0.04) { acc += sampleSurface(tp.xy, dpx.xy, dpy.xy) * w.z; wSum += w.z; }
     surf = acc / max(wSum, 0.001);
   }
   float brush = surf.r;
@@ -490,9 +494,9 @@ void main() {
     albedo = mix(albedo, mix(albedo, weatherCol, 0.24), footMask * 0.16);
   }
 
-  // Creamy 3-stop storybook gouache cel-gradient wrap (warm sunlit key, rich cool/plum shadow bounce)
-  float shadow = sampleShadow(vWorldPos, N);
+  // Creamy 3-stop storybook gouache cel-gradient wrap (skip 4-tap PCF shadow work on sun-averted backfaces)
   float rawNdl = dot(N, uSunDir);
+  float shadow = (rawNdl > -0.18) ? sampleShadow(vWorldPos, N) : 0.0;
   float celWarm = smoothstep(-0.18, 0.20, rawNdl) * mix(0.28, 1.0, shadow);
   float celSun = smoothstep(0.38, 0.72, rawNdl) * shadow;
   float cel = celWarm * 0.62 + celSun * 0.38;
@@ -585,7 +589,7 @@ void main() {
     float mortar = gridLine * inside;
     albedo = mix(albedo, albedo * 0.64, mortar * 0.44);
     float brassDot = (1.0 - smoothstep(0.012, 0.034, max(cell.x, cell.y))) * inside;
-    float brassFiligree = exp(-pow((abs(cell.x - cell.y)) * 52.0, 2.0)) * smoothstep(0.42, 0.49, max(cell.x, cell.y)) * inside;
+    float brassFiligree = exp(-sq((abs(cell.x - cell.y)) * 52.0)) * smoothstep(0.42, 0.49, max(cell.x, cell.y)) * inside;
     albedo = mix(albedo, uFloorTrim * 0.40, clamp(brassDot * 0.30 + brassFiligree * 0.24 * borderRich, 0.0, 0.45));
     float leafSpeck = step(0.92, hash21(floor(p * 3.4))) * borderRich;
     albedo = mix(albedo, vec3(0.32, 0.24, 0.08), leafSpeck * 0.35);
@@ -593,7 +597,7 @@ void main() {
     float rSeed = hash21(rCell);
     float rDist = length(fract(p * 1.9) - 0.5);
     float rLife = fract(uTime * 0.52 + rSeed * 6.7);
-    float ambientDrop = step(0.72, rSeed) * exp(-pow((rDist - rLife * 0.42) * 30.0, 2.0)) * (1.0 - rLife) * puddle;
+    float ambientDrop = step(0.72, rSeed) * exp(-sq((rDist - rLife * 0.42) * 30.0)) * (1.0 - rLife) * puddle;
     float sheen = 0.5 + 0.5 * sin(p.x * 0.9 - p.y * 0.7 + n2 * 4.5 + uTime * 1.4 + ripWave * 2.5);
     vec3 amberBounce = uFloorTrim * (0.045 + 0.055 * sheen) * puddle * borderRich;
     vec3 reflectCol = albedo * 0.48 + vec3(0.012, 0.028, 0.048) + uHemiSky * (0.010 + sheen * 0.016) + amberBounce;
@@ -603,12 +607,12 @@ void main() {
 
     if (outMask > 0.001) {
       float canal = smoothstep(1.15, 1.65, outDist) * (1.0 - smoothstep(6.7, 7.25, outDist));
-      float quayCurb = exp(-pow((outDist - 1.35) * 3.8, 2.0)) + exp(-pow((outDist - 7.05) * 3.8, 2.0));
+      float quayCurb = exp(-sq((outDist - 1.35) * 3.8)) + exp(-sq((outDist - 7.05) * 3.8));
       vec2 wc = floor(p * 1.65);
       float wSeed = hash21(wc);
       float dropR = length(fract(p * 1.65) - 0.5);
       float dropLife = fract(uTime * 0.55 + wSeed * 7.3);
-      float rainRing = step(0.62, wSeed) * exp(-pow((dropR - dropLife * 0.44) * 28.0, 2.0)) * (1.0 - dropLife) * (1.0 - dropR * 2.0);
+      float rainRing = step(0.62, wSeed) * exp(-sq((dropR - dropLife * 0.44) * 28.0)) * (1.0 - dropLife) * (1.0 - dropR * 2.0);
       float wave = sin(p.x * 1.6 + p.y * 1.1 - uTime * 1.6 + n2 * 3.2) * 0.5 + 0.5;
       vec3 waterCol = mix(vec3(0.012, 0.036, 0.060), vec3(0.024, 0.072, 0.105), wave * 0.55 + n1 * 0.45);
       vec2 cobbleCell = abs(fract(p * 0.55) - 0.5);
@@ -636,7 +640,7 @@ void main() {
     albedo += vec3(0.08, 0.18, 0.26) * crack * 0.42 * inside;
     albedo = mix(albedo, vec3(0.14, 0.25, 0.38), gridLine * 0.12 * inside);
     float snowCompress = wakeTrack * (1.0 - icePatch * 0.75) * inside;
-    float snowRim = exp(-pow((wakeTrack - 0.24) * 9.0, 2.0)) * step(0.05, wakeTrack) * (1.0 - icePatch * 0.7) * inside;
+    float snowRim = exp(-sq((wakeTrack - 0.24) * 9.0)) * step(0.05, wakeTrack) * (1.0 - icePatch * 0.7) * inside;
     albedo = mix(albedo, vec3(0.085, 0.195, 0.34), snowCompress * 0.46);
     albedo += vec3(0.08, 0.11, 0.14) * snowRim * 0.36;
     float frostSparkle = step(0.965, hash21(floor(p * 7.5))) * (0.5 + 0.5 * sin(uTime * 3.8 + p.x * 5.1 - p.y * 4.7));
@@ -650,7 +654,7 @@ void main() {
       float fjordCrack = 1.0 - smoothstep(0.014, 0.065, fjordEdge);
       vec3 fjordCol = mix(vec3(0.042, 0.155, 0.29), vec3(0.10, 0.30, 0.48), n2 * 0.65 + fjordCrack * 0.45);
       vec3 snowBench = mix(vec3(0.18, 0.30, 0.44), vec3(0.30, 0.45, 0.60), smoothstep(0.28, 0.76, drift));
-      float snowBank = exp(-pow((outDist - 1.55) * 2.2, 2.0)) + exp(-pow((outDist - 7.3) * 1.8, 2.0));
+      float snowBank = exp(-sq((outDist - 1.55) * 2.2)) + exp(-sq((outDist - 7.3) * 1.8));
       vec3 extCol = mix(snowBench, fjordCol, fjord);
       extCol = mix(extCol, vec3(0.34, 0.50, 0.64), clamp(snowBank, 0.0, 1.0) * 0.55);
       albedo = mix(albedo, extCol, outMask);
@@ -686,7 +690,7 @@ void main() {
     float pf = fract(progress);
     float seam = smoothstep(0.035, 0.11, min(pf, 1.0 - pf));
     float fiber = 0.5 + 0.5 * sin(across * 15.0 + plank * 19.0 + sin(along * 4.0) * 1.4);
-    float knot = exp(-pow(length(vec2(pf - 0.5, across - (plank2 - 0.5) * 0.9)) * 7.5, 2.0));
+    float knot = exp(-sq(length(vec2(pf - 0.5, across - (plank2 - 0.5) * 0.9)) * 7.5));
     float nailDist = length(vec2((pf - 0.5) * 0.85, abs(across) - 0.62));
     float nail = 1.0 - smoothstep(0.032, 0.068, nailDist);
     vec3 woodCol = mix(vec3(0.062, 0.046, 0.031), vec3(0.118, 0.084, 0.052), plank * 0.65 + fiber * 0.35);
@@ -713,12 +717,12 @@ void main() {
 
   const block4 = `
     // SHATTERED CORE: midnight-obsidian star-chart sanctuary with engraved brass celestial rings & astral wake ripples
-    float beat = 0.78 + 0.22 * pow(0.5 + 0.5 * sin(uTime * 2.2), 2.0);
+    float beat = 0.78 + 0.22 * sq(0.5 + 0.5 * sin(uTime * 2.2));
     float slab = hash21(floor(p * 0.25 + 0.5));
     albedo *= 0.90 + slab * 0.14 * detailAmt;
     albedo = mix(albedo, albedo * 0.72, gridLine * 0.28 * inside);
     float rChart = length(p);
-    float brassChart = (exp(-pow((rChart - 5.5) * 8.0, 2.0)) + exp(-pow((rChart - 10.5) * 7.0, 2.0))) * inside;
+    float brassChart = (exp(-sq((rChart - 5.5) * 8.0)) + exp(-sq((rChart - 10.5) * 7.0))) * inside;
     albedo = mix(albedo, vec3(0.32, 0.22, 0.12), brassChart * 0.16);
     float riftMask = smoothstep(0.38, 0.72, n1);
     float riftEdge = (inside > 0.01) ? crackNet(p * 0.25, vec2(n1, n2) * 0.38) : 1.0;
@@ -744,7 +748,7 @@ void main() {
       float star2 = step(0.94, sh2) * exp(-dot(sf2, sf2) * 32.0) * (0.65 + 0.35 * cos(uTime * 1.7 + sh2 * 30.0));
       float radP = length(p);
       float maxH = max(uHalf.x, uHalf.y);
-      float orbitLine = exp(-pow((radP - (maxH + 6.4)) * 3.2, 2.0)) + exp(-pow((radP - (maxH + 12.2)) * 2.6, 2.0));
+      float orbitLine = exp(-sq((radP - (maxH + 6.4)) * 3.2)) + exp(-sq((radP - (maxH + 12.2)) * 2.6));
       vec3 cliffLip = vec3(0.05, 0.035, 0.11);
       albedo = mix(albedo, mix(cliffLip, vec3(0.008, 0.005, 0.022), abyss), outMask);
       vec3 starCol = mix(vec3(1.0, 0.88, 0.62), vec3(0.76, 0.88, 1.0), fract(sh1 * 13.7));
@@ -792,7 +796,7 @@ void main() {
     float glassCrack = (1.0 - smoothstep(0.015, 0.052, glassEdge)) * glass;
     albedo += vec3(0.045, 0.14, 0.15) * glassCrack * 0.48 * inside;
     float sandPrint = wakeTrack * (1.0 - glass * 0.8) * inside;
-    float sandRim = exp(-pow((wakeTrack - 0.24) * 9.0, 2.0)) * step(0.05, wakeTrack) * (1.0 - glass * 0.8) * inside;
+    float sandRim = exp(-sq((wakeTrack - 0.24) * 9.0)) * step(0.05, wakeTrack) * (1.0 - glass * 0.8) * inside;
     albedo *= 1.0 - sandPrint * 0.26;
     albedo += vec3(0.11, 0.08, 0.04) * sandRim * 0.34;
     float glint = smoothstep(0.76, 0.96, sin(p.x * 0.65 + p.y * 0.48 - uTime * 1.3 + n2 * 4.2));
@@ -804,7 +808,7 @@ void main() {
       float duneCrest = pow(duneWave, 1.8);
       float oasisFbm = fbm(p * 0.12 + vec2(-2.1, 1.4));
       float oasis = smoothstep(0.57, 0.69, oasisFbm) * smoothstep(2.0, 3.6, outDist);
-      float shore = exp(-pow((oasisFbm - 0.57) * 26.0, 2.0)) * smoothstep(2.0, 3.6, outDist);
+      float shore = exp(-sq((oasisFbm - 0.57) * 26.0)) * smoothstep(2.0, 3.6, outDist);
       vec3 sandCol = mix(vec3(0.18, 0.11, 0.058), vec3(0.36, 0.24, 0.125), duneCrest);
       vec3 poolCol = mix(vec3(0.032, 0.20, 0.21), vec3(0.075, 0.34, 0.33), 0.5 + 0.5 * sin(p.x * 0.9 + uTime * 1.2 + n2 * 3.0));
       vec3 extCol = mix(sandCol, poolCol, oasis);
@@ -937,14 +941,14 @@ void main() {
 
   // Handcrafted perimeter border framing & subtle wall-base contact shadow right outside the parapet
   albedo *= mix(1.0, 0.84, borderRich * 0.48);
-  float wallApron = exp(-pow((outDist - 0.75) * 1.4, 2.0)) * outMask;
+  float wallApron = exp(-sq((outDist - 0.75) * 1.4)) * outMask;
   albedo *= 1.0 - wallApron * 0.26;
   float border = (1.0 - smoothstep(0.0, 0.34, abs(edgeMin))) * step(-0.2, edgeMin);
   emissive += uFloorTrim * border * 0.34;
   // Wave pulse sweep ring
   if (uPulse > 0.005) {
     float waveR = (1.0 - uPulse) * max(uHalf.x, uHalf.y) * 1.35;
-    float ring = exp(-pow((length(p) - waveR) * 0.85, 2.0)) * uPulse;
+    float ring = exp(-sq((length(p) - waveR) * 0.85)) * uPulse;
     emissive += uFloorAccent * ring * 0.82 * inside;
   }
 
@@ -1216,12 +1220,12 @@ in vec3 vState;
 out vec4 fragColor;
 void main() {
   float age = vState.r, h = vUv.y, orbit = vUv.x * 6.2831853;
-  float lead = exp(-pow((h - 0.14) * 14.0, 2.0));
-  float echo = exp(-pow((h - 0.40) * 18.0, 2.0)) * 0.56;
+  float lead = exp(-sq((h - 0.14) * 14.0));
+  float echo = exp(-sq((h - 0.40) * 18.0)) * 0.56;
   float flameLick = 0.5 + 0.5 * sin(orbit * 7.0 + uTime * 7.0) * cos(orbit * 4.0 - uTime * 4.5 + h * 5.0);
   float arcs = vState.g < 0.5
-    ? smoothstep(0.18, 0.78, flameLick) * exp(-pow((h - 0.54) * 7.5, 2.0)) * 0.52
-    : smoothstep(-0.15, 0.2, cos(orbit * 8.0 - uTime * 4.0)) * exp(-pow((h - 0.62) * 10.0, 2.0)) * 0.36;
+    ? smoothstep(0.18, 0.78, flameLick) * exp(-sq((h - 0.54) * 7.5)) * 0.52
+    : smoothstep(-0.15, 0.2, cos(orbit * 8.0 - uTime * 4.0)) * exp(-sq((h - 0.62) * 10.0)) * 0.36;
   float alpha = (lead + echo + arcs) * pow(1.0 - age, 1.15) * smoothstep(0.0, 0.05, age) * vState.b;
   if (alpha < 0.01) discard;
   vec3 hue = vState.g < 0.5 ? vec3(1.16, 0.34, 0.09) : vState.g < 1.5 ? vec3(0.72, 0.32, 1.12) : vec3(1.12, 0.68, 0.18);
@@ -1261,12 +1265,12 @@ void main() {
   float arcs = pow(abs(cos(spiral * 3.0)), 10.0) * (1.0 - r);
   float slits = pow(0.5 + 0.5 * cos(a * 12.0 - uTime * 2.2), 5.0);
   float frame = step(1.5, vState.g) * (1.0 - target);
-  float rim = exp(-pow((r - mix(0.22, 0.48, frame)) * 28.0, 2.0));
-  float halo = exp(-pow((r - 0.72) * 22.0, 2.0)) * slits;
+  float rim = exp(-sq((r - mix(0.22, 0.48, frame)) * 28.0));
+  float halo = exp(-sq((r - 0.72) * 22.0)) * slits;
   float alpha = (arcs * 0.56 + halo * 0.56 + rim * 0.84) * (1.0 - vState.r * 0.42);
   vec3 col = mix(vec3(0.36, 0.16, 0.72), vec3(1.06, 0.64, 0.34), clamp(rim + halo + arcs * 0.5, 0.0, 1.0));
   if (target > 0.5) {
-    float border = exp(-pow((r - 0.93) * 65.0, 2.0));
+    float border = exp(-sq((r - 0.93) * 65.0));
     alpha = border * (0.30 + slits * 0.42);
     col = vec3(0.32, 0.94, 0.78);
   }
@@ -1382,7 +1386,7 @@ void main() {
     portal: `
       vec3 ribbon = mix(vec3(0.64, 0.30, 1.05), vec3(0.20, 0.82, 0.68), vI.b);
       float swirl = 1.0 - smoothstep(0.1, 0.25, abs(cos(a * 3.0 + log(r + 0.08) * 5.2 + uTime * 2.2)));
-      float ring2 = exp(-pow((r - 0.65) * 24.0, 2.0));
+      float ring2 = exp(-sq((r - 0.65) * 24.0));
       col = vec3(0.018, 0.012, 0.045) + ribbon * (rim * 0.92 + ring2 * 0.64 + swirl * r * 0.48) * strength;
     `,
     dust: `
@@ -1426,7 +1430,7 @@ void main() {
   if (r > 1.0) discard;
   float seed = vI.g * 6.283;
   float strength = vI.r;
-  float rim = exp(-pow((r - 0.9) * 26.0, 2.0));
+  float rim = exp(-sq((r - 0.9) * 26.0));
   float alpha = 1.0 - smoothstep(0.92, 1.0, r);
   vec3 col = vec3(0.0);
   ${bodies[kind] || bodies.molten}
@@ -1470,11 +1474,11 @@ void main() {
   float r = length(vP), a = atan(vP.y, vP.x + 1e-5), k = clamp(vI.r, 0.0, 1.0);
   if (r > 1.0) discard;
   int look = int(vI.b * 8.0 + 0.5);
-  float brightRim = exp(-pow((r - 0.915) * 44.0, 2.0));
-  float outerGlow = exp(-pow((r - 0.955) * 26.0, 2.0)) * 0.45;
+  float brightRim = exp(-sq((r - 0.915) * 44.0));
+  float outerGlow = exp(-sq((r - 0.955) * 26.0)) * 0.45;
   float fillWave = smoothstep(k + 0.03, k - 0.02, r);
-  float fillEdge = exp(-pow((r - mix(0.14, 0.88, k)) * 34.0, 2.0));
-  float ticks = exp(-pow((r - 0.78) * 32.0, 2.0)) * smoothstep(0.74, 0.94, cos(a * 16.0));
+  float fillEdge = exp(-sq((r - mix(0.14, 0.88, k)) * 34.0));
+  float ticks = exp(-sq((r - 0.78) * 32.0)) * smoothstep(0.74, 0.94, cos(a * 16.0));
   vec3 el = mix(elementColor(look), uWarn * 1.05, 0.30);
   vec3 hotEdge = mix(el * 1.25, vec3(1.18, 1.12, 0.96), 0.32);
   vec3 col = mix(el * 0.72, hotEdge, clamp(brightRim + fillEdge * 0.85 + ticks * 0.55, 0.0, 1.0));
@@ -1795,7 +1799,7 @@ void main() {
   if (r >= 1.0) discard;
   float dome = (1.0 - r * r);
   dome = dome * dome;
-  float ring = exp(-pow((r - 0.58) * 3.8, 2.0)) * (1.0 - r);
+  float ring = exp(-sq((r - 0.58) * 3.8)) * (1.0 - r);
   fragColor = vec4(
     vData.x * dome,
     vData.y * max(dome * 0.65, ring * 1.15),

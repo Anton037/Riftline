@@ -2894,7 +2894,17 @@ const rlStep = 1 / 60,
           let frac = probes > 1 ? ((i + 1) / probes - 1) * wallFrac : 0,
             sx = bullet.x + bullet.vx * dt * frac,
             sy = bullet.y + bullet.vy * dt * frac;
-          this.hash.query(sx, sy, bullet.r + 0.8, (enemy) => this.probeHit(bullet, enemy, sx, sy, starSpear));
+          this._pbCur = bullet;
+          this._pbSx = sx;
+          this._pbSy = sy;
+          this._pbSpear = starSpear;
+          this.hash.query(
+            sx,
+            sy,
+            bullet.r + 0.8,
+            this._pbProbeFn ||
+              (this._pbProbeFn = (enemy) => this.probeHit(this._pbCur, enemy, this._pbSx, this._pbSy, this._pbSpear)),
+          );
         }
         if (hitWall && bullet.life > 0 && bullet.bounce === bounces && bullet.back === back) {
           if (bullet.boom && !bullet.back) {
@@ -3795,7 +3805,13 @@ const rlStep = 1 / 60,
           enemy.face = Math.atan2(this.player.y - marker.y, this.player.x - marker.x);
         }
       }
-      this.markers = this.markers.filter((marker) => !marker.done);
+      if (this.markers.length) {
+        let keepM = 0;
+        for (let i = 0; i < this.markers.length; i++) {
+          if (!this.markers[i].done) this.markers[keepM++] = this.markers[i];
+        }
+        this.markers.length = keepM;
+      }
     }
     updateSpawns(dt) {
       if (this.planIdx >= this.plan.length && !this.bossPending && !this.boss && this.enemies.length <= 4) {
@@ -3860,18 +3876,26 @@ const rlStep = 1 / 60,
       }
     }
     sweep() {
-      if (this.enemies.some((enemy) => enemy.dead)) {
-        this.enemies = this.enemies.filter((enemy) => !enemy.dead);
+      let k = 0;
+      for (let i = 0; i < this.enemies.length; i++) {
+        if (!this.enemies[i].dead) this.enemies[k++] = this.enemies[i];
       }
-      if (this.pb.some((bullet) => bullet.life <= 0)) {
-        this.pb = this.pb.filter((bullet) => bullet.life > 0);
+      this.enemies.length = k;
+      k = 0;
+      for (let i = 0; i < this.pb.length; i++) {
+        if (this.pb[i].life > 0) this.pb[k++] = this.pb[i];
       }
-      if (this.eb.some((bullet) => bullet.life <= 0)) {
-        this.eb = this.eb.filter((bullet) => bullet.life > 0);
+      this.pb.length = k;
+      k = 0;
+      for (let i = 0; i < this.eb.length; i++) {
+        if (this.eb[i].life > 0) this.eb[k++] = this.eb[i];
       }
-      if (this.pickups.some((pickup) => pickup.dead)) {
-        this.pickups = this.pickups.filter((pickup) => !pickup.dead);
+      this.eb.length = k;
+      k = 0;
+      for (let i = 0; i < this.pickups.length; i++) {
+        if (!this.pickups[i].dead) this.pickups[k++] = this.pickups[i];
       }
+      this.pickups.length = k;
     }
     checkWaveEnd() {
       if (this.state === "fight") {
