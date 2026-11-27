@@ -260,6 +260,52 @@ test("shared progress is refreshed before a local purchase even before the stora
   assert.equal(settled.trapMode, "impossible");
 });
 
+test("a stale pagehide preserves shared progress and a cleared checkpoint", () => {
+  const initial = newSave();
+  initial.shards = 30;
+  initial.run = { v: 1, seed: 731, weapon: "lanternGun", wave: 2, hp: 100 };
+  initial.seen.tutorial = true;
+  reset(JSON.stringify(initial));
+  const finishingTab = new SaveStore();
+  const staleTab = new SaveStore();
+  finishingTab.data.shards = 120;
+  finishingTab.data.stats.kills = 25;
+  finishingTab.data.run = null;
+  finishingTab.data.settings.music = 0.3;
+  finishingTab.data.seen.tutorial = false;
+  finishingTab.save("run-end");
+
+  staleTab.data.settings.sfx = 0.5;
+  staleTab.save("pagehide");
+  const saved = new SaveStore().data;
+  assert.equal(saved.shards, 120);
+  assert.equal(saved.stats.kills, 25);
+  assert.equal(saved.run, null);
+  assert.equal(saved.settings.music, 0.3);
+  assert.equal(saved.settings.sfx, 0.5);
+  assert.equal(saved.seen.tutorial, undefined);
+});
+
+test("a new checkpoint survives synchronization with a different tab's purchase", () => {
+  const initial = newSave();
+  initial.shards = 90;
+  reset(JSON.stringify(initial));
+  const shop = new SaveStore();
+  const run = new SaveStore();
+  shop.data.shards = 30;
+  shop.data.workshop.healthCoat = 1;
+  shop.save("workshop");
+
+  run.data.run = { v: 1, seed: 731, weapon: "lanternGun", wave: 3, hp: 100 };
+  run.data.seen.tip_enemy_kettleGuard = true;
+  run.save("wave");
+  const saved = new SaveStore().data;
+  assert.equal(saved.shards, 30);
+  assert.equal(saved.workshop.healthCoat, 1);
+  assert.equal(saved.run.wave, 3);
+  assert.equal(saved.seen.tip_enemy_kettleGuard, true);
+});
+
 test("unusable save identities are backed up before autosave replaces them", () => {
   for (const data of [[], {}, { ...newSave(), game: "other" }, { ...newSave(), v: 2 }]) {
     const raw = JSON.stringify(data);

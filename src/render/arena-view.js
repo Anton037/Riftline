@@ -2716,6 +2716,13 @@ function getExteriorTemplate(biome, W, H) {
     }
   }
   mergeStaticNodes(root, keep);
+  // A wheel or lantern can move as one piece while its parts share a draw.
+  for (const { o } of tmpView.rlAnim) {
+    if (o.children.length < 2) continue;
+    keep.delete(o);
+    mergeStaticNodes(o, keep);
+    keep.add(o);
+  }
   root.traverse((obj) => {
     if (obj.geometry) {
       obj.geometry.shared = true;
@@ -2732,6 +2739,7 @@ export class ArenaView {
     this.scene = scene;
     this.engine = engine;
     this.group = new Node();
+    this.group.matrixAutoUpdate = false;
     scene.add(this.group);
     this.uniforms = {
       uTerrainReady: { value: 0 },
@@ -2813,6 +2821,7 @@ export class ArenaView {
     this.group.add(props);
     this.obsGroup = props;
     const scenery = new Node();
+    scenery.matrixAutoUpdate = false;
     this.group.add(scenery);
     this.sceneryGroup = scenery;
     this.rlAnim = [];
@@ -2831,6 +2840,7 @@ export class ArenaView {
     const extTpl = getExteriorTemplate(biome, layout.W, layout.H);
     const nodeMap = new Map();
     const extInstance = cloneExteriorNode(extTpl.root, nodeMap);
+    extInstance.matrixAutoUpdate = false;
     this.sceneryGroup.add(extInstance);
     this.lampLens = extTpl.lampLens;
     for (const a of extTpl.anims) {
@@ -2862,7 +2872,10 @@ export class ArenaView {
   _freezeCoverStatic(keepSet = null) {
     if (!this.obsGroup || this._obsFrozen) return;
     const keep = keepSet || new Set(this.rlAnim.map((a) => a.o));
+    // Keep the final rise transform on the cover root so its frozen children stay cached.
+    this.obsGroup.markMatrixDirty();
     this.obsGroup.updateWorldMatrix(true);
+    this.obsGroup.matrixAutoUpdate = false;
     for (const child of this.obsGroup.children) {
       if (!keep.has(child)) child.freezeStatic();
     }

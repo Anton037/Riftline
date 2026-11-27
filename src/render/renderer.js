@@ -269,6 +269,8 @@ export class Renderer {
     // Alias for diagnostics, browser tests and verification tools
     this.renderer = this.engine;
     this.scene = new Scene();
+    // The scene origin is fixed. Its children track their own motion.
+    this.scene.matrixAutoUpdate = false;
     this.camera = new Camera(44, 1, 0.5, 190);
     this.arena = new ArenaView(this.scene, this.engine);
 

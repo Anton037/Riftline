@@ -341,9 +341,6 @@ const overlay = new Overlay(elementById("ov")),
       lockLandscape();
       let save = store.data,
         snap = resume ? save.run : null;
-      if (!resume) {
-        save.stats.runs++;
-      }
       let started = true;
       try {
         this.world = new World({
@@ -362,6 +359,10 @@ const overlay = new Overlay(elementById("ov")),
         started = false;
       }
       if (started) {
+        if (!resume) {
+          save.stats.runs++;
+          this.saveCheckpoint("run-start");
+        }
         document.activeElement?.blur?.();
         this.mode = "game";
         this.paused = false;
@@ -800,10 +801,10 @@ const overlay = new Overlay(elementById("ov")),
         }
     },
     settingsChanged(quiet) {
-      applySettings();
       if (!quiet) {
         store.save("settings");
       }
+      applySettings();
     },
     resetProgress() {
       if (!store.reset()) {
@@ -2065,15 +2066,13 @@ document.addEventListener("visibilitychange", () => {
     rlApplyUpdateWhenIdle("hidden");
   }
 });
-// 2.8.1: two tabs (or the browser and the installed app) used to overwrite each other's save. In the menu
-// this tab reloads what the other one wrote; during a run it takes it over at its next save.
+// Refresh visible settings and records when another tab writes shared progress.
 let rlForeignWarned = false;
 window.addEventListener("storage", (ev) => {
   if (ev.key !== SAVE_KEY || !ev.newValue) return;
-  store.foreign = true;
+  store.syncForeign();
+  applySettings();
   if (game.mode === "menu" && !game.world && getById("dialog").hidden) {
-    store.syncForeign(false);
-    applySettings();
     ui.homeInit = false;
     if (ui.screen === "home") ui.renderHome();
     else if (ui.screen === "workshop") ui.renderWorkshop();
@@ -2083,11 +2082,7 @@ window.addEventListener("storage", (ev) => {
   }
   if (!rlForeignWarned) {
     rlForeignWarned = true;
-    ui.toast(
-      "Riftline is open in another tab. Progress from both is kept, but play in one tab at a time.",
-      "warn",
-      7000,
-    );
+    ui.toast("Riftline is open in another tab. Play in one tab at a time.", "warn", 7000);
   }
 });
 // Shared browser interface for the functional flows and visual/audio probes.

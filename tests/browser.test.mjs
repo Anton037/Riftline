@@ -797,7 +797,6 @@ test(
       const foreign = JSON.parse(store.text());
       foreign.shards = 987;
       localStorage.setItem("riftline.save.v1", JSON.stringify(foreign));
-      store.foreign = true;
       game.world.emit("bossDown", { id: "bellKeeper", secs: 12, damage: 0 });
     });
     await page.waitForFunction(() => window.__riftTest.game.runMedals.some(({ id }) => id === "bellKeeper"));

@@ -619,6 +619,7 @@ const safeStorage = {
         }
       }
       this.data = loaded || newSave();
+      this.rememberLocalFields();
       this.kept = loaded ? keptOf(data) : null;
       this.persistent = safeStorage.get(SAVE_KEY) !== null || safeStorage.set("riftline.probe", "1");
       safeStorage.del("riftline.probe");
@@ -656,10 +657,13 @@ const safeStorage = {
     onChange(listener) {
       this.listeners.add(listener);
     }
-    // Read before editing shared progress, including writes whose storage event has not arrived yet.
-    // The active run, preferences and seen flags belong to this tab until returning to the menu.
-    syncForeign(keepMine = true) {
-      this.foreign = false;
+    rememberLocalFields() {
+      this.savedRun = this.data.run;
+      this.savedSettings = { ...this.data.settings };
+      this.savedSeen = { ...this.data.seen };
+    }
+    // A background tab can autosave before its storage event is delivered.
+    syncForeign() {
       const text = safeStorage.get(SAVE_KEY);
       if (text === this.raw || !text) return false;
       let data = null;
@@ -672,12 +676,17 @@ const safeStorage = {
         fresh = rlLoadSave(data);
       if (!fresh || typeof fresh != "object") return false;
       this.kept = keptOf(data);
-      if (keepMine) {
-        fresh.run = mine.run;
-        fresh.settings = mine.settings;
-        fresh.seen = { ...fresh.seen, ...mine.seen };
-      }
+      const { savedRun, savedSettings, savedSeen } = this;
       this.data = fresh;
+      this.rememberLocalFields();
+      // Checkpoints and HUD layouts are replaced as units. Keep edits that have yet to be saved.
+      if (mine.run !== savedRun) fresh.run = mine.run;
+      for (const key of Object.keys(mine.settings)) {
+        if (mine.settings[key] !== savedSettings[key]) fresh.settings[key] = mine.settings[key];
+      }
+      for (const key of Object.keys(mine.seen)) {
+        if (mine.seen[key] !== savedSeen[key]) fresh.seen[key] = mine.seen[key];
+      }
       this.raw = text;
       return true;
     }
@@ -685,8 +694,7 @@ const safeStorage = {
       // 3.31.1: an import or a reset replaces the whole save on purpose; another tab's save that came in meanwhile
       // (a storage event while the dialog was open) used to take its place here
       const replacing = reason === "import" || reason === "reset";
-      if (replacing) this.foreign = false;
-      else if (this.foreign) this.syncForeign();
+      if (!replacing) this.syncForeign();
       if (reason === "reset") this.kept = null;
       // a run of this build replaces the run of a newer build for good
       if (this.kept && this.data.run !== null) this.kept.run = null;
@@ -695,7 +703,10 @@ const safeStorage = {
       if (text.length > SAVE_TEXT_LIMIT) return false;
       // Explicitly confirmed replacements may recover a held save. Autosaves never overwrite it.
       const written = (!this.held || replacing) && safeStorage.set(SAVE_KEY, text);
-      if (written) this.raw = text;
+      if (written) {
+        this.raw = text;
+        this.rememberLocalFields();
+      }
       if (written && replacing) this.held = false;
       if (replacing && !written) return false;
       for (let listener of this.listeners)
@@ -727,7 +738,6 @@ const safeStorage = {
       const previous = {
         data: this.data,
         kept: this.kept,
-        foreign: this.foreign,
         retire: RL_RETIRE_NOTE,
         module: RL_MODULE_NOTE,
       };
@@ -738,7 +748,6 @@ const safeStorage = {
       if (this.save(reason)) return true;
       this.data = previous.data;
       this.kept = previous.kept;
-      this.foreign = previous.foreign;
       RL_RETIRE_NOTE = previous.retire;
       RL_MODULE_NOTE = previous.module;
       return false;
@@ -751,6 +760,7 @@ const safeStorage = {
     /* 3.48.0: the stock settings come back (audio, video, controls and the HUD layout); the progress,
        the run and the seen flags are not touched. The next load sanitizes the object as usual. */
     resetSettings() {
+      this.syncForeign();
       this.data.settings = { ...defaultSettings };
       this.save("settings");
     }

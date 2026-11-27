@@ -4,6 +4,14 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "5.4.3",
+    title: "Safer saves and lighter arena rendering",
+    items: [
+      "An older tab closing or going into the background no longer restores stale progress.",
+      "Arenas reuse static scenery transforms and combine the meshes of moving props.",
+    ],
+  },
+  {
     version: "5.4.2",
     title: "Clearer fights and smoother controls",
     items: [
@@ -47,17 +55,6 @@ export const WHATS_NEW = [
       "Shooting a mine can set off nearby vessels with a teal fuse that only harms enemies.",
       "Sweeper warnings stop at cover as soon as they appear.",
       "Music recovers when you return to the game through the browser history.",
-    ],
-  },
-  {
-    version: "5.3.1",
-    title: "Smoother mobile play & tougher traps",
-    items: [
-      "Smoother iPhone and Android frame pacing with jitter-tolerant vsync, adaptive scaling fixes, and leaner mobile bloom, wake, and shader work.",
-      "Eliminated mobile text-atlas stutters on damage numbers and trimmed high-DPR tablet and phone GPU fillrate.",
-      "Hunting floor traps now surface beneath center-campers from Wave 2 onward, and dormant floor plates wake up faster when stepped on.",
-      "Sweeping beams now track across your position instead of firing into outer walls, and alternate sweep direction between cycles.",
-      "Respawning mines can reclaim the middle of the arena, and detonating a mine chains nearby armed mines.",
     ],
   },
 ];
