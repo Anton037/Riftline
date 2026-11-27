@@ -243,6 +243,23 @@ test("confirmed import and reset recover held saves; failed replacements preserv
   }
 });
 
+test("shared progress is refreshed before a local purchase even before the storage event arrives", () => {
+  reset(JSON.stringify({ ...newSave(), shards: 80 }));
+  const shop = new SaveStore();
+  const run = new SaveStore();
+  run.data.shards = 121;
+  run.data.trapMode = "impossible";
+  run.save("run-end");
+  assert.equal(shop.syncForeign(), true);
+  shop.data.shards -= 21;
+  shop.data.workshop.healthCoat = 1;
+  shop.save("workshop");
+  const settled = new SaveStore().data;
+  assert.equal(settled.shards, 100);
+  assert.equal(settled.workshop.healthCoat, 1);
+  assert.equal(settled.trapMode, "impossible");
+});
+
 test("unusable save identities are backed up before autosave replaces them", () => {
   for (const data of [[], {}, { ...newSave(), game: "other" }, { ...newSave(), v: 2 }]) {
     const raw = JSON.stringify(data);

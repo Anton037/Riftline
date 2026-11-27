@@ -16,6 +16,7 @@ import {
   sculptedCap,
   meshPart,
   mergeGeometries,
+  radialStrideMode,
   Geometry,
 } from "../engine/geometry.js";
 import { MeshNode, Node, mergeStaticNodes } from "../engine/scene.js";
@@ -287,8 +288,8 @@ function buildWeaponRig(weapon, accentHex) {
       // Thermal Projector: sloshing twin copper oil canisters & flickering pilot flame at the nozzle
       bodyParts.push(
         part(G_BEV, IRON, { x: 0.16, y: 0.02, sx: 0.48, sy: 0.2, sz: 0.22 }),
-        part(G_POT, COPPER, { x: -0.04, y: 0.06, z: -0.2, rz: -Math.PI / 2, sx: 0.24, sy: 0.42, sz: 0.24 }),
-        part(G_POT, COPPER, { x: -0.04, y: 0.06, z: 0.2, rz: -Math.PI / 2, sx: 0.24, sy: 0.42, sz: 0.24 }),
+        part(G_POT, COPPER, { x: 0.12, y: 0.08, z: -0.21, rz: -Math.PI / 2, sx: 0.23, sy: 0.4, sz: 0.23 }),
+        part(G_POT, COPPER, { x: 0.12, y: 0.08, z: 0.21, rz: -Math.PI / 2, sx: 0.23, sy: 0.4, sz: 0.23 }),
         part(G_LANTERN, BRASS, { x: 0.44, y: 0.02, rz: -Math.PI / 2, sx: 0.34, sy: 0.4, sz: 0.34 }),
         part(G_TOR_SM, IRON, { x: 0.8, y: 0.02, ry: Math.PI / 2, sx: 0.26, sy: 0.26, sz: 0.26 }),
       );
@@ -300,8 +301,8 @@ function buildWeaponRig(weapon, accentHex) {
       );
       glowParts.push(
         part(G_OCT, accentHex, { x: 0.56, y: 0.02, sx: 0.22, sy: 0.18, sz: 0.18 }),
-        part(G_BOX, accentHex, { x: 0.06, y: 0.11, z: -0.2, sx: 0.22, sy: 0.05, sz: 0.06 }),
-        part(G_BOX, accentHex, { x: 0.06, y: 0.11, z: 0.2, sx: 0.22, sy: 0.05, sz: 0.06 }),
+        part(G_BOX, accentHex, { x: 0.16, y: 0.14, z: -0.21, sx: 0.22, sy: 0.05, sz: 0.06 }),
+        part(G_BOX, accentHex, { x: 0.16, y: 0.14, z: 0.21, sx: 0.22, sy: 0.05, sz: 0.06 }),
       );
 
       break;
@@ -325,7 +326,6 @@ function buildWeaponRig(weapon, accentHex) {
 
   // Articulated right artificer sleeve, brass cuff & gloved hand gripping the weapon stock
   bodyParts.push(
-    part(G_DOME, CLOAK_TEAL, { x: -0.18, y: 0.1, z: -0.04, rz: 0.45, sx: 0.24, sy: 0.2, sz: 0.22 }),
     part(G_CYL8, CLOAK_TEAL, { x: -0.1, y: -0.01, z: -0.02, rz: -0.58, sx: 0.15, sy: 0.26, sz: 0.15 }),
     part(G_TOR_SM, BRASS, { x: -0.02, y: -0.06, z: -0.01, ry: Math.PI / 2, sx: 0.16, sy: 0.16, sz: 0.16 }),
     part(G_SPH, LEATHER, { x: 0.06, y: -0.06, z: 0.0, sx: 0.16, sy: 0.14, sz: 0.15 }),
@@ -438,7 +438,7 @@ export function buildPlayerModel(weapon = "lanternGun", weaponColor = 0x5ce8ff) 
     part(G_DOME, CLOAK_TEAL, { x: -0.07, y: 1.5, rz: 0.18, sx: 0.78, sy: 0.13, sz: 0.88 }),
     part(G_TOR_SM, BRONZE, { x: -0.07, y: 1.53, rz: 0.18, rx: Math.PI / 2, sx: 0.72, sy: 0.82, sz: 0.4 }),
     part(G_TOR_SM, BRASS, { x: -0.1, y: 1.61, rz: 0.2, rx: Math.PI / 2, sx: 0.49, sy: 0.49, sz: 0.34 }),
-    part(G_BEV, PARCHMENT, { x: 0.22, y: 1.58, rz: 0.3, sx: 0.23, sy: 0.09, sz: 0.31 }),
+    part(G_DOME, 0xcaa478, { x: 0.22, y: 1.57, rz: 0.24, sx: 0.23, sy: 0.054, sz: 0.27 }),
     // The taper leans back, leaving the brow clear from the arena camera.
     part(G_HOOD, CLOAK_TEAL, { x: -0.12, y: 1.57, rz: 0.46, sx: 0.52, sy: 0.57, sz: 0.5 }),
     part(G_CONE6, CLOAK_TEAL, { x: -0.36, y: 1.99, rz: 0.94, sx: 0.23, sy: 0.32, sz: 0.23 }),
@@ -497,8 +497,10 @@ export function buildPlayerModel(weapon = "lanternGun", weaponColor = 0x5ce8ff) 
   cloakHem.add(
     new MeshNode(
       mergeGeometries([
-        part(G_BEV, CLOAK_TEAL, { x: -0.04, y: -0.16, rz: -0.12, sx: 0.088, sy: 0.34, sz: 0.58 }),
-        part(G_BEV, CLOAK_TRIM, { x: -0.07, y: -0.33, rz: -0.14, sx: 0.085, sy: 0.085, sz: 0.61 }),
+        part(G_BEV, CLOAK_TEAL, { x: -0.026, y: -0.15, rz: -0.08, sx: 0.085, sy: 0.33, sz: 0.43 }),
+        part(G_BEV, CLOAK_TEAL, { x: -0.01, y: -0.14, z: -0.215, rx: -0.14, ry: 0.17, sx: 0.065, sy: 0.3, sz: 0.16 }),
+        part(G_BEV, CLOAK_TEAL, { x: -0.01, y: -0.14, z: 0.215, rx: 0.14, ry: -0.17, sx: 0.065, sy: 0.3, sz: 0.16 }),
+        part(G_BEV, CLOAK_TRIM, { x: -0.046, y: -0.31, rz: -0.08, sx: 0.082, sy: 0.056, sz: 0.44 }),
       ]),
       clothMat,
     ),
@@ -527,6 +529,21 @@ export function buildPlayerModel(weapon = "lanternGun", weaponColor = 0x5ce8ff) 
   const weaponMount = new Node();
   weaponMount.position.set(mount.bearingX, mount.bearingHeight, 0);
   base.add(weaponMount);
+  // Keep the shoulder on the torso while the sleeve and weapon absorb recoil.
+  base.add(
+    new MeshNode(
+      part(G_DOME, CLOAK_TEAL, {
+        x: mount.bearingX + mount.forward - 0.18,
+        y: mount.bearingHeight + mount.height + 0.1,
+        z: mount.side - 0.04,
+        rz: 0.45,
+        sx: 0.24,
+        sy: 0.2,
+        sz: 0.22,
+      }),
+      armorMat,
+    ),
+  );
 
   // Batch static sub-meshes on `base` (torso + hat/hood + left arm -> 1 draw call!) while preserving all moving nodes
   const keepStatic = new Set([
@@ -565,6 +582,7 @@ export function buildPlayerModel(weapon = "lanternGun", weaponColor = 0x5ce8ff) 
   group.traverse((o) => {
     if (o.isMesh && o.material && o.material.shader === "stylized") matSet.add(o.material);
   });
+  const poseParts = [legL.hip, legR.hip, cloak, cloakHem, scarf, scarfTail, rig.gun];
 
   const model = {
     group,
@@ -604,16 +622,22 @@ export function buildPlayerModel(weapon = "lanternGun", weaponColor = 0x5ce8ff) 
       base.rotation.set(0, 0, 0);
       base.scale.set(1, 1, 1);
       legsRoot.rotation.set(0, 0, 0);
+      for (const node of poseParts) node.rotation.set(0, 0, 0);
+      this.lean = this.bank = this.recoil = this.aimYaw = this.flareT = this.inspectT = 0;
+      this.faceLast = undefined;
       this.strafeYaw = 0;
       this.castT = 0;
       this.throwT = 0;
       this.hurtFlinchT = 0;
       weaponBearing.rotation.set(0, 0, 0);
+      weaponBearing.position.set(mount.bearingX, mount.bearingHeight, 0);
       weaponBearing.scale.set(1, 1, 1);
+      rig.gun.position.set(mount.forward, mount.height, mount.side);
       lantern.position.set(0.35, 0.89, -0.46);
       lantern.rotation.set(0, 0, 0);
       lanternGlow.scale.setScalar(1);
       eyes.visible = true;
+      eyes.scale.set(1, 1, 1);
       visorMat.emissiveIntensity = 1.42;
       lanternGlowMat.emissiveIntensity = 1.52;
     },
@@ -1430,7 +1454,7 @@ function buildEnemyParts(type, accent) {
             sx: 0.11,
             sy: 0.42,
             sz: 0.11,
-            anim: [2, 0.36, Math.cos(a) * 0.18, (i + 1) * 2.09],
+            anim: [radialStrideMode(a), 0.36, 0.18, (i + 1) * 2.09],
           });
         }),
         part(G_ROBE, NAVY_ROBE, { y: 0.3, sx: 0.56, sy: 1.06, sz: 0.56 }),
@@ -1497,7 +1521,7 @@ function buildEnemyParts(type, accent) {
             sx: 0.22,
             sy: 0.5,
             sz: 0.22,
-            anim: [2, 0.36, Math.cos(a) * 0.4, (i % 2) * Math.PI],
+            anim: [radialStrideMode(a), 0.36, 0.4, (i % 2) * Math.PI],
           });
         }),
         part(G_POT, NAVY_ROBE, { y: 0.24, sx: 1.08, sy: 0.58, sz: 1.08 }),
@@ -1680,7 +1704,7 @@ function buildEnemyParts(type, accent) {
               sx: 0.16,
               sy: 0.36,
               sz: 0.16,
-              anim: [2, 0.28, Math.cos(a) * 0.42, (i % 2) * Math.PI],
+              anim: [radialStrideMode(a), 0.28, 0.42, (i % 2) * Math.PI],
             }),
           ];
         }).flat(),
@@ -1842,7 +1866,7 @@ function buildEnemyParts(type, accent) {
       body.push(
         part(G_DOME, LEATHER, { y: 0.76, rx: Math.PI, sx: 1.24, sy: 0.42, sz: 1.32 }),
         part(G_LANTERN, PARCHMENT, { x: 0.04, y: 0.84, sx: 0.78, sy: 0.52, sz: 0.78, anim: [4, 0.95, 0.04, -1.5] }),
-        part(G_CONE6, BRASS, { x: -0.06, y: 1.5, sx: 0.72, sy: 0.32, sz: 0.72 }),
+        part(G_DOME, COPPER, { x: -0.06, y: 1.48, sx: 0.78, sy: 0.38, sz: 0.77 }),
         part(G_CONE6, BRASS, { x: 0.78, y: 0.78, rz: -1.35, sx: 0.12, sy: 0.54, sz: 0.12 }),
         part(G_BUG, NAVY_ROBE, { x: -0.56, y: 0.84, z: -0.82, rz: -Math.PI / 2, sx: 0.32, sy: 1.36, sz: 0.34 }),
         part(G_BUG, NAVY_ROBE, { x: -0.56, y: 0.84, z: 0.82, rz: -Math.PI / 2, sx: 0.32, sy: 1.36, sz: 0.34 }),
@@ -1933,7 +1957,7 @@ function buildEnemyParts(type, accent) {
     case "starSpider":
       // 6-armed spinning celestial loom wheel framing a slender indigo weaver core on 4 splayed brass-jointed spider legs
       body.push(
-        part(G_ROBE, PLUM_ROBE, { x: 0.12, y: 0.38, sx: 0.54, sy: 0.92, sz: 0.54 }),
+        part(G_ROBE, PLUM_ROBE, { x: 0.12, y: 0.38, sx: 0.66, sy: 0.92, sz: 0.68 }),
         part(G_HOOD, NAVY_ROBE, { x: 0.12, y: 1.24, rz: 0.3, sx: 0.42, sy: 0.44, sz: 0.42 }),
         ...[-1, 1].flatMap((side) =>
           [-0.22, 0.36].flatMap((ox, idx) => {
@@ -2384,7 +2408,7 @@ export function buildBossModel(type, accentHex = 0xff6644) {
         leg.position.set(lx, 0.96, s * 1.06);
         leg.add(
           new MeshNode(
-            part(G_BUG, 0x182b23, { y: -0.96, z: s * 0.42, rx: s * 0.56, sx: 0.36, sy: 1.38, sz: 0.36 }),
+            part(G_BUG, 0x477664, { y: -0.96, z: s * 0.42, rx: s * 0.56, sx: 0.36, sy: 1.38, sz: 0.36 }),
             bodyMat,
           ),
         );
@@ -2430,7 +2454,7 @@ export function buildBossModel(type, accentHex = 0xff6644) {
     group.add(new MeshNode(glowGeo, glowMat));
 
     const crownMat = worldMaterial({
-      color: 0x62e8a8,
+      vertexColors: true,
       surface: "crystal",
       emissive: 0x1e7850,
       emissiveIntensity: 0.68,
@@ -2485,11 +2509,8 @@ export function buildBossModel(type, accentHex = 0xff6644) {
     const iceMat = worldMaterial({
       surface: "ice",
       vertexColors: true,
-      transparent: true,
-      opacity: 0.92,
       biomeSkin: true,
     });
-    iceMat.userData.opacity = 0.92;
     mats.push(iceMat);
     fadeMats.push(iceMat);
     const coreCrystal = mergeGeometries([
@@ -2507,10 +2528,10 @@ export function buildBossModel(type, accentHex = 0xff6644) {
       wNode.add(
         new MeshNode(
           mergeGeometries([
-            part(sculptedCrystal(0.56, 1.95, 0.56, side > 0 ? 441 : 442), 0x48a8de, {
+            part(sculptedCrystal(0.66, 2.5, 0.58, side > 0 ? 441 : 442), 0x48a8de, {
               y: -0.45,
-              z: side * 0.45,
-              rx: side * 0.42,
+              z: side * 0.58,
+              rx: side * 0.69,
             }),
             part(G_OCT, BRASS, { z: side * 0.2, sx: 0.24, sy: 0.56, sz: 0.24 }),
           ]),
@@ -2620,7 +2641,7 @@ export function buildBossModel(type, accentHex = 0xff6644) {
     spin.push({ m: heart, ax: "y", v: 1.25 });
 
     const r1 = addMesh(group, torus(1.88, 0.1, 6, 24), glowMat, { y: 2.4, rx: 0.55 });
-    const r2Mat = worldMaterial({ color: BRASS, surface: "metal", transparent: false, opacity: 1 });
+    const r2Mat = worldMaterial({ vertexColors: true, surface: "metal" });
     mats.push(r2Mat);
     fadeMats.push(r2Mat);
     const r2 = new Node();
@@ -2657,8 +2678,8 @@ export function buildBossModel(type, accentHex = 0xff6644) {
     // glowing iron rib-grate chest, articulated walking forge-legs & clearance-safe colossal Anvil Maul!
     const hull = mergeGeometries([
       // Broad hunched lower-slung furnace boiler torso (wider & forward-hunched vs upright bellkeeper)
-      part(G_BEV, 0x261618, { x: -0.14, y: 1.18, sx: 2.32, sy: 1.12, sz: 2.94 }),
-      part(G_DOME, 0x3a2020, { x: -0.46, y: 1.88, rz: -0.28, sx: 2.68, sy: 1.62, sz: 3.18 }),
+      part(G_BEV, 0x50343a, { x: -0.14, y: 1.18, sx: 2.32, sy: 1.12, sz: 2.94 }),
+      part(G_DOME, 0x67483e, { x: -0.46, y: 1.88, rz: -0.28, sx: 2.68, sy: 1.62, sz: 3.18 }),
       part(G_TOR_SM, COPPER, { x: -0.28, y: 1.72, rx: Math.PI / 2, sx: 2.52, sy: 2.94, sz: 2.52 }),
       // Curved dark-iron furnace rib-grate bars encasing the roaring chest core
       ...[-0.62, -0.22, 0.22, 0.62].map((rzOff) =>
@@ -2805,7 +2826,13 @@ export function buildBossModel(type, accentHex = 0xff6644) {
       const seg = new Node();
       seg.position.set(-i * 0.88, 0.92 - i * 0.05, 0);
       const segParts = [
-        part(G_DOME, i % 2 ? 0x74462a : 0x4c2e1e, { y: -0.4 * sc, sx: 1.06 * sc, sy: 0.96 * sc, sz: 1.34 * sc }),
+        part(G_DOME, i % 2 ? 0x74462a : 0x4c2e1e, {
+          x: 0.05,
+          y: -0.4 * sc,
+          sx: 0.98 + 0.26 * sc,
+          sy: 0.96 * sc,
+          sz: 1.34 * sc,
+        }),
         part(sculptedCrystal(0.46 * sc, 1.18 * sc, 0.46 * sc, 710 + i), 0x26b2a6, { y: 0.38 * sc }),
       ];
       if (i === 7) {

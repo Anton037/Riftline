@@ -18,8 +18,8 @@ import { clamp, TAU, makeRng } from "../core/util.js";
 import { FINISH } from "./palette.js";
 
 const WHITE = new Color(0xffffff);
-const SAND = new Color(0xe4cc9c);
-const SAND_DEEP = new Color(0xa68e5e);
+const SAND = new Color(0xbfa48b);
+const SAND_DEEP = new Color(0x816a67);
 const PYRO = new Color(0xff9a38);
 const PYRO_HOT = new Color(0xffe9b0);
 const ASH_PUFF = new Color(0x4e463e);
@@ -119,8 +119,8 @@ const MODELS = {
   }),
   // Flats: warm terracotta-ochre swirling sand ribbons
   funnel: () => ({
-    body: [meshPart(dustRibbon(0.16), 0x8e643c), meshPart(dustRibbon(Math.PI * 0.85), 0xbe9058)],
-    glow: [meshPart(dustRibbon(Math.PI * 1.46), 0xe2bc7e)],
+    body: [meshPart(dustRibbon(0.16), 0x736560), meshPart(dustRibbon(Math.PI * 0.85), 0xa7998b)],
+    glow: [meshPart(dustRibbon(Math.PI * 1.46), 0xc0b0a5)],
   }),
   // Marsh: organic clustered mossy bog-stones & floating lily-pad tufts with tiny lotus buds
   bank: () => ({
@@ -202,12 +202,13 @@ export class HazardView {
     if (set) return set;
     const m = MODELS[name]();
     const mk = (parts, glow) => {
+      const translucent = name === "funnel" || name === "bubble";
       const mat = glow
         ? emissiveMaterial({
             vertexColors: true,
             emissiveIntensity: name === "funnel" ? 0.72 : 1.16,
-            transparent: true,
-            depthWrite: false,
+            transparent: translucent,
+            depthWrite: !translucent,
             opacity: name === "funnel" ? 0.22 : 1,
             doubleSide: name === "funnel",
           })
@@ -526,7 +527,7 @@ export class HazardView {
           col,
           0.25 + 0.28 * f,
         );
-        if (f > 0.97 && Math.random() < 0.5 * quality) {
+        if (f > 0.97 && Math.random() < dt * 30 * quality) {
           r.emit(x + Math.cos(a) * d, 0.12, z + Math.sin(a) * d, 0, 0.9, 0, 0.35, 0.12, col, { drag: 1 });
         }
       }

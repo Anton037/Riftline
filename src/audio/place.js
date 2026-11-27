@@ -283,7 +283,7 @@ function placeTick(e, world, dt) {
   const scape = SCAPE[arena.biome.id];
   if (!scape) return;
   const creep = world.endless ? 1 + Math.min(0.45, Math.max(0, world.wave - 20) * 0.012) : 1,
-    thin = world.boss ? 0.5 : 1 / creep,
+    thin = world.boss ? 0.5 : creep,
     t = (st.t = (st.t || 0) + dt);
   const calm = e.musVol > 0 && e.playKind === "fight";
   for (const [id, lo, hi, g, inMusic] of scape.bed)

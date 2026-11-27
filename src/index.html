@@ -84,8 +84,6 @@
   --red: #e27864;
   --focus: #e6cf98;
   --accent: #66d4b6;
-  --hp-a: #3ab38f;
-  --hp-b: #94dcb0;
   --boss-a: #cc5840;
   --boss-b: #e6bf7c;
   --cta-a: #e8c47a;
@@ -131,8 +129,6 @@
   --cyan: #68d4bc;
   --amber: #dfba6c;
   --accent: #dfba6c;
-  --hp-a: #3eb394;
-  --hp-b: #94dfba;
   --boss-a: #cc5d42;
   --boss-b: #e6c07e;
 }
@@ -159,8 +155,6 @@
   --cyan: #6ad4c8;
   --amber: #dfc57a;
   --accent: #6ad4c8;
-  --hp-a: #3bb4c8;
-  --hp-b: #94e0d4;
   --boss-a: #4284d4;
   --boss-b: #98d8eb;
 }
@@ -185,8 +179,6 @@
   --cyan: #66d49e;
   --amber: #dec474;
   --accent: #66d49e;
-  --hp-a: #42b874;
-  --hp-b: #9edfa0;
   --boss-a: #389a68;
   --boss-b: #a4df94;
 }
@@ -211,8 +203,6 @@
   --cyan: #78d4cc;
   --amber: #dfbe84;
   --accent: #c89ae6;
-  --hp-a: #7a68d6;
-  --hp-b: #cca8e8;
   --boss-a: #b84eae;
   --boss-b: #e2b0d4;
 }
@@ -237,8 +227,6 @@
   --cyan: #6ed4ba;
   --amber: #dfba6c;
   --accent: #de9e56;
-  --hp-a: #d47236;
-  --hp-b: #e6c678;
   --boss-a: #d24426;
   --boss-b: #e4ae58;
 }
@@ -265,8 +253,6 @@
   --cyan: #62d4c6;
   --amber: #dfc478;
   --accent: #62d4c6;
-  --hp-a: #38b2a2;
-  --hp-b: #90ded0;
   --boss-a: #cc742a;
   --boss-b: #e6ca80;
 }
@@ -759,7 +745,7 @@ textarea::-webkit-scrollbar-thumb {
   transform-origin: left;
 }
 .bar.hp i {
-  background: linear-gradient(90deg, var(--hp-a), var(--hp-b));
+  background: linear-gradient(90deg, #3ab38f, #94dcb0);
   z-index: 2;
 }
 .bar.hp.low i {
@@ -931,13 +917,12 @@ textarea::-webkit-scrollbar-thumb {
   color: #fff1e6;
   background: #77352f;
 }
-@media (orientation: landscape) and (max-height: 400px) and (min-width: 540px) {
-  #home .trap-mode {
-    position: absolute;
-    inset-inline-start: 0;
-    inset-block-end: 6px;
-    width: min(245px, calc(50% - 16px));
-  }
+.trap-mode-copy small {
+  display: block;
+  color: var(--dim);
+  font-size: 11px;
+  font-weight: 500;
+  margin-top: 2px;
 }
 .weapon-card {
   padding: clamp(12px, 2.1vh, 20px);
@@ -2020,7 +2005,10 @@ textarea::-webkit-scrollbar-thumb {
   max-width: 640px;
   width: 100%;
   align-self: center;
+  padding-bottom: 16px;
+  mask-image: linear-gradient(to bottom, black calc(100% - 10px), transparent);
 }
+#settings.in-run { background: linear-gradient(145deg, #27231e, #151613); }
 .set-group {
   display: flex;
   flex-direction: column;
@@ -2635,6 +2623,7 @@ button.bi.sel {
 }
 .mini-stats {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   gap: 16px;
   color: var(--dim);
@@ -3231,7 +3220,7 @@ body.device-desktop #settings > .settings-body {
   #over .payout,
   #over #overRecap,
   #over #overMs,
-  #over .center-col > .btn {
+  #over .over-actions {
     grid-column: 2;
   }
 }
@@ -3574,7 +3563,6 @@ body.device-phone.is-landscape .hud-feedback { width: min(330px, calc(100% - var
     align-items: center;
     gap: 4px;
   }
-  .build-strip { display: none; }
 
   #over .center-col {
     display: grid;
@@ -3599,7 +3587,7 @@ body.device-phone.is-landscape .hud-feedback { width: min(330px, calc(100% - var
   #over .payout,
   #over #overRecap,
   #over #overMs,
-  #over .center-col > .btn {
+  #over .over-actions {
     grid-column: 2;
   }
   #over .run-extra-grid {
@@ -3610,8 +3598,8 @@ body.device-phone.is-landscape .hud-feedback { width: min(330px, calc(100% - var
   #over .run-extra-grid .xv { font-size: 14px; }
   #over .payout { padding: 6px 12px; }
   #over .over-title { font-size: clamp(24px, 8vh, 34px) !important; }
-  #over .center-col > .btn { min-height: 40px; align-self: start; }
-  #over .center-col > .btn.primary { min-height: 44px; font-size: 16px; }
+  #over .over-actions > .btn { min-height: 40px; align-self: start; }
+  #over .over-actions > .btn.primary { min-height: 44px; font-size: 16px; }
 }
 
 @media (orientation: landscape) and (max-height: 430px) {
@@ -3731,10 +3719,42 @@ body.device-phone.is-landscape .hud-feedback { width: min(330px, calc(100% - var
   .seg button { min-block-size: 40px; }
 }
 
+@media (orientation: landscape) and (max-height: 400px) {
+  #home .home-grid { overflow: hidden; }
+  #home .home-panel {
+    display: grid;
+    grid-template-columns: minmax(134px, 1.2fr) minmax(0, 1fr);
+    align-items: center;
+    align-content: start;
+    max-height: 100%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+  }
+  #home .weapon-card, #home .threat-row, #home #continueNote { grid-column: 1 / -1; }
+  #home .trap-mode {
+    grid-column: 1;
+    grid-row: 3 / span 2;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    padding: 3px;
+    text-align: center;
+  }
+  #home .trap-mode .seg { justify-content: center; }
+  #home .trap-mode button { padding-inline: 5px; }
+  #home #playBtn, #home #continueBtn { grid-column: 2; min-width: 0; padding-inline: 3px; }
+  #home #playBtn { grid-row: 3 / span 2; }
+  #home:has(#continueBtn:not([hidden])) #playBtn { grid-row: 4; }
+  #home #continueBtn { grid-row: 3; }
+}
+
 /* ---- REDUCED MOTION & FORCED COLORS ---- */
 @media (prefers-reduced-motion: reduce) {
   .btn, .icon-btn, .arrow, .bottom-nav button, .act-btn, .card, .toast, .bn, .coach,
-  .card.r6 .seal, .tcard .tc-name, .tc-band::before, .tc-band::after, .tc-accent, .tc-line {
+  .card.r6 .seal, .tcard .tc-name, .tc-band::before, .tc-band::after, .tc-accent, .tc-line,
+  .boot-crest, .combo, .combo-pop, .tcard.hold, .tcard.out, .act-btn.dash.pop, .act-btn.dash.deny,
+  .shard-chip.bump .num, .bar.hp.heal i, .screen, .dialog {
     animation: none !important;
     transition: none !important;
   }
@@ -3967,7 +3987,7 @@ body.device-desktop .act {
   background: linear-gradient(90deg, rgba(223, 186, 106, 0.42), transparent);
 }
 
-/* Journal tabs (Achievements / Run History / Guide) & Guide cards */
+/* Journal tabs (Milestones / Run History / Guide) & Guide cards */
 .tab-bar {
   display: flex;
   align-items: center;
@@ -4094,7 +4114,10 @@ body.device-desktop .act {
   right: calc(var(--sr) + 14px);
   display: flex;
   gap: 8px;
+  z-index: 2;
 }
+#choose .choose-head, #anvil .choose-head { padding-inline: clamp(36px, 8vw, 88px); }
+#crash { z-index: 95; }
 .build-strip button.bi {
   cursor: pointer;
   border: 1px solid rgba(223, 186, 106, 0.28);
@@ -4288,13 +4311,9 @@ body.device-desktop .act {
       body.dataset.device = device;
       body.dataset.orientation = w >= h ? 'landscape' : 'portrait';
       // Allow portrait menu browsing. Mobile runs use a landscape viewport.
-      const inRun = Boolean(
-        window.__riftTest?.game?.mode === 'game' ||
-        ['hud', 'pause', 'choose', 'anvil', 'hudEdit'].some((id) => {
-          const el = document.getElementById(id);
-          return el && !el.hidden;
-        })
-      );
+      const shown = (id) => document.getElementById(id)?.hidden === false;
+      const inRun = !shown('hudEdit') && !shown('over') &&
+        ['hud', 'pause', 'choose', 'anvil'].some(shown);
       body.classList.toggle('needs-rotate', touchDevice && h > w && inRun);
       root.style.setProperty('--vw', `${w}px`);
       root.style.setProperty('--vh', `${h}px`);
@@ -4308,7 +4327,12 @@ body.device-desktop .act {
       if (profileSettledTimer) clearTimeout(profileSettledTimer);
       profileRaf = requestAnimationFrame(() => { profileRaf = 0; updateDeviceProfile(); });
       profileFastTimer = setTimeout(() => { profileFastTimer = 0; if (epoch === profileEpoch) updateDeviceProfile(); }, 120);
-      profileSettledTimer = setTimeout(() => { profileSettledTimer = 0; if (epoch === profileEpoch) updateDeviceProfile(); }, 420);
+      profileSettledTimer = setTimeout(() => {
+        profileSettledTimer = 0;
+        if (epoch !== profileEpoch) return;
+        updateDeviceProfile();
+        window.__riftOnDeviceProfileSettled?.();
+      }, 420);
     };
     // the layout audit of the tests (every visible button on screen and not covered); 3.35.0: it runs only when a test
     // calls it, not at every resize
@@ -4397,7 +4421,7 @@ body.device-desktop .act {
       <div class="hud-right">
         <div class="right-block">
           <div id="shardChip" class="shard-chip"><span class="shard-ico"></span><span id="runShards" class="num">0</span></div>
-          <button id="pauseBtn" class="icon-btn" aria-label="Pause"></button>
+          <button id="pauseBtn" class="icon-btn" aria-label="Pause" title="Pause (Esc or P)"></button>
         </div>
         <div id="performanceOverlay" class="perf-overlay num" hidden></div>
       </div>
@@ -4446,7 +4470,7 @@ body.device-desktop .act {
       <div class="shard-chip big"><span class="shard-ico"></span><span id="bank" class="num">0</span></div>
       <div class="spacer"></div>
       <button id="updateReadyBtn" class="btn small buy" hidden>Update ready — reload</button>
-      <button id="muteBtn" class="icon-btn mute-btn" aria-label="Toggle sound mute" aria-pressed="false" title="Mute / Unmute"></button>
+      <button id="muteBtn" class="icon-btn mute-btn" aria-label="Toggle sound mute" aria-pressed="false" title="Mute or unmute (M)"></button>
     </header>
     <div id="corruptBanner" class="alert-banner" hidden role="alert">
       <span><b>Previous save could not be read.</b> A raw backup was kept safe before starting fresh.</span>
@@ -4468,9 +4492,9 @@ body.device-desktop .act {
       <div class="home-panel">
         <div class="weapon-card panel">
           <div class="wc-head">
-            <button id="wPrev" class="arrow" aria-label="Previous weapon" data-icon="back"></button>
+            <button id="wPrev" class="arrow" aria-label="Previous weapon" title="Previous weapon (←)" data-icon="back"></button>
             <div class="wc-title"><div class="eyebrow">WEAPON <span id="wIndex"></span></div><div id="wName" class="wc-name">Lantern Gun</div></div>
-            <button id="wNext" class="arrow flip" aria-label="Next weapon" data-icon="back"></button>
+            <button id="wNext" class="arrow flip" aria-label="Next weapon" title="Next weapon (→)" data-icon="back"></button>
           </div>
           <p id="wBlurb" class="wc-blurb"></p>
           <div id="wTraits" class="wc-traits"></div>
@@ -4478,15 +4502,15 @@ body.device-desktop .act {
           <button id="wBuy" class="btn buy" hidden></button>
         </div>
         <div class="threat-row panel">
-          <button id="tPrev" class="arrow small" aria-label="Lower difficulty" data-icon="back"></button>
+          <button id="tPrev" class="arrow small" aria-label="Lower difficulty" title="Lower difficulty (Shift+←)" data-icon="back"></button>
           <div class="threat-mid"><div id="tName" class="threat-name">Normal</div><div id="tDesc" class="threat-desc"></div></div>
-          <button id="tNext" class="arrow small flip" aria-label="Higher difficulty" data-icon="back"></button>
+          <button id="tNext" class="arrow small flip" aria-label="Higher difficulty" title="Higher difficulty (Shift+→)" data-icon="back"></button>
         </div>
-        <div class="trap-mode panel" role="group" aria-labelledby="trapModeLabel">
-          <span id="trapModeLabel">Arena Traps</span>
+        <div class="trap-mode panel" role="group" aria-labelledby="trapModeLabel" aria-describedby="trapModeHelp">
+          <span class="trap-mode-copy"><span id="trapModeLabel">Arena Traps</span><small id="trapModeHelp">Impossible · Wave 1 · Standard shard rewards</small></span>
           <div class="seg" id="trapMode">
             <button type="button" value="off" class="on" aria-pressed="true">Off</button>
-            <button type="button" value="impossible" aria-pressed="false" title="Earlier, faster and more damaging traps">Impossible</button>
+            <button type="button" value="impossible" aria-pressed="false">Impossible</button>
           </div>
         </div>
         <button id="continueBtn" class="btn primary alt" hidden></button>
@@ -4523,7 +4547,7 @@ body.device-desktop .act {
       <div class="shard-chip big"><span class="shard-ico"></span><span class="num bankMirror">0</span></div>
     </header>
     <div class="tab-bar" id="recTabs" role="tablist" aria-label="Journal sections">
-      <button class="tab-btn on" data-rec-tab="milestones" role="tab" aria-selected="true">Achievements</button>
+      <button class="tab-btn on" data-rec-tab="milestones" role="tab" aria-selected="true">Milestones</button>
       <button class="tab-btn" data-rec-tab="chronicle" role="tab" aria-selected="false">Run History</button>
       <button class="tab-btn" data-rec-tab="codex" role="tab" aria-selected="false">Guide</button>
     </div>
@@ -4571,7 +4595,7 @@ body.device-desktop .act {
     <div class="scroll settings-body">
       <h3 class="section-h">Controls</h3>
       <div class="set-group">
-        <label class="set-row"><span><b>Auto-fire</b><small>Shoots the nearest enemy while you are not aiming.</small></span><input type="checkbox" id="setAuto" class="toggle"></label>
+        <label class="set-row"><span><b>Auto-fire</b><small>Fires at nearby enemies while manual aim is idle.</small></span><input type="checkbox" id="setAuto" class="toggle"></label>
         <label class="set-row"><span><b>Aim assist</b><small>Gently steadies your aim onto nearby targets.</small></span><input type="checkbox" id="setAssist" class="toggle"></label>
         <div class="set-row" id="hudEditRow"><span><b>Button layout</b><small id="hudLayoutNote">Move and resize the touch buttons and sticks.</small></span><button id="hudEditBtn" class="btn small">Edit</button></div>
       </div>
@@ -4582,6 +4606,14 @@ body.device-desktop .act {
         <label class="set-row"><span><b>Damage numbers</b></span><input type="checkbox" id="setNumbers" class="toggle"></label>
         <label class="set-row"><span><b>Performance overlay</b><small id="performanceSettingStatus">Off. Show FPS and CPU time during play.</small></span><input type="checkbox" id="setPerformance" class="toggle"></label>
       </div>
+      <h3 class="section-h">Sound</h3>
+      <div class="set-group">
+        <label class="set-row"><span><b>Mute all sound</b></span><input type="checkbox" id="setMuted" class="toggle"></label>
+        <label class="set-row"><span><b>Master volume</b></span><span class="row-ctl"><input type="range" id="setMaster" min="0" max="1" step="0.05"><output id="setMasterV" class="num set-val">100%</output></span></label>
+        <label class="set-row"><span><b>Effects</b></span><span class="row-ctl"><input type="range" id="setSfx" min="0" max="1" step="0.05"><output id="setSfxV" class="num set-val">80%</output></span></label>
+        <label class="set-row"><span><b>Music</b></span><span class="row-ctl"><input type="range" id="setMusic" min="0" max="1" step="0.05"><output id="setMusicV" class="num set-val">45%</output></span></label>
+        <label class="set-row"><span><b>Ambient sound</b></span><span class="row-ctl"><input type="range" id="setAmb" min="0" max="1" step="0.05"><output id="setAmbV" class="num set-val">80%</output></span></label>
+      </div>
       <h3 class="section-h">Tutorial</h3>
       <div class="set-group">
         <div class="set-row"><span><b>Replay tutorial</b><small>Show the tips on your next run.</small></span><button id="replayTutBtn" class="btn small">Replay</button></div>
@@ -4590,14 +4622,6 @@ body.device-desktop .act {
       <div class="set-group menu-only">
         <div class="set-row"><span><b>Save backup</b><small>Export or download your progress as a .json file, or restore from text or file.</small></span><div class="btn-row compact-row"><button id="backupBtn" class="btn small">Export</button><button id="shareBtn" class="btn small">Share</button><button id="restoreBtn" class="btn small">Import</button></div></div>
         <div class="set-row" id="corruptSettingsRow" hidden><span><b>Raw save backup</b><small>Inspect or download a previously unreadable save snapshot.</small></span><div class="btn-row compact-row"><button id="corruptSetInspectBtn" class="btn small">Inspect</button><button id="corruptSetDownloadBtn" class="btn small">Download .json</button></div></div>
-      </div>
-      <h3 class="section-h">Sound</h3>
-      <div class="set-group">
-        <label class="set-row"><span><b>Mute all sound</b></span><input type="checkbox" id="setMuted" class="toggle"></label>
-        <label class="set-row"><span><b>Master volume</b></span><span class="row-ctl"><input type="range" id="setMaster" min="0" max="1" step="0.05"><output id="setMasterV" class="num set-val">100%</output></span></label>
-        <label class="set-row"><span><b>Effects</b></span><span class="row-ctl"><input type="range" id="setSfx" min="0" max="1" step="0.05"><output id="setSfxV" class="num set-val">80%</output></span></label>
-        <label class="set-row"><span><b>Music</b></span><span class="row-ctl"><input type="range" id="setMusic" min="0" max="1" step="0.05"><output id="setMusicV" class="num set-val">45%</output></span></label>
-        <label class="set-row"><span><b>Ambient sound</b></span><span class="row-ctl"><input type="range" id="setAmb" min="0" max="1" step="0.05"><output id="setAmbV" class="num set-val">80%</output></span></label>
       </div>
       <div class="set-foot">
         <span class="note">Riftline <span id="verText" class="num"></span> · progress saves automatically<span id="storageWarn" hidden> — <b id="storageWarnText">Storage is blocked in this browser.</b></span></span>
@@ -4625,8 +4649,8 @@ body.device-desktop .act {
     <div id="cards" class="cards"></div>
     <p id="chooseScrollHint" class="choose-scroll-hint" hidden></p>
     <div class="choose-foot">
-      <button id="rerollBtn" class="btn ghost"><span data-icon="reroll"></span><span id="rerollTxt">Reroll</span></button>
-      <button id="sealBtn" class="btn ghost" hidden><span data-icon="skull"></span><span id="sealTxt">Seal</span></button>
+      <button id="rerollBtn" class="btn ghost"><span data-icon="reroll"></span><span id="rerollTxt">Reroll</span><span class="kbd-hint" aria-hidden="true">R</span></button>
+      <button id="sealBtn" class="btn ghost" hidden><span data-icon="skull"></span><span id="sealTxt">Seal</span><span class="kbd-hint" aria-hidden="true">B</span></button>
     </div>
     <div id="chooseNotices" class="inline-notices" aria-live="polite"></div>
     <div id="buildStrip" class="build-strip"></div>
@@ -4694,8 +4718,8 @@ body.device-desktop .act {
       <div id="overExtra" class="run-extra panel" hidden></div>
       <div id="overMs" class="ms-unlocked"></div>
       <div class="over-actions">
-        <button id="endlessBtn" class="btn primary" hidden>Continue · Endless</button>
-        <button id="retryBtn" class="btn primary">Play Again</button>
+        <button id="endlessBtn" class="btn primary" title="Continue into Endless (R)" hidden>Continue · Endless</button>
+        <button id="retryBtn" class="btn primary" title="Play again (R)">Play Again</button>
         <button id="homeBtn" class="btn">Home</button>
       </div>
     </div>

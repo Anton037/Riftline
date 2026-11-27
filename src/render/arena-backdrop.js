@@ -2,7 +2,7 @@
 // Ensures the Home menu and tilted diorama camera never reveal flat empty void behind the floor plane.
 
 import { Color } from "../engine/math.js";
-import { Geometry, cylinder, octahedron, mergeGeometries } from "../engine/geometry.js";
+import { Geometry, octahedron, mergeGeometries } from "../engine/geometry.js";
 import { Material, MeshNode, Node } from "../engine/scene.js";
 import { GLAZES } from "./palette.js";
 import { TAU } from "../core/util.js";
@@ -74,6 +74,26 @@ const SKY_GRADIENTS = {
  * Open-ended distant horizon cylinder + painted celestial disc & starfield strictly beyond `hypot(W, H) + 34`
  * so no triangle chord ever crosses `[-W, W] x [-H, H]`.
  */
+function celestialDisc(azimuth, distance, height, radius) {
+  const cx = Math.cos(azimuth);
+  const cz = Math.sin(azimuth);
+  const positions = [cx * distance, height, cz * distance];
+  const normals = [-cx, 0, -cz];
+  const uvs = [0.5, 0.5];
+  const indices = [];
+  const sides = 32;
+  for (let i = 0; i < sides; i++) {
+    const angle = (i / sides) * TAU;
+    const x = Math.cos(angle);
+    const y = Math.sin(angle);
+    positions.push(cx * distance - cz * radius * x, height + radius * y, cz * distance + cx * radius * x);
+    normals.push(-cx, 0, -cz);
+    uvs.push(0.5 + x * 0.5, 0.5 + y * 0.5);
+    indices.push(0, i + 1, ((i + 1) % sides) + 1);
+  }
+  return new Geometry(positions, normals, uvs, indices);
+}
+
 export function createSkyBackdrop(biomeId, W, H) {
   const look = GLAZES[biomeId] || GLAZES.lanternYard;
   const grad = SKY_GRADIENTS[biomeId] || SKY_GRADIENTS.lanternYard;
@@ -171,18 +191,13 @@ export function createSkyBackdrop(biomeId, W, H) {
 
   // Painted moon / desert sun disc + soft halo perched along the northern horizon arc
   const discDist = radius - 1.5;
-  const dx = Math.cos(grad.discAz) * discDist;
-  const dz = Math.sin(grad.discAz) * discDist;
-  const discGeo = cylinder(grad.discR, grad.discR, 0.25, 16)
-    .rotateX(Math.PI / 2)
-    .rotateY(-grad.discAz + Math.PI / 2)
-    .translate(dx, grad.discEl, dz);
+  const discGeo = celestialDisc(grad.discAz, discDist, grad.discEl, grad.discR);
   const discMat = new Material({
     shader: "emissive",
     color: grad.ringBlade,
     emissiveIntensity: biomeId === "sunDunes" ? 1.38 : 1.18,
     transparent: true,
-    opacity: biomeId === "emberHill" ? 0.62 : 0.88,
+    opacity: biomeId === "emberHill" ? 0.82 : 1,
     depthWrite: false,
     doubleSide: true,
     fog: false,
@@ -190,16 +205,13 @@ export function createSkyBackdrop(biomeId, W, H) {
   const discMesh = new MeshNode(discGeo, discMat);
   discMesh.castShadow = false;
   discMesh.receiveShadow = false;
-  discMesh.renderOrder = 3;
+  discMesh.renderOrder = 5;
   discMesh.frustumCulled = false;
   discMesh.freezeStatic();
   root.add(discMesh);
 
   // Outer celestial halo ring behind the moon/sun
-  const haloGeo = cylinder(grad.discR * 1.9, grad.discR * 1.9, 0.2, 16)
-    .rotateX(Math.PI / 2)
-    .rotateY(-grad.discAz + Math.PI / 2)
-    .translate(Math.cos(grad.discAz) * (discDist + 0.5), grad.discEl, Math.sin(grad.discAz) * (discDist + 0.5));
+  const haloGeo = celestialDisc(grad.discAz, discDist + 0.5, grad.discEl, grad.discR * 1.9);
   const haloMat = new Material({
     shader: "emissive",
     color: grad.ringBlade,
@@ -214,7 +226,7 @@ export function createSkyBackdrop(biomeId, W, H) {
   const haloMesh = new MeshNode(haloGeo, haloMat);
   haloMesh.castShadow = false;
   haloMesh.receiveShadow = false;
-  haloMesh.renderOrder = 3;
+  haloMesh.renderOrder = 4;
   haloMesh.frustumCulled = false;
   haloMesh.freezeStatic();
   root.add(haloMesh);

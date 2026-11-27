@@ -354,7 +354,7 @@ export class WeaponEffectsView {
           shotZ - sa * wLen + ca * sway,
           shotX - ca * 0.06 + sa * sway * 0.5,
           shotZ - sa * 0.06 - ca * sway * 0.5,
-          height + 0.3,
+          height,
           0.048,
           GOLD,
           1.25,
@@ -362,7 +362,7 @@ export class WeaponEffectsView {
       }
       if (shot.heavy || shot.superCrit) {
         r.sprites.colC(
-          r.sprites.bb(shotX, height + 0.29, shotZ, shot.r * (shot.superCrit ? 2.6 : 2.2), r.B),
+          r.sprites.bb(shotX, height, shotZ, shot.r * (shot.superCrit ? 2.6 : 2.2), r.B),
           shot.superCrit ? GOLD : color,
           shot.superCrit ? 0.45 : 0.35,
         );

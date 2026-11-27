@@ -138,7 +138,14 @@ const upgradeList = [
   },
 
   // Epic (Rarity 3)
-  { id: "extraShots", name: "Extra Shots", rarity: 3, max: 4, icon: "fan", desc: () => "+1 shot per volley" },
+  {
+    id: "extraShots",
+    name: "Extra Shots",
+    rarity: 3,
+    max: 4,
+    icon: "fan",
+    desc: () => "+1 shot per volley (+2 pellets with the Brass Shotgun)",
+  },
   {
     id: "bounceShot",
     name: "Bouncing Shots",
@@ -372,7 +379,7 @@ const upgradeList = [
     icon: "fireBellows",
     evo: { burningShot: 2, dmg: 1 },
     desc: () =>
-      "Burning enemies take +20% damage, and burst on death (30 + 25% max HP damage) while spreading embers nearby.",
+      "Burning enemies take +20% damage and burst on death. The burst spreads embers and adds 25% of the enemy's max HP to 30 base damage, up to a cap of 140 scaled by your damage bonus.",
   },
   {
     id: "ghostDash",
@@ -381,7 +388,7 @@ const upgradeList = [
     max: 1,
     icon: "wing",
     evo: { shockDash: 1, speed: 2 },
-    desc: () => "+1 Dash Charge (2 max), -35% dash cooldown, and dashing leaves a crackling trail (65 DPS, 35% slow).",
+    desc: () => "+1 Dash Charge (2 max), -35% dash cooldown, and dashing leaves a crackling trail (65 DPS, 45% slow).",
   },
   {
     id: "wispSwarm",
@@ -494,7 +501,7 @@ const upgradeList = [
     boss: "iceCrystal",
     icon: "snow",
     desc: () =>
-      "Felled enemies (and every 15th boss hit) burst into 5 frost splinters (22 damage, pierce 2 enemies, 1.8 s chill)",
+      "Felled enemies (and every 15th boss hit) burst into 5 frost splinters (22 damage, hit up to 2 enemies each, 1.8 s chill)",
   },
   {
     id: "mossHelpers",
@@ -532,7 +539,7 @@ const upgradeList = [
     max: 1,
     boss: "sandDragon",
     icon: "shard",
-    desc: () => "Every 10 kills (or 16th boss hit) fires 6 piercing sunglass fangs (34 damage, pierce 2 enemies)",
+    desc: () => "Every 10 kills (or 16th boss hit) fires 6 sunglass fangs (34 damage, hit up to 2 enemies each)",
   },
 ];
 

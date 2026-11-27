@@ -52,6 +52,8 @@ export function soundInputs() {
     ...seen,
     path.join(ROOT, "public", "audio", "physical-bank.wav"),
     path.join(ROOT, "tools", "verification", "audio.mjs"),
+    path.join(ROOT, "tools", "verification", "audio-budget.mjs"),
+    path.join(ROOT, "tools", "verification", "audio-cache.mjs"),
     path.join(ROOT, "tools", "verification", "audio-page.mjs"),
     playwrightCorePkg(),
   ]

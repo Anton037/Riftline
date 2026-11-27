@@ -4,6 +4,26 @@ import { enemyDefs, bossDefs } from "../data/enemies.js";
 import { clamp } from "../core/util.js";
 import { touchInput } from "../ui/input.js";
 
+const NO_INSETS = { l: 0, r: 0, t: 0, b: 0 };
+
+function pointInView(renderer, x, y, z, pos, width, height) {
+  return renderer.project(x, y, z, pos).vis && pos.x > 8 && pos.x < width - 8 && pos.y > 8 && pos.y < height - 8;
+}
+
+function placeMarker(pos, cx, cy, left, right, top, bottom) {
+  const sign = pos.behind ? -1 : 1;
+  const dx = (pos.x - cx) * sign;
+  const dy = (pos.y - cy) * sign;
+  if (!Number.isFinite(dx) || !Number.isFinite(dy) || (dx === 0 && dy === 0)) return false;
+  const tx = dx === 0 ? Infinity : ((dx > 0 ? right : left) - cx) / dx;
+  const ty = dy === 0 ? Infinity : ((dy > 0 ? bottom : top) - cy) / dy;
+  const edge = Math.min(tx, ty);
+  pos.x = cx + dx * edge;
+  pos.y = cy + dy * edge;
+  pos.angle = Math.atan2(dy, dx);
+  return true;
+}
+
 const BIOME_RETICLE = {
   lanternYard: "rgba(130,244,218,0.92)",
   snowRidge: "rgba(38,142,216,0.92)",
@@ -208,7 +228,6 @@ const healthBarTypes = {
       if (target && !target.dead && player.firing && !player.manual && player.alive) return true;
       if (
         input &&
-        !touchInput &&
         input.mouse &&
         Number.isFinite(input.mouse.x) &&
         Number.isFinite(input.mouse.y) &&
@@ -258,7 +277,7 @@ const healthBarTypes = {
         return;
       }
       if (!world.boss) this.callouts.length = 0;
-      let dt = opts.dt || 0.016;
+      let dt = opts.dt ?? 0.016;
       this.time += dt;
       if (!this._hasActiveContent(renderer, world, input, opts)) {
         this.clear();
@@ -271,15 +290,7 @@ const healthBarTypes = {
       this._isClean = false;
       let ctx = this.g,
         pos = this.tmp,
-        safe = opts.safe || { t: 0, b: 0, l: 0, r: 0 };
-      // Project a world point into pos; true when it is within the camera frustum with a small margin.
-      const project = (x, y, z) => {
-        renderer.project(x, y, z, pos);
-        return pos.vis;
-      };
-      // …and inside the screen with an 8 px margin
-      const inView = (x, y, z) =>
-        project(x, y, z) && pos.x > 8 && pos.x < this.w - 8 && pos.y > 8 && pos.y < this.h - 8;
+        safe = opts.safe || NO_INSETS;
       let player = world.player,
         target = player.target,
         reticleCol = BIOME_RETICLE[world.arena?.biome?.id] || "rgba(130,244,218,0.92)";
@@ -289,7 +300,7 @@ const healthBarTypes = {
         player.firing &&
         !player.manual &&
         player.alive &&
-        project(target.x, 0.6, target.y)
+        renderer.project(target.x, 0.6, target.y, pos).vis
       ) {
         renderer.project(target.x + target.r, 0.6, target.y, this.tmp2);
         let size = Math.max(13, Math.abs(this.tmp2.x - pos.x) * 1.48 + 6),
@@ -314,7 +325,6 @@ const healthBarTypes = {
       // Custom mouse reticle with crisp recoil-bloom feedback during manual/cursor aim
       if (
         input &&
-        !touchInput &&
         input.mouse &&
         Number.isFinite(input.mouse.x) &&
         Number.isFinite(input.mouse.y) &&
@@ -352,7 +362,7 @@ const healthBarTypes = {
           enemy.boss ||
           (!enemy.caravan && enemy.hp >= enemy.maxHp && !(enemy.shieldMax > 0 && enemy.shield < enemy.shieldMax)) ||
           !(enemy.elite || enemy.caravan || healthBarTypes[enemy.type]) ||
-          !project(enemy.x, 1.2 + enemy.r * 1.4, enemy.y)
+          !renderer.project(enemy.x, 1.2 + enemy.r * 1.4, enemy.y, pos).vis
         )
           continue;
         let width = (enemy.caravan ? 32 : 24) + enemy.r * 16,
@@ -403,7 +413,7 @@ const healthBarTypes = {
       // Subtle crisp corner brackets around shootable hazards (Ember-Pots & Crucible Bombs) so players spot them instantly
       if (world.hazards?.length) {
         for (const h of world.hazards) {
-          if (h.done || !h.shootable || !inView(h.x, 0.45, h.y)) continue;
+          if (h.done || !h.shootable || !pointInView(renderer, h.x, 0.45, h.y, pos, this.w, this.h)) continue;
           const bSize = h.crucibleBomb ? 17 : 13;
           const lanternGun = 0.72 + 0.28 * Math.sin(this.time * 10);
           ctx.save();
@@ -436,7 +446,7 @@ const healthBarTypes = {
       placedNums.length = 0;
       ctx.lineJoin = "round";
       for (let num of renderer.nums) {
-        if (num.life <= 0 || !project(num.x, num.y, num.z)) continue;
+        if (num.life <= 0 || !renderer.project(num.x, num.y, num.z, pos).vis) continue;
         let nx = pos.x,
           ny = pos.y;
         // Keep damage numbers clear of the Hero's body so hitbox readability stays unobstructed
@@ -514,20 +524,6 @@ const healthBarTypes = {
         right = this.w - margin - safe.r,
         top = margin + safe.t + topHud,
         bottom = this.h - margin - safe.b - botHud;
-      const placeMarker = () => {
-        // Perspective mirrors a point only when its depth is behind the camera.
-        const sign = pos.behind ? -1 : 1;
-        const dx = (pos.x - cx) * sign,
-          dy = (pos.y - cy) * sign;
-        if (!Number.isFinite(dx) || !Number.isFinite(dy) || (dx === 0 && dy === 0)) return false;
-        const tx = dx === 0 ? Infinity : ((dx > 0 ? right : left) - cx) / dx;
-        const ty = dy === 0 ? Infinity : ((dy > 0 ? bottom : top) - cy) / dy;
-        const edge = Math.min(tx, ty);
-        pos.x = cx + dx * edge;
-        pos.y = cy + dy * edge;
-        pos.angle = Math.atan2(dy, dx);
-        return true;
-      };
       for (let enemy of world.enemies) {
         let windingUp =
           enemy.st === 1 &&
@@ -549,8 +545,8 @@ const healthBarTypes = {
             !fewEnemies &&
             !windingUp &&
             !(world.state === "fight" && world.stragglerT > 3)) ||
-          inView(enemy.x, 0.6, enemy.y) ||
-          !placeMarker()
+          pointInView(renderer, enemy.x, 0.6, enemy.y, pos, this.w, this.h) ||
+          !placeMarker(pos, cx, cy, left, right, top, bottom)
         )
           continue;
         const color = windingUp
@@ -584,7 +580,12 @@ const healthBarTypes = {
       ctx.globalAlpha = 1;
       if (player.alive && player.hp / world.stats.maxHp < 0.6) {
         for (let pickup of world.pickups) {
-          if (pickup.kind !== "heal" || inView(pickup.x, 0.5, pickup.y) || !placeMarker()) continue;
+          if (
+            pickup.kind !== "heal" ||
+            pointInView(renderer, pickup.x, 0.5, pickup.y, pos, this.w, this.h) ||
+            !placeMarker(pos, cx, cy, left, right, top, bottom)
+          )
+            continue;
           ctx.save();
           ctx.translate(pos.x, pos.y);
           ctx.globalAlpha = 0.68 + Math.sin(this.time * 6) * 0.26;

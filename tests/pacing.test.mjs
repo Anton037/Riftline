@@ -78,3 +78,14 @@ test("the pacer has a usable resolution budget before it measures a fast display
   for (let i = 0; i < 10; i++) paceFrame(p, i * 250, 60);
   assert.equal(p.refreshMs, 1000 / 30);
 });
+
+test("sustained 60 Hz callbacks replace an earlier 120 Hz display budget", () => {
+  const p = makePacer();
+  let now = 100;
+  for (let i = 0; i < 60; i++) paceFrame(p, (now += 1000 / 120), 120);
+  assert.ok(p.refreshMs < 9);
+  for (let i = 0; i < 9; i++) paceFrame(p, (now += 1000 / 60), 120);
+  assert.ok(p.refreshMs < 9, "a short slowdown keeps the original budget");
+  for (let i = 0; i < 80; i++) paceFrame(p, (now += 1000 / 60), 120);
+  assert.ok(Math.abs(p.refreshMs - 1000 / 60) < 0.05);
+});

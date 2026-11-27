@@ -192,6 +192,12 @@ test("Engine v2 freezeStatic skips matrix recomputation, GpuParticleRing expires
   simTime = 0.65;
   ring.advanceTime(simTime);
   assert.equal(ring.n, 0, "expired GPU particles drain in O(1) via time-wheel buckets");
+  const spawn = (time) => ring.spawn(0, 0, 0, 0, 0, 0, time, 0.05, 0.2, 1, 1, 1, 0, 0, 0, false, 0.3);
+  spawn(0.65);
+  spawn(0.75);
+  assert.equal(ring.n, 1, "spawning in a later tick drains the expired slot before counting a new one");
+  ring.n = 0;
+  assert.deepEqual([ring.d0Start, ring.d0End, ring.d1Start, ring.d1End], [-1, -1, -1, -1]);
 
   // 3. CompactInstancePool packs 12 floats (48 bytes) per articulated actor
   const pool = new CompactInstancePool(box(0.5, 0.5, 0.5), new Material({ shader: "stylized" }), 8);

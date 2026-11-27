@@ -1,7 +1,18 @@
 // User-selected 30/60/120 FPS deadlines, independent of simulation steps and visual detail.
 function makePacer() {
   // Use a conservative 30 Hz budget until raw callbacks establish a faster cadence.
-  return { next: 0, last: null, limit: 0, dtEma: 0, refreshMs: 1000 / 30, refreshSum: 0, refreshSamples: 0 };
+  return {
+    next: 0,
+    last: null,
+    limit: 0,
+    dtEma: 0,
+    refreshMs: 1000 / 30,
+    refreshSum: 0,
+    refreshSamples: 0,
+    refreshMin: Infinity,
+    refreshMax: 0,
+    slowerWindows: 0,
+  };
 }
 
 function paceFrame(pacer, now, requested = 60) {
@@ -9,15 +20,29 @@ function paceFrame(pacer, now, requested = 60) {
   const period = 1000 / limit;
   const interval = pacer.last == null ? 0 : now - pacer.last;
   // Measure raw display callbacks, including those the game's FPS cap skips.
-  // Keep the fastest sustained cadence so a busy scene can't lower the resolution target.
+  // A stable slower cadence can be a display switch. At about 30 Hz, let resolution
+  // recover missed frames for longer before accepting a new display period.
   if (interval >= 2 && interval < 120) {
     pacer.refreshSum += interval;
+    pacer.refreshMin = Math.min(pacer.refreshMin, interval);
+    pacer.refreshMax = Math.max(pacer.refreshMax, interval);
     if (++pacer.refreshSamples === 8) {
-      pacer.refreshMs = Math.min(pacer.refreshMs, pacer.refreshSum / pacer.refreshSamples);
+      const average = pacer.refreshSum / pacer.refreshSamples;
+      const stable = pacer.refreshMax - pacer.refreshMin < average * 0.25;
+      const windows = average <= 1000 / 45 ? 8 : 64;
+      if (stable && average > pacer.refreshMs * 1.12 && average <= 1000 / 28) pacer.slowerWindows++;
+      else pacer.slowerWindows = 0;
+      if (average < pacer.refreshMs || pacer.slowerWindows >= windows) {
+        pacer.refreshMs = average;
+        pacer.slowerWindows = 0;
+      }
       pacer.refreshSum = pacer.refreshSamples = 0;
+      pacer.refreshMin = Infinity;
+      pacer.refreshMax = 0;
     }
   } else {
-    pacer.refreshSum = pacer.refreshSamples = 0;
+    pacer.refreshSum = pacer.refreshSamples = pacer.refreshMax = pacer.slowerWindows = 0;
+    pacer.refreshMin = Infinity;
   }
   const reset = pacer.last == null || pacer.limit !== limit || interval > 250 || interval < 0;
   if (reset) {

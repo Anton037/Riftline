@@ -56,6 +56,26 @@ import {
   trackInfo,
 } from "./sound-data.js";
 
+function holdParam(param, time) {
+  if (param.cancelAndHoldAtTime) {
+    param.cancelAndHoldAtTime(time);
+  } else {
+    const value = param.value;
+    param.cancelScheduledValues(time);
+    param.setValueAtTime(value, time);
+  }
+}
+
+function stopSources(nodes, output, end, offline) {
+  if (nodes.length && !offline) {
+    nodes[0].onended = () => {
+      for (const node of nodes) node.disconnect();
+      output.disconnect();
+    };
+  }
+  for (const node of nodes) node.stop(end);
+}
+
 const SoundEngine = class {
   constructor() {
     preloadPhysicalAudio();
@@ -181,7 +201,20 @@ const SoundEngine = class {
     unlocker.buffer = ctx.createBuffer(1, 1, 22050);
     unlocker.connect(ctx.destination);
     unlocker.start(0);
-    this.startScheduler();
+    this.audioStarted = ctx.state === "running";
+    ctx.addEventListener("statechange", () => {
+      if (this.ctx !== ctx) return;
+      if (this.suspendRequested || document.hidden) {
+        if (ctx.state === "running") this.suspend();
+        return;
+      }
+      if (ctx.state === "running") {
+        this.audioStarted = true;
+        this.startScheduler();
+      } else if (this.audioStarted && (ctx.state === "suspended" || ctx.state === "interrupted")) {
+        this.resume();
+      }
+    });
   }
   /* The master chain: sfx and music -> compressor -> muffle -> limiter -> soft clipper -> output.
      The soft clipper keeps the signal below 0.93 whatever the mix does. */
@@ -212,7 +245,9 @@ const SoundEngine = class {
     // on the upgrade screen (~2400 Hz), or at critical low Ward (<25% HP, ~2800 Hz), and opens to 18000 Hz otherwise.
     this.muffle = ctx.createBiquadFilter();
     this.muffle.type = "lowpass";
-    this.muffle.frequency.value = this._wantMuffle();
+    this._muffleWant = this._wantMuffle();
+    this._muffleParam = this.muffle.frequency;
+    this.muffle.frequency.value = this._muffleWant;
     this.muffle.Q.value = 0.3;
     this.comp.connect(this.muffle);
     this.muffle.connect(this.limiter);
@@ -241,13 +276,15 @@ const SoundEngine = class {
     this.mus.connect(this.fade);
     // 3.2.0: fade -> glue compressor -> make-up gain -> volume -> duck (mixFor sets the glue per track kind)
     this.glue = ctx.createDynamicsCompressor();
+    this.stings = ctx.createGain();
+    this.stings.connect(this.glue);
     this.makeup = ctx.createGain();
     this.fade.connect(this.glue);
     this.glue.connect(this.makeup);
     this.makeup.connect(this.musLevel);
     this.musLevel.connect(this.duckGain);
     this.duckGain.connect(this.comp);
-    this.mixFor("fight");
+    this.mixFor("fight", true);
     // the pump: pads, bass, strings, brass and swell voices pass it; accented kicks dip it (a sidechain feel)
     this.pump = ctx.createGain();
     this.pump.connect(this.mus);
@@ -269,7 +306,7 @@ const SoundEngine = class {
         v.buffer = impulse;
         let vo = ctx.createGain();
         vo.gain.value = i === 0 ? 0.5 : 0;
-        this.verbIn.connect(v);
+        if (i === 0) this.verbIn.connect(v);
         v.connect(vo);
         vo.connect(this.mus);
         this.verbPool.push({ conv: v, out: vo });
@@ -310,15 +347,15 @@ const SoundEngine = class {
   }
   _syncMuffle() {
     const want = this._wantMuffle();
-    if (this._muffleWant === want && (!this.muffle || this.muffle.frequency.value === want)) return;
+    const freq = this.muffle?.frequency;
+    if (this._muffleWant === want && this._muffleParam === freq) return;
     this._muffleWant = want;
-    if (this.ctx && this.muffle) {
-      const freq = this.muffle.frequency;
-      if (!(typeof AudioParam < "u" && freq instanceof AudioParam)) {
-        freq.value = want;
-      }
-      if (freq.setTargetAtTime && this.ctx.currentTime != null) {
-        freq.setTargetAtTime(want, this.ctx.currentTime, 0.25);
+    this._muffleParam = freq;
+    if (this.ctx && freq) {
+      if (freq.setTargetAtTime) {
+        const now = this.ctx.currentTime;
+        holdParam(freq, now);
+        freq.setTargetAtTime(want, now, 0.25);
       } else {
         freq.value = want;
       }
@@ -415,29 +452,62 @@ const SoundEngine = class {
   }
   suspend() {
     try {
+      const ctx = this.ctx;
+      if (this.suspendRequested && (this.suspendTimer || ctx?.state !== "running")) return;
+      this.suspendRequested = true;
       if (this.timer) {
         clearInterval(this.timer);
         this.timer = null;
       }
-      if (this.ctx && this.ctx.state === "running") {
-        this.ctx.suspend();
+      if (ctx?.state === "running" && !this.offline) {
+        const gain = this.master.gain,
+          now = ctx.currentTime;
+        holdParam(gain, now);
+        gain.linearRampToValueAtTime(0.0001, now + 0.04);
+        this.suspendTimer = setTimeout(() => {
+          this.suspendTimer = null;
+          if (this.suspendRequested && this.ctx === ctx) ctx.suspend().catch(() => {});
+        }, 45);
       }
     } catch {}
   }
   resume() {
     try {
-      if (this.ctx && this.ctx.state !== "running") {
-        if (this.master && !this.offline) {
-          const now = this.ctx.currentTime;
-          this.master.gain.cancelScheduledValues(now);
-          this.master.gain.setValueAtTime(0.001, now);
-          this.master.gain.linearRampToValueAtTime(0.82, now + 0.045);
-        }
-        this.ctx.resume().catch(() => {});
+      const ctx = this.ctx;
+      const wasSuspending = this.suspendRequested;
+      this.suspendRequested = false;
+      if (this.suspendTimer) {
+        clearTimeout(this.suspendTimer);
+        this.suspendTimer = null;
       }
-      if (this.ctx && !this.offline && !this.timer) {
+      if (!ctx || this.offline || ctx.state === "closed" || (this.resumePending && !wasSuspending)) return;
+      if (ctx.state !== "running" || wasSuspending) {
+        const gain = this.master.gain,
+          now = ctx.currentTime;
+        holdParam(gain, now);
+        if (!wasSuspending) gain.setValueAtTime(0.001, now);
+        gain.linearRampToValueAtTime(0.82, now + 0.045);
+      }
+      if (this.resumePending) return;
+      if (ctx.state === "running") {
+        this.audioStarted = true;
         this.startScheduler();
+        return;
       }
+      this.resumePending = ctx
+        .resume()
+        .then(
+          () => {
+            if (this.ctx === ctx && !this.suspendRequested && !document.hidden) {
+              this.audioStarted = true;
+              this.startScheduler();
+            }
+          },
+          () => {},
+        )
+        .finally(() => {
+          this.resumePending = null;
+        });
     } catch {}
   }
   /* Voice limit: at most MAX_VOICES oscillators/sources are alive. A new voice that finds the list
@@ -522,10 +592,9 @@ const SoundEngine = class {
     }
     let old = list[victim];
     try {
-      old.amp.gain.cancelScheduledValues(now);
+      holdParam(old.amp.gain, now);
       old.amp.gain.setTargetAtTime(0, now, 0.004);
       old.node.stop(now + 0.03);
-      if (!this.offline) setTimeout(() => this._cleanupVoice(old), 60);
     } catch {}
     list[victim] = voice;
     this.dropped++;
@@ -564,8 +633,9 @@ const SoundEngine = class {
      sweep), env (Float32Array, 0..1: the whole level curve replaces the exponential envelope: tremolo), dest/at/pri,
      opt (an optional music voice) */
   tone(freq, dur, wave, vol, opts = {}) {
+    if (!(dur > 0) || !(freq > 0)) return;
     let ctx = this.ctx,
-      start = ctx.currentTime + (opts.at || 0),
+      start = ctx.currentTime + Math.max(0, opts.at || 0),
       atten = opts.dest || this.curBus ? 1 : (this.curAtten ?? 1),
       level = vol * atten,
       voice = this.claim(
@@ -589,7 +659,8 @@ const SoundEngine = class {
     if (opts.detune) {
       osc.detune.value = opts.detune;
     }
-    const isMusicDest = opts.dest === this.mus || opts.dest === this.pump || opts.dest === this.delay;
+    const isMusicDest =
+      opts.dest === this.mus || opts.dest === this.pump || opts.dest === this.delay || opts.dest === this.stings;
     const isSustained = wave === "bow" || wave === "reed" || wave === "brass" || wave === "ceramic";
     const isPluck = wave === "harp" || wave === "kalimba" || wave === "marimba" || wave === "celesta";
     const extras = [];
@@ -601,8 +672,8 @@ const SoundEngine = class {
       filter.type = opts.bp ? "bandpass" : "lowpass";
       const baseCut = opts.bp || opts.lp || 2600;
       filter.Q.value = opts.q || (opts.bp ? 2.2 : 0.7);
-      if (opts.lpTo) {
-        filter.frequency.setValueAtTime(baseCut, start);
+      if (opts.lpTo > 0) {
+        filter.frequency.setValueAtTime(Math.max(1, baseCut), start);
         filter.frequency.exponentialRampToValueAtTime(opts.lpTo, start + dur);
       } else if (isPluck && !opts.bp && isMusicDest) {
         // Dynamic lowpass decay envelope (2.4x -> 1.0x cutoff) for organic plucked warmth
@@ -659,7 +730,7 @@ const SoundEngine = class {
     osc.stop(start + dur + 0.02);
   }
   envelope(amp, start, dur, vol, opts) {
-    let attack = opts.attack || 0.004;
+    let attack = Math.min(dur * 0.9, Math.max(0.0001, opts.attack || 0.004));
     let safeVol = Math.max(1e-4, vol);
     if (opts.env) {
       let env = opts.env,
@@ -670,13 +741,14 @@ const SoundEngine = class {
     }
     amp.gain.setValueAtTime(1e-4, start);
     amp.gain.exponentialRampToValueAtTime(safeVol, start + attack);
-    if (opts.hold)
+    if (opts.hold > 0)
       amp.gain.setValueAtTime(safeVol, start + attack + Math.min(opts.hold, Math.max(0, dur * 0.95 - attack)));
     amp.gain.exponentialRampToValueAtTime(1e-4, start + dur);
   }
   noise(dur, vol, opts = {}) {
+    if (!(dur > 0)) return;
     let ctx = this.ctx,
-      start = ctx.currentTime + (opts.at || 0),
+      start = ctx.currentTime + Math.max(0, opts.at || 0),
       atten = opts.dest || this.curBus ? 1 : (this.curAtten ?? 1),
       level = vol * atten,
       voice = this.claim(
@@ -697,8 +769,8 @@ const SoundEngine = class {
     src.playbackRate.value = opts.rate || 1;
     let filter = ctx.createBiquadFilter();
     filter.type = opts.type || "lowpass";
-    filter.frequency.setValueAtTime(opts.f || 2e3, start);
-    if (opts.to) {
+    filter.frequency.setValueAtTime(Math.max(1, opts.f || 2e3), start);
+    if (opts.to > 0) {
       filter.frequency.exponentialRampToValueAtTime(opts.to, start + dur);
     }
     filter.Q.value = opts.q || 0.8;
@@ -737,18 +809,24 @@ const SoundEngine = class {
     }
   }
   /* 3.2.0: the glue of the music: gentle on the calm themes, hard and loud on the boss tracks (a dense wall) */
-  mixFor(kind) {
+  mixFor(kind, immediate = false) {
     if (!this.glue) return;
     let boss = kind === "boss",
       g = this.glue,
       now = this.ctx.currentTime;
-    g.threshold.setValueAtTime(boss ? -20 : -16, now);
-    g.ratio.setValueAtTime(boss ? 5 : 2, now);
-    g.knee.setValueAtTime(boss ? 3 : 10, now);
-    g.attack.setValueAtTime(boss ? 0.004 : 0.02, now);
-    g.release.setValueAtTime(boss ? 0.12 : 0.3, now);
-    this.makeup.gain.cancelScheduledValues(now);
-    this.makeup.gain.setValueAtTime(boss ? 1.3 : 1.1, now);
+    const adjust = (param, value) => {
+      if (immediate) param.setValueAtTime(value, now);
+      else {
+        holdParam(param, now);
+        param.setTargetAtTime(value, now, 0.06);
+      }
+    };
+    adjust(g.threshold, boss ? -20 : -16);
+    adjust(g.ratio, boss ? 5 : 2);
+    adjust(g.knee, boss ? 3 : 10);
+    adjust(g.attack, boss ? 0.004 : 0.02);
+    adjust(g.release, boss ? 0.12 : 0.3);
+    adjust(this.makeup.gain, boss ? 1.3 : 1.1);
   }
   /* test hook: with musicLog set (an array) every music voice is recorded: kind, start, pitch, level, length,
      bus (m music, d delay, p pump, b bloom) */
@@ -777,7 +855,7 @@ const SoundEngine = class {
   }
   gate(key, gap) {
     let now = this.ctx.currentTime;
-    if (this.last[key] && now - this.last[key] < gap) return false;
+    if (this.last[key] != null && now - this.last[key] < gap) return false;
     this.last[key] = now;
     return true;
   }
@@ -795,6 +873,7 @@ const SoundEngine = class {
       id === "reroll" ||
       id === "seal" ||
       id === "buy" ||
+      id === "anvil" ||
       id === "milestone" ||
       id === "equip" ||
       id === "victory" ||
@@ -859,13 +938,13 @@ const SoundEngine = class {
     this.duckDepth = depth;
     const clamped = Math.min(0.29, depth);
     try {
-      gain.gain.cancelScheduledValues(now);
+      holdParam(gain.gain, now);
       gain.gain.setTargetAtTime(1 - clamped, now, 0.014);
       gain.gain.setTargetAtTime(1, now + holdSec, holdSec > 0.2 ? 0.14 : 0.07);
     } catch {}
     if (this.ambDuck) {
       let room = this.ambDuck.gain;
-      room.cancelScheduledValues(now);
+      holdParam(room, now);
       room.setTargetAtTime(1 - Math.min(0.42, clamped * 1.5), now, 0.016);
       room.setTargetAtTime(1, now + holdSec, 0.3);
     }
@@ -1066,8 +1145,8 @@ const SoundEngine = class {
     const ly = listener?.y ?? listener?.player?.y;
     const hp = listener?.hp ?? listener?.player?.hp;
     const maxHp = listener?.maxHp ?? listener?.stats?.maxHp;
-    if (hp > 0 && maxHp > 0) {
-      this.lowWard = hp / maxHp < 0.25;
+    if (hp != null && maxHp > 0) {
+      this.lowWard = hp > 0 && hp / maxHp < 0.25;
       if (this.muffleState) this.muffleState.lowWard = this.lowWard;
       this._syncMuffle?.();
     }
@@ -1228,10 +1307,10 @@ const SoundEngine = class {
           this.play("bcLock");
           break;
         case "shatter":
-          this.play("bcShatter");
+          this.play(ev.thermal ? "heatShatter" : "bcShatter");
           break;
         case "graze":
-          this.play("gadgetReady");
+          this.play("graze");
           break;
         case "splinterHit":
           if (!this.gate || this.gate("sfx:splinter", 0.04)) this.play("hit", { type: "iceCrystal" });
@@ -1261,9 +1340,6 @@ const SoundEngine = class {
             this._syncMuffle?.();
           }
           this.play("anvil");
-          break;
-        case "mutator":
-          this.play("mutator");
           break;
         case "maxed":
           this.play("heal");
@@ -1337,13 +1413,9 @@ const SoundEngine = class {
           this.play(ev.k, ev.src);
           break;
         case "corrode":
-          this.play("shortFizz");
-          break;
         case "singe":
-          this.play("fireBellows");
-          break;
         case "glare":
-          this.play("bcShatter");
+          this.play(ev.k);
           break;
         case "zap":
           if (!this.gate || this.gate("sfx:zap", 0.05)) this.play("chain");
@@ -1378,12 +1450,8 @@ const SoundEngine = class {
         case "comboEnd":
           this.play("comboEnd");
           break;
-        case "bounty":
         case "bountyPulse":
           this.play("bounty");
-          break;
-        case "supplyDrop":
-          this.play("supply");
           break;
         case "hatch":
           this.play("hatch", { src: ev.src, big: !!ev.big });
@@ -1562,8 +1630,8 @@ const SoundEngine = class {
   /* the notes that were scheduled ahead (the scheduler looks 0.14 s ahead) for a track that has just ended */
   cutScheduled(now) {
     if (this.pump) {
-      this.pump.gain.cancelScheduledValues(now);
-      this.pump.gain.setValueAtTime(1, now);
+      holdParam(this.pump.gain, now);
+      this.pump.gain.setTargetAtTime(1, now, 0.02);
     }
     let list = this.musicVoiceList;
     for (let i = list.length - 1; i >= 0; i--) {
@@ -1617,12 +1685,11 @@ const SoundEngine = class {
         let old = this.verb,
           oldOut = this.verbOut,
           next = this.verbPool.find((v) => v.out !== oldOut) || this.verbPool[0];
-        next.out.gain.cancelScheduledValues(now);
-        next.out.gain.setValueAtTime(oldOut.gain.value, now);
+        holdParam(next.out.gain, now);
+        next.out.gain.linearRampToValueAtTime(0.5, end);
         this.verbIn.disconnect(old);
         this.verbIn.connect(next.conv);
-        oldOut.gain.cancelScheduledValues(now);
-        oldOut.gain.setValueAtTime(oldOut.gain.value, now);
+        holdParam(oldOut.gain, now);
         oldOut.gain.linearRampToValueAtTime(0, end);
         this.verb = next.conv;
         this.verbOut = next.out;
@@ -1732,25 +1799,10 @@ const SoundEngine = class {
       fade = rel != null ? rel : BED_RELEASE[name] || 0.08,
       end = now + Math.max(0.4, fade * 3);
     try {
-      bed.gain.gain.cancelScheduledValues(now);
+      holdParam(bed.gain.gain, now);
       bed.gain.gain.setTargetAtTime(0, now, fade);
-      for (let node of bed.nodes) node.stop(end);
-      if (!this.offline)
-        setTimeout(
-          () => {
-            try {
-              for (let node of bed.nodes) node.disconnect();
-              bed.gain.disconnect();
-            } catch {}
-          },
-          Math.max(0, end - this.ctx.currentTime) * 1000 + 150,
-        );
+      stopSources(bed.nodes, bed.gain, end, this.offline);
     } catch {}
-    for (let voice of this.voices)
-      if (voice.bed === bed) {
-        voice.loop = false;
-        voice.end = end;
-      }
     if (end > this.maxEnd) this.maxEnd = end;
     delete this.beds[name];
   }
@@ -1817,19 +1869,9 @@ const SoundEngine = class {
     this.mbed = null;
     try {
       let now = this.ctx.currentTime;
-      bed.out.gain.cancelScheduledValues(now);
+      holdParam(bed.out.gain, now);
       bed.out.gain.setTargetAtTime(0, now, fade / 4);
-      for (let node of bed.nodes) node.stop(now + fade + 0.1);
-      if (!this.offline)
-        setTimeout(
-          () => {
-            try {
-              for (let node of bed.nodes) node.disconnect();
-              bed.out.disconnect();
-            } catch {}
-          },
-          (fade + 0.25) * 1000,
-        );
+      stopSources(bed.nodes, bed.out, now + fade + 0.1, this.offline);
     } catch {}
   }
   /* 3.43.0: the room tone - the quiet, steady bed of a biome. It sits on the ambience bus under the
@@ -1905,19 +1947,9 @@ const SoundEngine = class {
     let now = this.ctx.currentTime + at,
       end = now + Math.max(0.3, fade * 2.5);
     try {
-      tone.gain.gain.cancelScheduledValues(now);
+      holdParam(tone.gain.gain, now);
       tone.gain.gain.setTargetAtTime(0, now, fade * 0.5);
-      for (let node of tone.nodes) node.stop(end);
-      if (!this.offline)
-        setTimeout(
-          () => {
-            try {
-              for (let node of tone.nodes) node.disconnect();
-              tone.gain.disconnect();
-            } catch {}
-          },
-          Math.max(0, end - this.ctx.currentTime) * 1000 + 150,
-        );
+      stopSources(tone.nodes, tone.gain, end, this.offline);
     } catch {}
   }
   /* Runs with the scheduler: keeps the room tone of the current biome alive, crossfades it on a biome change
@@ -1998,7 +2030,7 @@ const SoundEngine = class {
     });
   }
   startScheduler() {
-    if (!this.timer) {
+    if (!this.timer && !this.suspendRequested) {
       this.nextT = this.ctx.currentTime + 0.1;
       this.timer = setInterval(() => {
         try {
@@ -2030,8 +2062,8 @@ const SoundEngine = class {
       this.fail(err);
     }
     this.syncTrack();
-    if (this.nextT < ctx.currentTime - 0.5) {
-      this.nextT = ctx.currentTime + 0.05;
+    if (this.nextT < ctx.currentTime) {
+      this.nextT = ctx.currentTime + 0.025;
     }
     for (; this.nextT < ctx.currentTime + 0.22;) {
       let info = trackInfo(this.playKind, this.playBiome);
@@ -2044,7 +2076,7 @@ const SoundEngine = class {
       }
       this.nextT += 60 / info.bpm / 4;
       this.step = (this.step + 1) % info.steps;
-      if (this.jump && this.step % 16 === 0) {
+      if (this.jump && this.step % (info.jumpStep ?? 16) === 0) {
         this.jump = false;
         this.step = 0;
       }
@@ -2073,7 +2105,6 @@ const SoundEngine = class {
       len = 60 / info.bpm / 4;
     engine.budgetOnly = spec.renderGraph !== true;
     engine.attach(ctx, { room: false });
-    engine.budgetOnly = spec.renderGraph !== true;
     engine.sfxVol = 1;
     engine.mode = spec.music;
     engine.biome = spec.biome;

@@ -55,7 +55,7 @@ const RL_ENEMY_TIPS = {
   sporePod: "Spore Pods split into three smaller enemies when killed.",
   ironGolem: "Iron Golems line up and charge forward. Dodge sideways — hitting a pillar stuns them.",
   longshot: "Longshots show an aim line before shooting. Move behind cover or dash.",
-  mushroomNest: "Mushroom Nests keep spawning mites until you destroy them.",
+  mushroomNest: "Mushroom Nests keep spawning Small Bugs until you destroy them.",
   shieldGuard: "Shield Guards block shots from the front. Circle behind them or break their shield.",
   blinkBlade: "Blink Blades teleport near you — watch the ring showing where they will land.",
   bellCannon: "Bell Cannons fire bombs where you are walking. Change direction often.",

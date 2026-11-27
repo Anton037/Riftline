@@ -10,11 +10,21 @@ const INSTALLED = new URL('.riftline-installed', SCOPE).href;
 const pageUrl = (url) => url.split(/[?#]/, 1)[0];
 const isGamePage = (url) => pageUrl(url) === SCOPE || pageUrl(url) === HOME;
 const unavailable = () => new Response('Riftline is unavailable offline.', { status: 503 });
+const asNavigationResponse = (res) => res.redirected
+  ? new Response(res.body, { status: res.status, statusText: res.statusText, headers: res.headers })
+  : res;
+async function precache(cache, file) {
+  const req = new Request(new URL(file, SCOPE), { cache: 'reload' });
+  if (file !== 'index.html') return cache.add(req);
+  const res = await fetch(req);
+  if (!res.ok) throw new Error(`Could not cache ${file} (HTTP ${res.status})`);
+  await cache.put(req, asNavigationResponse(res));
+}
 self.addEventListener('install', (e) => {
   e.waitUntil((async () => {
     const c = await caches.open(CACHE);
     try {
-      const results = await Promise.allSettled(FILES.map(f => c.add(new Request(f, { cache: 'reload' }))));
+      const results = await Promise.allSettled(FILES.map(f => precache(c, f)));
       const failure = results.find((result) => result.status === 'rejected');
       if (failure) throw failure.reason;
       const info = await (await c.match(INFO)).json();
@@ -69,7 +79,7 @@ self.addEventListener('fetch', (e) => {
     // Only game navigation uses the installed HTML. Other URLs keep their own response.
     e.respondWith((async () => {
       const hit = await (await caches.open(CACHE)).match(HOME);
-      return hit || fetch(req, { cache: 'no-store' });
+      return hit ? asNavigationResponse(hit) : fetch(req, { cache: 'no-store' });
     })().catch(unavailable));
     return;
   }

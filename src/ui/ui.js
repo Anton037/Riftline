@@ -11,7 +11,7 @@ import { waveEvents } from "../core/waves.js";
 import { milestones, workshopModules, threatLevels } from "../data/progression.js";
 import { upgradeList, rarityNames, upgradesById } from "../data/upgrades.js";
 import { computeStats, weaponRange, buildStatRows } from "../core/stats.js";
-import { acceptsPointer, touchInput } from "./input.js";
+import { acceptsPointer, touchInput, touchAvailable } from "./input.js";
 import { WHATS_NEW } from "../data/whatsnew.js";
 import { MUTATORS } from "../core/mutators.js";
 import { TRAP_MODE_NAMES } from "../core/traps.js";
@@ -265,7 +265,7 @@ const getById = (id) => document.getElementById(id),
       // 3.46.0: the buff row and its step bars are cached per frame (see buffs)
       this.buffRow = null;
       this.buffBars = new Map();
-      this.buffTimed = new Map();
+      this.buffNodes = new Map();
       this.dlgResolve = null;
       this.fillIcons(document);
       getById("pauseBtn").innerHTML = iconSvg("pause");
@@ -299,16 +299,17 @@ const getById = (id) => document.getElementById(id),
       el.addEventListener(
         "pointerdown",
         (ev) => {
-          if (!touchInput || ev.pointerType !== "touch") return;
+          if (ev.pointerType !== "touch" || !touchAvailable() || touchDown) return;
           // 3.31.0: a second finger may tap a button when no other touch is on it (pause while a thumb holds a stick;
           // browsers send no click for such a tap). A second finger on a button already pressed does not take it over.
-          if (ev.isPrimary !== false || !touchDown) {
-            startX = ev.clientX;
-            startY = ev.clientY;
-            pointerId = ev.pointerId;
-            touchDown = true;
-            dragged = false;
-          }
+          startX = ev.clientX;
+          startY = ev.clientY;
+          pointerId = ev.pointerId;
+          touchDown = true;
+          dragged = false;
+          try {
+            el.setPointerCapture(pointerId);
+          } catch {}
         },
         { passive: false },
       );
@@ -324,10 +325,11 @@ const getById = (id) => document.getElementById(id),
         (ev) => {
           if (ev.pointerType !== "touch" || !touchDown || ev.pointerId !== pointerId) return;
           touchDown = false;
-          if (!dragged && withinTapSlop(ev) && !activate()) return;
+          const activated = !dragged && withinTapSlop(ev) && activate();
           // Suppress the compatibility click even if the finger dragged and then returned.
           ev.preventDefault();
           ev.stopPropagation();
+          if (!activated) return;
           const now = performance.now();
           RL_TOUCH_CLICK_GUARD.until = now + 800;
           RL_TOUCH_CLICK_GUARD.x = ev.clientX;
@@ -345,10 +347,9 @@ const getById = (id) => document.getElementById(id),
         // Touch actions are handled on pointerup. A browser's compatibility click can
         // arrive much later, when the same coordinates are over a different screen.
         if (
-          touchInput &&
-          (ev.pointerType === "touch" ||
-            ev.sourceCapabilities?.firesTouchEvents ||
-            (!ev.pointerType && ev.isTrusted && ev.detail > 0))
+          ev.pointerType === "touch" ||
+          ev.sourceCapabilities?.firesTouchEvents ||
+          (touchInput && !ev.pointerType && ev.isTrusted && ev.detail > 0)
         ) {
           ev.preventDefault();
           ev.stopPropagation();
@@ -362,7 +363,7 @@ const getById = (id) => document.getElementById(id),
           near = Number.isFinite(dx) && Number.isFinite(dy) && Math.hypot(dx, dy) <= 36,
           key = rlUiClickKey(el),
           same = !!(guard.key && key && guard.key === key) || near;
-        if (now < guard.until && same) {
+        if (ev.detail > 0 && now < guard.until && same) {
           guard.until = 0;
           guard.key = "";
           RL_RT.uiGuardDrops++;
@@ -399,6 +400,7 @@ const getById = (id) => document.getElementById(id),
       this.click(getById("tNext"), () => this.stepThreat(1));
       for (const button of getById("trapMode").querySelectorAll("button")) {
         this.click(button, () => {
+          this.g.store.syncForeign();
           if (this.save.trapMode === button.value) return;
           this.save.trapMode = button.value;
           this.g.store.save("trap-mode");
@@ -408,14 +410,18 @@ const getById = (id) => document.getElementById(id),
       this.click(getById("wBuy"), () => this.buyWeapon());
       this.click(getById("playBtn"), () => this.play());
       this.click(getById("continueBtn"), () => this.g.startRun({ resume: true }));
-      let onPress = (el, action) =>
+      const onPress = (el, action) => {
         el.addEventListener("pointerdown", (ev) => {
-          if (!acceptsPointer(ev) || (ev.pointerType === "mouse" && ev.button !== 0)) return;
+          if (!acceptsPointer(ev) || ev.button !== 0) return;
           ev.preventDefault();
           ev.stopPropagation();
           el.blur?.();
           action();
         });
+        el.addEventListener("click", (ev) => {
+          if (ev.detail === 0) action();
+        });
+      };
       for (const action of ["dash", "fireBurst", "gravityBell"]) {
         onPress(getById(action + "Btn"), () => this.g.input.press(action));
       }
@@ -436,7 +442,7 @@ const getById = (id) => document.getElementById(id),
           this.g.abandon();
         }
       });
-      this.click(getById("rerollBtn"), () => this.g.reroll());
+      this.click(getById("rerollBtn"), () => this.g.reroll(), { sound: false });
       {
         const cards = getById("cards");
         cards.addEventListener(
@@ -800,6 +806,8 @@ const getById = (id) => document.getElementById(id),
         getById(id).disabled = !ready;
       }
       getById("resumeBtn").textContent = ready ? "Resume" : "Waiting for graphics…";
+      getById("retryBtn").textContent = ready ? "Play Again" : "Waiting for graphics…";
+      getById("endlessBtn").textContent = ready ? "Continue · Endless" : "Waiting for graphics…";
       this.updatePlayState();
     }
     updatePlayState() {
@@ -823,7 +831,10 @@ const getById = (id) => document.getElementById(id),
               : "WEAPON LOCKED";
     }
     stepWeapon(dir) {
+      this.g.store.syncForeign();
+      const previous = this.viewWeapon;
       this.viewWeapon = clamp(this.viewWeapon + dir, 0, weaponOrder.length - 1);
+      if (this.viewWeapon !== previous) this.g.sound.play("equip");
       let id = weaponOrder[this.viewWeapon];
       if (this.save.weapons[id]) {
         this.save.weapon = id;
@@ -832,6 +843,7 @@ const getById = (id) => document.getElementById(id),
       this.renderWeapon();
     }
     stepThreat(dir) {
+      this.g.store.syncForeign();
       this.viewThreat = clamp(this.viewThreat + dir, 0, Math.min(5, this.save.threatMax + 1));
       if (this.viewThreat <= this.save.threatMax) {
         this.save.threat = this.viewThreat;
@@ -840,6 +852,7 @@ const getById = (id) => document.getElementById(id),
       this.renderThreat();
     }
     buyWeapon() {
+      this.g.store.syncForeign();
       let save = this.save,
         id = weaponOrder[this.viewWeapon],
         weapon = weaponDefs[id];
@@ -906,6 +919,7 @@ const getById = (id) => document.getElementById(id),
     }
 
     buyModule(id) {
+      this.g.store.syncForeign();
       let save = this.save,
         mod = workshopModules.find((mod) => mod.id === id),
         level = save.workshop[id] || 0,
@@ -1027,7 +1041,7 @@ const getById = (id) => document.getElementById(id),
           .join("");
         const foeCards = Object.entries(enemyDefs)
           .map(([id, e]) => {
-            const seen = !!save.seen["tip_enemy_" + id] || save.stats.kills > 0;
+            const seen = !!save.seen["tip_enemy_" + id];
             const tip = RL_ENEMY_TIPS[id] || "Hostile construct roaming the areas.";
             return `<div class="codex-card${seen ? "" : " undiscovered"}"><div class="codex-head"><b>${escapeHtml(e.name)}</b><span class="codex-tag">Enemy</span></div><p>${escapeHtml(tip)}</p></div>`;
           })
@@ -1047,6 +1061,7 @@ const getById = (id) => document.getElementById(id),
       }
     }
     claim(id) {
+      this.g.store.syncForeign();
       let save = this.save,
         ms = milestones.find((milestone) => milestone.id === id);
       if (!(!ms || save.milestones[id] || !ms.test(save))) {
@@ -1059,6 +1074,7 @@ const getById = (id) => document.getElementById(id),
       }
     }
     claimAll() {
+      this.g.store.syncForeign();
       const save = this.save,
         ready = this.g.claimable();
       if (!ready.length) return;
@@ -1232,7 +1248,8 @@ const getById = (id) => document.getElementById(id),
     toast(text, cls = "", ms = 2900) {
       const hud = getById("hud");
       let box = getById("toasts");
-      if (!getById("settings").hidden) box = getById("settingsNotices");
+      if (!getById("dialog").hidden) box = getById("toasts");
+      else if (!getById("settings").hidden) box = getById("settingsNotices");
       else if (!getById("choose").hidden) box = getById("chooseNotices");
       else if (!hud.hidden && hud.style.visibility !== "hidden" && !this.g.paused && !hud.classList.contains("editing"))
         box = getById("hudNotices");
@@ -1302,6 +1319,22 @@ const getById = (id) => document.getElementById(id),
       this.hudCache = {};
       // 2.5.0 D: the end of a run hides the title cards like the banner
       this.clearTitleCard();
+    }
+    previewHud() {
+      getById("hpNum").textContent = "100/100";
+      const fill = getById("hpFill");
+      fill.style.transform = "scaleX(1)";
+      fill.parentElement.classList.remove("low", "heal");
+      getById("waveLabel").textContent = "Wave 1";
+      getById("waveSub").textContent = "";
+      for (const id of ["shieldPip", "hudFoes", "waveProg"]) getById(id).hidden = true;
+      getById("buffs").replaceChildren();
+      this.buffNodes.clear();
+      getById("bossName").textContent = "Guardian";
+      getById("bossPhase").textContent = "";
+      getById("bossTicks").replaceChildren();
+      for (const id of ["bossFill", "bossLag"]) getById(id).style.transform = "scaleX(1)";
+      this.hudCache = {};
     }
     hud(world) {
       let cache = this.hudCache,
@@ -1561,113 +1594,67 @@ const getById = (id) => document.getElementById(id),
         if (MUTATORS[id])
           chips.push([
             "mut-" + id,
-            MUTATORS[id].name.toUpperCase() + (level > 1 ? " " + "I".repeat(level) : ""),
+            MUTATORS[id].name + (level > 1 ? " " + "I".repeat(level) : ""),
             MUTATORS[id].color,
             -1,
           ]);
-      let key = chips.map((chip) => chip[0] + chip[1]).join("|"),
-        // 3.46.0: the row element is cached (it is static in the page); the step bars are cached
-        // with it and die with the row on a rebuild (the bars used to be re-queried every frame)
-        buffRow = this.buffRow || (this.buffRow = getById("buffs")),
-        rebuilt = this.hudCache.buffKey !== key;
-      if (rebuilt) {
-        this.hudCache.buffKey = key;
-        this.buffBars = new Map();
-        buffRow.innerHTML = chips
-          .map(
-            ([id, text, color, left]) =>
-              `<span class="buff" data-b="${id}" style="--bc:${color}">${text}${left >= 0 ? "<i></i>" : ""}</span>`,
-          )
-          .join("");
-      }
-      // 3.45.0: the little timers tick in 5 % steps and only write the step when it changes
-      for (let [id, , , left] of chips) {
-        if (left < 0) continue;
-        let step = Math.round(clamp(left, 0, 1) * 20);
-        if (!rebuilt && this.hudCache["buff" + id] === step) continue;
-        this.hudCache["buff" + id] = step;
-        let bar = this.buffBars.get(id);
-        if (!bar) {
-          bar = buffRow.querySelector(`[data-b="${id}"] i`);
-          if (bar) this.buffBars.set(id, bar);
-        }
-        if (bar) {
-          bar.style.transform = `scaleX(${step / 20})`;
-        }
-      }
-      const on = world.state === "fight" && player.alive,
-        want = [];
+      const on = world.state === "fight" && player.alive;
       if (on && stats.heatSink && player.heatT > 0) {
-        want.push(["heat", "FIRE RATE+", "#ff8a3d", player.heatT / 4.5]);
+        chips.push(["heat", "FIRE RATE+", "#ff8a3d", player.heatT / 4.5]);
       }
       if (on && stats.slip && player.slipT > 0) {
-        want.push(["slip", "DASH BOOST", "#a7d1bf", player.slipT / 1.0]);
+        chips.push(["slip", "DASH BOOST", "#a7d1bf", player.slipT / 1.0]);
       }
       if (on && player.tributeT > 0) {
-        want.push(["ingot", "POWER+", "#ffb86c", player.tributeT / 4.0]);
+        chips.push(["ingot", "POWER+", "#ffb86c", player.tributeT / 4.0]);
       }
       if (on && player.leylineT > 0) {
-        want.push(["leyline", "STAR PATH", "#d6b8ff", -1]);
+        chips.push(["leyline", "STAR PATH", "#d6b8ff", -1]);
       }
       if (on && player.tractionT > 0) {
-        want.push(["rime", "ICE GRIP", "#9cf4ff", player.tractionT / 3.8]);
+        chips.push(["rime", "ICE GRIP", "#9cf4ff", player.tractionT / 3.8]);
       }
       if (on && player.hopT > 0) {
-        want.push(["spore", "SPEED HOP", "#9cf8ae", player.hopT / 2.8]);
+        chips.push(["spore", "SPEED HOP", "#9cf8ae", player.hopT / 2.8]);
       }
       if (on && player.gildT > 0) {
-        want.push(["gild", "SHARD BOOST", "#ffd872", player.gildT / 3.2]);
+        chips.push(["gild", "SHARD BOOST", "#ffd872", player.gildT / 3.2]);
       }
       if (on && player.festT > 0) {
-        want.push(["fest", "STAR BOOST", "#e0b4ff", player.festT / 3.0]);
+        chips.push(["fest", "STAR BOOST", "#e0b4ff", player.festT / 3.0]);
       }
-      const row = buffRow;
-      if (!row) return;
-      // 3.46.0: the timed chips are cached too; a cached element is only trusted while it is
-      // still connected (a rebuild of the row above may have dropped it)
-      const timed = this.buffTimed;
-      const live = (id) => {
-        let el = timed.get(id);
-        if (el && !el.isConnected) {
-          timed.delete(id);
-          el = null;
-        }
-        return el || null;
-      };
-      for (const id of timedBuffChips) {
-        if (!want.some((chip) => chip[0] === id)) {
-          const el = live(id);
-          if (el) {
-            el.remove();
-            timed.delete(id);
-          }
-        }
-      }
-      for (const [id, text, color, left] of want) {
-        let el = live(id),
-          fresh = false;
+      const row = (this.buffRow ??= getById("buffs"));
+      const nodes = this.buffNodes;
+      let next = row.firstElementChild;
+      for (const [id, text, color, time] of chips) {
+        let el = nodes.get(id);
         if (!el) {
           el = document.createElement("span");
           el.className = "buff";
           el.dataset.b = id;
+          el.append(document.createTextNode(""), document.createElement("i"));
+          nodes.set(id, el);
+        }
+        if (el.firstChild.data !== text) el.firstChild.data = text;
+        if (el._color !== color) {
+          el._color = color;
           el.style.setProperty("--bc", color);
-          el.textContent = text;
-          if (left >= 0) {
-            const bar = document.createElement("i");
-            el.appendChild(bar);
-            el._bar = bar;
-          }
-          row.appendChild(el);
-          fresh = true;
         }
-        timed.set(id, el);
-        const step = Math.round(clamp(left, 0, 1) * 20);
-        if (fresh || this.hudCache["buff" + id] !== step) {
-          this.hudCache["buff" + id] = step;
-          if (el._bar) {
-            el._bar.style.transform = `scaleX(${step / 20})`;
-          }
+        const bar = el.lastElementChild;
+        const step = time < 0 ? -1 : Math.round(clamp(time, 0, 1) * 20);
+        if (el._step !== step) {
+          el._step = step;
+          bar.hidden = step < 0;
+          if (step >= 0) bar.style.transform = `scaleX(${step / 20})`;
         }
+        if (el === next) next = el.nextElementSibling;
+        else row.insertBefore(el, next);
+      }
+      while (next) {
+        const after = next.nextElementSibling;
+        nodes.delete(next.dataset.b);
+        next.remove();
+        next = after;
       }
     }
     showChoose(world) {
@@ -1735,7 +1722,7 @@ const getById = (id) => document.getElementById(id),
       getById("sealTxt").textContent = `Seal (${world.banishes})`;
       cards.classList.toggle("banishing", this.banishMode);
       cards.innerHTML = world.offer
-        .map((id) => {
+        .map((id, index) => {
           let up = upgradesById[id],
             level = world.up[id] || 0,
             crest = tierCrests[up.rarity] || "",
@@ -1753,7 +1740,7 @@ const getById = (id) => document.getElementById(id),
             delta = this.statDelta(id, world);
           const seal = up.boss ? `<span class="seal" aria-hidden="true">${iconSvg("star")}</span>` : "";
           const protectedReward = this.banishMode && world.offerBoss && id === world.offerExclusive;
-          return `<button class="card r${up.rarity}" data-pick="${id}"${protectedReward ? " disabled" : ""}>${seal}<span class="cico">${iconSvg(up.icon)}</span><span><span class="ctop"><b>${escapeHtml(up.name)}</b><span class="lv">${escapeHtml(tag)}</span></span><p>${escapeHtml(up.desc(level))}</p>${delta}${evo}</span></button>`;
+          return `<button class="card r${up.rarity}" data-pick="${id}"${protectedReward ? " disabled" : ""}>${seal}<span class="cico">${iconSvg(up.icon)}</span><span><span class="ctop"><b>${escapeHtml(up.name)}<span class="kbd-hint" aria-hidden="true">${index + 1}</span></b><span class="lv">${escapeHtml(tag)}</span></span><p>${escapeHtml(up.desc(level))}</p>${delta}${evo}</span></button>`;
         })
         .join("");
       for (let card of cards.querySelectorAll("[data-pick]")) {
@@ -1840,7 +1827,7 @@ const getById = (id) => document.getElementById(id),
         })
         .join("");
       for (const btn of grid.querySelectorAll("[data-anvil]")) {
-        this.click(btn, () => this.g.buyAnvil(+btn.dataset.anvil));
+        this.click(btn, () => this.g.buyAnvil(+btn.dataset.anvil), { sound: false });
       }
       this.coverHud(true);
       box.hidden = false;
@@ -2085,6 +2072,8 @@ const getById = (id) => document.getElementById(id),
       el._countRaf = requestAnimationFrame(step);
     }
     showCrash(log) {
+      if (!getById("dialog").hidden) this.closeDialog(null);
+      this.g.clearResume();
       for (let id of ["choose", "anvil", "pause", "over"]) {
         const el = getById(id);
         if (el) el.hidden = true;
@@ -2092,6 +2081,7 @@ const getById = (id) => document.getElementById(id),
       this.showHud(false);
       getById("crashLog").value = log;
       getById("crash").hidden = false;
+      getById("crashHome").focus({ preventScroll: true });
     }
     hideCrash() {
       getById("crash").hidden = true;
@@ -2165,7 +2155,6 @@ const getById = (id) => document.getElementById(id),
     }
   };
 // HUD chips for timed upgrades and biome effects, managed next to the chips of GameUI.buffs.
-const timedBuffChips = ["heat", "slip", "ingot", "leyline", "rime", "spore", "gild", "fest"];
 function closePauseSettings(ui) {
   ui.rlFromPause = false;
   getById("settings").hidden = true;
@@ -2173,7 +2162,8 @@ function closePauseSettings(ui) {
 }
 
 const RL_BIOME_CARD = {
-  lanternYard: "Shoot a charging bell to stun enemies. Shooting a mine clears it safely.",
+  lanternYard:
+    "Shoot a charging bell to stun enemies. A well-timed shot or dash rings a charging Bell-Censer and clears nearby enemy shots.",
   snowRidge: "Ice patches make you slide.",
   mossBog: "Acid pools weaken enemies and hurt you.",
   starHall: "Portals carry you and your shots across the hall.",

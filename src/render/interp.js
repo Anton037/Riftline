@@ -7,7 +7,9 @@
    the exact values back before anything else reads them, so the simulation never sees a drawn position. Nothing is
    allocated per frame: the references and positions live in buffers that grow once. */
 
-// a move longer than this in one step is a jump (a portal, a new wave, a spawn) and is drawn where it lands
+import { angleDiff } from "../core/util.js";
+
+// A move longer than this in one step is drawn where it lands.
 const JUMP = 2.5;
 
 let refs = [],
@@ -17,19 +19,20 @@ let refs = [],
   applied = 0;
 
 function grow(n) {
-  if (n * 2 <= prev.length) return;
-  const size = Math.max(n * 2, prev.length * 2);
+  if (n * 3 <= prev.length) return;
+  const size = Math.max(n * 3, prev.length * 2);
   const p = new Float64Array(size);
   p.set(prev);
   prev = p;
   cur = new Float64Array(size);
 }
 
-function add(e) {
+function add(e, turns = false) {
   grow(count + 1);
   refs[count] = e;
-  prev[count * 2] = e.x;
-  prev[count * 2 + 1] = e.y;
+  prev[count * 3] = e.x;
+  prev[count * 3 + 1] = e.y;
+  prev[count * 3 + 2] = turns ? e.a : NaN;
   count++;
 }
 
@@ -48,6 +51,11 @@ function capture(world) {
   addList(world.pb);
   addList(world.eb);
   addList(world.pickups);
+  addList(world.arena?.devils);
+  addList(world.splinters);
+  addList(world.lances);
+  addList(world.player.mossHelpers);
+  for (const beam of world.beams) add(beam, true);
   // drop the references of the last capture beyond the new count (no stale objects kept alive)
   if (refs.length > count * 2 + 64) refs.length = count;
 }
@@ -58,13 +66,19 @@ function apply(alpha) {
   if (!(alpha >= 0)) return;
   if (alpha > 1) alpha = 1;
   for (let i = 0; i < count; i++) {
+    const offset = i * 3;
     const e = refs[i],
       x = e.x,
       y = e.y,
-      px = prev[i * 2],
-      py = prev[i * 2 + 1];
-    cur[i * 2] = x;
-    cur[i * 2 + 1] = y;
+      px = prev[offset],
+      py = prev[offset + 1],
+      lastAngle = prev[offset + 2];
+    cur[offset] = x;
+    cur[offset + 1] = y;
+    if (Number.isFinite(lastAngle)) {
+      cur[offset + 2] = e.a;
+      e.a = lastAngle + angleDiff(lastAngle, e.a) * alpha;
+    }
     if (!(Math.abs(x - px) < JUMP && Math.abs(y - py) < JUMP)) continue;
     e.x = px + (x - px) * alpha;
     e.y = py + (y - py) * alpha;
@@ -76,8 +90,9 @@ function apply(alpha) {
 function restore() {
   for (let i = 0; i < applied; i++) {
     const e = refs[i];
-    e.x = cur[i * 2];
-    e.y = cur[i * 2 + 1];
+    e.x = cur[i * 3];
+    e.y = cur[i * 3 + 1];
+    if (Number.isFinite(prev[i * 3 + 2])) e.a = cur[i * 3 + 2];
   }
   applied = 0;
 }

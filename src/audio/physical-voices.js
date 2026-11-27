@@ -47,6 +47,13 @@ const sample = {
   timber: "panel_step",
 };
 const P = {
+  anvil: { dur: 0.31, sample: "plate", body: 310, air: 0.035, grain: 0.04, gain: 0.18, gate: 0.2, modal: "brass" },
+  graze: { dur: 0.19, sample: "glass", body: 750, air: 0.09, grain: 0.016, gain: 0.21, gate: 0.1 },
+  heatShatter: { dur: 0.34, sample: "ice", body: 410, air: 0.29, grain: 0.23, gain: 0.26, gate: 0.08 },
+  corrode: { dur: 0.26, sample: "bog", body: 125, air: 0.12, grain: 0.12, gain: 0.24, gate: 0.18 },
+  singe: { dur: 0.27, sample: "soft", body: 156, air: 0.24, grain: 0.2, gain: 0.24, gate: 0.18 },
+  glare: { dur: 0.23, sample: "glass", body: 680, air: 0.12, grain: 0.035, gain: 0.2, gate: 0.16, ascend: true },
+  forgeGift: { dur: 0.28, sample: "metal", body: 512, air: 0.06, grain: 0.023, gain: 0.22, gate: 0.12 },
   fireBurst: {
     dur: 0.65,
     sample: "heavy",
@@ -348,10 +355,6 @@ const P = {
     warn: true,
     lowpass: 4500,
   },
-  tsEmber: { dur: 0.65, sample: "wood", body: 70, air: 0.4, grain: 0.17, gain: 0.38, gate: 0.1, lowpass: 2000 },
-  tsPyro: { dur: 0.62, sample: "wood", body: 78, air: 0.44, grain: 0.18, gain: 0.38, gate: 0.1, lowpass: 2100 },
-  tsGlass: { dur: 0.5, sample: "glass", body: 490, air: 0.24, grain: 0.2, gain: 0.33, gate: 0.1, lowpass: 5000 },
-  tsSun: { dur: 0.56, sample: "glass", body: 540, air: 0.26, grain: 0.22, gain: 0.34, gate: 0.1, lowpass: 5200 },
   bcLock: { dur: 0.26, sample: "plate", body: 320, air: 0.08, grain: 0.05, gain: 0.27, gate: 0.05, lowpass: 3400 },
   bcShatter: { dur: 0.38, sample: "glass", body: 760, air: 0.12, grain: 0.18, gain: 0.25, gate: 0.04, lowpass: 6200 },
   event: { dur: 1.25, sample: "heavy", body: 58, air: 0.32, grain: 0.1, gain: 0.33, gate: 0.4 },
@@ -1073,7 +1076,7 @@ export function physicalProfile(id, arg, place = false) {
     else if (/ready|buy|pick|clear|victory|heal|evolve|shard|tribute|bounty|reward|surge|champion|mutator/i.test(id))
       family = "reward";
     else if (/beam|rift|stun|chill|short|zap/i.test(id)) family = "sparkWand";
-    else if (/^ts|^a[A-Z]|^bc|boss|phase|enrage|rumble/i.test(id)) family = "boom";
+    else if (/^a[A-Z]/.test(id) || /^ts|^bc|boss|phase|enrage|rumble/i.test(id)) family = "boom";
     else if (/click|hover|deny|offer|reroll|supply|combo|wave|spawn|mend|gadget/i.test(id)) family = "ui";
   }
   const p = { ...P[family], family };
@@ -1155,6 +1158,10 @@ export function physicalProfile(id, arg, place = false) {
     const timbre = BOSS_TIMBRE[source];
     p.family += ":" + source;
     [p.sample, p.body, p.lowpass] = timbre;
+    if (source === "iceCrystal" && /^(bSlam|bigkill)$/.test(id)) {
+      p.body = 260;
+      p.subDrop = 0.24;
+    }
     if (id === "hatch") {
       p.dur = 0.4;
       p.air = 0.24;
@@ -1209,16 +1216,16 @@ export function physicalProfile(id, arg, place = false) {
       embermine: ["wood", 110],
       glassmine: ["glass", 580],
     }[arg];
-    if (arm)
-      Object.assign(p, {
-        family: "arm:" + arg,
-        sample: arm[0],
-        body: arm[1],
-        warn: false,
-        dur: 0.18,
-        air: 0.08,
-        grain: 0.03,
-      });
+    const [sample, body] = arm || ["plate", 240];
+    Object.assign(p, {
+      family: "arm:" + (arm ? arg : "mine"),
+      sample,
+      body,
+      warn: false,
+      dur: 0.18,
+      air: 0.08,
+      grain: 0.03,
+    });
   }
   if (place && /calderaRumble|ventPulse|fumarole|cinderGust/.test(id))
     Object.assign(p, P.air, {
@@ -1249,7 +1256,7 @@ export function physicalProfile(id, arg, place = false) {
   if (!place && id === "bounce") Object.assign(p, P.glass, { family: "glass", dur: 0.11, body: 620, gain: 0.16 });
   if (p.warn) {
     const delay = typeof arg === "number" ? arg : arg?.delay;
-    if (Number.isFinite(delay)) p.dur = Math.max(0.12, Math.min(1.5, delay));
+    if (Number.isFinite(delay)) p.dur = Math.max(0.12, Math.min(1.5, Math.round(delay * 30) / 30));
   }
   if (family === "step") {
     const ground = String(arg?.ground || "");
@@ -1334,7 +1341,7 @@ function resolveModalKind(p) {
 
 const BELL_HUMANIZE_RE = /bell|chime|reward|prop|inlay|overdrive|nova|enrage|cleared|victory|evolve|shield|warn|beam/i;
 const FAST_HUMANIZE_RE =
-  /pulse|scatter|tesla|rail|rocket|disc|flame|hit|crit|step|land|eshot|snipe|wing|lob|chain|spark/i;
+  /^(lanternGun|brassShotgun|sparkWand|starSpear|emberLauncher|ringBlade|fireBellows)|hit|crit|step|land|eshot|snipe|wing|lob|chain/i;
 
 export class PhysicalVoices {
   constructor(ctx, { decode = true } = {}) {
@@ -1542,9 +1549,8 @@ export class PhysicalVoices {
 
       const airEnv = isFlame ? envelope : p.warn ? envelope : Math.exp(-t / (p.dur * 0.38));
       const air = (band - low) * p.air * airEnv;
-      const emberCrackle = isFlame
-        ? noise * (Math.sin(t * 487 + variant * 2.7) > 0.86 ? 1 : 0.06) * p.grain * envelope
-        : noise * (Math.sin(t * 611 + variant) > 0.7 ? 1 : 0.1) * p.grain * Math.exp(-t * (p.sigh ? 6 : 22));
+      const crackle = Math.abs(noise) > 0.89 ? 1 : 0.08;
+      const emberCrackle = noise * crackle * p.grain * (isFlame ? envelope : Math.exp(-t * (p.sigh ? 6 : 22)));
 
       let recorded = 0;
       if (raw && region) {
@@ -1573,12 +1579,12 @@ export class PhysicalVoices {
     const voice = engine.claim(ambience ? 0.5 : engine.curPri, start, end);
     if (!voice || engine.budgetOnly) return;
 
-    // Rapid-fire anti-fatigue ducking when the same cue repeats within 120ms
+    // Repeated sounds build up attenuation and recover smoothly as the tempo falls.
     let fatigueScale = 1;
     if (!ambience && id) {
       const prev = this.recentTriggers.get(id);
-      if (prev && start - prev.t < 0.12) {
-        prev.count = Math.min(6, prev.count + 1);
+      if (prev) {
+        prev.count = Math.min(6, (prev.count + 1) * Math.exp(-Math.max(0, start - prev.t) / 0.18));
         prev.t = start;
         fatigueScale = Math.max(0.62, 1 - prev.count * 0.075);
       } else {
@@ -1711,7 +1717,8 @@ export class PhysicalVoices {
               : id === "tbLaser"
                 ? P.wind
                 : P.sparkWand;
-      this.source(engine, id + "-active", { ...base, dur: Math.min(1.2, arg.dur) }, { at: p.dur, gain: 0.7 });
+      const dur = Math.max(1 / 30, Math.min(1.2, Math.round(arg.dur * 30) / 30));
+      this.source(engine, id + "-active", { ...base, warn: false, hold: true, dur }, { at: p.dur, gain: 0.7 });
     }
   }
   place(engine, id, a = {}) {

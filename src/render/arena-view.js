@@ -31,7 +31,6 @@ const GEO_CACHE = new Map();
 function cachedGeo(key, build) {
   let g = GEO_CACHE.get(key);
   if (!g) {
-    if (GEO_CACHE.size > 2048) GEO_CACHE.clear();
     g = build();
     g.shared = true;
     g._cacheKey = key;
@@ -51,9 +50,9 @@ const torus = (r = 0.5, tube = 0.12, radSegs = 6, tubSegs = 16, arc = TAU) =>
   cachedGeo(`tor:${qk(r)}:${qk(tube)}:${radSegs}:${tubSegs}:${qk(arc)}`, () =>
     rawTorus(r, tube, radSegs, tubSegs, arc),
   );
-const sculptedRock = (rx = 1, ry = 1, rz = 1, detail = 1, seed = 1) => {
+const sculptedRock = (w = 1, h = 1, d = 1, seed = 1, round = false) => {
   const s = (Math.abs(Math.round(seed)) & 15) + 1;
-  return cachedGeo(`rk:${qk(rx)}:${qk(ry)}:${qk(rz)}:${detail}:${s}`, () => rawSculptedRock(rx, ry, rz, detail, s));
+  return cachedGeo(`rk:${qk(w)}:${qk(h)}:${qk(d)}:${s}:${round ? 1 : 0}`, () => rawSculptedRock(w, h, d, s, round));
 };
 const sculptedCrystal = (w = 1, h = 1, d = 1, seed = 1) => {
   const s = (Math.abs(Math.round(seed)) & 15) + 1;
@@ -2778,6 +2777,13 @@ export class ArenaView {
       if (obj.geometry) obj.geometry.dispose();
     });
     this.group.clear();
+    if (GEO_CACHE.size > 2048) {
+      for (const geo of GEO_CACHE.values()) {
+        geo.releaseGpu();
+        geo._flatCache?.releaseGpu();
+      }
+      GEO_CACHE.clear();
+    }
 
     const look = GLAZES[biome.id] || GLAZES.lanternYard;
     this.uniforms.uGrid.value.setHex(look.trim);
@@ -2835,7 +2841,6 @@ export class ArenaView {
     if (biome.id === "snowRidge") {
       const aurora = createAurora(layout.W, layout.H);
       this.group.add(aurora);
-      this.rlAnim.push({ o: aurora, k: "aurora" });
     }
 
     const keep = new Set(this.rlAnim.map((a) => a.o));

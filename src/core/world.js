@@ -60,6 +60,7 @@ function enemySpawnRadius({ type, elite, champion }) {
 }
 
 const RL_HAZARD_SRC = new Set(["lava", "shock", "acid", "trap", "devil"]);
+const WISP_ANGLES = [2.3, -2.3, 1.3, -1.3, Math.PI];
 const SHORT_R = 1.6,
   SHORT_DELAY = 1.1;
 
@@ -184,7 +185,6 @@ const rlStep = 1 / 60,
       this.fangN = (snap && snap.fangN) | 0;
       this.hitstopT = 0;
       this.impactAt = -Infinity;
-      this.starVaultUnlocked = !!opts.starVaultUnlocked;
       this.runStats = {
         dmgTaken: (snap && snap.runStats && Number(snap.runStats.dmgTaken)) || 0,
         dashes: (snap && snap.runStats && Number(snap.runStats.dashes)) || 0,
@@ -399,6 +399,9 @@ const rlStep = 1 / 60,
         player.reactiveGrazeCd = 0;
         player.grazeT = 0;
         player.grazedDash = false;
+        player.singeT = player._singeTick = player.corrodeT = player.dazeT = player.slowT = player.chipAcc = 0;
+        player.singeSrc = player.slowKind = null;
+        player.rushT = player.rushN = 0;
         this.impactAt = -Infinity;
         player.kilnAcc = 0;
         player.tributeT = 0;
@@ -406,6 +409,7 @@ const rlStep = 1 / 60,
         player.echoQueue = [];
         player.bossHits = 0;
         this.caravan = null;
+        this.caravanTryAt = 2;
         this.starfallN = 0;
         let novaFloor = 25 * (this.ws.fireBurst || 0);
         player.fireBurst = fireBurst ?? Math.max(player.fireBurst, novaFloor);
@@ -1120,8 +1124,10 @@ const rlStep = 1 / 60,
         player._singeTick = (player._singeTick || 0) + dt;
         if (player._singeTick >= 0.5) {
           player._singeTick -= 0.5;
-          const singeDmg = Math.max(1, Math.round(3 * this.dmgMul * Math.max(0, 1 - (stats.hazardResist || 0))));
-          this.hurtPlayer(singeDmg, player.x, player.y, "trap", true);
+          const src = player.singeSrc || "trap";
+          const singeDmg = 3 * this.dmgMul * Math.max(0, 1 - (stats.hazardResist || 0));
+          const severity = src === "trap" && this.trapMode === "impossible" ? 1.75 : 1;
+          this.hurtPlayer(singeDmg * severity, player.x, player.y, src, true);
         }
       } else {
         player._singeTick = 0;
@@ -1393,12 +1399,11 @@ const rlStep = 1 / 60,
         dmgBefore = stats.dmgMul;
       if (slipBoost) stats.dmgMul = dmgBefore * slipMul;
       try {
-        const { x, y } = echo ?? player;
+        const { x, y } = player;
         const count = weapon.count + (weapon.cone ? stats.extra * 2 : stats.extra),
-          mouth = echo?.mouth ?? this.shotOrigin(angle);
-        // Echo shots count toward weapon cadences (Sun Gun, Fire Wave)
-        player.shotN = (player.shotN || 0) + 1;
-        const fourthShot = player.shotN % 4 === 0,
+          mouth = this.shotOrigin(angle);
+        if (!echo) player.shotN = (player.shotN || 0) + 1;
+        const fourthShot = !echo && player.shotN % 4 === 0,
           heavy = !!(stats.overdrive && fourthShot),
           lantern = weapon.id === "lanternGun" && fourthShot,
           twinDisc = !!(stats.twinRings && weapon.id === "ringBlade"),
@@ -1506,9 +1511,6 @@ const rlStep = 1 / 60,
               t: 0.1,
               angle: angle + this.rng.range(-0.025, 0.025),
               mul: stats.echo > 1 ? 0.95 : 0.8,
-              x,
-              y,
-              mouth,
               launch,
             });
           }
@@ -1643,7 +1645,8 @@ const rlStep = 1 / 60,
         // Event Horizon ('blackstar'): collapsing Chimes fire 8 primary weapon bolts outward
         if (stats.fireWell && this.pb.length < MAX_PLAYER_BULLETS - 8) {
           const weapon = stats.weapon,
-            speed = weapon.speed * stats.velMul;
+            speed = weapon.speed * stats.velMul,
+            twinDisc = stats.twinRings && weapon.boomerang;
           for (let i = 0; i < 8; i++) {
             const a = (i / 8) * TAU;
             const bolt = {
@@ -1653,11 +1656,11 @@ const rlStep = 1 / 60,
               vx: Math.cos(a) * speed,
               vy: Math.sin(a) * speed,
               a,
-              r: weapon.r * stats.sizeMul,
-              dmg: weapon.dmg * stats.dmgMul,
+              r: weapon.r * stats.sizeMul * (twinDisc ? 1.4 : 1),
+              dmg: weapon.dmg * stats.dmgMul * (twinDisc ? 1.35 : 1),
               baseDmg: weapon.dmg,
               life: Math.min(1.1, weapon.life),
-              pierce: stats.starLance ? 999 : stats.pierce,
+              pierce: stats.starLance && weapon.starSpear ? 999 : stats.pierce,
               bounce: weapon.boomerang ? 0 : stats.bounce,
               hits: [],
               w: weapon.id,
@@ -1667,13 +1670,12 @@ const rlStep = 1 / 60,
             };
             if (weapon.boomerang) {
               bolt.boom = true;
-              bolt.turn = bolt.life * 0.48;
+              bolt.turn = weapon.life * 0.5;
+              bolt.life = 4;
               bolt.sp = speed;
+              bolt.spin = 0;
             }
-            if (weapon.explode) {
-              bolt.explode = weapon.explode;
-              bolt.dm = weapon.explodeDmg * stats.dmgMul;
-            }
+            if (weapon.explode) bolt.dm = stats.dmgMul;
             if (weapon.drag) {
               bolt.drag = weapon.drag;
               bolt.grow = weapon.grow;
@@ -1753,11 +1755,31 @@ const rlStep = 1 / 60,
         this._rlReacting = false;
       }
       for (const bullet of this.eb) {
-        if (bullet.life > 0 && Math.hypot(bullet.x - player.x, bullet.y - player.y) < radius * 1.2) {
+        const distSq = (bullet.x - player.x) ** 2 + (bullet.y - player.y) ** 2;
+        if (bullet.life > 0 && distSq < (radius * 1.2) ** 2) {
+          this.tryDashGraze(distSq, player.r * 0.8 + bullet.r);
           bullet.life = 0;
           this.emit("pop", { x: bullet.x, y: bullet.y, src: bullet.src, kind: bullet.kind, frost: bullet.frost });
         }
       }
+    }
+    tryDashGraze(distSq, hitR) {
+      const player = this.player;
+      if (
+        this.state !== "fight" ||
+        !player.alive ||
+        player.dashT <= 0 ||
+        player.grazedDash ||
+        !(this.time - player.dashAt <= 0.12) ||
+        distSq >= (hitR + 0.4) ** 2
+      )
+        return;
+      player.grazedDash = true;
+      player.grazeT = 1.5;
+      player.dashCdT = Math.max(0, player.dashCdT - 0.35);
+      this.addNova(8, true);
+      this.triggerHitstop(0.018, true);
+      this.emit("graze", { x: player.x, y: player.y, r: hitR });
     }
     hurtPlayer(dmg, srcX, srcY, src, chip = false, contact = false) {
       // 2.5.0 B: no damage while the Emergency Shield barrier is up
@@ -2083,19 +2105,16 @@ const rlStep = 1 / 60,
           }
         }
       }
-      const burning = enemy.burnT > 0;
-      if (burning) {
-        enemy.burnT = Math.max(0, enemy.burnT - dt);
-        if (enemy.burnT <= 0) enemy.burnStacks = 0;
-      }
-      if (burning && !enemy.shielded && !enemy.ghost) {
+      const burnDt = Math.min(dt, enemy.burnT);
+      enemy.burnT = Math.max(0, enemy.burnT - dt);
+      if (burnDt > 0 && !enemy.shielded && !enemy.ghost) {
         const stats = this.stats,
           hunterMatch = enemy.elite || enemy.boss || enemy.champion || enemy.hp < enemy.maxHp * 0.35,
           glazeMul = Math.max(enemy.glazeMul || 0, stats.glazeMul || 0) || 0.2,
           glazeBossMul = Math.max(enemy.glazeMul ? 0.15 : 0, stats.glazeBossMul || 0) || 0.12;
         let dmg =
           enemy.burnDps *
-          dt *
+          burnDt *
           (hunterMatch ? stats.eliteMul || 1 : 1) *
           (enemy.corrode && !enemy.boss ? 1.25 : 1) *
           (enemy.glazeT > 0 ? 1 + (enemy.boss ? glazeBossMul : glazeMul) : 1) *
@@ -2116,7 +2135,7 @@ const rlStep = 1 / 60,
         if (!enemy.boss) dmg = this.burstCap(enemy, dmg);
         dmg = this.capPhase(enemy, dmg);
         enemy.burnAcc += dmg;
-        enemy.burnShow += dt;
+        enemy.burnShow += burnDt;
         enemy.hp -= dmg;
         const dealt = Math.min(dmg, enemy.hp + dmg);
         this.dmgDealt += dealt;
@@ -2131,6 +2150,10 @@ const rlStep = 1 / 60,
         if (enemy.hp <= 0) {
           this.killEnemy(enemy);
         }
+      }
+      if (enemy.burnT === 0 && enemy.burnDps > 0) {
+        enemy.burnDps = enemy.burnStacks = enemy.burnAcc = enemy.burnShow = 0;
+        enemy.burnSrc = null;
       }
       enemy.losT -= dt;
       if (enemy.losT <= 0) {
@@ -2319,16 +2342,18 @@ const rlStep = 1 / 60,
           (enemy.elite || (enemy.def?.cost || 0) >= 3)
         ) {
           enemy.duskRung = true;
+          const level = this.mods.armored - 1;
+          const radius = 2.2 + 0.25 * level;
           this.hazard({
             x: enemy.x,
             y: enemy.y,
-            r: 2.2,
-            delay: 0.9,
-            dmg: enemy.dmg * 0.85,
+            r: radius,
+            delay: 0.9 - 0.08 * level,
+            dmg: enemy.dmg * (0.85 + 0.12 * level),
             kind: "shorted",
             src: enemy.type,
           });
-          this.emit("shortArm", { x: enemy.x, y: enemy.y, r: 2.2 });
+          this.emit("shortArm", { x: enemy.x, y: enemy.y, r: radius });
         }
         if (knock) {
           let len = Math.hypot(dx, dy) || 1,
@@ -2342,6 +2367,10 @@ const rlStep = 1 / 60,
           if (src === "weapon" || src === "helperWisps" || src === "blastShot" || src === "arc") {
             bossCardBossHit(this, enemy);
             this.player.bossHits = (this.player.bossHits || 0) + 1;
+            if (stats.killStreak && this.player.bossHits % 10 === 0) {
+              this.player.rushN = Math.min(10, this.player.rushN + 1);
+              this.player.rushT = 4;
+            }
             if (stats.surge && this.player.bossHits % 18 === 0 && !this._rlSurging) {
               const r = stats.surge > 1 ? 4.2 : 3.6;
               this._rlSurging = true;
@@ -2455,10 +2484,6 @@ const rlStep = 1 / 60,
           player.rushT = 4;
         }
         if (!enemy.noDrop) {
-          if (stats.bounty && enemy.elite) {
-            this.dropShards(player.x, player.y, stats.bounty);
-            this.emit("bountyPulse", { x: player.x, y: player.y, amount: stats.bounty });
-          }
           if (stats.capacitor) {
             this.addNova(stats.capacitor, true);
           }
@@ -2594,7 +2619,7 @@ const rlStep = 1 / 60,
       }
       if (enemy.boss || this.kills <= kills0 || !this.player.alive) return;
       if (enemy.type === "supplyKite" && this.state === "fight" && this.rng.chance(0.55)) {
-        const value = rlCacheShards(this, 5 + 3 * (this.stats.cacheBonus || 0)),
+        const value = rlCacheShards(this, 5),
           pickup = this.mkPickup("shard", enemy.x, enemy.y, value);
         pickup.vx = 0;
         pickup.vy = 0;
@@ -2699,8 +2724,14 @@ const rlStep = 1 / 60,
       }
       if (opts.player) {
         let player = this.player;
-        if (Math.hypot(player.x - x, player.y - y) < radius + player.r) {
-          this.hurtPlayer(opts.dmgPlayer || dmg, x, y, opts.src || this._src);
+        if (
+          Math.hypot(player.x - x, player.y - y) < radius + player.r &&
+          this.hurtPlayer(opts.dmgPlayer || dmg, x, y, opts.src || this._src) &&
+          opts.chill
+        ) {
+          if (player.slowT <= 1.6) player.slowKind = "chill";
+          player.slowT = Math.max(player.slowT, 1.6);
+          this.emit("chill", { x: player.x, y: player.y });
         }
       }
       this.emit("boom", {
@@ -2712,7 +2743,7 @@ const rlStep = 1 / 60,
         chill: !!opts.chill,
       });
     }
-    chainFrom(from, jumps, dmg, hits, src = "weapon") {
+    chainFrom(from, jumps, dmg, hits, src = "weapon", rebound = false) {
       let cur = from,
         pts = [cur.x, cur.y],
         seen = new Set(hits || []),
@@ -2737,8 +2768,8 @@ const rlStep = 1 / 60,
         this.hurtEnemy(target, dmg, target.x - cur.x, target.y - cur.y, 0.5, false, src);
         cur = target;
       }
-      // Spark Storm ('tempest'): if fewer than 2 secondary targets are in range, remaining arcs strike back into primary target at 45% dmg
-      if (this.stats.stormWand && chained < 2 && !from.dead && !from.ghost) {
+      // Storm Wand uses spare jumps to arc back into the original target.
+      if (rebound && chained < jumps && !from.dead && !from.ghost) {
         const extraArcs = Math.max(0, jumps - chained);
         for (let i = 0; i < extraArcs && !from.dead; i++) {
           this.hurtEnemy(from, dmg * 0.45, 0, 0, 0.25, false, src);
@@ -2893,7 +2924,7 @@ const rlStep = 1 / 60,
             }
           }
         }
-        for (let i = 0; i < probes && bullet.life > 0; i++) {
+        for (let i = 0; i < probes && bullet.life > 0 && bullet.bounce === bounces && bullet.back === back; i++) {
           let frac = probes > 1 ? ((i + 1) / probes - 1) * wallFrac : 0,
             sx = bullet.x + bullet.vx * dt * frac,
             sy = bullet.y + bullet.vy * dt * frac;
@@ -2913,8 +2944,8 @@ const rlStep = 1 / 60,
           if (bullet.boom && !bullet.back) {
             bullet.back = true;
             bullet.hits.length = 0;
-            bullet.x -= bullet.vx * dt;
-            bullet.y -= bullet.vy * dt;
+            bullet.x = prevX;
+            bullet.y = prevY;
             this.emit("spark", { x: bullet.x, y: bullet.y, w: bullet.w });
             continue;
           }
@@ -2981,7 +3012,9 @@ const rlStep = 1 / 60,
       }
       let hitR = enemy.r + bullet.r;
       if (!(dx * dx + dy * dy > hitR * hitR || bullet.hits.includes(enemy.id))) {
+        const bounces = bullet.bounce;
         this.bulletHit(bullet, enemy);
+        return bullet.bounce !== bounces;
       }
     }
     home(bullet, dt) {
@@ -3024,7 +3057,8 @@ const rlStep = 1 / 60,
       let baseHit = bullet.dmg;
       const native = !bullet.wing && bullet.w === this.weapon;
       if (native && bullet.w === "brassShotgun" && bullet.age <= 0.16) baseHit *= 1.25;
-      if (native && bullet.w === "starSpear") baseHit *= 1 + 0.12 * Math.min(4, bullet.pierceCount || 0);
+      if (native && bullet.w === "starSpear" && !stats.starLance)
+        baseHit *= 1 + 0.12 * Math.min(4, bullet.pierceCount || 0);
       if (native && bullet.w === "ringBlade" && bullet.back) baseHit *= 1.25;
       const thermal =
         native &&
@@ -3105,11 +3139,11 @@ const rlStep = 1 / 60,
         });
       }
       // Fire Wave ('overload'): every 120 base weapon damage dealt fires a directional 5.5m kiln-flare cone
-      if (stats.fireWave > 0 && !bullet.wing) {
+      if (stats.fireWave > 0 && !bullet.wing && landed) {
         this.player.kilnAcc = (this.player.kilnAcc || 0) + (bullet.baseDmg || weapon.dmg);
         if (this.player.kilnAcc >= 120) {
           this.player.kilnAcc -= 120;
-          const coneA = bullet.a,
+          const coneA = Math.atan2(enemy.y - this.player.y, enemy.x - this.player.x),
             coneDmg = (55 + 25 * stats.fireWave) * stats.dmgMul;
           this.hash.query(this.player.x + Math.cos(coneA) * 2.8, this.player.y + Math.sin(coneA) * 2.8, 3.4, (foe) => {
             if (foe.dead || foe.ghost) return;
@@ -3151,8 +3185,9 @@ const rlStep = 1 / 60,
         }
         enemy.burnSrc = "burn";
       }
-      if (stats.chain) {
-        const jumps = this.chainFrom(enemy, stats.chain, dmg * stats.chainF, bullet.hits);
+      if (stats.chain && !bullet.wing) {
+        const rebound = !!(stats.stormWand && native && bullet.w === "sparkWand");
+        const jumps = this.chainFrom(enemy, stats.chain, dmg * stats.chainF, bullet.hits, "weapon", rebound);
         if (!jumps && native && bullet.w === "sparkWand" && !stats.stormWand && landed && !enemy.dead) {
           this.hurtEnemy(enemy, dmg * 0.2, bullet.vx, bullet.vy, 0, false, "arc");
           this.emit("chain", { pts: [enemy.x, enemy.y, enemy.x + enemy.r, enemy.y - 0.35] });
@@ -3205,12 +3240,13 @@ const rlStep = 1 / 60,
           if (stats.momentum > 0) {
             bullet.dmg *= 1 + (stats.momentum > 1 ? 0.38 : 0.22);
             bullet.r *= 1.15;
+            if (bullet.boom) bullet.r = Math.min(bullet.r, weapon.r * stats.sizeMul * (stats.twinRings ? 2.8 : 2));
           }
         } else {
           bullet.life = 0;
         }
       }
-      // Acid Coat ('acidcoat'): applies 3.5s Vitriol Glaze (+18%/+30%, works on Guardians!) + trailing pools
+      // Acid Coat applies 3.5s of Vitriol Glaze and leaves short-lived acid pools.
       if (stats.acidCoat > 0 && this.state === "fight" && !enemy.dead && !immune) {
         const glazeCh = (stats.acidCoat > 1 ? 0.6 : 0.35) * procMul * (bullet.drag ? 0.45 : 1);
         if (this.rng.chance(glazeCh)) {
@@ -3330,20 +3366,7 @@ const rlStep = 1 / 60,
                 dy = player.y - bullet.y,
                 hitR = player.r * 0.8 + bullet.r;
               const distSq = dx * dx + dy * dy;
-              if (
-                this.state === "fight" &&
-                player.dashT > 0 &&
-                !player.grazedDash &&
-                this.time - player.dashAt <= 0.12 &&
-                distSq < (hitR + 0.4) ** 2
-              ) {
-                player.grazedDash = true;
-                player.grazeT = 1.5;
-                player.dashCdT = Math.max(0, player.dashCdT - 0.35);
-                this.addNova(8, true);
-                this.triggerHitstop(0.018, true);
-                this.emit("graze", { x: player.x, y: player.y, r: hitR });
-              }
+              if (player.dashT > 0) this.tryDashGraze(distSq, hitR);
               if (distSq < hitR * hitR && player.iT <= 0 && player.dashT <= 0) {
                 bullet.life = 0;
                 if (
@@ -3374,6 +3397,7 @@ const rlStep = 1 / 60,
         homing: opts.homing || 0,
         accel: opts.accel || 0,
         solid: opts.solid,
+        warpT: opts.warpT ? this.time + opts.warpT : 0,
         src: opts.src || this._src,
         frost: this._var === "frost",
         launchHeight: opts.launchHeight,
@@ -3405,7 +3429,7 @@ const rlStep = 1 / 60,
         });
         if (this.eb.length)
           for (let bullet of this.eb) {
-            if (bullet.life > 0 && Math.abs(bullet.x - bx) < 0.7 && Math.abs(bullet.y - by) < 0.7) {
+            if (bullet.life > 0 && (bullet.x - bx) ** 2 + (bullet.y - by) ** 2 < (size + bullet.r) ** 2) {
               bullet.life = 0;
               this.emit("pop", { x: bullet.x, y: bullet.y });
             }
@@ -3421,7 +3445,7 @@ const rlStep = 1 / 60,
       let damp = dampFactor(6, dt);
       for (let i = 0; i < count; i++) {
         let wing = player.wings[i],
-          offset = [2.3, -2.3, 1.3, -1.3][i] ?? 2.3,
+          offset = WISP_ANGLES[i],
           tx = player.x + Math.cos(player.aim + offset) * 1.5,
           ty = player.y + Math.sin(player.aim + offset) * 1.5;
         wing.x += (tx - wing.x) * damp;
@@ -3432,8 +3456,8 @@ const rlStep = 1 / 60,
           best = 13;
         for (let enemy of this.enemies) {
           if (enemy.dead || enemy.spawnT > 0.2 || enemy.ghost) continue;
-          let dist = Math.hypot(enemy.x - wing.x, enemy.y - wing.y) + (enemy.los ? 0 : 7);
-          if (dist < best) {
+          let dist = Math.hypot(enemy.x - wing.x, enemy.y - wing.y);
+          if (dist < best && this.arena.los(wing.x, wing.y, enemy.x, enemy.y, 0.1)) {
             best = dist;
             target = enemy;
           }
@@ -3550,6 +3574,7 @@ const rlStep = 1 / 60,
                   this.emit("stun", { x: player.x, y: player.y });
                 } else if (sp === "burn") {
                   player.singeT = Math.max(player.singeT || 0, 1.5);
+                  player.singeSrc = "trap";
                   this.emit("singe", { x: player.x, y: player.y });
                 } else if (sp === "glass") {
                   player.slowT = Math.max(player.slowT, 0.6);
@@ -3826,7 +3851,14 @@ const rlStep = 1 / 60,
       } else this.stragglerT = 0;
       if (this.bossPending && this.waveT > 1.6 && this.spawnBoss(this.bossPending)) this.bossPending = null;
       // Gold Cart: spawns a marching Treasure Automaton once per gilded wave
-      if (this.event === "goldCart" && !this.caravan && !this.bossPending && !this.boss && this.waveT >= 2.0) {
+      if (
+        this.event === "goldCart" &&
+        !this.caravan &&
+        !this.bossPending &&
+        !this.boss &&
+        this.waveT >= this.caravanTryAt
+      ) {
+        this.caravanTryAt = this.waveT + 0.5;
         const { arena, rng } = this;
         const reserved = this.enemySpawnReservations();
         const r = enemySpawnRadius({ type: "supplyKite", elite: true }) + 0.4;

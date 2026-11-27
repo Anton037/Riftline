@@ -44,29 +44,37 @@ function fill(text, m, name) {
   return out;
 }
 
-function copyDir(from, to) {
+function copyDir(from, to, files) {
   fs.mkdirSync(to, { recursive: true });
   for (const e of fs.readdirSync(from, { withFileTypes: true })) {
     if (e.name === "SOURCES.md") continue;
     const a = path.join(from, e.name),
       b = path.join(to, e.name);
-    if (e.isDirectory()) copyDir(a, b);
-    else if (e.isFile()) fs.copyFileSync(a, b);
-    else throw new Error(`Public assets must be regular files or directories: ${path.relative(ROOT, a)}`);
+    if (e.isDirectory()) copyDir(a, b, files);
+    else if (e.isFile()) {
+      fs.copyFileSync(a, b);
+      files.add(path.relative(DIST, b).split(path.sep).join("/"));
+    } else throw new Error(`Public assets must be regular files or directories: ${path.relative(ROOT, a)}`);
+  }
+}
+
+function pruneDist(dir, files, prefix = "") {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const file = path.join(dir, entry.name);
+    const key = prefix + entry.name;
+    if (entry.isDirectory()) {
+      pruneDist(file, files, key + "/");
+      if (!fs.readdirSync(file).length) fs.rmdirSync(file);
+    } else if (!files.has(key)) fs.unlinkSync(file);
   }
 }
 
 async function build() {
   const t0 = Date.now();
   const m = meta();
-  if (!watch) {
-    fs.rmSync(DIST, { recursive: true, force: true });
-  } else if (fs.existsSync(DIST)) {
-    for (const f of fs.readdirSync(DIST)) {
-      if (/^game-v.+\.js$/.test(f)) fs.rmSync(path.join(DIST, f), { force: true });
-    }
-  }
-  copyDir(r("public"), DIST);
+  if (!watch) fs.rmSync(DIST, { recursive: true, force: true });
+  const files = new Set();
+  copyDir(r("public"), DIST, files);
 
   // The game is one IIFE: src/main.js and the modules it imports — the game code is deliberately
   // zero-dependency, so nothing from node_modules ships. The version constants are plain identifiers
@@ -91,22 +99,22 @@ async function build() {
   const pending = m.gameFile;
   m.gameFile = `game-v${m.version}-${digest(bundle)}.js`;
   fs.renameSync(path.join(DIST, pending), path.join(DIST, m.gameFile));
+  files.add(m.gameFile);
   // Include HTML, worker logic and public assets so non-JS changes also install a new snapshot.
   const hash = createHash("sha256");
-  const hashDir = (dir) => {
-    for (const name of fs.readdirSync(dir).sort()) {
-      const file = path.join(dir, name);
-      if (fs.statSync(file).isDirectory()) hashDir(file);
-      else hash.update(path.relative(ROOT, file)).update("\0").update(fs.readFileSync(file)).update("\0");
-    }
-  };
-  hashDir(DIST);
+  for (const file of [...files].sort())
+    hash
+      .update(file)
+      .update("\0")
+      .update(fs.readFileSync(path.join(DIST, file)))
+      .update("\0");
   for (const f of ["index.html", "sw.js", "build-info.json"]) hash.update(fs.readFileSync(r("src", f)));
   hash.update(JSON.stringify(m));
   m.assets = hash.digest("hex").slice(0, 16);
 
   for (const f of ["index.html", "sw.js", "build-info.json"]) {
     fs.writeFileSync(path.join(DIST, f), fill(fs.readFileSync(r("src", f), "utf8"), m, f));
+    files.add(f);
   }
   // Small identity file used by startup diagnostics and the update handshake.
   const info = JSON.parse(fs.readFileSync(path.join(DIST, "build-info.json"), "utf8")); // must stay valid JSON
@@ -115,12 +123,13 @@ async function build() {
 
   // Offline contract: every file the service worker precaches must exist in dist/.
   const sw = fs.readFileSync(path.join(DIST, "sw.js"), "utf8");
-  const files = JSON.parse(sw.match(/const FILES = (\[[^\]]*\]);/)[1]);
-  const missing = files.filter((f) => f !== "./" && !fs.existsSync(path.join(DIST, f)));
+  const offlineFiles = JSON.parse(sw.match(/const FILES = (\[[^\]]*\]);/)[1]);
+  const missing = offlineFiles.filter((f) => f !== "./" && !files.has(f));
   if (missing.length) throw new Error(`sw.js precaches missing files: ${missing.join(", ")}`);
   const manifest = JSON.parse(fs.readFileSync(path.join(DIST, "manifest.webmanifest"), "utf8"));
-  const icons = manifest.icons.map((i) => i.src).filter((f) => !fs.existsSync(path.join(DIST, f)));
+  const icons = manifest.icons.map((i) => i.src).filter((f) => !files.has(f));
   if (icons.length) throw new Error(`manifest icons missing: ${icons.join(", ")}`);
+  if (watch) pruneDist(DIST, files);
 
   const kb = (f) => `${(fs.statSync(path.join(DIST, f)).size / 1024).toFixed(0)} KB`;
   console.log(

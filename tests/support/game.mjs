@@ -23,7 +23,11 @@ after(async () => {
   if (pending) await (await pending).close().catch(() => {});
 });
 
-export async function openGame(t, mode, { fresh = false, audio = false, dpr = 1, viewport } = {}) {
+export async function openGame(
+  t,
+  mode,
+  { fresh = false, audio = false, dpr = 1, viewport, isolatedBrowser = false } = {},
+) {
   const profile = mode === true ? "tablet" : mode === false ? "phone" : mode || "phone";
   const isDesktop = profile === "desktop";
   const defaultViewport =
@@ -39,12 +43,13 @@ export async function openGame(t, mode, { fresh = false, audio = false, dpr = 1,
     server.closeAllConnections();
     return new Promise((resolve) => server.close(resolve));
   };
-  let context;
+  let context, browser;
   t.after(async () => {
     await context?.close().catch(() => {});
+    if (isolatedBrowser) await browser?.close().catch(() => {});
     await stopServer();
   });
-  const browser = await getBrowser();
+  browser = isolatedBrowser ? await chromium.launch(launchOptions()) : await getBrowser();
   context = await browser.newContext({
     viewport: viewport || defaultViewport,
     deviceScaleFactor: dpr,

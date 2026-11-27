@@ -189,7 +189,7 @@ function rlPlanTraps(world, wave, boss) {
       const base = trapCount(fam, wave, impossible);
       let count = base && skins[fam] ? base + storm : 0;
       if (boss) count = Math.min(3, Math.ceil(count / 2));
-      if (impossible && fam === "beam" && wave > 20) count = Math.min(4, count);
+      if (fam === "beam" && wave > 20) count = Math.min(4, count);
       return { fam, count, placed: 0 };
     })
     .filter((group) => group.count > 0);
@@ -254,6 +254,7 @@ function trapEffectsOnPlayer(world, skin, trap) {
     world.emit("corrode", { x: player.x, y: player.y, skin: trap.skin });
   } else if (skin.special === "burn") {
     player.singeT = Math.max(player.singeT || 0, 1.5);
+    player.singeSrc = "trap";
     world.emit("singe", { x: player.x, y: player.y, skin: trap.skin });
   } else if (skin.special === "glass") {
     if (0.65 >= player.slowT) player.slowKind = "daze";
@@ -349,6 +350,7 @@ function trapStrike(world, trap, skin, radius, enemyMul = 1, shotDetonated = fal
       dps: 16 * (world.stats.dmgMul || 1),
       hostile: true,
       playerDps: 14,
+      src: "trap",
     });
   }
   // Sun Dunes sun-rose / glass amphora calms nearby dust devils on burst

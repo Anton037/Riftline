@@ -5,6 +5,29 @@ import { openGame } from "./support/game.mjs";
 const timeout = process.env.TEST_DRAW === "1" ? 180000 : 30000;
 const metric = /^\d+ FPS · \d+\.\d ms CPU$/;
 
+test("portrait leaves the HUD editor and Game Over usable on a phone", { timeout }, async (t) => {
+  const { page, press, errors } = await openGame(t, "phone", { viewport: { width: 390, height: 844 } });
+  await press('[data-go="settings"]');
+  await press("#hudEditBtn");
+  await page.locator("#hudEdit").waitFor();
+  assert.equal(await page.locator("#rotate").isVisible(), false);
+  await page.locator("#heFixed").tap();
+  assert.equal(await page.locator("#heSize").isVisible(), false);
+  await press("#heReset");
+  assert.equal(await page.locator("#heFixed").isChecked(), false);
+  await press("#heSave");
+  await press("#settings [data-back]");
+  await page.setViewportSize({ width: 844, height: 390 });
+  await press("#playBtn");
+  await page.evaluate(() => window.__riftTest.game.endRun(false));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForFunction(() => document.body.dataset.orientation === "portrait");
+  assert.equal(await page.locator("#rotate").isVisible(), false);
+  await press("#homeBtn");
+  await page.locator("#home").waitFor();
+  assert.deepEqual(errors, []);
+});
+
 test(
   "a phone can restore defaults, turn the performance readout back on, and see it clear of boss HUD",
   { timeout },

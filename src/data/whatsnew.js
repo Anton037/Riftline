@@ -4,6 +4,19 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "5.4.2",
+    title: "Clearer fights and smoother controls",
+    items: [
+      "Boss and trap warnings are easier to see against ice, sand, and marsh terrain.",
+      "Fixed Fire Well and Ring Blade weapon interactions, Echo Shot cadence, and several boss relic rewards.",
+      "Busy fights render more efficiently, and frame pacing adapts better to high-refresh displays.",
+      "The HUD editor and Game Over controls work in portrait, with more reliable mouse, touch, and stylus input.",
+      "Fight and boss music play at closer levels, with smoother transitions when pausing and resuming.",
+      "Workshop purchases check for newer progress from other tabs, and imported saves show refund notices.",
+      "Active runs stay open when another tab applies a game update.",
+    ],
+  },
+  {
     version: "5.4.1",
     title: "Choose your arena traps",
     items: [
@@ -45,17 +58,6 @@ export const WHATS_NEW = [
       "Hunting floor traps now surface beneath center-campers from Wave 2 onward, and dormant floor plates wake up faster when stepped on.",
       "Sweeping beams now track across your position instead of firing into outer walls, and alternate sweep direction between cycles.",
       "Respawning mines can reclaim the middle of the arena, and detonating a mine chains nearby armed mines.",
-    ],
-  },
-  {
-    version: "5.3.0",
-    title: "Craft polish and fixes",
-    items: [
-      "Fire Burst now erupts in warm ember flame, and Fire Bellows, Star Hall beams, and arena props received a visual polish pass.",
-      "Refined enemy, boss, and Keeper models, smoother strafe/corpse motion, cleaner damage numbers, and clearer boss callouts.",
-      "Added desktop keyboard shortcuts for the Roadside Forge (1–3 and Enter), refined HUD spacing, and unified craft and Guide labels.",
-      "Added Roadside Forge arrival and Endless shift chimes alongside smoother, click-free music and resume transitions.",
-      "Hardened save parsing and corrupt-save recovery so backups stay readable after reload and oversized imports stay safely bounded.",
     ],
   },
 ];

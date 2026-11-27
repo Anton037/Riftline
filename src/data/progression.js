@@ -21,7 +21,7 @@ const threatLevels = THREAT_NAMES.map((name, lvl) => {
     desc:
       lvl === 0
         ? "Start with the standard difficulty."
-        : `Enemies +${pct(m.hp)}% HP \xB7 +${pct(m.dmg)}% damage \xB7 +${pct(m.budget)}% wave size \xB7 +${Math.round(m.elite * 100)}% elite chance \xB7 bosses +${pct(m.boss)}% HP \xB7 shards +${pct(m.shards)}%${lvl >= 3 ? " \xB7 champions roam earlier" : ""}`,
+        : `Enemies +${pct(m.hp)}% HP \xB7 +${pct(m.dmg)}% damage \xB7 +${pct(m.budget)}% wave size \xB7 +${Math.round(m.elite * 100)}% elite chance \xB7 bosses +${pct(m.boss)}% HP \xB7 shards +${pct(m.shards)}%`,
   };
 });
 const workshopModules = [
@@ -166,7 +166,7 @@ const workshopModules = [
     group: "ward",
     name: "Emergency Shield",
     icon: "shield",
-    desc: "Once per wave below 30% HP: gain a 1 s shield and mend 8% HP per level",
+    desc: "Once per wave below 30% HP, each level grants 1 s of shielding and restores 8% HP.",
     costs: [900, 2200],
   },
 ];

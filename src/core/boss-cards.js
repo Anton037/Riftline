@@ -36,12 +36,11 @@ const LOCK_EVERY = 7,
   FANG_MAX = 42;
 
 // Guaranteed Boss Relic offering on Boss Waves (W5, W10, W15, and Endless boss waves).
-// On Wave 15, if the defeated Guardian's relic is already owned or Star Hall has been unlocked,
-// Star Pull ('collapse') can be offered so it is not locked strictly behind Endless.
+// Star Pull can fill the Wave 15 relic slot if the Guardian has no unowned relic.
 function bossCardOffer(world) {
   const boss = world.bossFor(world.wave);
   let id = boss && BOSS_CARD[boss];
-  if (world.wave === 15 && !world.up.collapse && (!id || world.up[id] || world.starVaultUnlocked)) {
+  if (world.wave === 15 && !world.up.collapse && (!id || world.up[id])) {
     id = "collapse";
   }
   if (!id || world.up[id]) return null;
@@ -123,11 +122,9 @@ function updateSealgrid(world, dt) {
         dist = Math.hypot(dx, dy) || 0.001,
         edge = cage.r - enemy.r * 0.6;
       if (enemy.boss) {
-        // Guardians are slowed by 30% while inside the cage
-        if (dist < cage.r + enemy.r) {
-          enemy.cageSlowT = Math.max(enemy.cageSlowT || 0, 0.25);
-          enemy.slowT = Math.max(enemy.slowT || 0, 0.25);
-        }
+        if (enemy.ghost || dist >= cage.r + enemy.r) continue;
+        enemy.cageSlowT = Math.max(enemy.cageSlowT || 0, 0.25);
+        enemy.slowT = Math.max(enemy.slowT || 0, 0.25);
       } else if (dist > edge) {
         enemy.x = cage.x + (dx / dist) * edge;
         enemy.y = cage.y + (dy / dist) * edge;
@@ -157,13 +154,14 @@ function updateBurnPools(world, dt) {
         enemy.dead ||
         enemy.ghost ||
         enemy.shielded ||
+        (pool.hostile && enemy.boss) ||
         Math.hypot(enemy.x - pool.x, enemy.y - pool.y) > pool.r + enemy.r * 0.5
       )
         return;
       const was = enemy.burnT > 0 ? enemy.burnDps : 0;
       enemy.burnT = Math.max(enemy.burnT, 1.2);
       enemy.burnDps = Math.max(was, dps);
-      enemy.burnSrc = pool.src || "burn";
+      if (dps >= was) enemy.burnSrc = pool.src || "burn";
       if (pool.vuln) {
         enemy.chimeVulnT = Math.max(enemy.chimeVulnT || 0, 1.0);
       }
@@ -171,13 +169,23 @@ function updateBurnPools(world, dt) {
     // Hostile trap burnPools also singe the player
     if (
       pool.hostile &&
+      world.state === "fight" &&
       player &&
       player.alive &&
       player.dashT <= 0 &&
       Math.hypot(player.x - pool.x, player.y - pool.y) <= pool.r + player.r * 0.4
     ) {
-      world.hurtPlayer((pool.playerDps || 14) * dt, null, null, "lava", true);
-      player.singeT = Math.max(player.singeT || 0, 0.45);
+      const src = pool.src || "lava";
+      const severity = src === "trap" && world.trapMode === "impossible" ? 1.75 : 1;
+      const resist = Math.max(0, 1 - (world.stats.hazardResist || 0));
+      const damage = (pool.playerDps ?? 14) * world.dmgMul * severity * resist * dt;
+      if (damage > 0 && world.barrierT <= 0 && !world.god) {
+        world.hurtPlayer(damage, null, null, src, true);
+        if (player.singeT <= 0.45) {
+          player.singeT = 0.45;
+          player.singeSrc = src;
+        }
+      }
     }
   }
   let w = 0;

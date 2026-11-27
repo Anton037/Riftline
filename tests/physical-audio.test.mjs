@@ -109,10 +109,11 @@ test("hits and critical hits use the target material; only crystal targets use g
   const families = {
     kettleGuard: "hitArmor",
     longshot: "hitArmor",
-    healingStone: "hitArmor",
+    healingStone: "hitStone",
+    crystalTower: "hitCrystal",
     smallBug: "hitOrganic",
     mossHealer: "hitOrganic",
-    supplyKite: "hitOrganic",
+    supplyKite: "hitArmor",
     starHeart: "hitStone",
     emberKing: "hitStone",
     iceCrystal: "hitCrystal",

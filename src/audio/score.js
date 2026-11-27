@@ -129,6 +129,10 @@ const themeFor = (biome) => (biome === "menu" ? MENU_THEME : THEMES[biome] || TH
 export const scoreBiomes = Object.keys(THEMES);
 export const scoreOrigin = (biome) => freq(themeFor(biome).roots[0]);
 
+// Measured at the default music level with the complete score and atmospheres.
+const fightGain = { lanternYard: 2.04, snowRidge: 1.7, mossBog: 2.55, starHall: 1.7, emberHill: 1.7, sunDunes: 2.55 };
+const bossGain = { lanternYard: 0.5, snowRidge: 0.35, mossBog: 0.63, starHall: 0.33, emberHill: 0.37, sunDunes: 0.71 };
+
 /** Returns a MIDI note quantized to the active biome's root and modal scale for musical reward & prop chimes. */
 export function scoreScaleMidi(biome, degree = 0, octaveLift = 24) {
   const theme = themeFor(biome);
@@ -142,11 +146,14 @@ export function scoreScaleMidi(biome, degree = 0, octaveLift = 24) {
 export function musicTrack(kind, biome) {
   if (kind === "menu") return { bpm: MENU_THEME.bpm[0], bars: MENU_THEME.bars, gain: 1 };
   const boss = kind === "boss";
-  // 24-bar boss loops (384 steps) divide cleanly by 4, 6, 8, 12 and 16 so 6/8 and 3/4 boss meters never stumble
+  const theme = themeFor(biome);
+  const jumpStep = boss && theme.id === "lanternYard" ? 6 : boss && theme.id === "starHall" ? 12 : 16;
+  // The 384-step boss loop aligns with all three meters.
   return {
-    bpm: themeFor(biome).bpm[boss ? 1 : 0],
+    bpm: theme.bpm[boss ? 1 : 0],
     bars: boss ? 24 : 16,
-    gain: boss ? 1.06 : { lanternYard: 1.2, mossBog: 1.5, sunDunes: 1.5 }[biome] || 1,
+    gain: (boss ? bossGain : fightGain)[theme.id],
+    jumpStep,
   };
 }
 
@@ -164,10 +171,10 @@ export function playScore(engine, kind, biome, step, at) {
   const isSectionB = !boss && !menu && section === 2;
   const isSectionC = section === 3;
   const activeRoots = isSectionC && theme.bridgeRoots ? theme.bridgeRoots : theme.roots;
-  const root = activeRoots[(boss ? bar + section : (bar >> 1) + (section & 1)) % activeRoots.length];
+  const root = activeRoots[(boss ? bar : (bar >> 1) + (section & 1)) % activeRoots.length];
   engine.activeRoot = root;
   const note = (degree) => root + theme.mode[((degree % 6) + 6) % 6];
-  const seconds = 240 / (menu ? MENU_THEME.bpm[0] : musicTrack(kind, biome).bpm);
+  const seconds = 240 / theme.bpm[boss ? 1 : 0];
   const rawEnergy = boss ? 1 + engine.heat * 0.1 : engine.intensity;
   const energy = !boss && !menu && bar === 0 ? rawEnergy * 0.72 : rawEnergy;
   const active = boss || (!menu && energy > 0.26);
@@ -606,7 +613,7 @@ function change(e, biome, at, resolve) {
     const wave = index === 0 ? "bow" : resolve ? "harp" : index < 3 ? "brass" : "celesta";
     e.tone(origin * ratio, 1.15 + index * 0.14, wave, 0.115 / (1 + index * 0.28), {
       at: at + index * 0.062,
-      dest: e.mus,
+      dest: e.stings,
       attack: 0.028,
       hold: 0.16,
       lp: 3200,

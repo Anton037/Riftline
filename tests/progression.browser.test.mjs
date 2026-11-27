@@ -455,8 +455,9 @@ test("first-run desktop onboarding keeps keyboard and mouse prompts when a touch
   assert.deepEqual(errors, []);
 });
 
-test("the focused menu keeps workshop upgrades and achievement rewards working", { timeout }, async (t) => {
-  const { page, press, errors } = await openGame(t, false);
+test("the focused menu keeps workshop upgrades and milestone rewards working", { timeout }, async (t) => {
+  // Start this flow outside the browser process used by the preceding offline and audio tests.
+  const { page, press, errors } = await openGame(t, false, { isolatedBrowser: true });
   assert.deepEqual(await page.locator(".bottom-nav [data-go]").evaluateAll((nodes) => nodes.map((n) => n.dataset.go)), [
     "workshop",
     "records",

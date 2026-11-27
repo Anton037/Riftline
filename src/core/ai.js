@@ -50,6 +50,7 @@ function nextBossAttack(game, boss) {
   boss.t = 0;
   boss.t2 = 0;
   boss.n = 0;
+  boss.didBurstOpen = false;
   game.emit("bossAtk", { id: boss.type, atk: boss.st, src: boss.type });
 }
 
@@ -411,7 +412,8 @@ function updateBoss(game, boss, dt) {
         return;
       }
       if (boss.st === "burst") {
-        if (boss.n === 0) {
+        if (!boss.didBurstOpen) {
+          boss.didBurstOpen = true;
           for (const side of [-1, 1]) {
             const a = aim + side * 0.55,
               tx = clamp(player.x + Math.cos(a) * 3.0, -game.arena.W + 1.2, game.arena.W - 1.2),
@@ -682,7 +684,7 @@ function updateBoss(game, boss, dt) {
               mx = step % 8 === 0 ? p.ax : p.bx,
               my = step % 8 === 0 ? p.ay : p.by,
               pAim = Math.atan2(player.y - my, player.x - mx);
-            game.shoot(mx, my, pAim, 8.2, shotDmg * 0.9, { r: 0.26 });
+            game.shoot(mx, my, pAim, 8.2, shotDmg * 0.9, { r: 0.26, warpT: 0.45 });
           }
           bossVolley(game, boss, 0.3);
         }
@@ -760,7 +762,8 @@ function updateBoss(game, boss, dt) {
       if (boss.st === "burst") {
         // Portal-Refracted Beams & Orbs: fires beams into the arena's portals that refract out of the exit mouths!
         const portals = game.arena.portals || [];
-        if (boss.n === 0 && portals.length) {
+        if (!boss.didBurstOpen && portals.length) {
+          boss.didBurstOpen = true;
           for (const p of portals) {
             const pAimA = Math.atan2(player.y - p.by, player.x - p.bx),
               pAimB = Math.atan2(player.y - p.ay, player.x - p.ax);
@@ -802,7 +805,7 @@ function updateBoss(game, boss, dt) {
             const p = portals[boss.n % portals.length],
               pAim = Math.atan2(player.y - p.by, player.x - p.bx);
             for (const off of [-0.18, 0, 0.18]) {
-              game.shoot(p.bx, p.by, pAim + off, 9.2, shotDmg * 0.9, { r: 0.25 });
+              game.shoot(p.bx, p.by, pAim + off, 9.2, shotDmg * 0.9, { r: 0.25, warpT: 0.45 });
             }
           }
           boss.n++;
@@ -1501,6 +1504,7 @@ function spawnSunglassSpires(game, boss) {
       arena.obs.push({ t: "c", x: sx, y: sy, r: 0.72, glassSpire: true, life: 6.0 });
     }
   }
+  arena.flow.rebuildObstacles();
 }
 
 /* Sand Dragon, Guardian of the Sun Dunes */
@@ -1521,13 +1525,37 @@ function updateGlasswyrm(game, boss, dt, aim, dist, shotDmg, rage) {
     boss.charging = false;
     endBossAttack(boss, walk);
   };
-  const chain = (angle, wind) => {
+  const emergence = (x, y) => {
+    const spot = { x, y };
+    const clearance = boss.r + 0.1;
+    arena.resolve(spot, clearance);
+    if (!arena.blocked(spot.x, spot.y, clearance)) return spot;
+    return (
+      arena.nearbyPoint(x, y, clearance, 5, [], boss.ta) ||
+      arena.freePoint(game.rng, x, y, 0, clearance) || { x: boss.x, y: boss.y }
+    );
+  };
+  const warnEmergence = (distance) => {
+    const spot = emergence(player.x + Math.cos(boss.ta) * distance, player.y + Math.sin(boss.ta) * distance);
+    boss.tx = spot.x;
+    boss.ty = spot.y;
+    game.hazard({ ...spot, r: 2.2, delay: 0.55, dmg: 0, kind: "stomp", src: "sandDragon" });
+    game.emit("blinkWarn", { ...spot, src: "sandDragon" });
+  };
+  const chain = (angle, wind, surfaces = false) => {
     const spots = [];
     for (let k = 0; k < 6; k++) {
-      const reach = 2.6 + k * 2.3,
-        x = boss.x + Math.cos(angle) * reach,
+      const reach = 2.6 + k * 2.3;
+      let x = boss.x + Math.cos(angle) * reach,
         y = boss.y + Math.sin(angle) * reach;
       if (!inside(x, y)) break;
+      const nextReach = reach + 2.3;
+      if (
+        surfaces &&
+        (k === 5 || !inside(boss.x + Math.cos(angle) * nextReach, boss.y + Math.sin(angle) * nextReach))
+      ) {
+        ({ x, y } = emergence(x, y));
+      }
       spots.push([x, y]);
       game.hazard({
         x,
@@ -1564,7 +1592,7 @@ function updateGlasswyrm(game, boss, dt, aim, dist, shotDmg, rage) {
         boss.fx = [];
         const offsets = rage ? [-0.5, 0, 0.5] : [0];
         for (const off of offsets) {
-          const spots = chain(aim + off, wind);
+          const spots = chain(aim + off, wind, off === 0);
           boss.fx.push(spots.length ? spots[spots.length - 1] : [boss.x, boss.y]);
         }
         game.emit("blinkWarn", { x: boss.x, y: boss.y, src: "sandDragon" });
@@ -1666,10 +1694,7 @@ function updateGlasswyrm(game, boss, dt, aim, dist, shotDmg, rage) {
       // Emit a 0.55s warning ring at the emergence spot before surfacing
       if (boss.n === 1 && boss.t >= 0.95) {
         boss.n = 2;
-        boss.tx = clamp(player.x + Math.cos(boss.ta) * 6.5, -arena.W + boss.r + 0.5, arena.W - boss.r - 0.5);
-        boss.ty = clamp(player.y + Math.sin(boss.ta) * 6.5, -arena.H + boss.r + 0.5, arena.H - boss.r - 0.5);
-        game.hazard({ x: boss.tx, y: boss.ty, r: 2.2, delay: 0.55, dmg: 0, kind: "stomp", src: "sandDragon" });
-        game.emit("blinkWarn", { x: boss.tx, y: boss.ty, src: "sandDragon" });
+        warnEmergence(6.5);
       }
       if (boss.n === 2 && boss.t >= 1.5) {
         boss.n = 3;
@@ -1685,10 +1710,7 @@ function updateGlasswyrm(game, boss, dt, aim, dist, shotDmg, rage) {
       }
       if (boss.n === 3 && rage && boss.t >= 2.35) {
         boss.n = 4;
-        boss.tx = clamp(player.x + Math.cos(boss.ta) * 6, -arena.W + boss.r + 0.5, arena.W - boss.r - 0.5);
-        boss.ty = clamp(player.y + Math.sin(boss.ta) * 6, -arena.H + boss.r + 0.5, arena.H - boss.r - 0.5);
-        game.hazard({ x: boss.tx, y: boss.ty, r: 2.2, delay: 0.55, dmg: 0, kind: "stomp", src: "sandDragon" });
-        game.emit("blinkWarn", { x: boss.tx, y: boss.ty, src: "sandDragon" });
+        warnEmergence(6);
       }
       if (boss.n === 4 && rage && boss.t >= 2.9) {
         boss.n = 5;

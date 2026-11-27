@@ -37,6 +37,8 @@ const LOOK = {
 };
 const ARMING = hex(FINISH.brass);
 const TRIGGER = hex(0xffae71);
+const DUNE_TRIGGER = hex(0x4be6e1);
+const IMPOSSIBLE_TRIM = hex(0xffbd72);
 
 const easeOut = (k) => 1 - (1 - k) * (1 - k);
 const facets = (n, fn) => Array.from({ length: n }, (_, i) => fn((i * TAU) / n, i));
@@ -386,6 +388,17 @@ export class TrapView {
         s.z = trap.y;
       }
       this[trap.fam](trap, s, look, dt, quality, world);
+      if (world.trapMode === "impossible" && trap.st !== "gone") {
+        const size = trap.fam === "floor" ? trap.r * 0.62 : 0.68;
+        for (let i = 0; i < 3; i++) {
+          const a = trap.id + (i * TAU) / 3;
+          const x1 = trap.x + Math.cos(a - 0.16) * size;
+          const z1 = trap.y + Math.sin(a - 0.16) * size;
+          const x2 = trap.x + Math.cos(a + 0.16) * size;
+          const z2 = trap.y + Math.sin(a + 0.16) * size;
+          r.beams.colC(r.beams.seg(x1, z1, x2, z2, 0.1, 0.055, 0.035), IMPOSSIBLE_TRIM, 0.85);
+        }
+      }
     }
   }
   warnRing(x, z, radius, k, color = WARN) {
@@ -581,39 +594,40 @@ export class TrapView {
         WHITE,
         0.6 + charge * 0.9 + live * 1.2 + Math.sin(time * 9) * 0.08,
       );
-    }
-    const cy = Math.cos(s.yaw),
-      sy = Math.sin(s.yaw);
-    if (charge > 0) {
-      const tx = x + cy * 1.15,
-        tz = z + sy * 1.15;
-      if (Math.random() < dt * (14 + charge * 36) * quality) {
-        const ang = Math.random() * TAU,
-          d = 0.8,
-          life = 0.3;
-        r.emit(
-          tx + Math.cos(ang) * d,
-          hover + Math.sin(ang) * d * 0.6,
-          tz + Math.sin(ang * 1.7) * d * 0.4,
-          (-Math.cos(ang) * d) / life,
-          (-Math.sin(ang) * d * 0.6) / life,
-          0,
-          life,
-          0.14,
-          look.main,
-          { drag: 0, spark: true },
-        );
+      const cy = Math.cos(yaw),
+        sy = Math.sin(yaw);
+      if (charge > 0) {
+        const tx = x + cy * 1.15,
+          tz = z + sy * 1.15;
+        if (Math.random() < dt * (14 + charge * 36) * quality) {
+          const ang = Math.random() * TAU,
+            d = 0.8,
+            life = 0.3;
+          r.emit(
+            tx + Math.cos(ang) * d,
+            hover + Math.sin(ang) * d * 0.6,
+            tz + Math.sin(ang * 1.7) * d * 0.4,
+            (-Math.cos(ang) * d) / life,
+            (-Math.sin(ang) * d * 0.6) / life,
+            (-Math.sin(ang * 1.7) * d * 0.4) / life,
+            life,
+            0.14,
+            look.main,
+            { drag: 0, spark: true },
+          );
+        }
+        r.sprites.colC(r.sprites.bb(tx, hover, tz, 0.5 + charge * 1.3, r.B), look.main, 0.4 + charge * 0.5);
       }
-      r.sprites.colC(r.sprites.bb(tx, hover, tz, 0.5 + charge * 1.3, r.B), look.main, 0.4 + charge * 0.5);
-    }
-    if (live) {
-      r.sprites.colC(r.sprites.bb(x + cy * 1.2, hover, z + sy * 1.2, 1.6, r.B), look.main, 0.42);
+      if (live) {
+        r.sprites.colC(r.sprites.bb(x + cy * 1.2, hover, z + sy * 1.2, 1.6, r.B), look.main, 0.42);
+      }
     }
   }
   drawBeam(beam, ex, ez, len, time, dt) {
     const r = this.r;
     const look = LOOK[beam.skin === "fireBellows" ? "magma" : beam.skin];
     if (!beam.live || !look) return false;
+    const particleDt = dt * Math.min(1, r.maxParticles / 1400);
     const ca = Math.cos(beam.a),
       sa = Math.sin(beam.a);
     const b = r.beams;
@@ -621,7 +635,7 @@ export class TrapView {
     if (beam.skin === "fireBellows" || beam.skin === "magma") {
       r.weaponView.flameBeam(beam, len);
       b.colC(b.seg(beam.x, beam.y, ex, ez, 0.08, beam.w * 0.9, 0.03), look.main, 0.24);
-      if (Math.random() < dt * 14) {
+      if (Math.random() < particleDt * 14) {
         const d = Math.random() * len;
         r.emit(beam.x + ca * d, 0.8, beam.y + sa * d, ca, 1.5, sa, 0.4, 0.14, look.main, { drag: 2, grav: -1 });
       }
@@ -702,13 +716,13 @@ export class TrapView {
       b.colC(b.seg(beam.x, beam.y, ex, ez, 0.85, beam.w * 0.96 * sheen, beam.w * 0.44), look.main, 0.58);
       b.colC(b.seg(beam.x, beam.y, ex, ez, 0.88, beam.w * 0.4, beam.w * 0.26), look.alt, 0.72);
       b.colC(b.seg(beam.x, beam.y, ex, ez, 0.9, beam.w * 0.15, beam.w * 0.15), WHITE, 0.82);
-      if (Math.random() < dt * 16) {
+      if (Math.random() < particleDt * 16) {
         const d = Math.random() * len;
         r.emit(beam.x + ca * d, 0.75, beam.y + sa * d, 0, 1.3, 0, 0.45, 0.15, look.alt, { spark: true, drag: 1.5 });
       }
     }
     r.sprites.colC(r.sprites.bb(ex, 1, ez, 1.05, r.B), look.main, 0.36);
-    if (Math.random() < dt * 28) {
+    if (Math.random() < particleDt * 28) {
       r.emit(
         ex,
         0.8,
@@ -770,7 +784,12 @@ export class TrapView {
     if (P.mover) P.mover.y(x, gy, z, time * (fuse ? 6 : 1.4), sc, sc, sc);
     if (armed || fuse) {
       r.sprites.colC(r.sprites.bb(x, 0.42, z, 1.15 + (fuse ? k * 0.65 : 0), r.B), col, fuse ? 0.25 + k * 0.2 : 0.14);
-      if (armed) r.ringPool.colC(r.ringPool.y(x, 0.04, z, 0, skin.trig), TRIGGER, 0.55);
+      if (armed)
+        r.ringPool.colC(
+          r.ringPool.y(x, 0.04, z, 0, skin.trig),
+          trap.skin === "glassmine" ? DUNE_TRIGGER : TRIGGER,
+          0.68,
+        );
     }
     if (fuse) {
       this.warnRing(x, z, trap.r * (trap.friendlyFuse ? MINE_SHOT_SCALE : 1), k, col);

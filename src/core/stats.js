@@ -31,6 +31,7 @@ function computeStats(weaponId, run, workshop) {
     wingDmgMul = wingLv > 0 ? 1 : droneBayLv >= 1 ? 0.55 : 0,
     wingCycle = (wingLv > 1 ? 0.35 : 0.48) / (droneBayLv >= 2 ? 1.25 : 1);
 
+  const extraCharge = level("extraCharge");
   const stats = {
     weapon,
     maxHp: 100 + 10 * moduleLevel("healthCoat") + 25 * level("hp"),
@@ -71,8 +72,8 @@ function computeStats(weaponId, run, workshop) {
     siphonCh: scaled("healingDrops", 0.18, 0.06),
     siphonHp: scaled("healingDrops", 6, 1),
     rear: level("backShot"),
-    novaMul: 1 + 0.3 * level("extraCharge"),
-    novaR: 6.5 * (1 + 0.25 * level("extraCharge")),
+    novaMul: 1 + 0.3 * extraCharge,
+    novaR: 6.5 * (1 + 0.25 * Math.min(2, extraCharge) + 0.1 * Math.max(0, extraCharge - 2)),
     helperWisps: wingLv || (droneBayLv >= 1 ? 1 : 0),
     wingmen,
     wingDmgMul,
@@ -85,7 +86,7 @@ function computeStats(weaponId, run, workshop) {
     wildfire: has("wildfire"),
     trail: has("ghostDash"),
     boomerang: !!weapon.boomerang,
-    capacitor: level("extraCharge"),
+    capacitor: extraCharge,
     burn: weapon.burn || 0,
     burnMul: has("dragon") ? 2 : 1,
     overdrive: has("sunGun"),
@@ -103,9 +104,7 @@ function computeStats(weaponId, run, workshop) {
   stats.fireWave = level("fireWave");
   stats.crit = Math.min(0.95, stats.crit);
   stats.echo = level("echo");
-  const extraCharge = level("extraCharge");
   stats.range *= 1 + 0.06 * level("crit");
-  stats.novaR *= (1 + 0.25 * Math.min(2, extraCharge) + 0.1 * Math.max(0, extraCharge - 2)) / (1 + 0.25 * extraCharge);
   // Boss Relics (core/boss-cards.js)
   stats.bellCage = has("bellCage");
   stats.shardField = has("iceShards");

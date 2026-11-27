@@ -33,6 +33,15 @@ def periodic_fbm(size, octaves, seed, anisotropy=(1.0, 1.0)):
     return acc / max(total, 1e-6)
 
 
+ATLAS_TILE = 512
+ATLAS_GUTTER = 32
+
+
+def add_gutter(pixels):
+    pixels = np.clip(pixels, 0, 255).astype("uint8")
+    return Image.fromarray(np.pad(pixels, ((ATLAS_GUTTER, ATLAS_GUTTER), (ATLAS_GUTTER, ATLAS_GUTTER), (0, 0)), mode="wrap"))
+
+
 def brush_strokes(size, count, seed, angle_deg, spread_deg, length_range, width_range, strength):
     """Stamp seamless wrapped tapered painterly brushstroke dabs into a float32 canvas."""
     rng = np.random.default_rng(seed)
@@ -66,7 +75,10 @@ def brush_strokes(size, count, seed, angle_deg, spread_deg, length_range, width_
                     (mx - dx * 0.32 - px, my - dy * 0.32 - py),
                 ]
                 draw.polygon(pts, fill=val)
-    arr = np.asarray(canvas.filter(ImageFilter.GaussianBlur(1.5)), dtype=np.float32)
+    pad = 6
+    wrapped = Image.fromarray(np.pad(np.asarray(canvas), pad, mode="wrap"))
+    blurred = wrapped.filter(ImageFilter.GaussianBlur(1.5)).crop((pad, pad, size + pad, size + pad))
+    arr = np.asarray(blurred, dtype=np.float32)
     return (arr - 128.0) / 120.0
 
 
@@ -75,8 +87,8 @@ def make_terrain_atlas():
     Order: 0=courtyard, 1=shelf, 2=marsh, 3=core, 4=caldera, 5=flats.
     Calm mid-frequency gouache brushwork so walkable combat floors stay readable while retaining tactile craft.
     """
-    size = 512
-    atlas = Image.new("RGB", (size * 3, size * 2))
+    size = ATLAS_TILE - 2 * ATLAS_GUTTER
+    atlas = Image.new("RGB", (ATLAS_TILE * 3, ATLAS_TILE * 2))
     specs = [
         # (base_rgb, warm_tint, cool_tint, angle, spread, seed)
         ((34, 50, 64), (52, 70, 84), (22, 32, 46), 18, 22, 101),          # courtyard: calm rain-washed courtyard flagstones
@@ -116,8 +128,7 @@ def make_terrain_atlas():
         lo = np.clip(t * 2.0, 0.0, 1.0)[..., None]
         hi = np.clip((t - 0.5) * 2.0, 0.0, 1.0)[..., None]
         rgb = np.where(t[..., None] < 0.5, cool_v * (1.0 - lo) + base_v * lo, base_v * (1.0 - hi) + warm_v * hi)
-        tile = Image.fromarray(np.clip(rgb, 0, 255).astype("uint8"))
-        atlas.paste(tile, (size * (idx % 3), size * (idx // 3)))
+        atlas.paste(add_gutter(rgb), (ATLAS_TILE * (idx % 3), ATLAS_TILE * (idx // 3)))
     atlas.save(PUBLIC / "textures" / "terrain-atlas.webp", "WEBP", quality=90, method=6)
 
 
@@ -129,8 +140,8 @@ def make_surface_atlas():
     R = painterly value/brush height, G = stylized micro-roughness, B = edge/ridge glint accent.
     Saved as lossless WebP so linear R/G/B data channels never suffer YUV chroma subsampling bleed.
     """
-    size = 512
-    atlas = Image.new("RGB", (size * 3, size * 2))
+    size = ATLAS_TILE - 2 * ATLAS_GUTTER
+    atlas = Image.new("RGB", (ATLAS_TILE * 3, ATLAS_TILE * 2))
     configs = [
         # (angle, spread, stroke_count, ridge_freq, roughness_base, seed)
         (0, 8, 520, 10, 0.24, 701),     # metal: crisp directional brushed brass/iron grain
@@ -147,12 +158,12 @@ def make_surface_atlas():
         tooth = np.random.default_rng(seed + 29).normal(0, 0.022, (size, size)).astype(np.float32)
         val = np.clip(0.50 + fbm * 0.16 + strokes * 0.19 + tooth, 0.0, 1.0)
         rough = np.clip(rough_base + fbm * 0.11 - strokes * 0.09, 0.05, 0.98)
-        band = np.abs(np.cos(TAU * (x * rfreq * math.cos(math.radians(ang)) +
-                                    y * rfreq * math.sin(math.radians(ang)) + fbm * 0.35)))
+        bins_x = round(rfreq * math.cos(math.radians(ang)))
+        bins_y = round(rfreq * math.sin(math.radians(ang)))
+        band = np.abs(np.cos(TAU * (x * bins_x + y * bins_y + fbm * 0.35)))
         glint = np.clip((band ** 7) * 0.42 + np.maximum(0.0, strokes) * 0.28, 0.0, 1.0)
         rgb = np.dstack([val * 255.0, rough * 255.0, glint * 255.0])
-        tile = Image.fromarray(np.clip(rgb, 0, 255).astype("uint8"))
-        atlas.paste(tile, (size * (idx % 3), size * (idx // 3)))
+        atlas.paste(add_gutter(rgb), (ATLAS_TILE * (idx % 3), ATLAS_TILE * (idx // 3)))
     atlas.save(PUBLIC / "textures" / "surface-atlas.webp", "WEBP", lossless=True, method=6)
 
 
@@ -264,7 +275,13 @@ def make_app_icons():
     ink.ellipse((736, 736, 800, 800), fill="#7df2dc")
     for name, side in [("icon-512", 512), ("icon-maskable-512", 512), ("icon-192", 192),
                        ("apple-touch-icon", 180), ("favicon-48", 48)]:
-        canvas.resize((side, side), Image.Resampling.LANCZOS).save(PUBLIC / f"{name}.png", optimize=True)
+        image = canvas
+        if name == "icon-maskable-512":
+            image = Image.new("RGB", canvas.size, "#0e1924")
+            inset = 96
+            size = canvas.width - inset * 2
+            image.paste(canvas.resize((size, size), Image.Resampling.LANCZOS), (inset, inset))
+        image.resize((side, side), Image.Resampling.LANCZOS).save(PUBLIC / f"{name}.png", optimize=True)
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 // Extracted hazard, biome-feature, interactive-prop, and wave-event simulation helpers for World.
 // Deterministic: never calls Math.random() (uses world.rng or seeded makeRng).
 
-import { clamp, hashString, makeRng } from "./util.js";
+import { clamp, hashString, makeRng, TAU } from "./util.js";
 import { eventSeedId } from "../data/content-ids.js";
 import { rlAddHazard250, rlPortalPair250, rlHazardRoom250 } from "./arena.js";
 
@@ -292,6 +292,7 @@ function updateFeatures(world, dt) {
     }
     if (spireExpired) {
       world.arena.obs = world.arena.obs.filter((ob) => !ob.glassSpire || ob.life > 0);
+      world.arena.flow.rebuildObstacles();
     }
   }
 
@@ -613,13 +614,6 @@ function updateFeatures(world, dt) {
 
 function updateHazards(world, dt) {
   const player = world.player;
-  // Include hazard.kind === "frost" alongside "glacier" || hazard.chill so Frost Prism frostnova actually chills!
-  let cold = null;
-  for (const hazard of world.hazards) {
-    if ((hazard.kind === "glacier" || hazard.kind === "frost" || hazard.chill) && !hazard.done) {
-      (cold || (cold = [])).push(hazard);
-    }
-  }
   for (const hazard of world.hazards) {
     hazard.t += dt;
     // Star Spider's 3.0s Star-Silk Tether between (ax, ay) and (bx, by)
@@ -700,6 +694,7 @@ function updateHazards(world, dt) {
             dps: 16 * (world.stats.dmgMul || 1),
             hostile: true,
             playerDps: 12,
+            src: hazard.src || "lava",
           });
         }
       }
@@ -717,20 +712,6 @@ function updateHazards(world, dt) {
     if (world.hazards[i].t < world.hazards[i].delay + 0.4) world.hazards[w++] = world.hazards[i];
   }
   world.hazards.length = w;
-  if (!cold) return;
-  for (const hazard of cold) {
-    if (
-      hazard.done &&
-      player.alive &&
-      player.dashT <= 0 &&
-      world.state === "fight" &&
-      Math.hypot(player.x - hazard.x, player.y - hazard.y) < hazard.r + player.r
-    ) {
-      player.slowT = Math.max(player.slowT, 1.6);
-      player.slowKind = "chill";
-      world.emit("chill", { x: player.x, y: player.y });
-    }
-  }
 }
 
 function startBiomeEvent(world, id, wave) {
@@ -816,10 +797,12 @@ function tickBiomeEvent(world, event, dt) {
     for (const pool of arena.acid) {
       if (pool.grow) {
         const g = pool.grow;
-        if (event.t < g.dur) {
-          pool.r = g.r0 + (g.to - g.r0) * clamp((event.t - g.t0) / g.dur, 0, 1);
+        const age = event.t - g.t0;
+        if (age < g.dur) {
+          pool.r = g.r0 + (g.to - g.r0) * clamp(age / g.dur, 0, 1);
         } else {
-          const k = 0.72 + 0.28 * Math.sin(((event.t - g.dur) / RL_TIDE_PERIOD) * Math.PI * 2 + g.ph * Math.PI * 2);
+          const tideAge = age - g.dur;
+          const k = 1 - (0.28 - 0.28 * Math.sin((tideAge / RL_TIDE_PERIOD + g.ph) * TAU)) * Math.min(1, tideAge);
           pool.r = g.r0 + (g.to - g.r0) * k;
         }
       }

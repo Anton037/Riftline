@@ -271,6 +271,7 @@ let RL_REQUIRED_DOM = [
     "tPrev",
     "toasts",
     "touch",
+    "trapMode",
     "verText",
     "vignette",
     "wBlurb",
@@ -404,6 +405,23 @@ function rlRunAudit(world, outcome, abandoned) {
  (renderer, sound or UI) or be explicitly internal. Boss events must only be
  emitted while a boss is alive — enemy code once reused "phase"/"dash". ---- */
 const RL_EVENT_KINDS = new Set([
+  "anvil",
+  "barrier",
+  "corrode",
+  "forgeGift",
+  "gadgetDeny",
+  "gadgetReady",
+  "glare",
+  "gravityBell",
+  "graze",
+  "kit",
+  "plant",
+  "seal",
+  "singe",
+  "singOpen",
+  "trapArm",
+  "trapFire",
+  "trapWarn",
   "mutator",
   // 3.17.0: the walker: a foot comes down, the landing after a dash
   "step",
@@ -774,8 +792,9 @@ function rlMonFrame(workMs) {
     game.mode === "game" &&
     !game.paused &&
     !game.chooseShown &&
+    !game.anvilShown &&
     !game.overShown &&
-    !["choose", "victory", "dead"].includes(mon.w.state)
+    !["choose", "anvil", "victory", "dead"].includes(mon.w.state)
   ) {
     const hud = document.getElementById("hud");
     if (hud && (hud.hidden || hud.style.visibility === "hidden")) {

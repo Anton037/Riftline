@@ -4,6 +4,8 @@
 import { Box3, Color, Euler, Mat4, Quat, Vec3 } from "./math.js";
 
 const TAU = Math.PI * 2;
+const radialAxis = (mode) => (mode - 6) * TAU * 4;
+export const radialStrideMode = (angle) => 6 + (((angle % TAU) + TAU) % TAU) / (4 * TAU);
 function makeRng(seed) {
   let s = seed >>> 0 || 1;
   const next = () => {
@@ -127,7 +129,10 @@ export class Geometry {
         const k = m[i];
         if (k > 0.5) {
           m[i + 1] += dy;
-          m[i + 2] += k < 1.5 || (k > 4.5 && k < 5.5) ? dz : dx;
+          if (k >= 6) {
+            const a = radialAxis(k);
+            m[i + 2] += dx * Math.cos(a) + dz * Math.sin(a);
+          } else m[i + 2] += k < 1.5 || (k > 4.5 && k < 5.5) ? dz : dx;
         }
       }
     }
@@ -161,17 +166,17 @@ export class Geometry {
         const k = m[i];
         if (k > 0.5) {
           m[i + 1] *= sy;
-          m[i + 2] *= k < 1.5 || (k > 4.5 && k < 5.5) ? sz : sx;
+          if (k >= 6) {
+            const a = radialAxis(k),
+              x = Math.cos(a) * sx,
+              z = Math.sin(a) * sz;
+            m[i] = radialStrideMode(Math.atan2(z, x));
+            m[i + 2] *= Math.hypot(x, z);
+          } else m[i + 2] *= k < 1.5 || (k > 4.5 && k < 5.5) ? sz : sx;
         }
       }
     }
-    if (sx * sy * sz < 0 && this.indices) {
-      for (let i = 0; i < this.indices.length; i += 3) {
-        const tmp = this.indices[i + 1];
-        this.indices[i + 1] = this.indices[i + 2];
-        this.indices[i + 2] = tmp;
-      }
-    }
+    if (sx * sy * sz < 0) this._flipWinding();
     this.bounds = null;
     this.boundingSphere = null;
     this.version++;
@@ -258,8 +263,8 @@ export class Geometry {
     const b01 = a22 * a11 - a12 * a21;
     const b11 = -a22 * a10 + a12 * a20;
     const b21 = a21 * a10 - a11 * a20;
-    const det = a00 * b01 + a01 * b11 + a02 * b21 || 1;
-    const id = 1 / det;
+    const det = a00 * b01 + a01 * b11 + a02 * b21;
+    const id = 1 / (det || 1);
     const n00 = b01 * id,
       n01 = b11 * id,
       n02 = b21 * id;
@@ -287,10 +292,53 @@ export class Geometry {
       n[i + 1] = ry / l;
       n[i + 2] = rz / l;
     }
+    if (this.partMeta) {
+      const m = this.partMeta;
+      for (let i = 0; i < m.length; i += 4) {
+        const mode = m[i];
+        if (!mode) continue;
+        const a = mode >= 6 ? radialAxis(mode) : 0;
+        const zPivot = mode === 1 || mode === 5;
+        const x = zPivot ? 0 : m[i + 2] * Math.cos(a);
+        const y = m[i + 1];
+        const z = zPivot ? m[i + 2] : m[i + 2] * Math.sin(a);
+        const px = a00 * x + a01 * y + a02 * z + e[12];
+        const pz = a20 * x + a21 * y + a22 * z + e[14];
+        m[i + 1] = a10 * x + a11 * y + a12 * z + e[13];
+        if (mode === 2 || mode >= 6) {
+          const dirX = a00 * Math.cos(a) + a02 * Math.sin(a);
+          const dirZ = a20 * Math.cos(a) + a22 * Math.sin(a);
+          const angle = Math.atan2(dirZ, dirX);
+          m[i] = radialStrideMode(angle);
+          m[i + 2] = px * Math.cos(angle) + pz * Math.sin(angle);
+        } else m[i + 2] = zPivot ? pz : px;
+      }
+    }
+    if (det < 0) this._flipWinding();
     this.bounds = null;
     this.boundingSphere = null;
     this.version++;
     return this;
+  }
+  _flipWinding() {
+    const swap = (array, stride) => {
+      if (!array) return;
+      for (let i = 0; i < array.length; i += stride * 3) {
+        for (let j = i + stride; j < i + stride * 2; j++) {
+          const value = array[j];
+          array[j] = array[j + stride];
+          array[j + stride] = value;
+        }
+      }
+    };
+    if (this.indices) swap(this.indices, 1);
+    else {
+      swap(this.positions, 3);
+      swap(this.normals, 3);
+      swap(this.uvs, 2);
+      swap(this.colors, 3);
+      swap(this.partMeta, 4);
+    }
   }
   setColor(hex) {
     if (this.shared) return this.clone().setColor(hex);
@@ -430,10 +478,10 @@ export class Geometry {
     }
     return flat;
   }
-  dispose() {
-    if (this.shared) return;
+  releaseGpu() {
     if (this._gpu) {
-      const { gl, vao, vboPos, vboNorm, vboUv, vboCol, vboPart, ibo } = this._gpu;
+      const { engine, gl, vao, vboPos, vboNorm, vboUv, vboCol, vboPart, ibo } = this._gpu;
+      engine?._geometryUploads.delete(this);
       if (gl && !gl.isContextLost()) {
         if (vao) gl.deleteVertexArray(vao);
         if (vboPos) gl.deleteBuffer(vboPos);
@@ -445,6 +493,10 @@ export class Geometry {
       }
       this._gpu = null;
     }
+  }
+  dispose() {
+    if (this.shared) return;
+    this.releaseGpu();
     this._disposed = true;
   }
 }

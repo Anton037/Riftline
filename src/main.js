@@ -62,7 +62,7 @@ function rlIntroEvents(world) {
     }
   for (const ev of world.fx) {
     if (
-      (ev.k === "spawn" || ev.k === "champion") &&
+      (ev.k === "spawn" || ev.k === "champion" || (ev.k === "mend" && ev.type === "mossHealer")) &&
       RL_ENEMY_TIPS[ev.type] &&
       !store.data.seen["tip_enemy_" + ev.type] &&
       !RL_INTRO.queue.includes(ev.type)
@@ -74,9 +74,6 @@ function rlIntroEvents(world) {
     const type = RL_INTRO.queue.shift(),
       seen = store.data.seen;
     seen["tip_enemy_" + type] = true;
-    if (type === "mossHealer") {
-      seen.tip_mender = true;
-    }
     store.save("intro");
     RL_INTRO.last = now;
     ui.toast(`NEW · ${enemyDefs[type].name.toUpperCase()} — ${RL_ENEMY_TIPS[type]}`, "intro", 6200);
@@ -99,17 +96,36 @@ function registerServiceWorker(onUpdate) {
           // closures stacked across a long session with several queued updates)
           reloaded = false,
           reload = () => {
-            if (!reloaded) {
-              reloaded = true;
-              location.reload();
+            if (reloaded) return;
+            if (game.mode !== "menu" || ui.screen !== "home" || !getById("dialog").hidden) {
+              onUpdate(reload);
+              return;
             }
+            reloaded = true;
+            location.reload();
           },
           offer = (worker) => {
             if (!(!worker || !navigator.serviceWorker.controller)) {
               onUpdate(() => {
-                navigator.serviceWorker.addEventListener("controllerchange", reload);
+                const sw = navigator.serviceWorker;
+                const active = () => worker.state === "activated" || sw.controller === worker;
+                if (active()) {
+                  reload();
+                  return;
+                }
+                const finish = () => {
+                  if (!active()) return;
+                  clearTimeout(timeout);
+                  sw.removeEventListener("controllerchange", finish);
+                  reload();
+                };
+                const timeout = setTimeout(() => {
+                  sw.removeEventListener("controllerchange", finish);
+                  if (active()) reload();
+                  else if (worker.state === "installed" || worker.state === "activating") offer(worker);
+                }, 4e3);
+                sw.addEventListener("controllerchange", finish);
                 worker.postMessage("skipWaiting");
-                setTimeout(reload, 4e3);
               });
             }
           };
@@ -257,6 +273,7 @@ function _scheduleResize(why) {
     });
   }
 }
+window.__riftOnDeviceProfileSettled = () => _scheduleResize("viewport-settled");
 window.addEventListener(
   "resize",
   () => {
@@ -319,6 +336,7 @@ const overlay = new Overlay(elementById("ov")),
     cloud: null,
     startRun(options) {
       if (!this.graphicsReady) return;
+      store.syncForeign();
       const { resume } = options;
       lockLandscape();
       let save = store.data,
@@ -334,7 +352,6 @@ const overlay = new Overlay(elementById("ov")),
           threat: options.threat ?? save.threat,
           trapMode: options.trapMode ?? save.trapMode,
           ws: save.workshop,
-          starVaultUnlocked: (save.stats.bosses?.starHeart || 0) > 0,
           snap,
         });
       } catch (err) {
@@ -461,6 +478,7 @@ const overlay = new Overlay(elementById("ov")),
         ui.banishMode = false;
         ui.renderCards(world, { resetScroll: true });
       } else {
+        sound.play("deny");
         ui.toast("No new crafts this time. Reroll kept.", "", 1800);
       }
       this.saveCheckpoint("reroll");
@@ -536,6 +554,7 @@ const overlay = new Overlay(elementById("ov")),
       }
       input.reset();
       this.last = performance.now();
+      renderer?.engine.resetAdaptivePacing();
       setWakeLock(true);
       if (this.world) {
         sound.setMusic(this.world.boss ? "boss" : "fight", this.world.biomeFor(this.world.wave).id, true);
@@ -566,6 +585,7 @@ const overlay = new Overlay(elementById("ov")),
         document.activeElement?.blur?.();
         ui.hideOver();
         this.overShown = false;
+        input.reset(true);
         // the counters and the clock of the Endless part start again (World.enterEndless, shared with the tests)
         world.enterEndless();
         this.saveCheckpoint("endless");
@@ -594,6 +614,12 @@ const overlay = new Overlay(elementById("ov")),
       this.clearResume();
       this.chooseShown = false;
       this.anvilShown = false;
+      this.overShown = false;
+      this.tut = this.intro = null;
+      this.slowMo = 0;
+      cardEvent = cardMutator = null;
+      RL_INTRO.queue.length = 0;
+      ui.coach(null);
       this._pausedFromChoose = false;
       this._pausedFromAnvil = false;
       this._settledOverlayFrames = 0;
@@ -616,6 +642,7 @@ const overlay = new Overlay(elementById("ov")),
     // 2.8.1: a stored run that is replaced by a new one is settled like Abandon (its shards, kills and
     // play time are credited and it is written to the history) instead of being thrown away
     discardRun() {
+      store.syncForeign();
       const snap = store.data.run;
       if (snap && !this.world) {
         try {
@@ -663,6 +690,7 @@ const overlay = new Overlay(elementById("ov")),
         stats = save.stats;
       if (!world || this.overShown) return;
       this.overShown = true;
+      input.reset(true);
       rlRunAudit(world, win, abandoned);
       let mods = threatMods(world.threat),
         salvage = 1 + 0.1 * (save.workshop.extraShards || 0),
@@ -724,6 +752,8 @@ const overlay = new Overlay(elementById("ov")),
       else {
         ui.showHud(false);
         ui.hideChoose();
+        ui.hideAnvil();
+        this.chooseShown = this.anvilShown = false;
         ui.showOver({
           win: win,
           abandoned: abandoned,
@@ -853,8 +883,12 @@ const hudEditor = touchInput ? new HudEditor({ store, ui, input, onSave: () => g
 let placeHudRetry = 0;
 function placeHud(retry = 0) {
   if (!touchInput) return;
-  applyHudLayout(store.data.settings);
-  const fit = fitHudLayout(store.data.settings, input.radius());
+  const settings = store.data.settings;
+  applyHudLayout(settings);
+  const radius = input.radius();
+  const fit = fitHudLayout(settings, radius);
+  const center = settings.stickFixed ? fixedStickCenter(settings, radius) : null;
+  input.fixedMove = center ? () => center : null;
   if (fit === "later") {
     // the device classes of index.html follow the turn a frame later (at most ten frames are waited for)
     cancelAnimationFrame(placeHudRetry);
@@ -979,7 +1013,6 @@ function applySettings() {
   ui.syncMuteButton();
   if (!settings.performanceOverlay) performanceOverlay.hidden = true;
   input.stickScale = settings.stickSize;
-  input.fixedMove = settings.stickFixed ? (radius) => fixedStickCenter(store.data.settings, radius) : null;
   placeHud();
   if (renderer) {
     // 3.57.0: the camera distance, the warning contrast and the screen-shake toggle were settings nobody
@@ -1012,6 +1045,7 @@ const framePacer = makePacer();
 const playFrameOptions = { pacer: framePacer };
 function loopTick(now) {
   loopFrameId = requestAnimationFrame(loopTick);
+  if (document.visibilityState === "hidden") return;
   let dt = (now - (game.last || now)) / 1e3;
   if (!paceFrame(framePacer, now, store.data.settings.frameRate)) return;
   {
@@ -1027,7 +1061,7 @@ function loopTick(now) {
           game.finishResume();
           dt = 0;
         } else {
-          getById("resumeCountNum").textContent = String(Math.ceil((remaining * 3) / RESUME_MS));
+          getById("resumeCountNum").textContent = String(Math.min(3, Math.ceil((remaining * 3) / RESUME_MS)));
         }
       }
       const frameStart = performance.now();
@@ -1061,10 +1095,10 @@ function runFrame(dt) {
   let settings = store.data.settings,
     world = game.world;
   if (game.mode === "game" && world) {
-    if (!game.paused && document.visibilityState !== "hidden") {
+    if (!game.paused) {
       let slow = game.slowMo > 0 ? 0.35 : 1;
       game.slowMo = Math.max(0, game.slowMo - dt);
-      const noMotion = !!(settings.reducedMotion || reducedMotion());
+      const noMotion = reducedMotion();
       const stopped = noMotion ? 0 : Math.min(world.hitstopT, dt);
       world.hitstopT = noMotion ? 0 : world.hitstopT - stopped;
       if (game.intro) {
@@ -1119,7 +1153,7 @@ function runFrame(dt) {
         sound.play("rumble");
       }
     }
-    sound.consume(world.fx, world.player);
+    sound.consume(world.fx, world);
     world.fx.length = 0;
     // 3.31.0: the drawing sees the moving things between the last two steps; restore() puts the simulation's own
     // positions back before anything else runs (also when a draw throws)
@@ -1139,7 +1173,7 @@ function runFrame(dt) {
     } finally {
       interpRestore();
     }
-    ui.hud(world);
+    if (!game.chooseShown && !game.anvilShown && !game.overShown) ui.hud(world);
     if (world.state === "choose" && !game.chooseShown && !game.overShown) {
       game.chooseShown = true;
       game._settledOverlayFrames = 0;
@@ -1169,7 +1203,6 @@ function runFrame(dt) {
         menu: true,
         weapon: game.previewW,
         biome: biomeList[menuBiomeIndex()],
-        pacer: framePacer,
       });
     }
     overlay.clear();
@@ -1265,7 +1298,7 @@ function handleWorldEvents(world) {
           );
         if (!ev.boss && world.arena.vents.length) {
           if (world.arena.biome.id === "lanternYard")
-            showTipOnce("shock", "Shock pads glow before they zap. Lure enemies onto them to stun them.");
+            showTipOnce("shock", "Shoot or dash through a glowing Bell-Censer to stun enemies and clear nearby shots.");
           else if (world.arena.biome.id === "emberHill")
             showTipOnce(
               "pyro",
@@ -1368,9 +1401,6 @@ function handleWorldEvents(world) {
       case "championDown":
         ui.banner("Champion Defeated", "Pack aura broken", "good", 1400);
         game.slowMo = Math.max(game.slowMo, 0.5);
-        break;
-      case "mend":
-        showTipOnce("mossHealer", RL_ENEMY_TIPS.mossHealer);
         break;
       case "bossAtk":
         overlay.callout(ev.atk, ev.id);
@@ -1591,6 +1621,7 @@ function safeAreaInsets() {
   return rlInsets;
 }
 document.addEventListener("visibilitychange", () => {
+  renderer?.engine.resetAdaptivePacing();
   if (document.visibilityState === "hidden") {
     performanceOverlay.hidden = true;
     if (game.mode === "game") {
@@ -1606,14 +1637,21 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 window.addEventListener("pagehide", () => {
+  game.pause();
+  setWakeLock(false);
   input.reset(true);
   store.save("pagehide");
   sound.suspend();
 });
 window.addEventListener("pageshow", (ev) => {
   input.reset(true);
+  game.last = performance.now();
+  renderer?.engine.resetAdaptivePacing();
   _scheduleResize("pageshow");
-  if (ev.persisted && !document.hidden) sound.resume();
+  if (ev.persisted && !document.hidden) {
+    sound.resume();
+    setWakeLock(game.mode === "game" && !game.paused && !game.overShown);
+  }
 });
 const unlockAudio = () => {
   sound.unlock();
@@ -1797,18 +1835,7 @@ document.addEventListener(
     applySettings();
     game.previewW = store.data.weapon;
     game._runExtra = null;
-    game.world = null;
-    game.mode = "menu";
-    game.paused = false;
-    ui.hideOver();
-    ui.hideChoose();
-    ui.hideAnvil?.();
-    ui.hidePause();
-    ui.showHud(false);
-    ui.homeInit = false;
-    ui.show("home");
-    sound.setMusic("menu");
-    setWakeLock(false);
+    game.goHome();
     ui.toast("Save restored", "gold", 2400);
   };
   const backupBtn = getById("backupBtn");
@@ -1886,10 +1913,18 @@ function rlRetireToast() {
   // the next screen, a settings toggle or a Home "buy". Drop that one click
   // in the capture phase, before any handler (guarded or plain) can see it.
   document.addEventListener(
+    "pointerdown",
+    () => {
+      RL_TOUCH_CLICK_GUARD.until = 0;
+      RL_TOUCH_CLICK_GUARD.key = "";
+    },
+    true,
+  );
+  document.addEventListener(
     "click",
     (ev) => {
       const guard = RL_TOUCH_CLICK_GUARD;
-      if (!guard.until) return;
+      if (!guard.until || ev.detail === 0) return;
       if (performance.now() > guard.until) {
         guard.until = 0;
         guard.key = "";

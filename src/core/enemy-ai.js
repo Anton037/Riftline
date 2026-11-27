@@ -410,7 +410,8 @@ function updateLeaper(game, enemy, dt, ctx) {
       game.emit("thud", { x: enemy.x, y: enemy.y, src: "bogHopper" });
     }
   }
-  enemy.face = turnToward(enemy.face, enemy.st === 1 ? enemy.ta : Math.atan2(enemy.vy, enemy.vx), 10 * dt);
+  const facing = enemy.st === 1 ? enemy.ta : enemy.st === 2 ? Math.atan2(enemy.vy, enemy.vx) : ang;
+  enemy.face = turnToward(enemy.face, facing, 10 * dt);
   return true;
 }
 
@@ -1169,6 +1170,7 @@ function updateEnemy(game, enemy, dt) {
       alive = player.alive;
     if (enemy.hunt && RL_KITERS.has(enemy.type)) {
       enemy.st = 0;
+      enemy.tethers = enemy.tetherIds = null;
       enemy.anchored = false;
       const huntSpd = Math.max(speed, 2.6) * 1.3;
       enemy.vx = cdx * huntSpd;

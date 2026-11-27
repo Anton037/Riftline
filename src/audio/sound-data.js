@@ -12,7 +12,7 @@ export const RL_BIOME_SPARK = {
   lanternYard: "sparkCourtyard",
   snowRidge: "sparkShelf",
   mossBog: "sparkMarsh",
-  starHeart: "sparkCore",
+  starHall: "sparkCore",
   emberHill: "sparkCaldera",
   sunDunes: "sparkFlats",
 };
@@ -321,7 +321,7 @@ export const AMB_PREVIEW = {
   lanternYard: "galleryChime",
   snowRidge: "icicles",
   mossBog: "drip",
-  starHeart: "shimmer",
+  starHall: "shimmer",
   emberHill: "rockFall",
   sunDunes: "glassPing",
 };
@@ -335,9 +335,9 @@ export const RL_FLOOD = [
   ["hit"],
   ["crit"],
   ["kill", 1.8],
-  ["dCrunch", 1.6],
+  ["dSquelch", 1.6],
   ["dClang", 1.6],
-  ["dShatter", 1.6],
+  ["dConstruct", 1.6],
   ["bigkill"],
   ["bSlam", "bellKeeper"],
   ["eshotBoss"],
@@ -436,7 +436,7 @@ export function softClipCurve() {
 export function trackInfo(kind, biome) {
   if (kind === "fight" || kind === "boss" || kind === "menu") {
     const track = musicTrack(kind, biome);
-    return { bpm: track.bpm, steps: track.bars * 16 };
+    return { bpm: track.bpm, steps: track.bars * 16, gain: track.gain, jumpStep: track.jumpStep ?? 16 };
   }
   return { bpm: 84, steps: 256 };
 }
@@ -556,6 +556,11 @@ export function rlSoundCatalog() {
     "enrage",
     "phase",
     "bossDown",
+    "anvil",
+    "seal",
+    "equip",
+    "milestone",
+    "superCrit",
   ]);
   ids(["hatch"], 0);
   ids(["hatch"], 1);
@@ -570,7 +575,7 @@ export function rlSoundCatalog() {
   ids(["aQuake", "aLava", "aIce", "aAcid", "aRift"], 2);
   ids(["aFire"], 1);
   ids(["aShort"], 1.6);
-  ids(["shortFizz"]);
+  ids(["shortFizz", "graze", "heatShatter", "corrode", "singe", "glare", "forgeGift"]);
   for (const boss of Object.keys(BOSS_EFFECTS)) {
     ids(["bossIntro"], boss);
     for (const id of [

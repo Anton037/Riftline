@@ -309,13 +309,17 @@ for (const tablet of [true, false])
             touchPoints: [move, aim],
           });
           await page.waitForFunction((x) => window.__riftTest.game.input.aim.x === x, aim.x);
-          assert.deepEqual(
-            await page.evaluate(() => {
-              const { x, ox } = window.__riftTest.game.input.aim;
-              return { x, ox };
-            }),
-            { x: aim.x, ox: 680 },
-          );
+          const aimTravel = await page.evaluate(() => {
+            const { input } = window.__riftTest.game;
+            return { ox: input.aim.ox, radius: input.radius() };
+          });
+          assert.ok(aimTravel.ox < 680 && Math.abs(aimTravel.ox - aim.x - aimTravel.radius) < 0.1);
+          aim.x = 680;
+          await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [move, aim] });
+          await page.waitForFunction(() => {
+            const { x, ox } = window.__riftTest.game.input.aim;
+            return x === 680 && x > ox;
+          });
           const dash = await page.locator("#dashBtn").boundingBox();
           await cdp.send("Input.dispatchTouchEvent", {
             type: "touchStart",

@@ -6,6 +6,7 @@
 // left-handed setting is gone, so nothing is mirrored any more.)
 
 import { clamp } from "../core/util.js";
+import { defaultSettings } from "../core/save.js";
 import { HUD_CONTROL_IDS, HUD_LIMITS } from "../data/hud.js";
 import { safeAreaInsets } from "../main.js";
 import { getById } from "./ui.js";
@@ -32,7 +33,17 @@ const CONTROL_INFO = {
     ["#hudFeedback", 0],
   ],
   /* where a fixed move stick sits until it is moved */
-  DEFAULT_STICK = { portrait: { x: 0.2, y: 0.74 }, landscape: { x: 0.16, y: 0.66 } };
+  DEFAULT_STICK = { portrait: { x: 0.2, y: 0.74 }, landscape: { x: 0.16, y: 0.75 } };
+
+function sizeFloor(control) {
+  const base = getById(control.el).offsetWidth || 60;
+  return Math.max(HUD_LIMITS.size[0], Math.ceil((control.min / base) * 20) / 20);
+}
+
+function fillSlider(input, value) {
+  input.value = String(value);
+  input.style.setProperty("--p", `${(100 * (input.valueAsNumber - +input.min)) / (+input.max - +input.min)}%`);
+}
 
 const round4 = (v) => Math.round(v * 1e4) / 1e4;
 /* single unified viewport rect synced between window.innerWidth/innerHeight and #app.getBoundingClientRect() */
@@ -247,6 +258,9 @@ class HudEditor {
     });
     this.ui.click(getById("heReset"), () => {
       this.draft.layouts[hudOrientation()] = null;
+      this.draft.alpha = defaultSettings.hudAlpha;
+      this.draft.stickSize = defaultSettings.stickSize;
+      this.draft.stickFixed = defaultSettings.stickFixed;
       this.note = "";
       this.render();
     });
@@ -286,6 +300,7 @@ class HudEditor {
     getById("settings").hidden = true;
     hud.hidden = false;
     hud.style.visibility = "";
+    this.ui.previewHud();
     // the boss bar shows the room it takes in a boss fight
     bossBar.hidden = false;
     hud.classList.add("editing");
@@ -471,10 +486,9 @@ class HudEditor {
     const layout = this.ensure(),
       spot = layout[this.sel],
       control = HUD_CONTROLS.find((c) => c.id === this.sel),
-      base = getById(control.el).offsetWidth || 60,
-      [lo, hi] = HUD_LIMITS.size,
+      hi = HUD_LIMITS.size[1],
       old = spot.s;
-    spot.s = round4(clamp(value, Math.max(lo, control.min / base), hi));
+    spot.s = round4(clamp(value, sizeFloor(control), hi));
     if (spot.s > old && this.refused(this.sel)) {
       spot.s = old;
       this.note = "No room to grow there: move it first.";
@@ -542,19 +556,17 @@ class HudEditor {
     const picked = HUD_CONTROLS.find((c) => c.id === this.sel),
       onStick = this.sel === "stick",
       size = onStick ? this.draft.stickSize : layout ? layout[this.sel].s : 1,
-      [lo, hi] = onStick ? HUD_LIMITS.stick : HUD_LIMITS.size,
       sizeInput = getById("heSize"),
-      sizeRow = sizeInput && sizeInput.closest(".he-row");
-    if (sizeRow) sizeRow.hidden = false;
-    sizeInput.hidden = false;
+      sizeRow = sizeInput.closest(".he-row");
+    sizeRow.hidden = onStick;
     getById("heWhat").textContent = picked ? picked.name : "STICK";
-    sizeInput.min = String(lo);
-    sizeInput.max = String(hi);
-    sizeInput.value = String(size);
+    sizeInput.min = String(picked ? sizeFloor(picked) : HUD_LIMITS.size[0]);
+    sizeInput.max = String(HUD_LIMITS.size[1]);
+    fillSlider(sizeInput, size);
     getById("heSizeV").textContent = Math.round(size * 100) + "%";
-    getById("heAlpha").value = String(this.draft.alpha);
+    fillSlider(getById("heAlpha"), this.draft.alpha);
     getById("heAlphaV").textContent = Math.round(this.draft.alpha * 100) + "%";
-    getById("heStickSize").value = String(this.draft.stickSize);
+    fillSlider(getById("heStickSize"), this.draft.stickSize);
     getById("heStickV").textContent = Math.round(this.draft.stickSize * 100) + "%";
     getById("heFixed").checked = this.draft.stickFixed;
     const note = getById("heNote");

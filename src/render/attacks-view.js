@@ -55,7 +55,7 @@ const DUST = {
   lanternYard: new Color(0x6a7686),
   snowRidge: new Color(0x9ec8e2),
   mossBog: new Color(0x2f4238),
-  starHeart: new Color(0x64429e),
+  starHall: new Color(0x64429e),
   emberHill: new Color(0x7c6a5c),
   sunDunes: new Color(0xb69464),
 };
@@ -188,7 +188,6 @@ export class AttackView {
     this.spikes = [];
     this.pillars = [];
     this.seeds = new WeakMap();
-    this.lastBiome = null;
   }
   get(name, max = MAX.part) {
     let set = this.pl[name];
@@ -273,15 +272,11 @@ export class AttackView {
   biomeId() {
     return (this.r.biome && this.r.biome.id) || "lanternYard";
   }
+  clear() {
+    this.marks.length = this.spikes.length = this.pillars.length = 0;
+  }
   update(dt, world) {
     const r = this.r;
-    const biome = this.biomeId();
-    if (biome !== this.lastBiome) {
-      this.lastBiome = biome;
-      this.marks.length = 0;
-      this.spikes.length = 0;
-      this.pillars.length = 0;
-    }
     this.quality = Math.min(1, r.maxParticles / 1400);
     this.drawMarks(dt);
     this.drawZones(dt, world);
@@ -336,7 +331,6 @@ export class AttackView {
       z = hazard.y,
       rr = hazard.r || 1.2;
     const q = this.quality;
-    const chance = (rate) => Math.random() < dt * rate * q;
 
     if (hazard.kind === "tether") {
       const tx = hazard.tx ?? hazard.sx ?? x;
@@ -347,7 +341,7 @@ export class AttackView {
       r.beams.colC(r.beams.seg(x, z, tx, tz, 0.74, w * 0.65, w * 0.45), WHITE, 0.75 * lanternGun);
       r.ringPool.colC(r.ringPool.y(x, 0.08, z, time * 2.5, 0.65 + 0.15 * lanternGun), RIFT, 0.62);
       r.ringPool.colC(r.ringPool.y(tx, 0.08, tz, -time * 2.5, 0.65 + 0.15 * lanternGun), RIFT_PINK, 0.62);
-      if (chance(10 + 14 * k)) {
+      if (Math.random() < dt * q * (10 + 14 * k)) {
         const f = Math.random();
         r.emit(
           x + (tx - x) * f,
@@ -393,7 +387,7 @@ export class AttackView {
           0.68 - tf * 0.42,
         );
       }
-      if (chance(18 + k * 24)) {
+      if (Math.random() < dt * q * (18 + k * 24)) {
         r.emit(sx, hy, sz, (Math.random() - 0.5) * 1.6, 1.4, (Math.random() - 0.5) * 1.6, 0.4, 0.15, cometCol, {
           spark: true,
           drag: 1.6,
@@ -426,7 +420,7 @@ export class AttackView {
           0.62 * lanternGun,
         );
       }
-      if (chance(8 + k * 20))
+      if (Math.random() < dt * q * (8 + k * 20))
         r.emit(x, 0.34, z, (Math.random() - 0.5) * 1.4, 1.8 + k * 2, (Math.random() - 0.5) * 1.4, 0.3, 0.12, FIRE_HOT, {
           spark: true,
           drag: 2,
@@ -445,13 +439,13 @@ export class AttackView {
         const size = 0.36;
         P.body.col(P.body.yr(hx, hy, hz, yaw, size, size, size, pitch, time * 4), 1, 1, 1);
         P.glow.colC(P.glow.yr(hx, hy, hz, yaw, size, size, size, pitch, time * 4), FIRE_HOT, 1.35);
-        if (chance(10)) r.emit(hx, hy, hz, 0, 0.3, 0, 0.4, 0.11, FIRE_HOT, { grav: 3, spark: true });
+        if (Math.random() < dt * q * 10) r.emit(hx, hy, hz, 0, 0.3, 0, 0.4, 0.11, FIRE_HOT, { grav: 3, spark: true });
       } else {
         const P = this.get("shell");
         const cold = hazard.chill;
         P.body.yr(hx, hy, hz, yaw, 1.2, 1.2, 1.2, pitch, time * 8);
         P.glow.colC(P.glow.yr(hx, hy, hz, yaw, 1.2, 1.2, 1.2, pitch, time * 8), cold ? ICE : FIRE, cold ? 1.45 : 1.1);
-        if (Math.random() < 0.5)
+        if (Math.random() < dt * 30 * q)
           r.emit(hx, hy, hz, 0, cold ? -0.2 : 0.3, 0, 0.45, cold ? 0.3 : 0.4, cold ? ICE : SMOKE, {
             drag: 1,
             grow: 1.4,
@@ -462,7 +456,7 @@ export class AttackView {
       // Courtyard Brim-Lit: warm spilled lantern-oil brass ring & rising amber flame motes
       r.ringPool.colC(r.ringPool.y(x, 0.08, z, time * 2.2, rr * (0.45 + k * 0.52)), FIRE_HOT, 0.55 + k * 0.4);
       r.discs.colC(r.discs.y(x, 0.06, z, seed * TAU, rr * (0.3 + k * 0.65)), FIRE, 0.14 + k * 0.16);
-      if (chance(12 + k * 24)) {
+      if (Math.random() < dt * q * (12 + k * 24)) {
         const a = Math.random() * TAU,
           d = rr * (0.2 + Math.random() * 0.65);
         r.emit(x + Math.cos(a) * d, 0.14, z + Math.sin(a) * d, 0, 1.6 + k * 2.4, 0, 0.42, 0.16, FIRE_HOT, {
@@ -485,12 +479,13 @@ export class AttackView {
             1,
           );
         }
-        if (chance(10 * k)) r.emit(x, 0.12, z, 0, 0.5, 0, 0.35, 0.09, SHOT.glass, { spark: true, drag: 2 });
+        if (Math.random() < dt * q * (10 * k))
+          r.emit(x, 0.12, z, 0, 0.5, 0, 0.35, 0.09, SHOT.glass, { spark: true, drag: 2 });
         break;
       }
       case Z.lavaCrack:
       case Z.molten:
-        if (chance(6 + 30 * k))
+        if (Math.random() < dt * q * (6 + 30 * k))
           r.emit(
             x + (Math.random() - 0.5) * rr,
             0.1,
@@ -505,7 +500,7 @@ export class AttackView {
           );
         break;
       case Z.crack:
-        if (k > 0.5 && chance(20 * k)) {
+        if (k > 0.5 && Math.random() < dt * q * (20 * k)) {
           const a = Math.random() * TAU,
             d = Math.random() * rr * k;
           r.emit(x + Math.cos(a) * d, 0.1, z + Math.sin(a) * d, 0, 0.8, 0, 0.5, 0.25, DUST[biome] || DUST.lanternYard, {
@@ -515,21 +510,21 @@ export class AttackView {
         }
         break;
       case Z.frost:
-        if (chance(12 + 20 * k)) {
+        if (Math.random() < dt * q * (12 + 20 * k)) {
           const a = Math.random() * TAU,
             d = rr * (1 - k * Math.random());
           r.emit(x + Math.cos(a) * d, 0.1, z + Math.sin(a) * d, 0, 0.4, 0, 0.7, 0.14, WHITE, { spark: true, drag: 0 });
         }
         break;
       case Z.acid:
-        if (chance(8 + 20 * k)) {
+        if (Math.random() < dt * q * (8 + 20 * k)) {
           const a = Math.random() * TAU,
             d = Math.random() * rr * (0.2 + 0.8 * k);
           r.emit(x + Math.cos(a) * d, 0.1, z + Math.sin(a) * d, 0, 1 + k, 0, 0.5, 0.16, ACID_LITE, { drag: 2 });
         }
         break;
       case Z.rift:
-        if (chance(18 * k + 4)) {
+        if (Math.random() < dt * q * (18 * k + 4)) {
           const a = Math.random() * TAU,
             d = rr * (0.8 + Math.random() * 0.3),
             life = 0.5;
@@ -548,7 +543,7 @@ export class AttackView {
         }
         break;
       case Z.burn:
-        if (chance(8 + 14 * k))
+        if (Math.random() < dt * q * (8 + 14 * k))
           r.emit(
             x + (Math.random() - 0.5) * rr,
             0.15,
@@ -813,7 +808,6 @@ export class AttackView {
     const r = this.r;
     const time = r.time;
     const basis = r.B;
-    const chance = (rate) => Math.random() < dt * rate;
     for (const shot of world.eb) {
       if (shot.life <= 0) continue;
       const launch = shot.launchHeight ?? BOSS_EFFECTS[shot.src]?.height ?? ENEMY_EFFECTS[shot.src]?.height ?? 0.85;
@@ -855,7 +849,8 @@ export class AttackView {
               0.82,
             );
           }
-          if (heavy && chance(7)) r.emit(shot.x, h, shot.y, 0, 0.3, 0, 0.16, 0.1, color, { spark: true, drag: 5 });
+          if (heavy && Math.random() < dt * 7)
+            r.emit(shot.x, h, shot.y, 0, 0.3, 0, 0.16, 0.1, color, { spark: true, drag: 5 });
           break;
         }
         case "shard": {
@@ -881,10 +876,11 @@ export class AttackView {
         }
         case "supplyKite": {
           const P = this.get("pod"),
-            s = shot.r * 1.3;
-          P.body.col(P.body.yr(shot.x, h, shot.y, angle, s, s, s, 0, Math.sin(time * 5 + shot.x) * 0.2), 1, 1, 1);
-          P.glow.colC(P.glow.y(shot.x, h, shot.y, angle, s), color, 1.05);
-          if (chance(6))
+            s = shot.r * 1.3,
+            roll = Math.sin(time * 5 + shot.x) * 0.2;
+          P.body.col(P.body.yr(shot.x, h, shot.y, angle, s, s, s, 0, roll), 1, 1, 1);
+          P.glow.colC(P.glow.yr(shot.x, h, shot.y, angle, s, s, s, 0, roll), color, 1.05);
+          if (Math.random() < dt * 6)
             r.emit(shot.x - ca * 0.3, h - 0.08, shot.y - sa * 0.3, 0, -0.2, 0, 0.3, 0.12, color, { grav: 2 });
           break;
         }
@@ -894,7 +890,7 @@ export class AttackView {
             roll = time * 3 + shot.x;
           P.body.col(P.body.yr(shot.x, h, shot.y, angle, s, s, s, 0, roll), 1, 1, 1);
           P.glow.colC(P.glow.yr(shot.x, h, shot.y, angle, s, s, s, 0, roll), FIRE_HOT, 1.35);
-          if (chance(8))
+          if (Math.random() < dt * 8)
             r.emit(shot.x - ca * 0.25, h - 0.04, shot.y - sa * 0.25, 0, 0.35, 0, 0.4, 0.09, FIRE_HOT, {
               grav: 3,
               spark: true,
@@ -916,7 +912,8 @@ export class AttackView {
             roll = time * 2 + shot.x;
           P.body.col(P.body.yr(shot.x, h, shot.y, angle, s, s, s, 0, roll), 1, 1, 1);
           P.glow.colC(P.glow.yr(shot.x, h, shot.y, angle, s, s, s, 0, roll), color, 0.9);
-          if (chance(5)) r.emit(shot.x, h - 0.08, shot.y, 0, -0.3, 0, 0.45, 0.1, ACID_LITE, { grav: 3, drag: 1 });
+          if (Math.random() < dt * 5)
+            r.emit(shot.x, h - 0.08, shot.y, 0, -0.3, 0, 0.45, 0.1, ACID_LITE, { grav: 3, drag: 1 });
           break;
         }
         case "riftorb": {
@@ -932,7 +929,7 @@ export class AttackView {
             roll = Math.sin(time * 4 + shot.x) * 0.15;
           P.body.col(P.body.yr(shot.x, h, shot.y, angle, s, s, s, 0, roll), 1, 1, 1);
           P.glow.colC(P.glow.yr(shot.x, h, shot.y, angle, s, s, s, 0, roll), color, 1.15);
-          if (chance(6))
+          if (Math.random() < dt * 6)
             r.emit(shot.x - ca * 0.3, h, shot.y - sa * 0.3, 0, 0, 0, 0.18, 0.08, color, { spark: true, drag: 0 });
           halo = 3;
           light = 0.34;
@@ -946,7 +943,7 @@ export class AttackView {
         const P = this.get("crystal"),
           s = shot.r * 1.05;
         P.glow.col(P.glow.yr(shot.x, h, shot.y, angle, s, s, s, 0, time * 9), 0.78, 0.98, 1.15);
-        if (chance(7)) r.emit(shot.x, h, shot.y, 0, -0.2, 0, 0.3, 0.1, ICE, { drag: 2 });
+        if (Math.random() < dt * 7) r.emit(shot.x, h, shot.y, 0, -0.2, 0, 0.3, 0.1, ICE, { drag: 2 });
       }
       r.sprites.colC(r.sprites.bb(shot.x, h, shot.y, shot.r * halo, basis), color, light);
     }

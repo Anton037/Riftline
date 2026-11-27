@@ -12,6 +12,115 @@ const { computeStats, buildStatRows } = await import("../src/core/stats.js");
 const { rlUpdateTraps, TRAP_SKINS } = await import("../src/core/traps.js");
 const world = () => new World({ seed: 42, weapon: "lanternGun", threat: 0, ws: {} });
 
+test("burst openers fire once, and portal volleys stay at their launch mouth", () => {
+  for (const id of ["mossQueen", "starHeart"]) {
+    const w = world();
+    w.time = 60;
+    w.arena.obs = [];
+    w.arena.portals = id === "starHeart" ? [{ ax: -8, ay: 0, bx: 8, by: 0 }] : [];
+    const boss = w.spawnBoss(id);
+    Object.assign(boss, { st: "burst", spawnT: 0, n: 0, t: 0, phaseN: 1 });
+    for (let i = 0; i < 24; i++) updateBoss(w, boss, 1 / 60);
+    if (id === "mossQueen") {
+      assert.equal(w.hazards.length, 2);
+      assert.equal(w.eb.length, 5);
+    } else {
+      assert.equal(w.beams.length, 1);
+      assert.equal(w.fx.filter((ev) => ev.k === "beamWarn").length, 1);
+      const portalShots = w.eb.filter((bullet) => bullet.x === 8 && bullet.y === 0);
+      assert.equal(portalShots.length, 3);
+      assert.ok(portalShots.every((bullet) => bullet.warpT > w.time));
+      w.updateFeatures(1 / 60);
+      assert.ok(portalShots.every((bullet) => bullet.x > 7));
+    }
+  }
+});
+
+test("Fire Well fires eight correctly scaled rockets and long-lived Twin Rings", () => {
+  for (const weapon of ["emberLauncher", "ringBlade"]) {
+    const w = new World({ seed: 42, weapon, threat: 0 });
+    const { stats } = w;
+    stats.fireWell = 1;
+    stats.twinRings = weapon === "ringBlade" ? 1 : 0;
+    stats.dmgMul = 1.5;
+    assert.equal(w.useGadget({}), true);
+    for (let i = 0; i < 150 && !w.pb.length; i++) w.updateSingularities(1 / 60);
+    assert.equal(w.pb.length, 8);
+    for (const bolt of w.pb) {
+      if (weapon === "emberLauncher") {
+        assert.equal(bolt.dm, stats.dmgMul);
+      } else {
+        assert.equal(bolt.life, 4);
+        assert.equal(bolt.spin, 0);
+        assert.equal(bolt.dmg, stats.weapon.dmg * stats.dmgMul * 1.35);
+        assert.equal(bolt.r, stats.weapon.r * stats.sizeMul * 1.4);
+      }
+    }
+  }
+});
+
+test("new waves clear status timers, and frost requires a successful hit", () => {
+  const w = world();
+  const timers = ["singeT", "_singeTick", "dazeT", "corrodeT", "slowT", "chipAcc", "rushN", "rushT"];
+  for (const key of timers) w.player[key] = 1.5;
+  w.startWave(2);
+  assert.ok(timers.every((key) => w.player[key] === 0));
+  const frost = () => {
+    w.hazard({ x: w.player.x, y: w.player.y, delay: 0, r: 2, dmg: 12, kind: "glacier", src: "iceCrystal" });
+    w.updateHazards(1 / 60);
+  };
+  frost();
+  assert.equal(w.player.slowT, 0);
+  w.player.iT = 0;
+  w.player.shield = true;
+  frost();
+  assert.equal(w.player.slowT, 0);
+  w.player.iT = 0;
+  frost();
+  assert.equal(w.player.slowT, 1.6);
+});
+
+test("Shield Pulse still grants Perfect Dash credit, and Quick Streak counts every tenth boss hit", () => {
+  const w = world();
+  const p = w.player;
+  Object.assign(p, { dashT: 0.1, dashAt: w.time, dashCdT: 1 });
+  w.stats.shieldPulse = 1;
+  const shot = w.shoot(p.x + 0.5, p.y, 0, 6, 1);
+  w.triggerReactivePulse();
+  assert.equal(shot.life, 0);
+  assert.equal(p.dashCdT, 0.65);
+  assert.equal(w.fx.filter((event) => event.k === "graze").length, 1);
+
+  w.stats.killStreak = 1;
+  const boss = w.spawnBoss("bellKeeper");
+  boss.spawnT = 0;
+  for (let i = 0; i < 9; i++) w.hurtEnemy(boss, 2, 0, 0, 0, false);
+  assert.equal(p.rushN, 0);
+  w.hurtEnemy(boss, 2, 0, 0, 0, false);
+  assert.equal(p.rushN, 1);
+  assert.equal(p.rushT, 4);
+});
+
+test("hostile pools respect hazard resistance and spare the Guardian", async () => {
+  const { updateBossCards } = await import("../src/core/boss-cards.js");
+  const w = world();
+  const boss = w.spawnBoss("emberKing");
+  Object.assign(boss, { x: w.player.x, y: w.player.y, spawnT: 0 });
+  w.hash.build(w.enemies);
+  w.dmgMul = 2;
+  w.stats.hazardResist = 0.5;
+  w.burnPools.push({ x: boss.x, y: boss.y, r: 2, life: 3, dps: 14, hostile: true, playerDps: 14, src: "emberKing" });
+  const before = w.player.hp;
+  updateBossCards(w, 0.5);
+  assert.equal(boss.burnT, 0);
+  assert.equal(before - w.player.hp, 7);
+  assert.equal(w.lastHit, "emberKing");
+  w.state = "cleared";
+  w.player.singeT = 0;
+  updateBossCards(w, 0.5);
+  assert.equal(w.player.singeT, 0);
+});
+
 test("resuming Endless preserves every boss defeat, including repeat bosses", () => {
   const a = world();
   a.endless = true;

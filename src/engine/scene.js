@@ -16,6 +16,7 @@ export class Texture2D {
     wrap = "repeat",
     filter = "linear",
     flipY = false,
+    maxMipLevel,
   } = {}) {
     this.width = width;
     this.height = height;
@@ -25,6 +26,7 @@ export class Texture2D {
     this.wrap = wrap; // "repeat" | "clamp"
     this.filter = filter; // "linear" | "nearest"
     this.flipY = flipY;
+    this.maxMipLevel = maxMipLevel;
     this.ready = !!(data || image);
     this.version = 1;
     this._gpu = null;
@@ -38,7 +40,8 @@ export class Texture2D {
   }
   dispose() {
     if (this._gpu) {
-      const { gl, tex } = this._gpu;
+      const { engine, gl, tex } = this._gpu;
+      engine?._textureUploads.delete(this);
       if (gl && !gl.isContextLost() && tex) gl.deleteTexture(tex);
       this._gpu = null;
     }
@@ -280,7 +283,8 @@ export class InstancedNode extends Node {
   }
   dispose() {
     if (this._gpuInst) {
-      const { gl, vao, matBuf, colBuf, flashBuf } = this._gpuInst;
+      const { engine, gl, vao, matBuf, colBuf, flashBuf } = this._gpuInst;
+      engine?._instanceUploads.delete(this);
       if (gl && !gl.isContextLost()) {
         if (vao) gl.deleteVertexArray(vao);
         if (matBuf) gl.deleteBuffer(matBuf);
@@ -460,7 +464,8 @@ export class CompactInstancedNode extends Node {
   }
   dispose() {
     if (this._gpuInst) {
-      const { gl, vao, dataBuf } = this._gpuInst;
+      const { engine, gl, vao, dataBuf } = this._gpuInst;
+      engine?._instanceUploads.delete(this);
       if (gl && !gl.isContextLost()) {
         if (vao) gl.deleteVertexArray(vao);
         if (dataBuf) gl.deleteBuffer(dataBuf);
@@ -531,6 +536,7 @@ export class GpuParticleRing {
     this.d1Start = -1;
     this.d1End = -1;
     this._bins = new Int32Array(256);
+    this._slotExpiry = new Int32Array(capacity).fill(-1);
     this._curTick = 0;
     this._active = 0;
 
@@ -561,12 +567,14 @@ export class GpuParticleRing {
   set n(val) {
     const k = Math.max(0, val | 0);
     this._bins.fill(0);
+    this._slotExpiry.fill(-1);
     this._active = k;
     const now = this.getTime();
     this._curTick = Math.max(0, Math.floor(now * 20));
     if (k === 0) {
       this.cursor = 0;
       this.everUsed = 0;
+      this.d0Start = this.d0End = this.d1Start = this.d1End = -1;
       this._maxExpireAt = 0;
       this.mesh.count = 0;
       this.mesh.visible = false;
@@ -623,6 +631,7 @@ export class GpuParticleRing {
     }
   }
   spawn(x, y, z, vx, vy, vz, spawnTime, life, size, r, g, b, drag, grav, grow, isSpark, seed) {
+    this.advanceTime(spawnTime);
     const dur = Math.max(0.02, life);
     const slot = this.cursor;
     this.cursor = (slot + 1) % this.capacity;
@@ -650,9 +659,13 @@ export class GpuParticleRing {
     d[o + 15] = isSpark ? 1 + rotFrac : rotFrac * 0.49;
     this._markDirty(slot);
 
-    const nowTick = Math.max(this._curTick, Math.floor(spawnTime * 20));
-    this._curTick = nowTick;
-    const expTick = nowTick + Math.min(255, Math.max(1, Math.ceil(dur * 20)));
+    const expTick = Math.min(this._curTick + 255, Math.max(this._curTick + 1, Math.ceil(expireAt * 20)));
+    const previousExpiry = this._slotExpiry[slot];
+    if (previousExpiry > this._curTick) {
+      this._bins[previousExpiry & 255]--;
+      this._active--;
+    }
+    this._slotExpiry[slot] = expTick;
     this._bins[expTick & 255]++;
     this._active++;
     this.mesh.count = this.everUsed;
@@ -660,7 +673,8 @@ export class GpuParticleRing {
   }
   dispose() {
     if (this.mesh._gpuInst) {
-      const { gl, vao, dataBuf } = this.mesh._gpuInst;
+      const { engine, gl, vao, dataBuf } = this.mesh._gpuInst;
+      engine?._instanceUploads.delete(this.mesh);
       if (gl && !gl.isContextLost()) {
         if (vao) gl.deleteVertexArray(vao);
         if (dataBuf) gl.deleteBuffer(dataBuf);
@@ -771,7 +785,8 @@ export class GpuDebrisRing {
   }
   dispose() {
     if (this.mesh._gpuInst) {
-      const { gl, vao, dataBuf } = this.mesh._gpuInst;
+      const { engine, gl, vao, dataBuf } = this.mesh._gpuInst;
+      engine?._instanceUploads.delete(this.mesh);
       if (gl && !gl.isContextLost()) {
         if (vao) gl.deleteVertexArray(vao);
         if (dataBuf) gl.deleteBuffer(dataBuf);
@@ -836,6 +851,9 @@ export function mergeStaticNodes(root, keep = new Set()) {
       node.material &&
       !node.material.transparent &&
       !node.material.additive &&
+      !node.material.map &&
+      !node.geometry.partMeta &&
+      !Object.keys(node.material.uniforms).length &&
       (node.material.shader === "stylized" || node.material.shader === "emissive") &&
       !node.material.reedWind
     ) {
@@ -850,8 +868,15 @@ export function mergeStaticNodes(root, keep = new Set()) {
         mat.doubleSide ? 1 : 0,
         mat.biomeSkin ? 1 : 0,
         mat.wakeReact || 0,
-        mat.emissiveIntensity.toFixed(2),
+        mat.emissiveIntensity,
         mat.emissive.getHex(),
+        mat.opacity,
+        mat.fog,
+        mat.rimStrength,
+        mat.inkStrength,
+        mat.flatShading,
+        mat.depthWrite,
+        mat.depthTest,
         node.castShadow ? 1 : 0,
         node.receiveShadow ? 1 : 0,
         node.renderOrder,
@@ -899,7 +924,7 @@ export function mergeStaticNodes(root, keep = new Set()) {
       const p = g.positions;
       const nrm = g.normals;
       const uv = g.uvs;
-      const srcC = g.colors;
+      const srcC = node.material.vertexColors ? g.colors : null;
       const idx = g.indices;
       const vCount = g.vertexCount;
       rel.multiplyMatrices(rootInv, node.worldMatrix);
@@ -964,21 +989,17 @@ export function mergeStaticNodes(root, keep = new Set()) {
           outC[d3 + 2] = cb;
         }
       }
-      if (idx) {
-        if (det < 0) {
-          for (let i = 0; i < idx.length; i += 3) {
-            outI[iOff + i] = idx[i] + vOff;
-            outI[iOff + i + 1] = idx[i + 2] + vOff;
-            outI[iOff + i + 2] = idx[i + 1] + vOff;
-          }
-        } else {
-          for (let i = 0; i < idx.length; i++) outI[iOff + i] = idx[i] + vOff;
+      const count = idx ? idx.length : vCount;
+      if (det < 0) {
+        for (let i = 0; i < count; i += 3) {
+          outI[iOff + i] = vOff + (idx ? idx[i] : i);
+          outI[iOff + i + 1] = vOff + (idx ? idx[i + 2] : i + 2);
+          outI[iOff + i + 2] = vOff + (idx ? idx[i + 1] : i + 1);
         }
-        iOff += idx.length;
       } else {
-        for (let i = 0; i < vCount; i++) outI[iOff + i] = vOff + i;
-        iOff += vCount;
+        for (let i = 0; i < count; i++) outI[iOff + i] = vOff + (idx ? idx[i] : i);
       }
+      iOff += count;
       vOff += vCount;
       toRemove.push(node);
     }
@@ -996,6 +1017,10 @@ export function mergeStaticNodes(root, keep = new Set()) {
       rimStrength: bucket.sample.rimStrength,
       inkStrength: bucket.sample.inkStrength,
       fog: bucket.sample.fog,
+      opacity: bucket.sample.opacity,
+      flatShading: bucket.sample.flatShading,
+      depthWrite: bucket.sample.depthWrite,
+      depthTest: bucket.sample.depthTest,
     });
     const mesh = new MeshNode(mergedGeo, mergedMat);
     mesh.castShadow = bucket.castShadow;

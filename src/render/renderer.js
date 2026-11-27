@@ -177,8 +177,8 @@ function flashOrder(a, b) {
   return b.i - a.i;
 }
 
-function loadImageTexture(url, onReady) {
-  const tex = new Texture2D({ wrap: "repeat", filter: "linear", flipY: false });
+function loadImageTexture(url, onReady, maxMipLevel) {
+  const tex = new Texture2D({ wrap: "repeat", filter: "linear", flipY: false, maxMipLevel });
   if (typeof Image === "undefined") return tex;
   const img = new Image();
   img.crossOrigin = "anonymous";
@@ -273,12 +273,20 @@ export class Renderer {
     this.arena = new ArenaView(this.scene, this.engine);
 
     // Load stylized painterly atlases asynchronously
-    this.engine.textures.terrain = loadImageTexture("textures/terrain-atlas.webp", () => {
-      this.arena.uniforms.uTerrainReady.value = 1;
-    });
-    this.engine.textures.surface = loadImageTexture("textures/surface-atlas.webp", () => {
-      this.finishAtlasReady = true;
-    });
+    this.engine.textures.terrain = loadImageTexture(
+      "textures/terrain-atlas.webp",
+      () => {
+        this.arena.uniforms.uTerrainReady.value = 1;
+      },
+      5,
+    );
+    this.engine.textures.surface = loadImageTexture(
+      "textures/surface-atlas.webp",
+      () => {
+        this.finishAtlasReady = true;
+      },
+      5,
+    );
     this.engine.textures.vfx = loadImageTexture("textures/vfx-atlas.webp");
 
     this.nums = [];
@@ -593,6 +601,7 @@ export class Renderer {
     if (changed) {
       this.arena.build(biome, layout, !!layout, !layout);
       this.engine.clearWake();
+      if (prevBiomeId !== biome.id) this.attackView.clear();
       if (layout) {
         this.mapChanged = true;
         if (prevBiomeId && prevBiomeId !== biome.id) {
@@ -1117,8 +1126,8 @@ export class Renderer {
                 if (
                   num.id === ev.id &&
                   this.time - num.t0 <= (num.burn ? 0.6 : 0.15) &&
-                  !num.burn == !ev.burn &&
-                  !num.shield == !ev.shield
+                  !num.burn === !ev.burn &&
+                  !num.shield === !ev.shield
                 ) {
                   existing = num;
                   break;
@@ -1343,7 +1352,7 @@ export class Renderer {
             ev.y,
             0.6,
             Math.round(Math.min(11, 3 + scale * 3)),
-            this._dk.clone(),
+            this._dk,
             0.12 + 0.1 * Math.sqrt(scale),
             2.6 + scale * 1.7,
           );
@@ -1871,7 +1880,7 @@ export class Renderer {
           2.0,
           0.24 + Math.random() * 0.12,
           isAurora ? RL_AURORA_SPARK : RL_FESTIVAL_EMBER,
-          { drag: 0.4, spark: true },
+          { drag: 0.4, spark: true, ambient: true },
         );
       }
     }
@@ -1973,7 +1982,9 @@ export class Renderer {
     this._poseWorld = null;
     const hero = this.player;
     hero.group.visible = true;
+    const inspect = hero.inspectT;
     hero.resetPose?.();
+    hero.inspectT = inspect;
     hero.group.position.set(0, 0.085 + hero.setWalk(0, 0, 0, this.time), 0);
     hero.shield.visible = false;
     const menuWorldAngle = -this.time * 0.32;
@@ -2821,7 +2832,7 @@ export class Renderer {
       let lift = 0.45 + Math.sin(time * 4 + pickup.id) * 0.12;
       if (pickup.rain && pickup.t < 0.6) {
         lift += (0.6 - pickup.t) * 16;
-        if (Math.random() < 0.5)
+        if (Math.random() < dt * 30)
           this.emit(pickup.x, lift + 0.4, pickup.y, 0, 2, 0, 0.25, 0.3, shardColors[1], { drag: 1 });
       }
       if (pickup.rain && pickup.t >= 0.6 && !pickup.landed) {
@@ -3459,6 +3470,10 @@ export class Renderer {
     this.rlAuroraK = 0;
     this.rlWarmK = 0;
     this.rlDarkK = 0;
+    this.attackView.clear();
+    this.smokeView.clear();
+    this.engine.clearWake();
+    this.flashT = this.biomeFadeT = this.kick = this.lanternGun = 0;
   }
 
   resetCamera() {

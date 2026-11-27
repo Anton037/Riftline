@@ -763,7 +763,7 @@ test("aim assist uses the enemy's position while unassisted mouse aim reaches th
   assert.equal(w.pb.length, 0);
 });
 
-test("Echo Shot repeats the original muzzle launch after moving and turning", () => {
+test("Echo Shot repeats its direction from the current muzzle without advancing the shot count", () => {
   const w = new World({ seed: 929, weapon: "lanternGun", threat: 0 });
   w.arena.obs = [];
   Object.assign(w.player, { x: 0, y: 0, aim: 0, shotN: 3 });
@@ -774,8 +774,10 @@ test("Echo Shot repeats the original muzzle launch after moving and turning", ()
   Object.assign(w.player, { x: 5, y: -3, aim: Math.PI });
   w.fire(echo.angle, echo);
   const duplicate = w.pb[1];
-  assert.deepEqual([duplicate.x, duplicate.y], [original.x, original.y]);
+  const mouth = w.shotOrigin(echo.angle);
+  assert.deepEqual([duplicate.x, duplicate.y], [mouth.x, mouth.y]);
   assert.ok(duplicate.vx > 0);
+  assert.equal(w.player.shotN, 4);
   assert.equal(duplicate.launch.echoOf, original.launch);
 });
 

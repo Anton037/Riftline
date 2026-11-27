@@ -76,7 +76,7 @@ const SHADOW_FN = `
 uniform highp sampler2DShadow uShadowMap;
 float sampleShadow(vec3 worldPos, vec3 worldNormal) {
   if (uShadowsEnabled < 0.5) return 1.0;
-  vec3 biased = worldPos + worldNormal * 0.036 + uSunDir * 0.018;
+  vec3 biased = worldPos + worldNormal * 0.026 + uSunDir * 0.014;
   vec4 lp = uLightSpace * vec4(biased, 1.0);
   vec3 proj = lp.xyz / max(lp.w, 0.0001) * 0.5 + 0.5;
   if (proj.x < 0.01 || proj.x > 0.99 || proj.y < 0.01 || proj.y > 0.99 || proj.z > 0.995) return 1.0;
@@ -119,6 +119,19 @@ vec3 evalPointLights(vec3 worldPos, vec3 N, vec3 albedo) {
 }
 `;
 
+// Cofactors give the inverse-transpose direction without dividing by a near-zero determinant.
+const NORMAL_FN = `
+vec3 transformNormal(mat3 m, vec3 normal) {
+  vec3 x = cross(m[1], m[2]);
+  vec3 y = cross(m[2], m[0]);
+  vec3 z = cross(m[0], m[1]);
+  vec3 n = x * normal.x + y * normal.y + z * normal.z;
+  if (dot(m[0], x) < 0.0) n = -n;
+  float lengthSq = dot(n, n);
+  return lengthSq > 1e-16 ? n * inversesqrt(lengthSq) : vec3(0.0, 1.0, 0.0);
+}
+`;
+
 // Zero-draw-call GPU vertex sub-part animation + compact instance assembly
 const COMPACT_ACTOR_FN = `
 void evalPartAnim(inout vec3 pos, inout vec3 norm, vec4 meta, float packedAnim, float actionState, float time) {
@@ -141,15 +154,15 @@ void evalPartAnim(inout vec3 pos, inout vec3 norm, vec4 meta, float packedAnim, 
     float ny = norm.y, nz = norm.z;
     norm.y = ny * c - nz * s;
     norm.z = ny * s + nz * c;
-  } else if (kind == 2) {
+  } else if (kind == 2 || kind == 6) {
     // Mode 2: Alternating leg stride / radial skitter around hip (x=pAux, y=py)
     float cyc = animPhase + ph;
     float ang = sin(cyc) * 0.44 * moveK;
     float c = cos(ang), s = sin(ang);
-    vec2 dir = (abs(pos.z) > 0.24 && abs(pAux) > 0.12)
-      ? normalize(vec2(pos.x, pos.z) + vec2(1e-4, 0.0))
-      : vec2(1.0, 0.0);
-    float h = (pos.x - pAux) * dir.x + pos.z * dir.y * 0.38;
+    // Radial legs encode one azimuth for the entire part in the fractional mode.
+    float azimuth = kind == 6 ? fract(meta.x) * 25.1327412 : 0.0;
+    vec2 dir = vec2(cos(azimuth), sin(azimuth));
+    float h = dot(pos.xz, dir) - pAux;
     float dy = pos.y - py;
     float hNew = h * c - dy * s;
     float dyNew = h * s + dy * c;
@@ -359,6 +372,7 @@ layout(location=9) in float aInstFlash;`
       : ""
 }
 ${COMMON_UNIFORMS}
+${NORMAL_FN}
 ${isCompact ? COMPACT_ACTOR_FN : ""}
 uniform sampler2D uWakeMap;
 uniform mat4 uModel;
@@ -411,7 +425,7 @@ void main() {
     }
   }
   vWorldPos = wp4.xyz;
-  vWorldNorm = normalize(mat3(M) * aNorm);
+  vWorldNorm = transformNormal(mat3(M), aNorm);
   vFlash = ${isMat4 ? "aInstFlash" : "0.0"};
   vec3 instCol = ${isMat4 ? "aInstCol" : "vec3(1.0)"};`
   }
@@ -448,8 +462,8 @@ in float vFlash;
 out vec4 fragColor;
 
 vec3 sampleSurface(vec2 uv, vec2 duvX, vec2 duvY) {
-  vec2 scale = vec2(0.988) / vec2(3.0, 2.0);
-  vec2 tileUv = (uSurfaceTile + mix(vec2(0.006), vec2(0.994), fract(uv))) / vec2(3.0, 2.0);
+  vec2 scale = vec2(0.875) / vec2(3.0, 2.0);
+  vec2 tileUv = (uSurfaceTile + (vec2(0.0625) + fract(uv) * 0.875)) / vec2(3.0, 2.0);
   return textureGrad(uSurfaceAtlas, tileUv, duvX * scale, duvY * scale).rgb;
 }
 
@@ -564,13 +578,14 @@ layout(location=0) in vec3 aPos;
 layout(location=1) in vec3 aNorm;
 layout(location=2) in vec2 aUv;
 ${COMMON_UNIFORMS}
+${NORMAL_FN}
 uniform mat4 uModel;
 out vec3 vWorldPos;
 out vec3 vWorldNorm;
 void main() {
   vec4 wp = uModel * vec4(aPos, 1.0);
   vWorldPos = wp.xyz;
-  vWorldNorm = normalize(mat3(uModel) * aNorm);
+  vWorldNorm = transformNormal(mat3(uModel), aNorm);
   gl_Position = uViewProj * wp;
 }`;
 
@@ -885,8 +900,8 @@ ${
 vec3 sampleTerrainTile(vec2 uv, int tileIdx) {
   float col = float(tileIdx % 3);
   float row = float(tileIdx / 3);
-  vec2 scale = vec2(0.976) / vec2(3.0, 2.0);
-  vec2 cell = (vec2(col, row) + mix(vec2(0.012), vec2(0.988), fract(uv))) / vec2(3.0, 2.0);
+  vec2 scale = vec2(0.875) / vec2(3.0, 2.0);
+  vec2 cell = (vec2(col, row) + (vec2(0.0625) + fract(uv) * 0.875)) / vec2(3.0, 2.0);
   return pow(max(textureGrad(uTerrainAtlas, cell, dFdx(uv) * scale, dFdy(uv) * scale).rgb, vec3(0.0)), vec3(2.2));
 }
 
@@ -904,9 +919,9 @@ void main() {
   float detailAmt = mix(1.0, 0.54, centerCalm);
   float emissiveCalm = mix(1.0, 0.48, centerCalm);
   vec2 occUv = (p + uHalf) / max(uHalf * 2.0, vec2(1.0));
-  float occ = (inside > 0.05) ? texture(uOcclusion, clamp(occUv, 0.0, 1.0)).r : 0.86;
+  float occ = mix(0.86, texture(uOcclusion, clamp(occUv, 0.0, 1.0)).r, inside);
   vec2 wakeUv = (p + uWakeHalf) / max(uWakeHalf * 2.0, vec2(1.0));
-  vec4 wake = (inside > 0.02 && uWakeEnabled > 0.5) ? texture(uWakeMap, clamp(wakeUv, 0.0, 1.0)) * uWakeStrength : vec4(0.0);
+  vec4 wake = (inside > 0.0 && uWakeEnabled > 0.5) ? texture(uWakeMap, clamp(wakeUv, 0.0, 1.0)) * (uWakeStrength * inside) : vec4(0.0);
   float wakeTrack = clamp(wake.r, 0.0, 1.0);
   float wakeRip = clamp(wake.g, 0.0, 1.0);
   float wakeGlow = clamp(wake.a, 0.0, 1.0);
@@ -995,6 +1010,7 @@ layout(location=8) in vec3 aInstCol;`
     : ""
 }
 ${COMMON_UNIFORMS}
+${NORMAL_FN}
 ${isCompact ? COMPACT_ACTOR_FN : ""}
 uniform mat4 uModel;
 uniform float uUseVertexColors;
@@ -1013,7 +1029,7 @@ void main() {
       : `mat4 M = ${isMat4 ? "uModel * aInstMat" : "uModel"};
   vec4 wp = M * vec4(aPos, 1.0);
   vWorldPos = wp.xyz;
-  vWorldNorm = normalize(mat3(M) * aNorm);
+  vWorldNorm = transformNormal(mat3(M), aNorm);
   vec3 instCol = ${isMat4 ? "aInstCol" : "vec3(1.0)"};`
   }
   vUv = aUv;
@@ -1116,6 +1132,7 @@ layout(location=0) in vec3 aPos;
 layout(location=1) in vec3 aNorm;
 layout(location=2) in vec2 aUv;
 ${COMMON_UNIFORMS}
+${NORMAL_FN}
 uniform mat4 uModel;
 out vec3 vWorldPos;
 out vec3 vWorldNorm;
@@ -1123,7 +1140,7 @@ out vec2 vUv;
 void main() {
   vec4 wp = uModel * vec4(aPos, 1.0);
   vWorldPos = wp.xyz;
-  vWorldNorm = normalize(mat3(uModel) * aNorm);
+  vWorldNorm = transformNormal(mat3(uModel), aNorm);
   vUv = aUv;
   gl_Position = uViewProj * wp;
 }`;
@@ -1286,6 +1303,7 @@ layout(location=0) in vec3 aPos;
 layout(location=1) in vec3 aNorm;
 layout(location=4) in mat4 aInstMat;
 ${COMMON_UNIFORMS}
+${NORMAL_FN}
 uniform mat4 uModel;
 out vec3 vWorldPos;
 out vec3 vWorldNorm;
@@ -1293,7 +1311,7 @@ void main() {
   mat4 M = uModel * aInstMat;
   vec4 wp = M * vec4(aPos, 1.0);
   vWorldPos = wp.xyz;
-  vWorldNorm = normalize(mat3(M) * aNorm);
+  vWorldNorm = transformNormal(mat3(M), aNorm);
   gl_Position = uViewProj * wp;
 }`;
   const fs = `${HEADER}
@@ -1464,8 +1482,8 @@ out vec4 fragColor;
 
 vec3 elementColor(int i) {
   if (i == 1 || i == 2 || i == 7) return vec3(1.12, 0.28, 0.14);
-  if (i == 3) return vec3(0.20, 0.64, 1.06);
-  if (i == 4) return vec3(0.24, 0.84, 0.44);
+  if (i == 3) return vec3(0.17, 0.52, 1.16);
+  if (i == 4) return vec3(0.50, 0.98, 0.30);
   if (i == 5) return vec3(0.68, 0.28, 1.04);
   if (i == 8) return vec3(1.12, 0.54, 0.14);
   return vec3(1.14, 0.22, 0.20);
@@ -1484,7 +1502,9 @@ void main() {
   vec3 col = mix(el * 0.72, hotEdge, clamp(brightRim + fillEdge * 0.85 + ticks * 0.55, 0.0, 1.0));
   float baseAlpha = (0.18 + 0.28 * fillWave) * (1.0 - r * 0.14);
   float lineAlpha = max(brightRim * 0.92, max(fillEdge * 0.86, max(outerGlow, ticks * 0.55)));
-  float alpha = max(baseAlpha, lineAlpha);
+  float backing = exp(-sq((r - 0.915) * 17.0));
+  col = mix(col, vec3(0.014, 0.016, 0.026), backing * (1.0 - brightRim) * 0.9);
+  float alpha = max(max(baseAlpha, lineAlpha), backing * 0.78);
   fragColor = vec4(col, clamp(alpha * (1.0 - smoothstep(0.975, 1.0, r)), 0.0, 0.94));
 }`;
   return { vs, fs };
@@ -1699,8 +1719,6 @@ ${COMMON_UNIFORMS}
 ${BALLISTIC_DEBRIS_FN}
 out vec3 vWorldPos;
 out vec3 vWorldNorm;
-out vec3 vLocalPos;
-out vec3 vLocalNorm;
 out vec3 vColor;
 void main() {
   vec3 wp, wn;
@@ -1710,8 +1728,6 @@ void main() {
   }
   vWorldPos = wp;
   vWorldNorm = wn;
-  vLocalPos = aPos;
-  vLocalNorm = aNorm;
   vColor = pow(max(aColorSize.rgb, vec3(0.0)), vec3(2.2));
   gl_Position = uViewProj * vec4(wp, 1.0);
 }`;
@@ -1723,8 +1739,6 @@ ${SHADOW_FN}
 ${POINT_LIGHT_FN}
 in vec3 vWorldPos;
 in vec3 vWorldNorm;
-in vec3 vLocalPos;
-in vec3 vLocalNorm;
 in vec3 vColor;
 out vec4 fragColor;
 void main() {
@@ -1757,19 +1771,19 @@ export function wakeDecayProgram() {
   const fs = `${HEADER}
 uniform sampler2D uSrc;
 uniform vec4 uDecay;
+uniform float uStep;
 in vec2 vUv;
 out vec4 fragColor;
 void main() {
   vec2 tx = 1.0 / vec2(textureSize(uSrc, 0));
   vec4 c = texture(uSrc, vUv);
-  float n = texture(uSrc, vUv + vec2(0.0, tx.y)).g;
-  float s = texture(uSrc, vUv - vec2(0.0, tx.y)).g;
-  vec2 ewE = texture(uSrc, vUv + vec2(tx.x, 0.0)).gb;
-  vec2 ewW = texture(uSrc, vUv - vec2(tx.x, 0.0)).gb;
-  float rip = (c.g * 0.72 + (n + s + ewE.x + ewW.x) * 0.07) * uDecay.y;
-  float imp = (c.b * 0.84 + (ewE.y + ewW.y) * 0.08) * uDecay.z;
-  vec4 outW = vec4(c.r * uDecay.x, rip, imp, c.a * uDecay.w);
-  outW = max(outW - vec4(0.0015, 0.0025, 0.003, 0.002), vec4(0.0));
+  vec2 n = texture(uSrc, vUv + vec2(0.0, tx.y)).gb;
+  vec2 s = texture(uSrc, vUv - vec2(0.0, tx.y)).gb;
+  vec2 e = texture(uSrc, vUv + vec2(tx.x, 0.0)).gb;
+  vec2 w = texture(uSrc, vUv - vec2(tx.x, 0.0)).gb;
+  vec2 spread = mix(c.gb, (n + s + e + w) * 0.25, 1.0 - pow(vec2(0.72, 0.84), vec2(uStep)));
+  vec4 outW = vec4(c.r, spread, c.a) * uDecay;
+  outW = max(outW - vec4(0.0015, 0.0025, 0.003, 0.002) * uStep, vec4(0.0));
   fragColor = outW;
 }`;
   return { vs: FULLSCREEN_VS, fs };
@@ -1815,6 +1829,7 @@ export function bloomPrefilterProgram() {
   const fs = `${HEADER}
 uniform sampler2D uSrc;
 uniform float uThreshold;
+uniform float uRange;
 in vec2 vUv;
 out vec4 fragColor;
 void main() {
@@ -1829,7 +1844,7 @@ void main() {
   float soft = clamp(br - uThreshold + knee, 0.0, 2.0 * knee);
   soft = soft * soft / (4.0 * knee + 1e-4);
   float contrib = max(soft, br - uThreshold) / max(br, 1e-4);
-  fragColor = vec4(min(c * contrib, vec3(1.85)), 1.0);
+  fragColor = vec4(min(c * contrib, vec3(1.85)) / uRange, 1.0);
 }`;
   return { vs: FULLSCREEN_VS, fs };
 }
@@ -1852,6 +1867,27 @@ void main() {
   return { vs: FULLSCREEN_VS, fs };
 }
 
+const ACES_FN = `
+vec3 acesFilm(vec3 x) {
+  const float a = 2.51, b = 0.03, c = 2.43, d = 0.59, e = 0.14;
+  return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
+}
+`;
+
+export function directOutputShader(source) {
+  return (
+    source.replace("void main()", "void renderFragment()") +
+    `
+uniform float uDirectOutput;
+${ACES_FN}
+void main() {
+  renderFragment();
+  if (uDirectOutput > 0.5) fragColor.rgb = pow(acesFilm(max(fragColor.rgb, vec3(0.0)) * 0.96), vec3(1.0 / 2.2));
+}
+`
+  );
+}
+
 export function postCompositeProgram() {
   const fs = `${HEADER}
 uniform sampler2D uScene;
@@ -1862,10 +1898,7 @@ uniform float uAaFallback;
 in vec2 vUv;
 out vec4 fragColor;
 
-vec3 acesFilm(vec3 x) {
-  const float a = 2.51, b = 0.03, c = 2.43, d = 0.59, e = 0.14;
-  return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
-}
+${ACES_FN}
 
 float hdrLuma(vec3 c) {
   return dot(min(c, vec3(2.5)), vec3(0.2126, 0.7152, 0.0722));

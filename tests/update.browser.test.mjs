@@ -48,6 +48,11 @@ test("updates keep installed snapshots intact and old bundles available offline"
     base: "/Riftline/",
     intercept(req, res) {
       const name = new URL(req.url, "http://x").pathname.slice("/Riftline/".length);
+      if (current === a && name === "index.html") {
+        res.writeHead(302, { location: "/Riftline/" });
+        res.end();
+        return true;
+      }
       const body = current.files[name];
       res.writeHead(body === undefined ? 404 : 200, {
         "content-type": name.endsWith(".js") ? "application/javascript" : "text/html",
@@ -75,7 +80,8 @@ test("updates keep installed snapshots intact and old bundles available offline"
   await page.waitForFunction(() => navigator.serviceWorker.controller && window.release === "a");
   const direct = await page.goto(new URL("missing-page", url).href);
   assert.equal(direct.status(), 404, "Non-game URLs keep their own navigation response");
-  await page.goto(url);
+  const cachedHome = await page.goto(url);
+  assert.equal(cachedHome.status(), 200, "The canonical redirect serves correctly from the installed cache");
   // A separate deployment on this origin must survive activation and cache cleanup.
   const foreign = `riftline:${encodeURIComponent(new URL("/Preview/", url).href)}:sentinel`;
   const legacy = "riftline-v-preview-sentinel";

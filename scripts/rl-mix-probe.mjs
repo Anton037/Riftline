@@ -61,6 +61,7 @@ const result = await page.evaluate(async (secs) => {
         engine = new E();
       engine.attach(ctx, { room: false });
       engine.setVolumes(VOL.sfx, VOL.mus, VOL.amb);
+      if (!(await engine.physical.ready)) throw new Error("Physical sound bank failed to load");
       await make(ctx, engine);
       engine.simT = null;
       out[label] = stats((await ctx.startRendering()).getChannelData(0));
@@ -157,8 +158,7 @@ const result = await page.evaluate(async (secs) => {
     engine.playBiome = "lanternYard";
     engine.intensity = 0.9;
     engine.heat = 0;
-    // courtyard fight track gain = 1
-    engine.fade.gain.value = 1;
+    engine.fade.gain.value = info.gain;
     engine.mixFor("fight");
     engine.startMusicBed("fight", "lanternYard", 0.05);
     engine.live = () => true;
@@ -204,7 +204,7 @@ console.log(rows.join("\n"));
 const m = g("music-fight-courtyard-09"),
   mBoss = g("music-boss-courtyard"),
   s = g("sfx-stream"),
-  a = g("amb-courtyard"),
+  a = g("amb-lanternYard"),
   mix = g("mix-fight-courtyard");
 console.log("\n--- relations (dB, positive = the first is louder) ---");
 if (m.p95 && s.p95)

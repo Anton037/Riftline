@@ -24,7 +24,14 @@ export default [
       ecmaVersion: 2026,
       globals: { ...globals.browser, ...buildTokens },
     },
-    rules: { "no-undef": "error", "no-unused-vars": ["error", { args: "none", caughtErrors: "none" }] },
+    rules: {
+      "no-undef": "error",
+      "no-unused-vars": ["error", { args: "none", caughtErrors: "none" }],
+      "no-dupe-keys": "error",
+      "no-unreachable": "error",
+      "no-constant-condition": "error",
+      eqeqeq: ["error", "smart"],
+    },
   },
   {
     // the service worker: a classic script with worker globals of its own

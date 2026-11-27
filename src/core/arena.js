@@ -1,7 +1,7 @@
 // Arena layouts: obstacles, hazards (vents, ice, acid, portals), wave obstacles, flow field and
 // spatial hash.
 
-import { clamp, TAU, hashString, angleDiff, makeRng } from "./util.js";
+import { clamp, TAU, hashString, makeRng } from "./util.js";
 import { RL_BIOME_HAZARD } from "../data/biomes.js";
 import { biomeSeedId, layoutBiomeSeedId } from "../data/content-ids.js";
 
@@ -375,6 +375,10 @@ const SpatialHash = class {
       this.dx = new Float32Array(cells);
       this.dy = new Float32Array(cells);
       this.queue = new Int32Array(cells);
+      this.rebuildObstacles();
+    }
+    rebuildObstacles() {
+      const arena = this.a;
       this.target = -1;
       for (let row = 0; row < this.rows; row++)
         for (let col = 0; col < this.cols; col++) {
@@ -1012,151 +1016,10 @@ function isConnected(obs, W, H) {
   }
   return reached >= openCount * 0.995;
 }
+// Other biomes get their hazards from the wave director.
 function placeFeatures(rng, biomeId, obs, W, H) {
-  let features = { vents: [], ice: [], portals: [], acid: [], devils: [] },
-    path = (x0, y0, x1, y1, minClear = 0.5) => {
-      let clear = Math.max(minClear, spawnZone.r + 0.12),
-        dx = x1 - x0,
-        dy = y1 - y0,
-        len2 = dx * dx + dy * dy;
-      if (Math.abs(x0) > W - 2.7 || Math.abs(y0) > H - 2.7 || Math.abs(x1) > W - 2.7 || Math.abs(y1) > H - 2.7)
-        return false;
-      for (let ob of obs)
-        if (ob.t === "c") {
-          let along = len2 ? clamp(((ob.x - x0) * dx + (ob.y - y0) * dy) / len2, 0, 1) : 0,
-            px = x0 + dx * along,
-            py = y0 + dy * along;
-          if ((px - ob.x) * (px - ob.x) + (py - ob.y) * (py - ob.y) < (ob.r + clear) * (ob.r + clear)) return false;
-        } else {
-          let minX = ob.x - ob.w - clear,
-            maxX = ob.x + ob.w + clear,
-            minY = ob.y - ob.h - clear,
-            maxY = ob.y + ob.h + clear,
-            t0 = 0,
-            t1 = 1;
-          if (Math.abs(dx) < 1e-9) {
-            if (x0 < minX || x0 > maxX) continue;
-          } else {
-            let ta = (minX - x0) / dx,
-              tb = (maxX - x0) / dx;
-            if (ta > tb) {
-              [ta, tb] = [tb, ta];
-            }
-            t0 = Math.max(t0, ta);
-            t1 = Math.min(t1, tb);
-            if (t0 > t1) continue;
-          }
-          if (Math.abs(dy) < 1e-9) {
-            if (y0 < minY || y0 > maxY) continue;
-          } else {
-            let ta = (minY - y0) / dy,
-              tb = (maxY - y0) / dy;
-            if (ta > tb) {
-              [ta, tb] = [tb, ta];
-            }
-            t0 = Math.max(t0, ta);
-            t1 = Math.min(t1, tb);
-            if (t0 > t1) continue;
-          }
-          if (t0 <= t1 && t1 >= 0 && t0 <= 1) return false;
-        }
-      return true;
-    },
-    findSpot = (rad, obsPad, list, gap, opt = {}) => {
-      let best = null,
-        bestScore = -1e9,
-        wallPad = Math.max(3.6, rad + 2.7),
-        spawnPad = Math.max(5.6, spawnZone.r + rad + 4.1),
-        reach = Math.min(10.5, Math.hypot(Math.max(0, W - wallPad), Math.max(0, H - wallPad))),
-        maxR = Math.min(opt.maxRadius ?? 9.2, Math.max(spawnPad + 1, reach * 0.72)),
-        minR = Math.min(opt.minRadius ?? 7.1, maxR - 1);
-      for (let tries = 0; tries < 96; tries++) {
-        let px, py;
-        if (opt.anchor) {
-          let angle = rng.next() * TAU,
-            dist = rng.range(opt.minDist ?? 6, opt.maxDist ?? 9);
-          px = opt.anchor.x + Math.cos(angle) * dist;
-          py = opt.anchor.y + Math.sin(angle) * dist;
-        } else {
-          let angle =
-              opt.angleCenter != null
-                ? opt.angleCenter + rng.range(-(opt.angleSpan ?? 0.5), opt.angleSpan ?? 0.5)
-                : rng.next() * TAU,
-            dist = rng.range(opt.minRadius ?? minR, opt.maxRadius ?? maxR);
-          px = spawnZone.x + Math.cos(angle) * dist;
-          py = spawnZone.y + Math.sin(angle) * dist;
-        }
-        if (
-          Math.abs(px) > W - wallPad ||
-          Math.abs(py) > H - wallPad ||
-          Math.hypot(px - spawnZone.x, py - spawnZone.y) < spawnPad ||
-          !path(opt.pathFrom?.x ?? px, opt.pathFrom?.y ?? py, px, py, opt.pathFrom?.x != null ? 0.45 : 0.5) ||
-          hitsObstacle(obs, px, py, rad + obsPad)
-        )
-          continue;
-        let free = true,
-          nearest = 999;
-        for (let other of list) {
-          let dist = Math.hypot(other.x - px, other.y - py),
-            clearance = dist - (other.r || 0) - rad;
-          nearest = Math.min(nearest, clearance);
-          if (dist < (other.r || 0) + rad + gap) {
-            free = false;
-            break;
-          }
-        }
-        if (!free || (opt.farFrom && Math.hypot(px - opt.farFrom.x, py - opt.farFrom.y) < (opt.farMin || 0))) continue;
-        let wallRoom = Math.min(W - Math.abs(px), H - Math.abs(py)),
-          spawnDist = Math.hypot(px - spawnZone.x, py - spawnZone.y),
-          clearance = Math.min(nearest, 8),
-          radiusOff =
-            opt.preferRadius != null
-              ? Math.abs(spawnDist - opt.preferRadius)
-              : Math.abs(spawnDist - (minR + maxR) * 0.5),
-          minAngle = 999;
-        for (let other of list) {
-          let angA = Math.atan2(other.y - spawnZone.y, other.x - spawnZone.x),
-            angB = Math.atan2(py - spawnZone.y, px - spawnZone.x);
-          minAngle = Math.min(minAngle, Math.abs(angleDiff(angA, angB)));
-        }
-        let score = wallRoom * 1.35 + clearance * 0.75 - minAngle * 0.85 - radiusOff * 1.15 + rng.next() * 1.1;
-        if (score > bestScore) {
-          bestScore = score;
-          best = { x: px, y: py };
-        }
-      }
-      return best;
-    };
-  if (biomeId === "emberHill") {
-    // Dwarven forge fumaroles spaced around the basalt crater ring
-    let count = rng.int(3, 5),
-      period = rng.range(6.5, 8);
-    for (let k = 0; k < count; k++) {
-      let rad = rng.range(1.4, 1.8),
-        spot = findSpot(rad, 0.6, features.vents, 3, { minRadius: 6.5, maxRadius: 9.2, preferRadius: 7.8 });
-      if (spot) {
-        features.vents.push({ x: spot.x, y: spot.y, r: rad, period, phase: (k / count) * period + rng.range(0, 0.8) });
-      }
-    }
-  } else if (biomeId === "snowRidge") {
-    let count = rng.int(3, 5);
-    for (let k = 0; k < count; k++) {
-      let rad = rng.range(3, 4.4), // 2.4.6: was 2.2–3.4
-        spot = findSpot(rad, 0.45, features.ice, 1.5, { minRadius: 6, maxRadius: 8.8, preferRadius: 7.2 });
-      if (spot) {
-        features.ice.push({ x: spot.x, y: spot.y, r: rad });
-      }
-    }
-  } else if (biomeId === "mossBog") {
-    let count = rng.int(3, 4);
-    for (let k = 0; k < count; k++) {
-      let rad = rng.range(2.4, 3.5), // 2.4.6: was 1.8–2.8
-        spot = findSpot(rad, 0.55, features.acid, 1.8, { minRadius: 5.8, maxRadius: 8.8, preferRadius: 7 });
-      if (spot) {
-        features.acid.push({ x: spot.x, y: spot.y, r: rad });
-      }
-    }
-  } else if (biomeId === "starHall") {
+  const features = { vents: [], ice: [], portals: [], acid: [], devils: [] };
+  if (biomeId === "starHall") {
     let pairs = rng.chance(0.4) ? 2 : 1,
       used = [];
     const portalGap = 4.2,

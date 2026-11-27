@@ -116,6 +116,7 @@ function rlSanitizeHistory(history) {
   return out;
 }
 function rlRecordRun(store, world, pre, win, abandoned) {
+  store.syncForeign();
   const data = store.data,
     up = Object.entries(world.up || {})
       .filter(([id]) => own(upgradesById, id) && !upgradesById[id].repeat)
@@ -597,6 +598,7 @@ const safeStorage = {
       this.listeners = new Set();
       let data = null,
         text = safeStorage.get(SAVE_KEY);
+      this.raw = text;
       if (text)
         try {
           data = readSaveJson(text);
@@ -654,15 +656,15 @@ const safeStorage = {
     onChange(listener) {
       this.listeners.add(listener);
     }
-    // 2.8.1: another tab or window wrote the save. `foreign` is set while this tab is in a run; the next
-    // save first takes over the other tab's progress and keeps only this tab's run, settings and seen flags,
-    // so neither tab rolls back the other.
+    // Read before editing shared progress, including writes whose storage event has not arrived yet.
+    // The active run, preferences and seen flags belong to this tab until returning to the menu.
     syncForeign(keepMine = true) {
-      if (!this.foreign) return false;
       this.foreign = false;
+      const text = safeStorage.get(SAVE_KEY);
+      if (text === this.raw || !text) return false;
       let data = null;
       try {
-        data = readSaveJson(safeStorage.get(SAVE_KEY));
+        data = readSaveJson(text);
       } catch {}
       if (!data || typeof data != "object") return false;
       // 3.32.0: a save of another tab that cannot be used no longer replaces this tab's progress with a fresh profile
@@ -676,6 +678,7 @@ const safeStorage = {
         fresh.seen = { ...fresh.seen, ...mine.seen };
       }
       this.data = fresh;
+      this.raw = text;
       return true;
     }
     save(reason) {
@@ -683,7 +686,7 @@ const safeStorage = {
       // (a storage event while the dialog was open) used to take its place here
       const replacing = reason === "import" || reason === "reset";
       if (replacing) this.foreign = false;
-      else this.syncForeign();
+      else if (this.foreign) this.syncForeign();
       if (reason === "reset") this.kept = null;
       // a run of this build replaces the run of a newer build for good
       if (this.kept && this.data.run !== null) this.kept.run = null;
@@ -692,6 +695,7 @@ const safeStorage = {
       if (text.length > SAVE_TEXT_LIMIT) return false;
       // Explicitly confirmed replacements may recover a held save. Autosaves never overwrite it.
       const written = (!this.held || replacing) && safeStorage.set(SAVE_KEY, text);
+      if (written) this.raw = text;
       if (written && replacing) this.held = false;
       if (replacing && !written) return false;
       for (let listener of this.listeners)
@@ -720,17 +724,23 @@ const safeStorage = {
     }
     restore(parsed, reason = "import") {
       if (!parsed?.ok) return false;
-      const previous = { data: this.data, kept: this.kept, foreign: this.foreign };
+      const previous = {
+        data: this.data,
+        kept: this.kept,
+        foreign: this.foreign,
+        retire: RL_RETIRE_NOTE,
+        module: RL_MODULE_NOTE,
+      };
       this.data = parsed.data;
       this.kept = parsed.kept || null;
-      if (this.save(reason)) {
-        if (parsed.retireNote) RL_RETIRE_NOTE = parsed.retireNote;
-        if (parsed.moduleNote) RL_MODULE_NOTE = parsed.moduleNote;
-        return true;
-      }
+      RL_RETIRE_NOTE = parsed.retireNote || null;
+      RL_MODULE_NOTE = parsed.moduleNote || null;
+      if (this.save(reason)) return true;
       this.data = previous.data;
       this.kept = previous.kept;
       this.foreign = previous.foreign;
+      RL_RETIRE_NOTE = previous.retire;
+      RL_MODULE_NOTE = previous.module;
       return false;
     }
     reset() {
@@ -803,7 +813,7 @@ function rlMigrateUpgrades(run) {
   }
   return out;
 }
-export { RL_RETIRE_NOTE, SaveStore, SAVE_KEY, rlRecordRun, set_RL_RETIRE_NOTE, cleanRun, newSave };
+export { RL_RETIRE_NOTE, SaveStore, SAVE_KEY, rlRecordRun, set_RL_RETIRE_NOTE, cleanRun, newSave, defaultSettings };
 
 /* ==========================================================================
    2.5.0 B: merged workshop modules are refunded

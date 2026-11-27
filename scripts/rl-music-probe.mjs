@@ -110,7 +110,10 @@ const trackFn = (biome) =>
         let bit = n >> 1;
         for (; j & bit; bit >>= 1) j ^= bit;
         j ^= bit;
-        if (i < j) [re[i], re[j]] = [re[j], re[i]];
+        if (i < j) {
+          [re[i], re[j]] = [re[j], re[i]];
+          [im[i], im[j]] = [im[j], im[i]];
+        }
       }
       for (let len = 2; len <= n; len <<= 1) {
         const ang = (-2 * Math.PI) / len;
@@ -123,9 +126,9 @@ const trackFn = (biome) =>
               xr = re[b] * wr - im[b] * wi,
               xi = re[b] * wi + im[b] * wr;
             re[b] = re[a] - xr;
-            im[b] = im[a] + xi;
+            im[b] = im[a] - xi;
             re[a] += xr;
-            im[a] -= xi;
+            im[a] += xi;
           }
       }
     };
@@ -297,9 +300,15 @@ for (const biome of BIOMES) {
   if (!c || !b) continue;
   const loudness = +(b.rms / c.rms).toFixed(2),
     voices = +(b.voicesPerSec / c.voicesPerSec).toFixed(2);
+  const gap = 20 * Math.log10(b.rms / c.rms);
   versus.push({ biome, loudness, voices });
-  if (loudness < 1.5) fail.push(`${biome}: boss only ${loudness}x the calm theme`);
+  if (gap < 1 || gap > 3.5) fail.push(`${biome}: boss track is ${gap.toFixed(1)} dB above the fight track`);
   if (voices < 0.9) fail.push(`${biome}: boss thinner than the calm theme (${voices}x)`);
+}
+const bossLevels = BIOMES.map((biome) => trackRows[`${biome}:boss`]?.rms).filter(Boolean);
+if (bossLevels.length > 1) {
+  const spread = 20 * Math.log10(Math.max(...bossLevels) / Math.min(...bossLevels));
+  if (spread > 2.5) fail.push(`Boss track loudness spread is ${spread.toFixed(1)} dB`);
 }
 
 const r = (k) => trackRows[k];

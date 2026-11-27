@@ -32,6 +32,7 @@ import {
   bloomPrefilterProgram,
   bloomKawaseProgram,
   postCompositeProgram,
+  directOutputShader,
 } from "./shaders.js";
 
 // Surface atlas tile (col, row), rim strength, specular exponent, delicate dark-ink contour strength
@@ -185,6 +186,12 @@ function createProgram(gl, vsSrc, fsSrc, label, cache = null) {
   return { program: prog, uniforms, label, id: 0, cache: Object.create(null), modelIdent: false };
 }
 
+function displayChannel(value) {
+  const x = value * 0.96;
+  const filmic = Math.min(1, (x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14));
+  return filmic ** (1 / 2.2);
+}
+
 function _isMobileDevice() {
   return (
     typeof window !== "undefined" &&
@@ -258,6 +265,9 @@ export class WebGL2Engine {
 
     this.programs = new Map();
     this._shaderCache = new Map();
+    this._geometryUploads = new Set();
+    this._textureUploads = new Set();
+    this._instanceUploads = new Set();
     this._ctxGen = 1;
     this._wakeHoldT = 0;
     this.dummyVao = gl.createVertexArray();
@@ -399,9 +409,10 @@ export class WebGL2Engine {
   }
 
   _initContextHandlers() {
-    this.canvas.addEventListener("webglcontextlost", (e) => {
+    this._onContextLost = (e) => {
       e.preventDefault();
       this._ctxGen++;
+      this._releaseUploads();
       this._curProg = null;
       this._curVao = null;
       this._curBlend = "";
@@ -427,8 +438,8 @@ export class WebGL2Engine {
       this.zeroTex = null;
       this.shadowFallbackTex = null;
       this._shaderCache.clear();
-    });
-    this.canvas.addEventListener("webglcontextrestored", () => {
+    };
+    this._onContextRestored = () => {
       this._ctxGen++;
       this._curVao = null;
       const gl = this.gl;
@@ -443,7 +454,49 @@ export class WebGL2Engine {
       this._initShadowTarget();
       this._initPostTargets();
       if (this._warmupKeys?.length) this.warmupPrograms(this._warmupKeys);
-    });
+    };
+    this.canvas.addEventListener("webglcontextlost", this._onContextLost);
+    this.canvas.addEventListener("webglcontextrestored", this._onContextRestored);
+  }
+
+  _releaseUploads() {
+    for (const node of this._instanceUploads) {
+      if (node.isGpuRingMesh) node.ring.dispose();
+      else node.dispose();
+    }
+    for (const geo of this._geometryUploads) geo.releaseGpu();
+    for (const texture of this._textureUploads) texture.dispose();
+  }
+
+  dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.canvas.removeEventListener("webglcontextlost", this._onContextLost);
+    this.canvas.removeEventListener("webglcontextrestored", this._onContextRestored);
+    this._releaseUploads();
+    const gl = this.gl;
+    if (!gl.isContextLost()) {
+      for (const target of [
+        this.wakeA,
+        this.wakeB,
+        this.shadowTarget,
+        this.msaaTarget,
+        this.hdrTarget,
+        this.bloomA,
+        this.bloomB,
+        this.bloomC,
+      ]) {
+        this._deleteTarget(target);
+      }
+      for (const tex of [this.whiteTex, this.zeroTex, this.shadowFallbackTex]) if (tex) gl.deleteTexture(tex);
+      for (const vao of [this.dummyVao, this._wakeVao]) if (vao) gl.deleteVertexArray(vao);
+      for (const buffer of [this.frameUbo, this._wakePosBuf, this._wakeIdxBuf, this._wakeStampBuf])
+        if (buffer) gl.deleteBuffer(buffer);
+      for (const program of this.programs.values()) gl.deleteProgram(program.program);
+      for (const shader of this._shaderCache.values()) gl.deleteShader(shader);
+    }
+    this.programs.clear();
+    this._shaderCache.clear();
   }
 
   getContext() {
@@ -594,12 +647,13 @@ export class WebGL2Engine {
     }
     const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    if (!ok && useHalf) {
-      gl.deleteFramebuffer(fbo);
-      gl.deleteTexture(tex);
-      if (depthRb) gl.deleteRenderbuffer(depthRb);
-      this.hdrExt = null;
-      return this._createColorTarget(w, h, withDepth, false);
+    if (!ok) {
+      this._deleteTarget({ fbo, tex, depthRb });
+      if (useHalf) {
+        this.hdrExt = null;
+        return this._createColorTarget(w, h, withDepth, false);
+      }
+      return null;
     }
     return { fbo, tex, depthRb, width: w, height: h, isHalf: useHalf };
   }
@@ -609,6 +663,7 @@ export class WebGL2Engine {
     const gl = this.gl;
     if (t.fbo) gl.deleteFramebuffer(t.fbo);
     if (t.tex) gl.deleteTexture(t.tex);
+    if (t.depthTex) gl.deleteTexture(t.depthTex);
     if (t.colorRb) gl.deleteRenderbuffer(t.colorRb);
     if (t.depthRb) gl.deleteRenderbuffer(t.depthRb);
   }
@@ -620,6 +675,8 @@ export class WebGL2Engine {
     this._deleteTarget(this.bloomB);
     this._deleteTarget(this.bloomC);
     this.msaaTarget = null;
+    this.hdrTarget = this.bloomA = this.bloomB = this.bloomC = null;
+    if (!this.postEnabled) return;
     const rw = Math.max(2, Math.round(this.pixelWidth * this.renderScale));
     const rh = Math.max(2, Math.round(this.pixelHeight * this.renderScale));
     this.rtWidth = rw;
@@ -627,6 +684,10 @@ export class WebGL2Engine {
     let msaa = this.hdrExt ? this._createMsaaTarget(rw, rh, true) : null;
     if (!msaa) msaa = this._createMsaaTarget(rw, rh, false);
     let hdr = this._createColorTarget(rw, rh, !msaa, msaa ? msaa.isHalf : !!this.hdrExt);
+    if (!hdr) {
+      this._deleteTarget(msaa);
+      return;
+    }
     if (msaa && hdr.isHalf !== msaa.isHalf) {
       this._deleteTarget(msaa);
       msaa = this._createMsaaTarget(rw, rh, hdr.isHalf);
@@ -637,6 +698,7 @@ export class WebGL2Engine {
     }
     this.msaaTarget = msaa;
     this.hdrTarget = hdr;
+    if (!hdr) return;
     if (this.isMobile) {
       // Mobile TBDR GPUs pay heavily for every FBO switch and half-res float pass.
       // Prefiltering directly to quarter-res RGBA8 + 1 Kawase octave cuts bloom bandwidth by ~87%.
@@ -654,6 +716,10 @@ export class WebGL2Engine {
       this.bloomB = this._createColorTarget(qw, qh, false);
       this.bloomC = this._createColorTarget(Math.max(2, qw >> 1), Math.max(2, qh >> 1), false);
     }
+  }
+
+  resetAdaptivePacing() {
+    this._lastFrameTs = null;
   }
 
   updateAdaptiveScale(now, targetMs) {
@@ -785,7 +851,8 @@ export class WebGL2Engine {
           src = stylizedProgram(key.endsWith("_compact") ? "compact" : key.endsWith("_inst") ? "mat4" : false);
         }
     }
-    p = createProgram(this.gl, src.vs, src.fs, key, this._shaderCache);
+    const sceneShader = !/^(shadow|wake|bloom|postComposite)/.test(key);
+    p = createProgram(this.gl, src.vs, sceneShader ? directOutputShader(src.fs) : src.fs, key, this._shaderCache);
     this._curProg = null;
     p.id = this._nextProgId++;
     this.programs.set(key, p);
@@ -830,12 +897,13 @@ export class WebGL2Engine {
     ) {
       return texObj._gpu.tex;
     }
-    const tex =
-      texObj._gpu && texObj._gpu.gl === gl && texObj._gpu.ctxGen === ctxGen ? texObj._gpu.tex : gl.createTexture();
+    if (texObj._gpu && (texObj._gpu.gl !== gl || texObj._gpu.ctxGen !== ctxGen)) texObj.dispose();
+    const tex = texObj._gpu?.tex || gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, texObj.flipY ? 1 : 0);
     if (texObj.image) {
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, texObj.image);
+      if (texObj.maxMipLevel != null) gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAX_LEVEL, texObj.maxMipLevel);
       gl.generateMipmap(gl.TEXTURE_2D);
     } else if (texObj.data) {
       if (texObj.format === "r8") {
@@ -862,7 +930,8 @@ export class WebGL2Engine {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, minF);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, magF);
-    texObj._gpu = { gl, ctxGen, tex, version: texObj.version };
+    texObj._gpu = { engine: this, gl, ctxGen, tex, version: texObj.version };
+    this._textureUploads.add(texObj);
     return tex;
   }
 
@@ -905,7 +974,7 @@ export class WebGL2Engine {
     const ctxGen = this._ctxGen;
     if (geo._gpu && geo._gpu.gl === gl && geo._gpu.ctxGen === ctxGen && geo._gpu.version === geo.version)
       return geo._gpu;
-    if (geo._gpu && geo._gpu.gl === gl && geo._gpu.ctxGen === ctxGen) geo.dispose();
+    if (geo._gpu) geo.releaseGpu();
 
     const vao = gl.createVertexArray();
     gl.bindVertexArray(vao);
@@ -966,6 +1035,7 @@ export class WebGL2Engine {
     gl.bindVertexArray(null);
     this._curVao = null;
     geo._gpu = {
+      engine: this,
       gl,
       ctxGen,
       vao,
@@ -979,6 +1049,7 @@ export class WebGL2Engine {
       count,
       version: geo.version,
     };
+    this._geometryUploads.add(geo);
     return geo._gpu;
   }
 
@@ -989,13 +1060,8 @@ export class WebGL2Engine {
     const gl = this.gl;
     const ctxGen = this._ctxGen;
     const base = this._ensureGeometry(node.geometry);
-    if (
-      !node._gpuInst ||
-      node._gpuInst.gl !== gl ||
-      node._gpuInst.ctxGen !== ctxGen ||
-      node._gpuInst.geoVersion !== base.version
-    ) {
-      if (node._gpuInst && node._gpuInst.gl === gl && node._gpuInst.ctxGen === ctxGen) node.dispose();
+    if (!node._gpuInst || node._gpuInst.gl !== gl || node._gpuInst.ctxGen !== ctxGen || node._gpuInst.base !== base) {
+      if (node._gpuInst) node.dispose();
       const vao = gl.createVertexArray();
       gl.bindVertexArray(vao);
       this._bindBaseAttribs(gl, base);
@@ -1037,7 +1103,8 @@ export class WebGL2Engine {
 
       gl.bindVertexArray(null);
       this._curVao = null;
-      node._gpuInst = { gl, ctxGen, vao, matBuf, colBuf, flashBuf, geoVersion: base.version };
+      node._gpuInst = { engine: this, gl, ctxGen, vao, matBuf, colBuf, flashBuf, base };
+      this._instanceUploads.add(node);
       node.dirtyCount = Math.max(node.dirtyCount, node.count);
     }
 
@@ -1056,20 +1123,15 @@ export class WebGL2Engine {
       }
       node.dirtyCount = 0;
     }
-    return { base, inst: node._gpuInst };
+    return node._gpuInst;
   }
 
   _ensureCompactInstanced(node) {
     const gl = this.gl;
     const ctxGen = this._ctxGen;
     const base = this._ensureGeometry(node.geometry);
-    if (
-      !node._gpuInst ||
-      node._gpuInst.gl !== gl ||
-      node._gpuInst.ctxGen !== ctxGen ||
-      node._gpuInst.geoVersion !== base.version
-    ) {
-      if (node._gpuInst && node._gpuInst.gl === gl && node._gpuInst.ctxGen === ctxGen) node.dispose();
+    if (!node._gpuInst || node._gpuInst.gl !== gl || node._gpuInst.ctxGen !== ctxGen || node._gpuInst.base !== base) {
+      if (node._gpuInst) node.dispose();
       const vao = gl.createVertexArray();
       gl.bindVertexArray(vao);
       this._bindBaseAttribs(gl, base);
@@ -1085,7 +1147,8 @@ export class WebGL2Engine {
 
       gl.bindVertexArray(null);
       this._curVao = null;
-      node._gpuInst = { gl, ctxGen, vao, dataBuf, geoVersion: base.version };
+      node._gpuInst = { engine: this, gl, ctxGen, vao, dataBuf, base };
+      this._instanceUploads.add(node);
       node.dirtyCount = Math.max(node.dirtyCount, node.count);
     }
 
@@ -1095,7 +1158,7 @@ export class WebGL2Engine {
       gl.bufferSubData(gl.ARRAY_BUFFER, 0, node.instanceData, 0, n * 12);
       node.dirtyCount = 0;
     }
-    return { base, inst: node._gpuInst };
+    return node._gpuInst;
   }
 
   _ensureGpuRing(node) {
@@ -1103,13 +1166,8 @@ export class WebGL2Engine {
     const ctxGen = this._ctxGen;
     const ring = node.ring;
     const base = this._ensureGeometry(node.geometry);
-    if (
-      !node._gpuInst ||
-      node._gpuInst.gl !== gl ||
-      node._gpuInst.ctxGen !== ctxGen ||
-      node._gpuInst.geoVersion !== base.version
-    ) {
-      if (node._gpuInst && node._gpuInst.gl === gl && node._gpuInst.ctxGen === ctxGen) ring.dispose();
+    if (!node._gpuInst || node._gpuInst.gl !== gl || node._gpuInst.ctxGen !== ctxGen || node._gpuInst.base !== base) {
+      if (node._gpuInst) ring.dispose();
       const vao = gl.createVertexArray();
       gl.bindVertexArray(vao);
       this._bindBaseAttribs(gl, base);
@@ -1125,12 +1183,13 @@ export class WebGL2Engine {
 
       gl.bindVertexArray(null);
       this._curVao = null;
-      node._gpuInst = { gl, ctxGen, vao, dataBuf, geoVersion: base.version };
+      node._gpuInst = { engine: this, gl, ctxGen, vao, dataBuf, base };
+      this._instanceUploads.add(node);
       ring.d0Start = -1;
       ring.d0End = -1;
       ring.d1Start = -1;
       ring.d1End = -1;
-      return { base, inst: node._gpuInst };
+      return node._gpuInst;
     }
 
     if (ring.d0Start >= 0) {
@@ -1150,7 +1209,7 @@ export class WebGL2Engine {
       ring.d1Start = -1;
       ring.d1End = -1;
     }
-    return { base, inst: node._gpuInst };
+    return node._gpuInst;
   }
 
   _setState(mat) {
@@ -1175,7 +1234,11 @@ export class WebGL2Engine {
       else gl.disable(gl.DEPTH_TEST);
       this._curDepthTest = mat.depthTest;
     }
-    const cull = !mat.doubleSide;
+    this._setCull(!mat.doubleSide);
+  }
+
+  _setCull(cull) {
+    const gl = this.gl;
     if (this._curCull !== cull) {
       if (cull) gl.enable(gl.CULL_FACE);
       else gl.disable(gl.CULL_FACE);
@@ -1343,8 +1406,7 @@ export class WebGL2Engine {
       this._lastWakeTime = scene.time;
     }
 
-    const rawDt = scene.time - this._lastWakeTime;
-    const dt = rawDt > 0 && rawDt < 0.25 ? rawDt : 1 / 60;
+    const dt = Math.min(0.1, Math.max(0, scene.time - this._lastWakeTime));
     this._lastWakeTime = scene.time;
 
     if (this._wakeCount > 0) {
@@ -1356,6 +1418,7 @@ export class WebGL2Engine {
     }
 
     const src = this.wakeFlip === 0 ? this.wakeA : this.wakeB;
+    if (!dt && !this._wakeCount) return src.tex;
     const dst = this.wakeFlip === 0 ? this.wakeB : this.wakeA;
     this.wakeFlip ^= 1;
 
@@ -1379,6 +1442,7 @@ export class WebGL2Engine {
       Math.exp(-dt * 3.6),
       Math.exp(-dt * 1.35),
     );
+    gl.uniform1f(dec.uniforms.uStep, dt * 60);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
 
     if (this._wakeCount > 0) {
@@ -1439,6 +1503,7 @@ export class WebGL2Engine {
     const prog = node._cachedProg;
     this._useProgram(prog);
     this._setState(mat);
+    this._u1f(prog, "uDirectOutput", this._directOutput ? 1 : 0);
     const u = prog.uniforms;
     this._uModel(prog, node);
 
@@ -1498,8 +1563,8 @@ export class WebGL2Engine {
     }
 
     if (inst) {
-      const { base, inst: gpuInst } = this._ensureInstanced(node);
-      this._bindVao(gpuInst.vao);
+      const { base, vao } = this._ensureInstanced(node);
+      this._bindVao(vao);
       if (base.ibo) gl.drawElementsInstanced(gl.TRIANGLES, base.count, base.indexType, 0, node.count);
       else gl.drawArraysInstanced(gl.TRIANGLES, 0, base.count, node.count);
       this.info.render.calls++;
@@ -1594,7 +1659,7 @@ export class WebGL2Engine {
 
   render(scene, camera) {
     const gl = this.gl;
-    if (gl.isContextLost()) return;
+    if (this.disposed || gl.isContextLost()) return;
     const stats = this.info.render;
     stats.frame++;
     stats.calls = 0;
@@ -1649,7 +1714,7 @@ export class WebGL2Engine {
       gl.disable(gl.BLEND);
       gl.enable(gl.DEPTH_TEST);
       gl.depthMask(true);
-      gl.enable(gl.CULL_FACE);
+      this._setCull(true);
       gl.cullFace(gl.BACK);
       gl.enable(gl.POLYGON_OFFSET_FILL);
       gl.polygonOffset(1.5, 1.9);
@@ -1660,6 +1725,7 @@ export class WebGL2Engine {
         this._useProgram(spStatic);
         for (let i = 0; i < this._shadowsStatic.length; i++) {
           const node = this._shadowsStatic[i];
+          this._setCull(!node.material.doubleSide);
           this._uModel(spStatic, node);
           const base = this._ensureGeometry(node.geometry);
           this._bindVao(base.vao);
@@ -1674,8 +1740,9 @@ export class WebGL2Engine {
         this._useProgram(spComp);
         for (let i = 0; i < this._shadowsCompact.length; i++) {
           const node = this._shadowsCompact[i];
-          const { base, inst } = this._ensureCompactInstanced(node);
-          this._bindVao(inst.vao);
+          this._setCull(!node.material.doubleSide);
+          const { base, vao } = this._ensureCompactInstanced(node);
+          this._bindVao(vao);
           if (base.ibo) gl.drawElementsInstanced(gl.TRIANGLES, base.count, base.indexType, 0, node.count);
           else gl.drawArraysInstanced(gl.TRIANGLES, 0, base.count, node.count);
           stats.calls++;
@@ -1687,9 +1754,10 @@ export class WebGL2Engine {
         this._useProgram(spInst);
         for (let i = 0; i < this._shadowsInst.length; i++) {
           const node = this._shadowsInst[i];
+          this._setCull(!node.material.doubleSide);
           this._uModel(spInst, node);
-          const { base, inst } = this._ensureInstanced(node);
-          this._bindVao(inst.vao);
+          const { base, vao } = this._ensureInstanced(node);
+          this._bindVao(vao);
           if (base.ibo) gl.drawElementsInstanced(gl.TRIANGLES, base.count, base.indexType, 0, node.count);
           else gl.drawArraysInstanced(gl.TRIANGLES, 0, base.count, node.count);
           stats.calls++;
@@ -1701,8 +1769,9 @@ export class WebGL2Engine {
         this._useProgram(spDeb);
         for (let i = 0; i < this._shadowsDebris.length; i++) {
           const node = this._shadowsDebris[i];
-          const { base, inst } = this._ensureGpuRing(node);
-          this._bindVao(inst.vao);
+          this._setCull(!node.material.doubleSide);
+          const { base, vao } = this._ensureGpuRing(node);
+          this._bindVao(vao);
           if (base.ibo) gl.drawElementsInstanced(gl.TRIANGLES, base.count, base.indexType, 0, node.count);
           else gl.drawArraysInstanced(gl.TRIANGLES, 0, base.count, node.count);
           stats.calls++;
@@ -1727,7 +1796,9 @@ export class WebGL2Engine {
     gl.bindTexture(gl.TEXTURE_2D, wakeTex);
 
     // 3. Main Scene Pass (into 4x MSAA HDR renderbuffer when available, else single-sample HDR FBO)
-    const usePost = this.postEnabled && this.hdrTarget && this.bloomA && this.bloomB;
+    const usePost = this.postEnabled && this.hdrTarget;
+    const useBloom = usePost && scene.bloomStrength > 0 && this.bloomA && this.bloomB;
+    this._directOutput = !usePost;
     const mainFbo = usePost ? (this.msaaTarget ? this.msaaTarget.fbo : this.hdrTarget.fbo) : null;
     const mainW = usePost ? this.rtWidth : this.pixelWidth;
     const mainH = usePost ? this.rtHeight : this.pixelHeight;
@@ -1736,7 +1807,9 @@ export class WebGL2Engine {
     gl.depthMask(true);
     gl.enable(gl.DEPTH_TEST);
     _cacheLinearColor(this.clearColor);
-    gl.clearColor(this.clearColor._lr, this.clearColor._lg, this.clearColor._lb, 1);
+    const { _lr: red, _lg: green, _lb: blue } = this.clearColor;
+    if (usePost) gl.clearColor(red, green, blue, 1);
+    else gl.clearColor(displayChannel(red), displayChannel(green), displayChannel(blue), 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     this._curBlend = "";
     this._curDepthWrite = true;
@@ -1775,56 +1848,60 @@ export class WebGL2Engine {
       gl.disable(gl.CULL_FACE);
       this._bindVao(this.dummyVao);
 
-      // Prefilter bright emissives -> bloomA (half-res on desktop, quarter-res on mobile)
-      const pre = this._getProgram("bloomPrefilter");
-      this._useProgram(pre);
-      gl.bindFramebuffer(gl.FRAMEBUFFER, this.bloomA.fbo);
-      if (gl.invalidateFramebuffer) gl.invalidateFramebuffer(gl.FRAMEBUFFER, this._colorAttach);
-      gl.viewport(0, 0, this.bloomA.width, this.bloomA.height);
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, this.hdrTarget.tex);
-      const bloomThresh = this.hdrTarget.isHalf ? scene.bloomThreshold : Math.min(scene.bloomThreshold, 0.78);
-      gl.uniform1f(pre.uniforms.uThreshold, bloomThresh);
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
-
-      // Kawase downsample 1 -> bloomB
-      const kaw = this._getProgram("bloomKawase");
-      this._useProgram(kaw);
-      gl.bindFramebuffer(gl.FRAMEBUFFER, this.bloomB.fbo);
-      if (gl.invalidateFramebuffer) gl.invalidateFramebuffer(gl.FRAMEBUFFER, this._colorAttach);
-      gl.viewport(0, 0, this.bloomB.width, this.bloomB.height);
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, this.bloomA.tex);
-      gl.uniform1f(kaw.uniforms.uOffset, 1.15);
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
-
-      // Kawase downsample 2 -> bloomC (desktop eighth-res) -> upsample -> bloomB
-      if (this.bloomC) {
-        gl.bindFramebuffer(gl.FRAMEBUFFER, this.bloomC.fbo);
+      const bloomRange = useBloom && !this.bloomA.isHalf ? 1.85 : 1;
+      if (useBloom) {
+        // Prefilter bright emissives -> bloomA (half-res on desktop, quarter-res on mobile)
+        const pre = this._getProgram("bloomPrefilter");
+        this._useProgram(pre);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.bloomA.fbo);
         if (gl.invalidateFramebuffer) gl.invalidateFramebuffer(gl.FRAMEBUFFER, this._colorAttach);
-        gl.viewport(0, 0, this.bloomC.width, this.bloomC.height);
+        gl.viewport(0, 0, this.bloomA.width, this.bloomA.height);
         gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, this.bloomB.tex);
-        gl.uniform1f(kaw.uniforms.uOffset, 1.45);
+        gl.bindTexture(gl.TEXTURE_2D, this.hdrTarget.tex);
+        const bloomThresh = this.hdrTarget.isHalf ? scene.bloomThreshold : Math.min(scene.bloomThreshold, 0.78);
+        gl.uniform1f(pre.uniforms.uThreshold, bloomThresh);
+        gl.uniform1f(pre.uniforms.uRange, bloomRange);
         gl.drawArrays(gl.TRIANGLES, 0, 3);
 
+        // Kawase downsample 1 -> bloomB
+        const kaw = this._getProgram("bloomKawase");
+        this._useProgram(kaw);
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.bloomB.fbo);
         if (gl.invalidateFramebuffer) gl.invalidateFramebuffer(gl.FRAMEBUFFER, this._colorAttach);
         gl.viewport(0, 0, this.bloomB.width, this.bloomB.height);
         gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, this.bloomC.tex);
-        gl.uniform1f(kaw.uniforms.uOffset, 1.65);
+        gl.bindTexture(gl.TEXTURE_2D, this.bloomA.tex);
+        gl.uniform1f(kaw.uniforms.uOffset, 1.15);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+        // Kawase downsample 2 -> bloomC (desktop eighth-res) -> upsample -> bloomB
+        if (this.bloomC) {
+          gl.bindFramebuffer(gl.FRAMEBUFFER, this.bloomC.fbo);
+          if (gl.invalidateFramebuffer) gl.invalidateFramebuffer(gl.FRAMEBUFFER, this._colorAttach);
+          gl.viewport(0, 0, this.bloomC.width, this.bloomC.height);
+          gl.activeTexture(gl.TEXTURE0);
+          gl.bindTexture(gl.TEXTURE_2D, this.bloomB.tex);
+          gl.uniform1f(kaw.uniforms.uOffset, 1.45);
+          gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+          gl.bindFramebuffer(gl.FRAMEBUFFER, this.bloomB.fbo);
+          if (gl.invalidateFramebuffer) gl.invalidateFramebuffer(gl.FRAMEBUFFER, this._colorAttach);
+          gl.viewport(0, 0, this.bloomB.width, this.bloomB.height);
+          gl.activeTexture(gl.TEXTURE0);
+          gl.bindTexture(gl.TEXTURE_2D, this.bloomC.tex);
+          gl.uniform1f(kaw.uniforms.uOffset, 1.65);
+          gl.drawArrays(gl.TRIANGLES, 0, 3);
+        }
+
+        // Kawase final upsample -> bloomA
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.bloomA.fbo);
+        if (gl.invalidateFramebuffer) gl.invalidateFramebuffer(gl.FRAMEBUFFER, this._colorAttach);
+        gl.viewport(0, 0, this.bloomA.width, this.bloomA.height);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, this.bloomB.tex);
+        gl.uniform1f(kaw.uniforms.uOffset, 1.55);
         gl.drawArrays(gl.TRIANGLES, 0, 3);
       }
-
-      // Kawase final upsample -> bloomA
-      gl.bindFramebuffer(gl.FRAMEBUFFER, this.bloomA.fbo);
-      if (gl.invalidateFramebuffer) gl.invalidateFramebuffer(gl.FRAMEBUFFER, this._colorAttach);
-      gl.viewport(0, 0, this.bloomA.width, this.bloomA.height);
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, this.bloomB.tex);
-      gl.uniform1f(kaw.uniforms.uOffset, 1.55);
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
 
       // Final ACES tone-mapped composite -> full-DPR canvas backbuffer
       const comp = this._getProgram("postComposite");
@@ -1834,8 +1911,8 @@ export class WebGL2Engine {
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, this.hdrTarget.tex);
       gl.activeTexture(gl.TEXTURE1);
-      gl.bindTexture(gl.TEXTURE_2D, this.bloomA.tex);
-      gl.uniform1f(comp.uniforms.uBloomStrength, scene.bloomStrength);
+      gl.bindTexture(gl.TEXTURE_2D, useBloom ? this.bloomA.tex : this.zeroTex);
+      gl.uniform1f(comp.uniforms.uBloomStrength, useBloom ? scene.bloomStrength * bloomRange : 0);
       gl.uniform1f(comp.uniforms.uFlash, this.flash);
       gl.uniform1f(comp.uniforms.uAaFallback, this.msaaTarget ? 0 : 1);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
