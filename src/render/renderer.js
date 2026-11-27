@@ -287,7 +287,7 @@ export class Renderer {
       () => {
         this.finishAtlasReady = true;
       },
-      5,
+      4,
     );
     this.engine.textures.vfx = loadImageTexture("textures/vfx-atlas.webp");
 
@@ -587,6 +587,7 @@ export class Renderer {
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     this._rlViewKey = "";
+    return true;
   }
 
   camDistance() {

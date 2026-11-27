@@ -10,6 +10,37 @@ const { buildLayout, mapTemplates, placeObstacles } = await import("../src/core/
 const { makeRng, hashString } = await import("../src/core/util.js");
 const { ArenaView } = await import("../src/render/arena-view.js");
 
+test("prepared arena artwork stays offstage until the matching layout loads", () => {
+  const view = new ArenaView(new Node());
+  const layouts = biomeList.slice(0, 3).map((biome, i) => {
+    const layout = buildLayout(biome, 731, i + 2, false);
+    return [biome, { ...layout, obs: layout.obstacles }];
+  });
+  view.build(...layouts[0]);
+  try {
+    const current = view.obsGroup;
+    const occlusion = view.groundOcclusion;
+    view.prefetch(...layouts[1]);
+    const prepared = view.prepared;
+    assert.equal(view.obsGroup, current);
+    assert.equal(view.groundOcclusion, occlusion);
+    assert.equal(prepared.group.parent, null);
+    view.build(...layouts[1], true);
+    assert.equal(view.obsGroup, prepared.obsGroup);
+    assert.equal(view.groundOcclusion, prepared.groundOcclusion);
+    assert.equal(view.obsGroup.position.y, -2.4);
+    view.update(1, 0, 0, 0);
+    assert.ok(view.obsGroup.position.y === 0);
+    view.prefetch(...layouts[0]);
+    view.build(...layouts[2], true);
+    assert.equal(view.layKey, layouts[2][1].key);
+    assert.equal(view.prepared, null);
+    assert.notEqual(view.obsGroup, prepared.obsGroup);
+  } finally {
+    disposeArena(view);
+  }
+});
+
 test("map audit catches triangle crossings even when every vertex is outside", () => {
   const face = [
     [-30, 2, -20],

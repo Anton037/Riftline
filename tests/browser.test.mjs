@@ -371,10 +371,25 @@ for (const tablet of [true, false])
       });
       await visible(page, "choose");
       await visible(page, "chooseFirstHint");
+      await page.waitForFunction(() => {
+        const { game, renderer } = window.__riftTest;
+        const key = game.world.nextLayout?.arena.key;
+        return game._settledOverlayFrames === 2 && key && key === renderer.arena.prepared?.key;
+      });
+      const sleeping = await page.evaluate(async () => {
+        const { game, renderer } = window.__riftTest;
+        const last = game.last;
+        window.preparedCover = renderer.arena.prepared.obsGroup;
+        for (let i = 0; i < 6; i++) await new Promise(requestAnimationFrame);
+        return game.last === last;
+      });
+      assert.equal(sleeping, true, "the game loop sleeps on a settled card offer");
       await press("#cards [data-pick]");
-      await page.waitForFunction(
-        () => window.__riftTest.game.world.wave === 2 && document.getElementById("choose").hidden,
-      );
+      await page.waitForFunction(() => {
+        const { game, renderer } = window.__riftTest;
+        return game.world.wave === 2 && renderer.arena.layKey === game.world.arena.key;
+      });
+      assert.equal(await page.evaluate(() => window.__riftTest.renderer.arena.obsGroup === window.preparedCover), true);
       await page.waitForFunction(() => JSON.parse(localStorage.getItem("riftline.save.v1")).run?.wave === 2);
       phase("wave clear and upgrade");
 

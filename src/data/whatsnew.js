@@ -4,6 +4,17 @@
 export const NEWS_KEEP = 5;
 export const WHATS_NEW = [
   {
+    version: "5.4.4",
+    title: "Smoother waves and a lighter load",
+    items: [
+      "The next arena gets ready while you browse crafts or shop at the Roadside Forge.",
+      "The game loop rests on paused and settled reward screens.",
+      "A smaller texture download keeps the painted surfaces and soft lighting.",
+      "Auto-aim favors enemies you can damage during a Guardian's shield phase.",
+      "Lantern Yard's ambience is a little easier to hear under its music.",
+    ],
+  },
+  {
     version: "5.4.3",
     title: "Safer saves and lighter arena rendering",
     items: [
@@ -44,17 +55,6 @@ export const WHATS_NEW = [
       "Fixed major boss, enemy, and craft bugs across all six areas and removed remaining safe-zone cheese.",
       "Improved touch button spacing, modal tap grace, landscape phone layouts, Forge button clarity, and debuff HUD accuracy.",
       "Hardened iOS Safari audio recovery, restored missing biome wave-event soundscapes, and strengthened cross-tab and wave-clear saves.",
-    ],
-  },
-  {
-    version: "5.3.2",
-    title: "Sharper fights and clearer traps",
-    items: [
-      "Resolution now respects the display refresh rate and sharpens again after frame pacing recovers.",
-      "Mines, sweepers and floor traps take turns claiming space in crowded arenas.",
-      "Shooting a mine can set off nearby vessels with a teal fuse that only harms enemies.",
-      "Sweeper warnings stop at cover as soon as they appear.",
-      "Music recovers when you return to the game through the browser history.",
     ],
   },
 ];

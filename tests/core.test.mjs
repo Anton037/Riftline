@@ -745,6 +745,22 @@ test("auto aim drops a covered favorite and acquires a clear target before the A
   assert.equal(w.pickTarget(), clear);
 });
 
+test("auto aim prefers a vulnerable target over a closer phase shield", () => {
+  const w = new World({ seed: 929, weapon: "lanternGun", threat: 0 });
+  w.player.x = w.player.y = 0;
+  w.arena.obs = [];
+  const boss = w.spawnBoss("bellKeeper");
+  const enemy = w.spawnEnemy("kettleGuard", 0, 15, {});
+  Object.assign(boss, { x: 3, y: 0, spawnT: 0, shielded: true });
+  enemy.spawnT = 0;
+  w.player.target = boss;
+  assert.equal(w.pickTarget(), enemy);
+  w.enemies.reverse();
+  assert.equal(w.pickTarget(), enemy);
+  w.arena.obs = [{ t: "b", x: 0, y: 6, w: 1, h: 0.5 }];
+  assert.equal(w.pickTarget(), boss);
+});
+
 test("aim assist uses the enemy's position while unassisted mouse aim reaches the cursor from the muzzle", () => {
   const w = new World({ seed: 929, weapon: "lanternGun", threat: 0 });
   w.player.x = w.player.y = 0;

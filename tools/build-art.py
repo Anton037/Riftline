@@ -133,7 +133,7 @@ def make_terrain_atlas():
 
 
 def make_surface_atlas():
-    """3x2 seamless painterly material brushwork atlas (512x512 per material tile).
+    """3x2 seamless painterly material brushwork atlas (256x256 per material tile).
     Tile layout (col, row):
       (0,0) metal      (1,0) armor       (2,0) organic
       (0,1) basalt     (1,1) stone/wood  (2,1) ice/crystal
@@ -141,7 +141,8 @@ def make_surface_atlas():
     Saved as lossless WebP so linear R/G/B data channels never suffer YUV chroma subsampling bleed.
     """
     size = ATLAS_TILE - 2 * ATLAS_GUTTER
-    atlas = Image.new("RGB", (ATLAS_TILE * 3, ATLAS_TILE * 2))
+    tile_size = ATLAS_TILE // 2
+    atlas = Image.new("RGB", (tile_size * 3, tile_size * 2))
     configs = [
         # (angle, spread, stroke_count, ridge_freq, roughness_base, seed)
         (0, 8, 520, 10, 0.24, 701),     # metal: crisp directional brushed brass/iron grain
@@ -163,7 +164,9 @@ def make_surface_atlas():
         band = np.abs(np.cos(TAU * (x * bins_x + y * bins_y + fbm * 0.35)))
         glint = np.clip((band ** 7) * 0.42 + np.maximum(0.0, strokes) * 0.28, 0.0, 1.0)
         rgb = np.dstack([val * 255.0, rough * 255.0, glint * 255.0])
-        atlas.paste(add_gutter(rgb), (ATLAS_TILE * (idx % 3), ATLAS_TILE * (idx // 3)))
+        # Bake the first mip level while keeping the periodic gutter around each tile.
+        tile = add_gutter(rgb).resize((tile_size, tile_size), Image.Resampling.BOX)
+        atlas.paste(tile, (tile_size * (idx % 3), tile_size * (idx // 3)))
     atlas.save(PUBLIC / "textures" / "surface-atlas.webp", "WEBP", lossless=True, method=6)
 
 

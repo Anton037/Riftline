@@ -2766,6 +2766,12 @@ export class ArenaView {
     this._obsFrozen = false;
   }
 
+  prefetch(biome, layout) {
+    if (layout.key !== this.layKey && layout.key !== this.prepared?.key) {
+      this.prepared = this.prepare(biome, layout, false);
+    }
+  }
+
   build(biome, layout, animate = false, isMenu = false) {
     layout = layout || {
       key: isMenu ? `${layoutBiomeSeedId(biome.id)}:menu` : `${layoutBiomeSeedId(biome.id)}:classic`,
@@ -2776,10 +2782,7 @@ export class ArenaView {
     };
     if (this.layKey === layout.key) return;
     const first = this.layKey == null;
-    this.layKey = layout.key;
-    this.biomeId = biome.id;
 
-    // Dispose previous arena GPU geometry cleanly
     this.group.traverse((obj) => {
       if (obj.isInstancedMesh) obj.dispose();
       if (obj.geometry) obj.geometry.dispose();
@@ -2793,6 +2796,16 @@ export class ArenaView {
       GEO_CACHE.clear();
     }
 
+    const next = this.prepared?.key === layout.key ? this.prepared : this.prepare(biome, layout, isMenu);
+    this.prepared = null;
+    this.layKey = layout.key;
+    this.biomeId = biome.id;
+    this.obsGroup = next.obsGroup;
+    this.sceneryGroup = next.sceneryGroup;
+    this.rlAnim = next.rlAnim;
+    this.lampLens = next.lampLens;
+    this.group.add(...next.group.children);
+
     const look = GLAZES[biome.id] || GLAZES.lanternYard;
     this.uniforms.uGrid.value.setHex(look.trim);
     this.uniforms.uGlaze.value.setHex(look.base);
@@ -2801,9 +2814,24 @@ export class ArenaView {
     this.uniforms.uStyle.value = look.style;
 
     this.groundOcclusion?.dispose();
-    this.groundOcclusion = createGroundOcclusion(layout.W, layout.H, layout.obs);
+    this.groundOcclusion = next.groundOcclusion;
     this.uniforms.uOcclusion.value = this.groundOcclusion;
     if (this.engine) this.engine.textures.occlusion = this.groundOcclusion;
+
+    this.rise = animate && !first ? 0 : 1;
+    this.obsGroup.position.y = this.rise < 1 ? -2.4 : 0;
+    this._obsFrozen = false;
+    if (this.rise >= 1) this._freezeCoverStatic();
+  }
+
+  prepare(biome, layout, isMenu) {
+    // Build the next layout off the scene. Its meshes and texture upload when it becomes visible.
+    const group = new Node();
+    const obsGroup = new Node();
+    const sceneryGroup = new Node();
+    sceneryGroup.matrixAutoUpdate = false;
+    const rlAnim = [];
+    const groundOcclusion = createGroundOcclusion(layout.W, layout.H, layout.obs);
 
     // Stylized painterly arena & exterior world plane (160x160 covers all corner vistas cleanly)
     const floorGeo = plane(160, 160, 1, 1).rotateX(-Math.PI / 2);
@@ -2811,67 +2839,53 @@ export class ArenaView {
     floor.receiveShadow = true;
     floor.renderOrder = 2;
     floor.frustumCulled = false;
-    this.group.add(floor);
+    group.add(floor);
     floor.freezeStatic();
 
     // Lightweight distant sky & horizon gradient ring strictly outside the playable arena
-    this.group.add(createSkyBackdrop(biome.id, layout.W, layout.H));
-
-    const props = new Node();
-    this.group.add(props);
-    this.obsGroup = props;
-    const scenery = new Node();
-    scenery.matrixAutoUpdate = false;
-    this.group.add(scenery);
-    this.sceneryGroup = scenery;
-    this.rlAnim = [];
-
-    buildCover(this, biome.id, layout.obs, makeRng(hashString(layout.key + ":cover")));
+    group.add(createSkyBackdrop(biome.id, layout.W, layout.H), obsGroup, sceneryGroup);
+    buildCover({ obsGroup, rlAnim }, biome.id, layout.obs, makeRng(hashString(layout.key + ":cover")));
 
     const edgeGroup = new Node();
-    const edgeView = { sceneryGroup: edgeGroup, rlAnim: this.rlAnim };
+    const edgeView = { sceneryGroup: edgeGroup, rlAnim };
     buildEdgeDressing(edgeView, biome, layout.W, layout.H, layout.obs, makeRng(hashString(layout.key + ":edge")));
     if (isMenu) buildMenuPlinth(edgeView, biome);
     setWorldShadows(edgeGroup);
     mergeStaticNodes(edgeGroup, new Set());
     edgeGroup.freezeStatic();
-    this.sceneryGroup.add(edgeGroup);
+    sceneryGroup.add(edgeGroup);
 
     const extTpl = getExteriorTemplate(biome, layout.W, layout.H);
     const nodeMap = new Map();
     const extInstance = cloneExteriorNode(extTpl.root, nodeMap);
     extInstance.matrixAutoUpdate = false;
-    this.sceneryGroup.add(extInstance);
-    this.lampLens = extTpl.lampLens;
+    sceneryGroup.add(extInstance);
     for (const a of extTpl.anims) {
       const mapped = nodeMap.get(a.o);
-      if (mapped) this.rlAnim.push({ ...a, o: mapped });
+      if (mapped) rlAnim.push({ ...a, o: mapped });
     }
 
     if (biome.id === "snowRidge") {
       const aurora = createAurora(layout.W, layout.H);
-      this.group.add(aurora);
+      group.add(aurora);
     }
 
-    const keep = new Set(this.rlAnim.map((a) => a.o));
-    if (this.lampLens) keep.add(this.lampLens);
-    setWorldShadows(this.obsGroup);
-    mergeStaticNodes(this.obsGroup, keep);
+    const keep = new Set(rlAnim.map((a) => a.o));
+    if (extTpl.lampLens) keep.add(extTpl.lampLens);
+    setWorldShadows(obsGroup);
+    mergeStaticNodes(obsGroup, keep);
 
     extInstance.updateWorldMatrix(true);
     for (const child of extInstance.children) {
       if (!keep.has(child)) child.freezeStatic();
     }
 
-    this.rise = animate && !first ? 0 : 1;
-    props.position.y = this.rise < 1 ? -2.4 : 0;
-    this._obsFrozen = false;
-    if (this.rise >= 1) this._freezeCoverStatic(keep);
+    return { key: layout.key, group, obsGroup, sceneryGroup, rlAnim, lampLens: extTpl.lampLens, groundOcclusion };
   }
 
-  _freezeCoverStatic(keepSet = null) {
+  _freezeCoverStatic() {
     if (!this.obsGroup || this._obsFrozen) return;
-    const keep = keepSet || new Set(this.rlAnim.map((a) => a.o));
+    const keep = new Set(this.rlAnim.map((a) => a.o));
     // Keep the final rise transform on the cover root so its frozen children stay cached.
     this.obsGroup.markMatrixDirty();
     this.obsGroup.updateWorldMatrix(true);

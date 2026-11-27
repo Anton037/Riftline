@@ -227,6 +227,9 @@ elementById("gl").addEventListener("webglcontextrestored", () => {
   logError("webgl", "context restored");
   ui.syncGraphicsControls();
   ui.toast(game.paused ? "Graphics restored. Resume when ready." : "Graphics restored.", "good");
+  game.redrawPaused = game.paused;
+  game._settledOverlayFrames = 0;
+  startLoop();
 });
 let _resizeRaf = 0,
   _resizeWhy = "resize",
@@ -261,12 +264,13 @@ function _scheduleResize(why) {
         game._settledOverlayFrames = 0;
         if (renderer) {
           renderer.markResize();
-          renderer.resize();
+          if (renderer.resize()) game.redrawPaused = game.paused;
         }
         overlay.resize();
         // a turn of the phone switches to the button layout of the other orientation
         if (hudEditor?.isOpen) hudEditor.onResize();
         else placeHud();
+        startLoop();
       } catch (err) {
         logError(_resizeWhy, err);
       }
@@ -315,6 +319,8 @@ const overlay = new Overlay(elementById("ov")),
     mode: "menu",
     world: null,
     paused: false,
+    redrawPaused: false,
+    _settledOverlayFrames: 0,
     resumeAt: 0,
     previewW: store.data.weapon,
     buildId: BUILD_ID,
@@ -422,6 +428,7 @@ const overlay = new Overlay(elementById("ov")),
       } catch (err) {
         logError("monitor", err);
       }
+      startLoop();
     },
     choose(index) {
       let world = this.world;
@@ -433,6 +440,7 @@ const overlay = new Overlay(elementById("ov")),
         if (world.state === "anvil") this.showAnvil();
         else this.saveCheckpoint("pick");
         syncSoundMuffle();
+        startLoop();
       }
     },
     showAnvil() {
@@ -442,6 +450,8 @@ const overlay = new Overlay(elementById("ov")),
       ui.showAnvil(this.world);
       this.saveCheckpoint("anvil");
       syncSoundMuffle();
+      prefetchNextWave(this.world);
+      startLoop();
     },
     buyAnvil(index) {
       if (this.paused || !this.world?.buyAnvil(index)) return;
@@ -456,6 +466,7 @@ const overlay = new Overlay(elementById("ov")),
       input.reset();
       this.saveCheckpoint("anvil-leave");
       syncSoundMuffle();
+      startLoop();
     },
     saveCheckpoint(reason) {
       store.data.run = this.world.snapshot();
@@ -517,6 +528,7 @@ const overlay = new Overlay(elementById("ov")),
         if (this._pausedFromAnvil) getById("anvil").hidden = true;
         input.reset();
         ui.showPause(world);
+        performanceOverlay.hidden = true;
         sound.setMusic("menu");
         syncSoundMuffle();
         store.save("pause");
@@ -534,6 +546,7 @@ const overlay = new Overlay(elementById("ov")),
         getById("resumeCountNum").textContent = "3";
         getById("resumeCount").hidden = false;
       }
+      startLoop();
     },
     clearResume() {
       this.resumeAt = 0;
@@ -595,6 +608,7 @@ const overlay = new Overlay(elementById("ov")),
         this.chooseShown = false;
         this.anvilShown = false;
         syncSoundMuffle();
+        startLoop();
         // 2.8.1: the victory screen released the wake lock; Endless needs it again
         setWakeLock(true);
         // 2.2.3: the endless part is monitored as a new run (3.43.1: inside the guard - a stray call
@@ -612,6 +626,7 @@ const overlay = new Overlay(elementById("ov")),
       this.mode = "menu";
       this.world = null;
       this.paused = false;
+      this.redrawPaused = false;
       this.clearResume();
       this.chooseShown = false;
       this.anvilShown = false;
@@ -691,6 +706,7 @@ const overlay = new Overlay(elementById("ov")),
         stats = save.stats;
       if (!world || this.overShown) return;
       this.overShown = true;
+      this._settledOverlayFrames = 0;
       input.reset(true);
       rlRunAudit(world, win, abandoned);
       let mods = threatMods(world.threat),
@@ -799,6 +815,7 @@ const overlay = new Overlay(elementById("ov")),
         } catch (err) {
           logError("history", err);
         }
+      startLoop();
     },
     settingsChanged(quiet) {
       if (!quiet) {
@@ -830,6 +847,7 @@ const overlay = new Overlay(elementById("ov")),
     },
     previewWeapon(weapon) {
       this.previewW = weapon;
+      startLoop();
     },
   };
 /* 3.24.0: the medal of a boss kill (core/medals.js): the best one per boss is kept; a banner says what was earned */
@@ -1036,22 +1054,35 @@ function lockLandscape() {
     if (lock && lock.catch) lock.catch(() => {});
   } catch {}
 }
+function hasStaticOverlay() {
+  return game.chooseShown || game.anvilShown || game.overShown;
+}
+function needsFrame() {
+  if (document.hidden || game.crashed || !game.graphicsReady) return false;
+  if (game.mode === "menu") return ui.screen === "home";
+  if (game.paused) return game.redrawPaused || !!game.resumeAt;
+  return !hasStaticOverlay() || game._settledOverlayFrames < 2;
+}
 function startLoop() {
-  if (!loopFrameId) {
+  if (!loopFrameId && needsFrame()) {
     game.last = performance.now();
+    framePacer.last = null;
+    renderer.engine.resetAdaptivePacing();
     loopFrameId = requestAnimationFrame(loopTick);
   }
 }
 const framePacer = makePacer();
 const playFrameOptions = { pacer: framePacer };
 function loopTick(now) {
+  if (!needsFrame()) {
+    loopFrameId = 0;
+    return;
+  }
   loopFrameId = requestAnimationFrame(loopTick);
-  if (document.visibilityState === "hidden") return;
   let dt = (now - (game.last || now)) / 1e3;
   if (!paceFrame(framePacer, now, store.data.settings.frameRate)) return;
   {
     game.last = now;
-    if (!game.graphicsReady) return;
     dt = Math.min(0.1, Math.max(0, dt));
     // A mobile run waits paused behind the rotate screen.
     if (needsRotate()) game.pause();
@@ -1091,6 +1122,23 @@ function loopTick(now) {
       }
     }
   }
+}
+function prefetchNextWave(world) {
+  const whenIdle = (fn) => {
+    if (window.requestIdleCallback) requestIdleCallback(fn, { timeout: 1500 });
+    else setTimeout(fn, 100);
+  };
+  whenIdle(() => {
+    if (game.world !== world || (world.state !== "choose" && world.state !== "anvil")) return;
+    world.prefetchLayout();
+    const arena = world.nextLayout?.arena;
+    if (arena && renderer) {
+      // Yield between building the collision layout and preparing its artwork.
+      whenIdle(() => {
+        if (game.world === world && world.nextLayout?.arena === arena) renderer.arena.prefetch(arena.biome, arena);
+      });
+    }
+  });
 }
 function runFrame(dt) {
   let settings = store.data.settings,
@@ -1146,7 +1194,14 @@ function runFrame(dt) {
         );
       }
     }
-    if (game.paused) return;
+    if (game.paused) {
+      if (game.redrawPaused) {
+        game.redrawPaused = false;
+        renderer.frame(0, world);
+      }
+      return;
+    }
+    game.redrawPaused = false;
     if (renderer) {
       renderer.consume(world.fx, world, settings);
       if (renderer.mapChanged) {
@@ -1161,9 +1216,10 @@ function runFrame(dt) {
     // (game.noInterp: the full-QA section smooth compares with and without)
     if (game.interpWorld === world && !game.noInterp) interpApply(game.acc / rlStep);
     try {
-      const staticOverlay = game.chooseShown || game.anvilShown || game.overShown;
+      const staticOverlay = hasStaticOverlay();
       if (!staticOverlay) game._settledOverlayFrames = 0;
-      if (renderer && (!staticOverlay || (game._settledOverlayFrames = (game._settledOverlayFrames || 0) + 1) <= 2)) {
+      if (renderer && (!staticOverlay || game._settledOverlayFrames < 2)) {
+        if (staticOverlay) game._settledOverlayFrames++;
         renderer.frame(dt, world, playFrameOptions);
       }
       if (renderer && !staticOverlay) {
@@ -1181,16 +1237,10 @@ function runFrame(dt) {
       input.reset();
       ui.showChoose(world);
       syncSoundMuffle();
-      // 3.30.0: the next wave's layout is built while the player reads the cards (no hitch when one is picked)
-      const prefetch = () => game.world === world && world.prefetchLayout();
-      if (window.requestIdleCallback) requestIdleCallback(prefetch, { timeout: 1500 });
-      else setTimeout(prefetch, 300);
+      prefetchNextWave(world);
     }
     if (world.state === "anvil" && !game.anvilShown && !game.overShown) {
       game.showAnvil();
-      const prefetch = () => game.world === world && world.prefetchLayout();
-      if (window.requestIdleCallback) requestIdleCallback(prefetch, { timeout: 1500 });
-      else setTimeout(prefetch, 300);
     }
     if (world.state === "dead" && world.stateT > 1.5 && !game.overShown) {
       game.endRun(false);
@@ -1628,13 +1678,15 @@ document.addEventListener("visibilitychange", () => {
     if (game.mode === "game") {
       game.pause();
     }
+    cancelAnimationFrame(loopFrameId);
+    loopFrameId = 0;
     // 3.46.0: keyups can be lost on backgrounding, so reset(true) forgets held keys.
     input.reset(true);
     store.save("hidden");
     sound.suspend();
   } else {
     sound.resume();
-    game.last = performance.now();
+    startLoop();
   }
 });
 window.addEventListener("pagehide", () => {

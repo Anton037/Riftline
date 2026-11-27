@@ -211,7 +211,7 @@ export const SFX_ROOM_BIOME = {
 
 export const AMBIENCE_LEVEL = { festival: 0.032, aurora: 0.036, nectar: 0.034, starPaths: 0.032, hotWind: 0.038 };
 export const ROOM_TONE_LEVEL = {
-  lanternYard: 0.024,
+  lanternYard: 0.034,
   snowRidge: 0.032,
   mossBog: 0.024,
   starHall: 0.024,
@@ -575,7 +575,7 @@ export function rlSoundCatalog() {
   ids(["aQuake", "aLava", "aIce", "aAcid", "aRift"], 2);
   ids(["aFire"], 1);
   ids(["aShort"], 1.6);
-  ids(["shortFizz", "graze", "heatShatter", "corrode", "singe", "glare", "forgeGift"]);
+  ids(["shortFizz", "graze", "heatShatter", "corrode", "singe", "glare"]);
   for (const boss of Object.keys(BOSS_EFFECTS)) {
     ids(["bossIntro"], boss);
     for (const id of [

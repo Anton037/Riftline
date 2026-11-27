@@ -1360,14 +1360,14 @@ const rlStep = 1 / 60,
         bestScore = 1 / 0;
       for (let enemy of this.enemies) {
         if (enemy.dead || enemy.spawnT > 0.2 || enemy.ghost) continue;
+        if (enemy.shielded && best && !best.shielded) continue;
         let dist = Math.hypot(enemy.x - player.x, enemy.y - player.y) - enemy.r;
         if (dist > range) continue;
         let score = dist;
         if (dist < 4) score *= 0.6;
         else if (dist < 7 && RL_RUSHERS.has(enemy.type)) score *= 0.75;
-        if (enemy.shielded) score += 12;
         if (enemy === player.target) score *= 0.8;
-        if (score < bestScore && this.targetAim(enemy) != null) {
+        if ((score < bestScore || (best?.shielded && !enemy.shielded)) && this.targetAim(enemy) != null) {
           bestScore = score;
           best = enemy;
         }

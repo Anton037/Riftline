@@ -6,6 +6,7 @@ globalThis.__RL_VERSION__ ??= "test";
 globalThis.__RL_BUILD__ ??= "test";
 import { PhysicalVoices, physicalProfile } from "../src/audio/physical-voices.js";
 import { PLACE_IDS, SCAPE } from "../src/audio/place.js";
+import { rlSoundCatalog } from "../src/audio/sound-data.js";
 import { SOURCE_CLIPS } from "../src/audio/source-bank.js";
 const ctx = {
   sampleRate: 22050,
@@ -14,6 +15,12 @@ const ctx = {
     return { sampleRate: sr, length: n, duration: n / sr, getChannelData: () => data };
   },
 };
+
+test("the audio verification catalog gives each sound a unique name", () => {
+  const names = rlSoundCatalog().map(({ name }) => name);
+  assert.ok(names.length > 0);
+  assert.equal(new Set(names).size, names.length);
+});
 
 test("friendly mine fuses use a different spatial cue from hostile fuses", async () => {
   const { SoundEngine } = await import("../src/audio/sound.js");
